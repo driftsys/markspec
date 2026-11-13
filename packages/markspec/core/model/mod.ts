@@ -975,6 +975,14 @@ export interface Link {
   readonly location: SourceLocation;
   /** How this link was produced. Absent means authored (default). */
   readonly origin?: "authored" | "generated";
+  /** Normalized locator authored after the target (`A [Brake at 20 m]`).
+   * Absent means the link addresses the whole target entry. */
+  readonly locator?: string;
+  /** Present only for a locator on a relation whose locator mode is
+   * `"criterion"` and whose target resolves to a Requirement or Contract
+   * entry: `true` when the locator names an addressable criterion of the
+   * target. */
+  readonly locatorResolved?: boolean;
 }
 
 // ---------------------------------------------------------------------------

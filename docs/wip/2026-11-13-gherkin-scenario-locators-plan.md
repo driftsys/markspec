@@ -82,7 +82,8 @@ of the `relations.md` locator sentence (#924).
 Out (later slices): Gherkin AST, steps, preconditions, procedures, item-form
 criteria, Case B `.feature` entries, strict / lightweight flag, a no-verifier
 diagnostic, LSP rename of scenario names, LSP hover or completion of locators,
-non-English keywords.
+non-English keywords, a locator mode on profile-declared relations (the
+`locator` facet is core-only).
 
 ## Global Constraints
 

@@ -107,3 +107,16 @@ Deno.test("relationLocatorMode: reports the locator mode per relation", () => {
   assertEquals(relationLocatorMode("Allocated-to"), undefined);
   assertEquals(relationLocatorMode("Unknown-attr"), undefined);
 });
+
+Deno.test("relationLocatorMode: exactly four core relations accept a locator", () => {
+  const withLocator = CORE_RELATIONS
+    .filter((r) => relationLocatorMode(r.attr) !== undefined)
+    .map((r) => r.attr)
+    .sort();
+  assertEquals(withLocator, [
+    "Derived-from",
+    "References",
+    "Satisfies",
+    "Verifies",
+  ]);
+});

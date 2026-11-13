@@ -15,7 +15,14 @@ import type {
   Link,
   SourceLocation,
 } from "../model/mod.ts";
-import { CORE_RELATIONS, makeDisplayId } from "../model/mod.ts";
+import {
+  descendantsOf,
+  makeDisplayId,
+  relationLocatorMode,
+} from "../model/mod.ts";
+import { extendsTransitively } from "../profile/discipline_mode.ts";
+import { buildCriteria } from "../criteria/scenarios.ts";
+import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
   applyCorpusPostPass,
@@ -356,8 +363,17 @@ export async function compile(
     }
   }
 
+  // Phase 4.5: Attach criteria (scenario names of fenced feature blocks)
+  // to Requirement and Contract entries, then resolve link locators
+  // against them (epic #915).
+  attachCriteria(entries, options.profile);
+
   const authoredLinks = extractLinks([...entries.values()]);
-  const links = [...authoredLinks, ...generatedLinks];
+  const links = resolveLocators(
+    [...authoredLinks, ...generatedLinks],
+    entries,
+    options.profile,
+  );
 
   // MSL-T013: check link targets for draft/retired state.
   const linkTargetDiags = checkLinkTargets(entries, links);
@@ -420,17 +436,12 @@ function extractLinks(entries: readonly Entry[]): Link[] {
   return links;
 }
 
-/**
- * Attributes whose value is `slug + optional free-text locator` per
- * ADR-002 §2.6 (citation type + legacy Derived-from tolerance), derived from
- * the relations that declare a `"free"` locator. The link target is the
- * leading non-whitespace token only.
- */
-const LOCATOR_BEARING_ATTRS: ReadonlySet<string> = new Set(
-  CORE_RELATIONS.filter((r) => r.locator === "free").map((r) => r.attr),
-);
-
-/** Map an attribute key+value to zero or more links. */
+/** Map an attribute key+value to zero or more links. Values are split on
+ * commas outside a locator ({@linkcode splitTraceValues}). A value with a
+ * bracket locator (`A [x]`) yields a link to `A` that keeps the normalized
+ * locator, whatever the relation. Without a locator, a relation with a
+ * locator mode keeps the leading token (legacy free-text suffix) and any
+ * other relation keeps the whole value. */
 function extractLinksFromAttribute(
   from: DisplayId,
   key: string,
@@ -439,25 +450,90 @@ function extractLinksFromAttribute(
 ): Link[] {
   const kind = ATTR_TO_LINK_KIND[key];
   if (!kind) return [];
-
-  if (LOCATOR_BEARING_ATTRS.has(key)) {
-    // Comma-separated targets, each "ID §section": split the list (these
-    // attributes are 0..N), then take the leading ID token of each value,
-    // dropping the optional free-text locator.
-    return value
-      .split(",")
-      .map((s) => s.trim().split(/\s/)[0])
-      .filter((s) => s.length > 0)
-      .map((to) => ({ from, to: makeDisplayId(to), kind, location }));
+  const leadingTokenOnly = relationLocatorMode(key) !== undefined;
+  const links: Link[] = [];
+  for (const part of splitTraceValues(value)) {
+    const parsed = parseTraceValue(part);
+    if (parsed.locator !== undefined) {
+      links.push({
+        from,
+        to: makeDisplayId(parsed.target),
+        kind,
+        location,
+        locator: parsed.locator,
+      });
+      continue;
+    }
+    const to = leadingTokenOnly ? part.split(/\s/)[0] : part;
+    links.push({ from, to: makeDisplayId(to), kind, location });
   }
-
-  // Comma-separated targets for id-list attributes.
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .map((to) => ({ from, to: makeDisplayId(to), kind, location }));
+  return links;
 }
+
+/** `true` when `entry`'s type resolves to core Requirement or Contract —
+ * the entries that carry criteria (epic #915, decision 3). Uses the
+ * profile extends chain when a profile is loaded, else the core hierarchy. */
+function isCriteriaBearing(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+): boolean {
+  const type = entry.type;
+  if (type === undefined) return false;
+  return CRITERIA_BEARING_TYPES.some((core) =>
+    profile
+      ? extendsTransitively(type, core, profile)
+      : descendantsOf(core).has(type)
+  );
+}
+
+/** Core types whose descendants carry criteria. */
+const CRITERIA_BEARING_TYPES = ["Requirement", "Contract"] as const;
+
+/** Attach `criteria` to every criteria-bearing entry that has at least one
+ * scenario. Entries without scenarios are left unchanged, so compiled
+ * output for projects without feature blocks does not change. */
+function attachCriteria(
+  entries: Map<DisplayId, Entry>,
+  profile: EffectiveProfile | undefined,
+): void {
+  for (const [id, entry] of entries) {
+    if (!isCriteriaBearing(entry, profile)) continue;
+    const criteria = buildCriteria(entry);
+    if (criteria.length > 0) entries.set(id, { ...entry, criteria });
+  }
+}
+
+/**
+ * Set `locatorResolved` on every link whose locator is on a `"criterion"`
+ * relation and whose target resolves to a criteria-bearing entry. For a
+ * generated inverse the target of the authored relation is `link.from`.
+ */
+function resolveLocators(
+  links: readonly Link[],
+  entries: ReadonlyMap<DisplayId, Entry>,
+  profile: EffectiveProfile | undefined,
+): Link[] {
+  return links.map((link) => {
+    if (link.locator === undefined) return link;
+    if (relationLocatorMode(LINK_KIND_TO_ATTR[link.kind]) !== "criterion") {
+      return link;
+    }
+    const targetId = link.origin === "generated" ? link.from : link.to;
+    const target = entries.get(targetId);
+    if (!target || !isCriteriaBearing(target, profile)) return link;
+    const resolved = (target.criteria ?? []).some((c) =>
+      c.addressable && c.name === link.locator
+    );
+    return { ...link, locatorResolved: resolved };
+  });
+}
+
+/** Reverse of {@linkcode ATTR_TO_LINK_KIND}: each link kind has one
+ * attribute. */
+const LINK_KIND_TO_ATTR: Readonly<Record<string, string>> = Object
+  .fromEntries(
+    Object.entries(ATTR_TO_LINK_KIND).map(([attr, kind]) => [kind, attr]),
+  );
 
 /** Build an adjacency map from links using a key selector. */
 function buildAdjacency(

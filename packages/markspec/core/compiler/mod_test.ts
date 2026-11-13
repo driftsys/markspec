@@ -14,6 +14,7 @@ import {
 import { compile } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import type {
+  AttrDecl,
   EffectiveProfile,
   EffectiveTypeDef,
   Entry,
@@ -1006,4 +1007,229 @@ Deno.test("compile: no declaring type in the profile → uxil family stays inert
     result.diagnostics.some((d) => d.code.startsWith("UXIL")),
     false,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Scenario locators (epic #915) — links keep locators, criteria attach
+// ---------------------------------------------------------------------------
+
+/** A profile type `name` extending core type `parent`. */
+function locatorType(
+  name: string,
+  parent: string,
+  attributes: Map<string, ProvenancedMapEntry<AttrDecl>> = new Map(),
+): ProvenancedMapEntry<EffectiveTypeDef> {
+  return {
+    value: {
+      name,
+      extends: parent,
+      displayIdPattern: { value: undefined, origin: "p" },
+      displayIdPatternEnforcement: { value: "off", origin: "p" },
+      color: { value: undefined, origin: "p" },
+      required: { value: [], origin: "p" },
+      attributes,
+      traceability: new Map(),
+      description: { value: undefined, origin: "p" },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin: "p" },
+    },
+    origin: "p",
+  };
+}
+
+/** Profile with `requirement` (Requirement), `test` (Test, `Verifies` with
+ * a generated `Verified-by` inverse) and `component` (Component). */
+function locatorProfile(): EffectiveProfile {
+  const verifies: AttrDecl = {
+    name: "Verifies",
+    type: "id-list",
+    required: false,
+    cardinality: { lower: 0, upper: Infinity },
+    inverse: { name: "Verified-by", category: "requirement" },
+  };
+  const types = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>([
+    ["requirement", locatorType("requirement", "Requirement")],
+    [
+      "test",
+      locatorType(
+        "test",
+        "Test",
+        new Map([["Verifies", { value: verifies, origin: "p" }]]),
+      ),
+    ],
+    ["component", locatorType("component", "Component")],
+  ]);
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types,
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+}
+
+const LOCATOR_REQ = `
+- [REQ_BRK_0010] Emergency braking
+
+  The controller shall brake.
+
+  \`\`\`feature
+  Scenario: Brake at 20 m
+    When an obstacle appears at 20 m
+    Then braking starts
+  \`\`\`
+
+      Id: 01REQ00000000000000000010A
+      Type: requirement
+`;
+
+async function compileLocators(body: string) {
+  return await compile(["/r.md", "/t.md"], {
+    readFile: reader({ "/r.md": LOCATOR_REQ, "/t.md": body }),
+    profile: locatorProfile(),
+  });
+}
+
+function linkFrom(
+  result: Awaited<ReturnType<typeof compile>>,
+  from: string,
+  to: string,
+) {
+  return result.links.filter((l) => l.from === from && l.to === to);
+}
+
+Deno.test("compile: Verifies locator naming a scenario resolves", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0012] Brake at 20 m
+
+  Measure.
+
+      Id: 01TST00000000000000000012A
+      Type: test
+      Verifies: REQ_BRK_0010 [Brake at 20 m]
+`);
+  const [link] = linkFrom(result, "TST_BRK_0012", "REQ_BRK_0010");
+  assertEquals(link.locator, "Brake at 20 m");
+  assertEquals(link.locatorResolved, true);
+});
+
+Deno.test("compile: unknown scenario name keeps the edge, unresolved", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0013] Brake at 30 m
+
+  Measure.
+
+      Id: 01TST00000000000000000013A
+      Type: test
+      Verifies: REQ_BRK_0010 [Brake at 30 m]
+`);
+  const links = linkFrom(result, "TST_BRK_0013", "REQ_BRK_0010");
+  assertEquals(links.length, 1);
+  assertEquals(links[0].locator, "Brake at 30 m");
+  assertEquals(links[0].locatorResolved, false);
+});
+
+Deno.test("compile: References locator is free text without locatorResolved", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0014] Cites a standard
+
+  Measure.
+
+      Id: 01TST00000000000000000014A
+      References: ISO-1 [§4.3]
+`);
+  const [link] = linkFrom(result, "TST_BRK_0014", "ISO-1");
+  assertEquals(link.locator, "§4.3");
+  assertEquals("locatorResolved" in link, false);
+});
+
+Deno.test("compile: comma inside a locator does not split the value", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0015] Two targets
+
+  Measure.
+
+      Id: 01TST00000000000000000015A
+      Satisfies: A [x, y], B
+`);
+  const links = result.links.filter((l) => l.from === "TST_BRK_0015");
+  assertEquals(links.map((l) => l.to), ["A", "B"]);
+  assertEquals(links[0].locator, "x, y");
+  assertEquals("locator" in links[1], false);
+});
+
+Deno.test("compile: locator on a relation without a locator mode is kept", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0016] Allocated
+
+  Measure.
+
+      Id: 01TST00000000000000000016A
+      Allocated-to: SWC_X [foo]
+`);
+  const [link] = linkFrom(result, "TST_BRK_0016", "SWC_X");
+  assertEquals(link.locator, "foo");
+  assertEquals("locatorResolved" in link, false);
+});
+
+Deno.test("compile: id-list value without a locator keeps the whole value", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0017] Plain
+
+  Measure.
+
+      Id: 01TST00000000000000000017A
+      Allocated-to: SWC_A, SWC_B
+`);
+  const links = result.links.filter((l) => l.from === "TST_BRK_0017");
+  assertEquals(links.map((l) => l.to), ["SWC_A", "SWC_B"]);
+  assertEquals(links.some((l) => "locator" in l), false);
+});
+
+Deno.test("compile: generated inverse copies the locator fields", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0012] Brake at 20 m
+
+  Measure.
+
+      Id: 01TST00000000000000000012A
+      Type: test
+      Verifies: 01REQ00000000000000000010A [Brake at 20 m]
+`);
+  const generated = result.links.find((l) =>
+    l.origin === "generated" && l.from === "REQ_BRK_0010"
+  );
+  assertExists(generated);
+  assertEquals(generated.to, "TST_BRK_0012");
+  assertEquals(generated.locator, "Brake at 20 m");
+  assertEquals(generated.locatorResolved, true);
+});
+
+Deno.test("compile: criteria attach to Requirement entries only", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0018] Test with a feature block
+
+  \`\`\`feature
+  Scenario: Not a criterion
+    When something
+  \`\`\`
+
+      Id: 01TST00000000000000000018A
+      Type: test
+`);
+  const req = result.entries.get(makeDisplayId("REQ_BRK_0010"));
+  assertEquals(req?.criteria?.map((c) => c.name), ["Brake at 20 m"]);
+  const tst = result.entries.get(makeDisplayId("TST_BRK_0018"));
+  assertEquals(tst?.criteria, undefined);
 });

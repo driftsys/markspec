@@ -107,7 +107,9 @@ export const CORE_RELATIONS: readonly RelationDef[] = [
 ];
 
 /** The locator mode of the relation with trailer key `attr`, or `undefined`
- * when the relation does not accept a locator (or is not a core relation). */
+ * when the relation does not accept a locator (or is not a core relation).
+ * The facet is core-only: a profile-declared relation has no locator mode
+ * in this slice, so this function returns `undefined` for it. */
 export function relationLocatorMode(
   attr: string,
 ): "free" | "criterion" | undefined {

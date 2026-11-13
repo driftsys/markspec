@@ -76,7 +76,6 @@ const FILES = {
 // Enabled by Task 4 (compiler keeps locators and attaches criteria).
 Deno.test({
   name: "locator coverage: compile json keeps the locator",
-  ignore: true,
   fn: async () => {
     const { code, stdout } = await markspec(
       ["compile", "docs/braking.md", "--format", "json"],
@@ -91,6 +90,12 @@ Deno.test({
     assertEquals(link?.from, "TST_BRK_0012");
     assertEquals(link?.locator, "Brake at 20 m");
     assertEquals(link?.locatorResolved, true);
+    // deno-lint-ignore no-explicit-any
+    const unresolved = (compiled.links as any[]).find((l) =>
+      l.from === "TST_BRK_0013" && l.to === "REQ_BRK_0010"
+    );
+    assertEquals(unresolved?.locator, "Brake at 30 m");
+    assertEquals(unresolved?.locatorResolved, false);
   },
 });
 
