@@ -237,6 +237,11 @@ type EntryNodeKind = "feature" | "rule" | "scenario";
 /** A header line anywhere in a file: `# [ID] ` after optional indent. */
 const HEADER_LINE_RE = /^\s*#\s*\[[^\]]+\]\s/m;
 
+/** `true` when the text has a `# [ID]` header line (an entry candidate). */
+export function hasFeatureHeaderLine(text: string): boolean {
+  return HEADER_LINE_RE.test(text);
+}
+
 /** A child of a Feature or a Rule in the parser's document. */
 type FeatureChild = NonNullable<GherkinDocument["feature"]>["children"][number];
 

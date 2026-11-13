@@ -13,7 +13,8 @@
 import { basename as pathBasename, extname } from "@std/path";
 import type { Caption, Diagnostic, Document, Entry } from "../model/mod.ts";
 import { normalizeLineEndings } from "../util/line_endings.ts";
-import { loadGherkin } from "../gherkin/load.ts";
+import { type GherkinApi, loadGherkin } from "../gherkin/load.ts";
+import { hasFeatureHeaderLine, parseFeatureFile } from "./feature_file.ts";
 import { parseMarkdown } from "./markdown.ts";
 import {
   isSupportedExtension,
@@ -131,7 +132,7 @@ export const GHERKIN_FENCE_RE =
   /^(?:[ \t/*#!>]|[-+][ \t]|\d{1,9}[.)][ \t])*(`{3,}|~{3,})[ \t]*(gherkin|feature)(?=[ \t]|$)/m;
 
 /** Loads the Gherkin parser; replaced in tests. */
-type GherkinLoader = () => Promise<unknown>;
+type GherkinLoader = () => Promise<GherkinApi>;
 
 /**
  * Parse a file and return entries, annotation links, and (for Markdown
@@ -151,6 +152,28 @@ export async function parseFile(
 ): Promise<ParseFileResult> {
   const ext = extname(options.file);
   const normalised = normalizeLineEndings(content);
+  // A `.feature` file always needs the parser (ADR-038): entries come from
+  // its `# [ID]` header comments. A load failure gives no entries and one
+  // MSL-B062 when the file has a header line, and never throws.
+  if (ext === ".feature") {
+    let api: GherkinApi;
+    try {
+      api = await (options.gherkinLoader ?? loadGherkin)();
+    } catch (err) {
+      const diagnostics: Diagnostic[] = hasFeatureHeaderLine(normalised)
+        ? [{
+          code: "MSL-B062",
+          severity: "warning",
+          message: `Gherkin file not parsed: the Gherkin parser failed to ` +
+            `load (${err instanceof Error ? err.message : String(err)})`,
+          location: { file: options.file, line: 1, column: 1 },
+        }]
+        : [];
+      return { entries: [], diagnostics };
+    }
+    return parseFeatureFile(normalised, { file: options.file, api });
+  }
+
   // Load the Gherkin parser before the synchronous parse, and only when the
   // text holds a gherkin or feature fence (the load is cached). A failed
   // load is not fatal: parsing continues without the Gherkin AST, and the

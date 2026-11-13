@@ -330,3 +330,88 @@ Deno.test("resolvedCoreType: profile type resolves to its core parent via extend
   const unknown = makeEntry({ attrs: [], type: "mystery-type" });
   assertEquals(resolvedCoreType(unknown, profile), undefined);
 });
+
+// ---------------------------------------------------------------------------
+// Step 6a: Case B (`.feature` header) default types
+// ---------------------------------------------------------------------------
+
+function makeFeatureEntry(opts: {
+  node: "feature" | "rule" | "scenario";
+  displayId?: string;
+  attrs?: Array<{ key: string; value: string }>;
+  type?: string;
+}): Entry {
+  return {
+    ...makeEntry({ attrs: opts.attrs ?? [], type: opts.type }),
+    displayId: makeDisplayId(opts.displayId ?? "ZZZ_BRK_0001"),
+    source: { kind: "feature-file", node: opts.node },
+  };
+}
+
+Deno.test("resolvedCoreType step 6a: Feature -> Requirement", () => {
+  const entry = makeFeatureEntry({ node: "feature" });
+  assertEquals(resolvedCoreType(entry), "Requirement");
+  assertEquals(resolvedCoreTypeWithProvenance(entry)?.step, "6a");
+});
+
+Deno.test("resolvedCoreType step 6a: Rule -> Requirement", () => {
+  assertEquals(
+    resolvedCoreType(makeFeatureEntry({ node: "rule" })),
+    "Requirement",
+  );
+});
+
+Deno.test("resolvedCoreType step 6a: Scenario -> Test", () => {
+  assertEquals(
+    resolvedCoreType(makeFeatureEntry({ node: "scenario" })),
+    "Test",
+  );
+});
+
+Deno.test("resolvedCoreType step 6a: explicit Type: wins", () => {
+  const entry = makeFeatureEntry({
+    node: "scenario",
+    attrs: [{ key: "Type", value: "Risk" }],
+  });
+  assertEquals(resolvedCoreTypeWithProvenance(entry), {
+    type: "Risk",
+    step: 1,
+  });
+});
+
+Deno.test("resolvedCoreType step 6a: profile-classified type wins", () => {
+  const entry = makeFeatureEntry({ node: "scenario", type: "Requirement" });
+  assertEquals(resolvedCoreTypeWithProvenance(entry)?.step, 2);
+  assertEquals(resolvedCoreType(entry), "Requirement");
+});
+
+Deno.test("resolvedCoreType step 6a: REQ_ prefix on a Scenario wins (step 4)", () => {
+  const entry = makeFeatureEntry({ node: "scenario", displayId: "REQ_A_0001" });
+  assertEquals(resolvedCoreTypeWithProvenance(entry), {
+    type: "Requirement",
+    step: 4,
+  });
+});
+
+Deno.test("resolvedCoreType step 6a: Verifies on a Feature wins (step 6)", () => {
+  const entry = makeFeatureEntry({
+    node: "feature",
+    attrs: [{ key: "Verifies", value: "STK_A_0001" }],
+  });
+  assertEquals(resolvedCoreTypeWithProvenance(entry), {
+    type: "Test",
+    step: 6,
+  });
+});
+
+Deno.test("resolvedCoreType step 6a: never applies to Markdown or doc-comment entries", () => {
+  assertEquals(
+    resolvedCoreType(makeEntry({ attrs: [] })),
+    undefined,
+  );
+  const docComment: Entry = {
+    ...makeEntry({ attrs: [] }),
+    source: { kind: "doc-comment", language: "rust", rule: "outer" } as never,
+  };
+  assertEquals(resolvedCoreType(docComment), undefined);
+});

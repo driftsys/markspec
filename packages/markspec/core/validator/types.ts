@@ -89,7 +89,8 @@ export function inferTypeFromLateStageChain(
   if (entry.type !== undefined) return [];
   const resolved = resolvedCoreTypeWithProvenance(entry);
   if (!resolved) return [];
-  if (resolved.step < 5) return [];
+  // Step 6a is the silent default for `.feature` header entries.
+  if (resolved.step === "6a" || resolved.step < 5) return [];
   const source = resolved.step === 5
     ? "URI scheme"
     : "discriminating attribute";

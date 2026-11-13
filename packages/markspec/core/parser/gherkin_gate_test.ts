@@ -271,3 +271,91 @@ console.log(JSON.stringify({
     retried: true,
   });
 });
+
+// ---------------------------------------------------------------------------
+// `.feature` files (epic #915 Case B)
+// ---------------------------------------------------------------------------
+
+const HEADED_FEATURE = `# [SRS_BRK_0011] Stop before an obstacle
+Feature: Brake
+  Scenario: Stop
+    Given a car
+    Then it stops
+`;
+
+Deno.test("parseFile: .feature loads the parser and builds entries", async () => {
+  let calls = 0;
+  const loader = () => {
+    calls++;
+    return loadGherkin();
+  };
+  const result = await parseFile(HEADED_FEATURE, {
+    file: "brake.feature",
+    gherkinLoader: loader,
+  });
+  assertEquals(calls, 1);
+  assertEquals(result.entries.length, 1);
+  assertEquals(result.entries[0].displayId, "SRS_BRK_0011");
+  assertEquals(result.entries[0].source.kind, "feature-file");
+});
+
+Deno.test("parseFile: .feature loads the parser even with no fence", async () => {
+  let calls = 0;
+  await parseFile("Feature: Plain\n  Scenario: S\n    Given a\n", {
+    file: "plain.feature",
+    gherkinLoader: () => {
+      calls++;
+      return loadGherkin();
+    },
+  });
+  assertEquals(calls, 1);
+});
+
+Deno.test("parseFile: .md without fences never calls the loader, with a .feature sibling", async () => {
+  let calls = 0;
+  const loader = () => {
+    calls++;
+    return loadGherkin();
+  };
+  await parseFile("# Doc\n\nNo fence here.\n", {
+    file: "a.md",
+    gherkinLoader: loader,
+  });
+  assertEquals(calls, 0);
+  await parseFile(HEADED_FEATURE, { file: "b.feature", gherkinLoader: loader });
+  assertEquals(calls, 1);
+  await parseFile("# Doc\n\nStill no fence.\n", {
+    file: "c.md",
+    gherkinLoader: loader,
+  });
+  assertEquals(calls, 1);
+});
+
+Deno.test("parseFile: headerless .feature gives no entries and no diagnostics", async () => {
+  const result = await parseFile(
+    "Feature: Plain\n  Scenario: S\n    Given a\n",
+    { file: "plain.feature" },
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics, []);
+});
+
+Deno.test("parseFile: loader failure on a headed .feature gives one MSL-B062", async () => {
+  const result = await parseFile(HEADED_FEATURE, {
+    file: "brake.feature",
+    gherkinLoader: () => Promise.reject(new Error("no parser")),
+  });
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.map((d) => d.code), ["MSL-B062"]);
+  assertEquals(result.diagnostics[0].severity, "warning");
+  assertEquals(result.diagnostics[0].location?.file, "brake.feature");
+});
+
+Deno.test("parseFile: loader failure on a headerless .feature gives nothing", async () => {
+  const result = await parseFile("Feature: Plain\n", {
+    file: "plain.feature",
+    gherkinLoader: () => Promise.reject(new Error("no parser")),
+  });
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics, []);
+});
