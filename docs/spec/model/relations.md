@@ -186,11 +186,12 @@ legitimate in practice.
 ## Reference-target locators
 
 When a relation targets a Reference-shape entry, the target can include a
-locator in square brackets to point to a specific section or element:
+locator in square brackets to point to a specific section or element. The
+`References` and `Derived-from` relations accept locators:
 
-```markdown
-References: ISO-26262-6 [§4.3] Satisfies: STK_SAFETY_0001
-[acceptance-criterion-3]
+```text
+References: ISO-26262-6 [§4.3]
+Derived-from: ISO-26262-8 [§9.2]
 ```
 
 Locators are free text — they are preserved verbatim in the compiled output but
