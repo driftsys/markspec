@@ -114,7 +114,7 @@ In this entry the second step has an action and no `Then` step:
   ```
 ````
 
-`markspec check` reports:
+After `markspec fmt` adds the missing `Id:` line, `markspec check` reports:
 
 ```text
 warning[MSL-B063]: docs/braking.md:10 TST_BRK_0010: step 2 of scenario "Stop and release" has no expected result (no Then step); add a Then step after the last action
