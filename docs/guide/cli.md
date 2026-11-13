@@ -692,13 +692,15 @@ has scenarios, so the output of a project without feature blocks does not
 change. See [Scenario locators](scenario-locators.md) for how to write the
 locators.
 
-```text
+````markdown
 ## Criteria
 
+```text
 REQ_BRK_0010  Emergency braking for close obstacles  1/2 criteria verified
   ✓ Brake at 20 m           ← TST_BRK_0012
   ✗ No braking beyond 40 m  ← no verifier
 ```
+````
 
 In `json`, the section is the top-level `criteria` key. Each entry has a `state`
 (`full`, `partial` or `none`) and one row per scenario:

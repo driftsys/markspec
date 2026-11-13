@@ -44,6 +44,10 @@ two scenarios.
 
 Run `markspec fmt` to stamp the `Id:` lines.
 
+The profile must map the prefixes to core types: `REQ_` to Requirement and
+`TST_` to Test. The test type must also declare the `Verifies` attribute, or
+`markspec check` reports `MSL-A005`.
+
 The locator has these properties:
 
 - The `[` must follow whitespace after the ID.
@@ -74,7 +78,7 @@ If a second test in the example verifies `[Brake at 30 m]`, a scenario that does
 not exist, `markspec check` reports:
 
 ```text
-warning[MSL-L007]: docs/braking.md:32 TST_BRK_0013: locator 'Brake at 30 m' matches no scenario of REQ_BRK_0010
+warning[MSL-L007]: docs/braking.md:30 TST_BRK_0013: locator 'Brake at 30 m' matches no scenario of REQ_BRK_0010
 ```
 
 ## Coverage
@@ -82,13 +86,15 @@ warning[MSL-L007]: docs/braking.md:32 TST_BRK_0013: locator 'Brake at 30 m' matc
 `markspec report coverage` adds a criteria section for each requirement that has
 scenarios. With the example above, it shows:
 
-```text
+````markdown
 ## Criteria
 
+```text
 REQ_BRK_0010  Emergency braking for close obstacles  1/2 criteria verified
   ✓ Brake at 20 m           ← TST_BRK_0012
   ✗ No braking beyond 40 m  ← no verifier
 ```
+````
 
 A scenario with no verifier is a gap in the report. It does not raise a
 diagnostic. Only `Verifies:` counts; a `Satisfies:` locator does not. The `json`
