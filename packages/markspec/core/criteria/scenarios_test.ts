@@ -192,3 +192,82 @@ Deno.test("buildCriteria: doc-comment entries use file-relative lines", async ()
   const criteria = buildCriteria(entries[0]);
   assertEquals(criteria.map((c) => [c.name, c.location.line]), [["Stop", 8]]);
 });
+
+Deno.test("scanScenarioNames: a doc string closes only on its own delimiter", () => {
+  const src = [
+    "Scenario: a",
+    '  """',
+    "  ```",
+    "  Scenario: fake",
+    '  """',
+    "Scenario: b",
+  ].join("\n");
+  assertEquals(scanScenarioNames(src).map((s) => s.name), ["a", "b"]);
+});
+
+Deno.test("scanScenarioNames: CRLF line endings are handled", () => {
+  const src = "Scenario: one\r\n  Given x\r\nScenario: two\r\n";
+  assertEquals(scanScenarioNames(src), [
+    { name: "one", line: 0 },
+    { name: "two", line: 2 },
+  ]);
+});
+
+Deno.test("scanScenarioNames: Scenarios: and Examples: are not scenarios", () => {
+  const src = "Scenarios: x\nExamples:\n  | a |\nScenario: y";
+  assertEquals(scanScenarioNames(src).map((s) => s.name), ["y"]);
+});
+
+Deno.test("buildCriteria: a tilde fence with a gherkin tag is indexed", () => {
+  const md = [
+    "- [REQ_A_0001] T",
+    "",
+    "  ~~~gherkin",
+    "  Scenario: tilde",
+    "  ~~~",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  const criteria = buildCriteria(entryOf(md));
+  assertEquals(criteria.map((c) => [c.name, c.location.line]), [["tilde", 4]]);
+});
+
+Deno.test("buildCriteria: a fence inside a nested list item is not indexed", () => {
+  const md = [
+    "- [REQ_A_0001] T",
+    "",
+    "  - item",
+    "",
+    "    ```gherkin",
+    "    Scenario: nested",
+    "    ```",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  assertEquals(buildCriteria(entryOf(md)), []);
+});
+
+Deno.test("buildCriteria: a /** */ doc comment with * prefixes uses file lines", async () => {
+  const src = [
+    "// header", // 1
+    "", // 2
+    "/**", // 3
+    " * [REQ_A_0001] Brake", // 4
+    " *", // 5
+    " * The system shall brake.", // 6
+    " *", // 7
+    " * ```gherkin", // 8
+    " * Scenario: Stop", // 9
+    " * ```", // 10
+    " *", // 11
+    " *     Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV", // 12
+    " */", // 13
+    "fn f() {}",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(src, { file: "lib.rs" });
+  const criteria = buildCriteria(entries[0]);
+  assertEquals(criteria.map((c) => [c.name, c.location.line]), [["Stop", 9]]);
+});

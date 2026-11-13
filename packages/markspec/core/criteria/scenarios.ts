@@ -27,14 +27,22 @@ export function scanScenarioNames(
   source: string,
 ): { name: string; line: number }[] {
   const found: { name: string; line: number }[] = [];
-  let inDocString = false;
-  source.split("\n").forEach((text, line) => {
+  // The delimiter that opened the current doc string, if any. Only the same
+  // delimiter closes it.
+  let openDelimiter: string | undefined;
+  source.split(/\r?\n/).forEach((text, line) => {
     const trimmed = text.trim();
-    if (trimmed.startsWith('"""') || trimmed.startsWith("```")) {
-      inDocString = !inDocString;
+    const delimiter = trimmed.startsWith('"""')
+      ? '"""'
+      : trimmed.startsWith("```")
+      ? "```"
+      : undefined;
+    if (delimiter !== undefined) {
+      if (openDelimiter === undefined) openDelimiter = delimiter;
+      else if (openDelimiter === delimiter) openDelimiter = undefined;
       return;
     }
-    if (inDocString) return;
+    if (openDelimiter !== undefined) return;
     const match = SCENARIO_RE.exec(text);
     if (match) found.push({ name: match[2].trim(), line });
   });
@@ -43,6 +51,8 @@ export function scanScenarioNames(
 
 /**
  * Build the criteria of an entry from its feature blocks, in source order.
+ * Only top-level fenced blocks of the body are indexed: a fence nested in a
+ * list item or another container yields no criteria.
  * Names are normalized with {@linkcode normalizeLocator}. The blocks of one
  * entry form one scope: a normalized name that occurs more than once, and an
  * empty name, are not addressable. `location.line` is the file-relative line
