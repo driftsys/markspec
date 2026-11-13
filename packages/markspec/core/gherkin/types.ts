@@ -10,7 +10,15 @@
  * its last step or Examples row; a section covers its keyword and colon.
  */
 
-import type { SourceRange } from "../ast/nodes.ts";
+/**
+ * A span inside a Gherkin block, with the same shape as the body-AST
+ * `SourceRange` (`core/ast/nodes.ts`). It is declared here so that
+ * `gherkin/` does not import from `ast/`, which imports this module.
+ */
+export interface GherkinRange {
+  readonly start: { readonly line: number; readonly column: number };
+  readonly end: { readonly line: number; readonly column: number };
+}
 
 /** Role-independent step keyword, taken from the parser's `keywordType`. */
 export type StepKeyword = "given" | "when" | "then" | "and" | "but" | "step";
@@ -23,7 +31,7 @@ export interface StepAst {
   readonly text: string;
   readonly docString?: { mediaType?: string; content: string };
   readonly dataTable?: readonly (readonly string[])[];
-  readonly range: SourceRange;
+  readonly range: GherkinRange;
 }
 
 /** One `Examples` table of a `Scenario Outline`. It is not expanded. */
@@ -33,7 +41,7 @@ export interface ExamplesAst {
   readonly tags: readonly string[];
   readonly header: readonly string[];
   readonly rows: readonly (readonly string[])[];
-  readonly range: SourceRange;
+  readonly range: GherkinRange;
 }
 
 /** One scenario or scenario outline, with the Rules flattened away. */
@@ -50,13 +58,13 @@ export interface ScenarioAst {
   readonly background: readonly StepAst[];
   readonly steps: readonly StepAst[];
   readonly examples: readonly ExamplesAst[];
-  readonly range: SourceRange;
+  readonly range: GherkinRange;
 }
 
 /** A Feature, Background, Rule, Scenario or Examples keyword. */
 export interface SectionAst {
   readonly keyword: string;
-  readonly range: SourceRange;
+  readonly range: GherkinRange;
 }
 
 /** The normalized document of one Gherkin block. */

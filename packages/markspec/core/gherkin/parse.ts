@@ -131,10 +131,17 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
     let endLine = startLine;
     let endColumn = column + s.keyword.length + s.text.length;
     if (s.docString) {
-      const contentLines = s.docString.content === ""
-        ? 0
-        : s.docString.content.split("\n").length;
-      endLine = shift(s.docString.location.line) + contentLines + 1;
+      // The content cannot give the closing line: an empty doc string and
+      // one that holds a single blank line both have content "". Find the
+      // first line after the opening one that starts with the delimiter.
+      const open = shift(s.docString.location.line);
+      const delimiter = s.docString.delimiter;
+      let close = open + 1;
+      while (
+        close < sourceLines.length &&
+        !(sourceLines[close - 1] ?? "").trimStart().startsWith(delimiter)
+      ) close++;
+      endLine = close;
       endColumn = lineEnd(endLine);
     }
     if (s.dataTable) {

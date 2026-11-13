@@ -240,3 +240,58 @@ Deno.test("parseFeature: range ends are exclusive columns", () => {
     end: { line: 1, column: 10 },
   });
 });
+
+Deno.test("parseFeature: Examples under a plain Scenario keyword make an outline", () => {
+  const f = feature(
+    "Scenario: S\n  Given <x>\n\n  Examples:\n    | x |\n    | 1 |\n",
+  );
+  assertEquals(f.scenarios[0].keyword, "Scenario");
+  assertEquals(f.scenarios[0].isOutline, true);
+});
+
+Deno.test("parseFeature: each Rule background applies only to its own Rule", () => {
+  const f = feature(
+    [
+      "Feature: F",
+      "  Background:",
+      "    Given top",
+      "",
+      "  Rule: A",
+      "    Background:",
+      "      Given in A",
+      "    Scenario: a",
+      "      Then x",
+      "",
+      "  Rule: B",
+      "    Background:",
+      "      Given in B",
+      "    Scenario: b",
+      "      Then y",
+      "",
+    ].join("\n"),
+  );
+  assertEquals(
+    f.scenarios.map((s) => [s.ruleName, s.background.map((b) => b.text)]),
+    [["A", ["top", "in A"]], ["B", ["top", "in B"]]],
+  );
+  assertEquals(f.backgrounds.map((b) => b.text), ["top", "in A", "in B"]);
+});
+
+Deno.test("parseFeature: a doc string of one blank line ends at its closing delimiter", () => {
+  const f = feature(
+    ["Scenario: S", "  Given a text:", '    """', "", '    """', ""].join(
+      "\n",
+    ),
+  );
+  const [step] = f.scenarios[0].steps;
+  assertEquals(step.docString?.content, "");
+  assertEquals(step.range.end, { line: 5, column: 8 });
+  assertEquals(f.scenarios[0].range.end, { line: 5, column: 8 });
+});
+
+Deno.test("parseFeature: an empty doc string ends at its closing delimiter", () => {
+  const f = feature(
+    ["Scenario: S", "  Given a text:", "    ```", "    ```", ""].join("\n"),
+  );
+  assertEquals(f.scenarios[0].steps[0].range.end, { line: 4, column: 8 });
+});

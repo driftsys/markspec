@@ -480,7 +480,15 @@ Deno.test("buildCriteria: Scenario text in a doc string or comment is no criteri
     '      """',
     "```",
   ]);
-  assertEquals(buildCriteria(entryOf(md)).map((c) => c.name), ["real"]);
+  const entry = entryOf(md);
+  assertEquals(buildCriteria(entry).map((c) => c.name), ["real"]);
+  // The names come from the AST: with the block text emptied, the line
+  // scanner would find nothing, but the AST still gives the scenario.
+  const astOnly = withFeatureNodes(
+    entry,
+    (b) => ({ ...b, source: "" }) as BodyBlock,
+  );
+  assertEquals(buildCriteria(astOnly).map((c) => c.name), ["real"]);
 });
 
 Deno.test("buildCriteria: a block that does not parse keeps scanner criteria", async () => {
