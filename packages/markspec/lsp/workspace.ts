@@ -14,6 +14,7 @@ import type {
 } from "../core/mod.ts";
 import {
   applyCorpusPostPass,
+  checkFeatureParse,
   classifyEntry,
   emittableEntries,
   formatEntryOrigin,
@@ -321,6 +322,8 @@ export class WorkspaceIndex {
       // Scenario locators and scenario names (epic #915): the same pass
       // `check` runs in its pipeline.
       ...validateLocators(allEntries, profile),
+      // Gherkin blocks that do not parse (MSL-B062).
+      ...checkFeatureParse(allEntries),
     ];
   }
 

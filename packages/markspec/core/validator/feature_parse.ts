@@ -6,6 +6,15 @@
  * first parser error, for an entry of any type. Criteria for that block
  * come from the line scanner, so the block still yields scenarios.
  *
+ * The column is always 1. The parser column is relative to the block text,
+ * and the block indent (list-item and fence indent in Markdown, the comment
+ * prefix in source doc comments) is not recorded, so the file column cannot
+ * be derived reliably.
+ *
+ * Like `MSL-B060` and `MSL-B061`, a warning located in a delivered-corpus
+ * file is filtered at publish time (LSP) or by the corpus post-pass
+ * (`check`); `emittableEntries` already skips upstream entries.
+ *
  * Only a block that the Gherkin parser rejected carries `parseError`. When
  * the parser was not loaded (the synchronous `parse()` path), no block has
  * one and nothing is reported.
@@ -25,7 +34,11 @@ export function checkFeatureParse(entries: readonly Entry[]): Diagnostic[] {
       const node = block as FeatureNode;
       const error = node.parseError;
       if (error === undefined) continue;
-      const reason = error.message.split("\n")[0].trim();
+      // The parser message starts with a "(line:column): " position that
+      // is relative to the block, which would mislead; the location holds
+      // the file position.
+      const reason = error.message.split("\n")[0]
+        .replace(/^\(\d+:\d+\):\s*/, "").trim();
       diagnostics.push({
         code: "MSL-B062",
         severity: "warning",
@@ -35,7 +48,7 @@ export function checkFeatureParse(entries: readonly Entry[]): Diagnostic[] {
         location: {
           file: entry.location.file,
           line: featureFileLine(entry, node, error.line),
-          column: error.column,
+          column: 1,
         },
       });
     }

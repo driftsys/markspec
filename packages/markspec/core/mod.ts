@@ -352,6 +352,7 @@ export {
   validateUxilFamily,
 } from "./validator/uxil_family.ts";
 export { validateLocators } from "./validator/locators.ts";
+export { checkFeatureParse } from "./validator/feature_parse.ts";
 export * as uxil from "./uxil/mod.ts";
 
 // ── Lockfile (ADR-022) ───────────────────────────────────────────────────

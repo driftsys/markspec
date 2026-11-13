@@ -689,3 +689,25 @@ ${tail}`,
   assertEquals(nodes.length, 1);
   assertEquals(nodes[0].feature?.scenarios.length, 1);
 });
+
+Deno.test("WorkspaceIndex: validateAll reports a Gherkin block that does not parse as MSL-B062", async () => {
+  const index = new WorkspaceIndex();
+  const text = [
+    "- [REQ_A_0001] Brake",
+    "",
+    "  The system shall brake.",
+    "",
+    "  ```gherkin",
+    "  Scenario: Stop",
+    "    Given a",
+    "    Whatever is this",
+    "  ```",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  await index.parseAndUpdateFile("/p/r.md", text);
+  const hits = index.validateAll().filter((d) => d.code === "MSL-B062");
+  assertEquals(hits.length, 1);
+  assertEquals(hits[0].location?.line, 8);
+});

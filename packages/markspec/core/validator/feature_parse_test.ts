@@ -67,3 +67,40 @@ Deno.test("checkFeatureParse: runs for a Test entry", async () => {
   });
   assertEquals(checkFeatureParse(entries).length, 1);
 });
+
+Deno.test("checkFeatureParse: message has no block-relative position", async () => {
+  const { entries } = await parseFile(doc([BROKEN]), { file: "/r.md" });
+  const [d] = checkFeatureParse(entries);
+  assertEquals(/\(\d+:\d+\)/.test(d.message), false);
+});
+
+Deno.test("checkFeatureParse: indented Markdown fence → column 1", async () => {
+  const { entries } = await parseFile(doc([BROKEN]), { file: "/r.md" });
+  assertEquals(checkFeatureParse(entries)[0].location!.column, 1);
+});
+
+Deno.test("checkFeatureParse: Rust doc comment → file line, column 1", async () => {
+  const src = [
+    "/// [REQ_A_0001] Brake",
+    "///",
+    "/// The system shall brake.",
+    "///",
+    "/// ```gherkin",
+    "/// Scenario: Stop",
+    "///   Given a",
+    "///   Whatever is this",
+    "/// ```",
+    "///",
+    "///     Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "fn f() {}",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(src, { file: "lib.rs" });
+  const diags = checkFeatureParse(entries);
+  assertEquals(diags.length, 1);
+  assertEquals(
+    src.split("\n")[diags[0].location!.line - 1].includes("Whatever"),
+    true,
+  );
+  assertEquals(diags[0].location!.column, 1);
+});
