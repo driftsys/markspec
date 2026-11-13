@@ -7,7 +7,12 @@
  */
 
 import { extname } from "@std/path";
-import { FENCE_RE, fencedCodeLines, SOURCE_EXTENSIONS } from "../core/mod.ts";
+import {
+  FEATURE_EXTENSIONS,
+  FENCE_RE,
+  fencedCodeLines,
+  SOURCE_EXTENSIONS,
+} from "../core/mod.ts";
 
 /** Entry marker pattern: `[TYPE_XXX_NNNN]` in any context. */
 const ENTRY_MARKER_RE = /\[[A-Z]{2,}_[A-Z0-9_]+\]/;
@@ -22,7 +27,17 @@ const TRACE_KEYWORDS_RE =
  */
 export function isMarkspecFile(filePath: string): boolean {
   const ext = extname(filePath).toLowerCase();
-  return ext === ".md" || SOURCE_EXTENSIONS.has(ext);
+  return ext === ".md" || SOURCE_EXTENSIONS.has(ext) ||
+    FEATURE_EXTENSIONS.has(ext);
+}
+
+/**
+ * Check whether a file path is a Gherkin `.feature` file (ADR-038 Case B).
+ * It is not a source file: it has no doc comments, and its MarkSpec headers
+ * are `#` comment lines with an exact grammar.
+ */
+export function isFeatureFile(filePath: string): boolean {
+  return FEATURE_EXTENSIONS.has(extname(filePath).toLowerCase());
 }
 
 /**
@@ -44,6 +59,9 @@ export function fencedLinesForFile(
   text: string,
   filePath: string,
 ): ReadonlySet<number> {
+  // Gherkin doc strings are not Markdown fences, and IDs inside them are
+  // not references.
+  if (isFeatureFile(filePath)) return new Set();
   if (!isSourceFile(filePath)) return fencedCodeLines(text);
   const fencedLines = new Set<number>();
   let inFence = false;

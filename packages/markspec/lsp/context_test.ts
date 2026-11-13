@@ -8,6 +8,7 @@ import { assertEquals } from "@std/assert";
 import {
   fencedLinesForFile,
   isDocCommentContext,
+  isFeatureFile,
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
@@ -147,4 +148,32 @@ Deno.test("fencedLinesForFile: source files retain legacy toggles independently 
     // Source classification must not pollute the Markdown cache for this text.
     assertEquals([...fencedLinesForFile(text, "example.md")], []);
   }
+});
+
+// --- .feature files (Gherkin Case B) ---
+
+Deno.test("isMarkspecFile: accepts .feature files", () => {
+  assertEquals(isMarkspecFile("a/b.feature"), true);
+});
+
+Deno.test("isFeatureFile: accepts .feature case-insensitively", () => {
+  assertEquals(isFeatureFile("a/b.FEATURE"), true);
+  assertEquals(isFeatureFile("a/b.md"), false);
+});
+
+Deno.test("isSourceFile: rejects .feature files", () => {
+  assertEquals(isSourceFile("a/b.feature"), false);
+});
+
+Deno.test("fencedLinesForFile: .feature doc string is not a fence", () => {
+  const text = [
+    "# [TST_0001] Login",
+    "Feature: x",
+    "  Scenario: y",
+    "    Given a doc",
+    '      """',
+    "      TST_0001",
+    '      """',
+  ].join("\n");
+  assertEquals(fencedLinesForFile(text, "x.feature").size, 0);
 });
