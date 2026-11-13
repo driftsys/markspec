@@ -6,7 +6,7 @@
  * value format per the language spec Part 2.4.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap, type LineMap } from "./line_map.ts";
 import { wrapAsListItem } from "./source.ts";
@@ -1162,3 +1162,191 @@ for (const newline of ["\n", "\r\n"]) {
     );
   });
 }
+
+// ---------------------------------------------------------------------------
+// Git-style trailer block (#914, MSL-P023)
+// ---------------------------------------------------------------------------
+
+const INDENTED_ENTRY = `- [REQ-001] Title
+
+  Body text.
+
+      Id: ${ULID}
+      Satisfies: REQ-002
+`;
+
+const GIT_STYLE_ENTRY = `- [REQ-001] Title
+
+  Body text.
+
+  Id: ${ULID}
+  Satisfies: REQ-002
+`;
+
+Deno.test("parseMarkdown: git-style trailer yields the same entry as the indented form", () => {
+  const a = parseMarkdown(INDENTED_ENTRY).entries[0];
+  const b = parseMarkdown(GIT_STYLE_ENTRY).entries[0];
+  assertEquals(b.rawAttributes, a.rawAttributes);
+  assertEquals(b.body, a.body);
+  assertEquals(b.id, a.id);
+});
+
+Deno.test("parseMarkdown: git-style trailer warns MSL-P023 at its first line", () => {
+  const { diagnostics } = parseMarkdown(GIT_STYLE_ENTRY, { file: "a.md" });
+  const found = diagnostics.filter((d) => d.code === "MSL-P023");
+  assertEquals(found.length, 1);
+  assertEquals(found[0].severity, "warning");
+  assertEquals(found[0].location?.line, 5);
+  assertEquals(found[0].location?.column, 3);
+});
+
+/** MSL-P023 diagnostics of `md`, as `[line, column]` pairs. */
+function p023At(md: string): Array<[number?, number?]> {
+  return parseMarkdown(md, { file: "a.md" }).diagnostics
+    .filter((d) => d.code === "MSL-P023")
+    .map((d) => [d.location?.line, d.location?.column]);
+}
+
+Deno.test("parseMarkdown: a tab-led git-style trailer warns MSL-P023", () => {
+  const md =
+    `- [REQ-001] Title\n\n  Body text.\n\n\tId: ${ULID}\n\tSatisfies: REQ-002\n`;
+  const entry = parseMarkdown(md).entries[0];
+  assertEquals(entry.id, ULID);
+  assertEquals(p023At(md), [[5, 2]]);
+});
+
+Deno.test("parseMarkdown: canonical tab-indented trailers raise no MSL-P023", () => {
+  for (const lead of ["\t  ", "\t\t"]) {
+    const md =
+      `- [REQ-001] Title\n\n  Body text.\n\n${lead}Id: ${ULID}\n${lead}Satisfies: REQ-002\n`;
+    assertEquals(parseMarkdown(md).entries[0].id, ULID, JSON.stringify(lead));
+    assertEquals(p023At(md), [], JSON.stringify(lead));
+  }
+});
+
+Deno.test("parseMarkdown: MSL-P023 measures from a wide list marker's content", () => {
+  const md = `-   [REQ-001] Title
+
+    Body text.
+
+    Id: ${ULID}
+    Satisfies: REQ-002
+`;
+  assertEquals(p023At(md), [[5, 5]]);
+  const indented = md.replace(/\n {4}(Id|Satisfies)/g, "\n        $1");
+  assertEquals(p023At(indented), []);
+});
+
+Deno.test("parseMarkdown: a trailer with a later unindented line warns MSL-P023", () => {
+  const md = `- [REQ-001] Title
+
+  Body text.
+
+      Id: ${ULID}
+  Satisfies: REQ-002
+`;
+  assertEquals(parseMarkdown(md).entries[0].id, ULID);
+  assertEquals(p023At(md), [[5, 7]]);
+});
+
+Deno.test("parseMarkdown: indented trailer raises no MSL-P023", () => {
+  const { diagnostics } = parseMarkdown(INDENTED_ENTRY);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P023").length, 0);
+});
+
+Deno.test("parseMarkdown: trailer as the only content raises no MSL-P023 when indented", () => {
+  const md = `- [REQ-001] Title
+
+      Id: ${ULID}
+      Satisfies: REQ-002
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P023").length, 0);
+});
+
+Deno.test("parseMarkdown: non-core keys without Id stay body, no MSL-P023", () => {
+  const md = `- [REQ-001] Title
+
+  Body text.
+
+  Note: keep this
+  Status: draft
+`;
+  const { entries: [entry], diagnostics } = parseMarkdown(md);
+  assertEquals(entry.rawAttributes.length, 0);
+  assertEquals(entry.body, "Body text.\n\nNote: keep this\nStatus: draft");
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P023").length, 0);
+});
+
+Deno.test("parseMarkdown: a line with a non Key: value line in the final paragraph stays body", () => {
+  const md = `- [REQ-001] Title
+
+  Body text.
+
+  Satisfies: REQ-002
+  some prose line
+`;
+  const { entries: [entry] } = parseMarkdown(md);
+  assertEquals(entry.rawAttributes.length, 0);
+});
+
+Deno.test("parseMarkdown: Key: value directly after prose stays body (#916)", () => {
+  const md = `- [REQ-001] Title
+
+  Body text.
+  Satisfies: REQ-002
+`;
+  const { entries: [entry] } = parseMarkdown(md);
+  assertEquals(entry.rawAttributes.length, 0);
+  assertEquals(entry.body, "Body text.\nSatisfies: REQ-002");
+});
+
+Deno.test("parseMarkdown: legacy trailing-backslash trailer warns only as deprecated", () => {
+  const md = `- [REQ-001] Title
+
+  Body text.
+
+  Id: ${ULID}\\
+  Satisfies: REQ-002
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P023").length, 0);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "MSL-DEPRECATED-ATTR-001").length,
+    1,
+  );
+});
+
+Deno.test("parseMarkdown: MSL-P020 and MSL-P023 never fire for the same block", () => {
+  const cases: Array<[string, string, string[]]> = [
+    [
+      "Id run directly under prose",
+      `- [REQ-001] Title
+
+  Body text.
+  Id: ${ULID}
+  Satisfies: REQ-002
+`,
+      ["MSL-P020"],
+    ],
+    ["separate unindented final paragraph", GIT_STYLE_ENTRY, ["MSL-P023"]],
+    ["indented trailer", INDENTED_ENTRY, []],
+  ];
+  for (const [name, md, expected] of cases) {
+    const codes = parseMarkdown(md).diagnostics
+      .map((d) => d.code)
+      .filter((c) => c === "MSL-P020" || c === "MSL-P023");
+    assertEquals(codes, expected, name);
+  }
+});
+
+Deno.test("parseMarkdown: MSL-P023 hint depends on a continuation line", () => {
+  const plain =
+    `- [REQ-001] Title\n\n  Body text.\n\n  Id: ${ULID}\n  Satisfies: REQ-002\n`;
+  const cont =
+    `- [REQ-001] Title\n\n  Body text.\n\n  Id: ${ULID}\n  Satisfies: REQ-002,\n    REQ-003\n`;
+  const message = (md: string) =>
+    parseMarkdown(md).diagnostics.find((d) => d.code === "MSL-P023")?.message;
+  assertStringIncludes(message(plain) ?? "", "run `markspec fmt`");
+  assertStringIncludes(message(cont) ?? "", "MSL-P021");
+});

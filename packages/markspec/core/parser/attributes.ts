@@ -131,7 +131,7 @@ export function collateAttributes(
  * to the next multiple of 4. CommonMark uses the same tab stop, so a line
  * that mixes spaces and tabs is measured as the code-block rule sees it.
  */
-function leadingColumns(line: string): number {
+export function leadingColumns(line: string): number {
   let column = 0;
   for (const ch of line) {
     if (ch === " ") column++;
@@ -142,7 +142,7 @@ function leadingColumns(line: string): number {
 }
 
 /** `true` when `line` is indented by 4 or more columns (code-block indent). */
-function isIndented(line: string): boolean {
+export function isIndented(line: string): boolean {
   return leadingColumns(line) >= 4;
 }
 

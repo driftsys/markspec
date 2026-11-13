@@ -17,7 +17,9 @@ import {
 import {
   ATTR_LINE_RE,
   collateAttributes,
+  findTrailerStart,
   isTrailerUnderProse,
+  leadingColumns,
   parseAttributes,
   RECOGNIZED_TRAILER_KEYS,
   splitBodyAndAttributes,
@@ -458,6 +460,47 @@ function extractEntry(
     const firstNonBlank = (markdownLines[line - 1] ?? "").search(/\S/);
     return { file, line, column: firstNonBlank >= 0 ? firstNonBlank + 1 : 1 };
   };
+  // MSL-P023: a trailer with a line indented less than 4 columns past the
+  // list-item content (git style) is accepted but not canonical in
+  // Markdown. Every trailer line is checked, tab-aware, so a block whose
+  // later lines are not indented is reported too: `markspec fmt` rewrites
+  // it. The warning points at the trailer's first line. The legacy
+  // trailing-backslash form has its own deprecation warning, so it is
+  // skipped. A run directly under prose is reported as MSL-P020 above, so
+  // at most one of the two warnings fires for a block.
+  const contentLines = bodyContent.split("\n");
+  if (
+    attrLines.length > 0 &&
+    !attrLines.some((line) => line.trimEnd().endsWith("\\")) &&
+    !isTrailerUnderProse(contentLines)
+  ) {
+    const trailerIndex = findTrailerStart(contentLines);
+    const indent = itemContentIndent(item);
+    let notIndented = false;
+    let hasContinuation = false;
+    for (let i = trailerIndex; i < contentLines.length; i++) {
+      const rawLine = markdownLines[trailerLineLocation(i).line - 1] ?? "";
+      if (rawLine.trim() === "") continue;
+      if (leadingColumns(rawLine) - indent < 4) notIndented = true;
+      if (!ATTR_LINE_RE.test(rawLine.trim())) hasContinuation = true;
+    }
+    if (notIndented) {
+      // fmt and the quick fix leave a trailer with a continuation line
+      // (MSL-P021) unchanged, so the hint to run fmt applies only without
+      // one.
+      const hint = hasContinuation
+        ? "fix the MSL-P021 continuation line by hand, then indent the trailer"
+        : "run `markspec fmt` to indent the trailer";
+      diagnostics.push({
+        code: "MSL-P023",
+        severity: "warning",
+        message: `${displayId}: a trailer line is not indented; ${hint} ` +
+          "(spec section 1.3)",
+        location: trailerLineLocation(trailerIndex),
+      });
+    }
+  }
+
   // `attrLines` is the contiguous, blank-free tail of `bodyContent`.
   const attrContentStart = bodyContent.split("\n").length - attrLines.length;
 

@@ -1610,3 +1610,116 @@ Deno.test("parseSource: fixture — in-code-csharp.cs", async () => {
     assertEquals(entry.source.function, "BrakingSensor");
   }
 });
+
+// ---------------------------------------------------------------------------
+// Git-style trailer (#914): same entry as the indented form. parseFile
+// reports no parse diagnostics for source files (core/parser/mod.ts).
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: git-style trailer in a Rust doc comment equals the indented form", async () => {
+  const language = await getRustLanguage();
+  const indented = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+///
+///     Id: SRS_01HGW2Q8MNP3
+///     Satisfies: SYS_BRK_0042
+///     Labels: ASIL-B
+fn foo() {}
+`;
+  const gitStyle = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+///
+/// Id: SRS_01HGW2Q8MNP3
+/// Satisfies: SYS_BRK_0042
+/// Labels: ASIL-B
+fn foo() {}
+`;
+  const options = { file: "test.rs", language, languageId: "rust" as const };
+  const a = parseSource(indented, options).entries[0];
+  const b = parseSource(gitStyle, options).entries[0];
+  assertEquals(b.rawAttributes, a.rawAttributes);
+  assertEquals(b.body, a.body);
+  assertEquals(b.id, a.id);
+  assertEquals(b.typedAttributes, a.typedAttributes);
+});
+
+Deno.test("parseSource: git-style trailer in a Java doc comment is parsed", async () => {
+  const language = await getJavaLanguage();
+  const source = `/**
+ * [SRS_BRK_0001] Title
+ *
+ * Body text.
+ *
+ * Id: SRS_01HGW2Q8MNP3
+ * Satisfies: SYS_BRK_0042
+ */
+class Foo {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Foo.java",
+    language,
+    languageId: "java",
+  });
+  assertEquals(entries[0].rawAttributes.map((a) => a.key), [
+    "Id",
+    "Satisfies",
+  ]);
+  assertEquals(entries[0].body, "Body text.");
+});
+
+Deno.test("parseSource: final paragraph of non-core keys without Id stays body", async () => {
+  const language = await getRustLanguage();
+  const source = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+///
+/// Note: keep this
+/// Status: draft
+fn foo() {}
+`;
+  const { entries } = parseSource(source, {
+    file: "test.rs",
+    language,
+    languageId: "rust",
+  });
+  assertEquals(entries[0].rawAttributes.length, 0);
+  assertStringIncludes(entries[0].body, "Status: draft");
+});
+
+Deno.test("parseSource: a non Key: value line in the final paragraph keeps it in the body", async () => {
+  const language = await getRustLanguage();
+  const source = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+///
+/// Satisfies: SYS_BRK_0042
+/// some prose line
+fn foo() {}
+`;
+  const entry = parseSource(source, {
+    file: "test.rs",
+    language,
+    languageId: "rust",
+  }).entries[0];
+  assertEquals(entry.rawAttributes.length, 0);
+  assertStringIncludes(entry.body, "Satisfies: SYS_BRK_0042");
+});
+
+Deno.test("parseSource: a Key: value line directly after prose stays body", async () => {
+  const language = await getRustLanguage();
+  const source = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+/// Satisfies: SYS_BRK_0042
+fn foo() {}
+`;
+  const entry = parseSource(source, {
+    file: "test.rs",
+    language,
+    languageId: "rust",
+  }).entries[0];
+  assertEquals(entry.rawAttributes.length, 0);
+  assertStringIncludes(entry.body, "Satisfies: SYS_BRK_0042");
+});

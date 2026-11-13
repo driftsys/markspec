@@ -1733,7 +1733,7 @@ Deno.test("validate: --format json outputs structured diagnostics", async () => 
 
   Body text.
 
-  Labels: ASIL-B
+      Labels: ASIL-B
 `,
       },
     },
@@ -1789,7 +1789,7 @@ Deno.test("validate: mixed .md and .rs files — no error diagnostics", async ()
 
   Body.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
 `,
       "lib.rs": `/// [SRS_BRK_0001] Software requirement
 ///

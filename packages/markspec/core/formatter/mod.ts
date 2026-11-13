@@ -1326,6 +1326,19 @@ function removeEmptyTrailerLines(
  * The formatter and the parser therefore agree on which lines are the
  * trailer, so `markspec fmt` never rewrites a line that the parser read as
  * body, and never drops an attribute line that the parser read (#916).
+ * The LSP MSL-P023 quick fix uses it too.
+ *
+ * @param lines - Raw lines of the whole file.
+ * @param entryStartLine - 1-based line of the entry's title (`- [ID] ...`).
+ * @param indent - Content column of the list item: the 0-based column of
+ *   the `[` that opens the display ID.
+ * @param itemEndFloor - Pass the parser's `Entry.endLine` (0 when unknown):
+ *   the item end scan starts no earlier than this line index, so a lazy
+ *   continuation line does not end the item early (see `findItemEnd`).
+ * @param preservedRanges - Ranges inside the entry that are kept verbatim
+ *   (nested entries); the trailer is searched below the last one.
+ * @returns The 0-based, half-open line range `[start, end)` of the trailer
+ *   over `lines`, or `undefined` when the entry has no trailer.
  */
 export function findAttributeBlockRange(
   lines: readonly string[],

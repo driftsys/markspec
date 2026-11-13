@@ -232,7 +232,7 @@ export type {
 } from "./parser/mod.ts";
 
 // Formatter
-export { format } from "./formatter/mod.ts";
+export { findAttributeBlockRange, format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 export { readEntryBody, replaceEntryBody } from "./formatter/entry_body.ts";
 export type {
