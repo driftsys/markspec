@@ -470,3 +470,38 @@ Deno.test("MSL-B066: a localized And is reported", async () => {
   assertEquals(diags.map((d) => d.code), ["MSL-B066"]);
   assertEquals(lineOf(text, diags[0].location!.line), "Et a");
 });
+
+Deno.test("block roles: blocks nested in a list item are checked for B065 to B068", async () => {
+  const nested = (block: string, type: string, prefix: string) =>
+    entry(block, type, prefix, true);
+  const codes = async (text: string) =>
+    (checkBlockRoles(await load(text), null)).map((d) => d.code);
+  assertEquals(
+    await codes(nested(
+      "Scenario: S\n  Given a\n  Then b\n  When c\n  Then d",
+      "Test",
+      "TST_X",
+    )),
+    ["MSL-B065"],
+  );
+  assertEquals(
+    await codes(nested("Scenario: S\n  And a\n  Then b", "Test", "TST_X")),
+    ["MSL-B066"],
+  );
+  assertEquals(
+    await codes(nested(
+      "Scenario: S\n  # Step 0\n  Given a\n  When b\n  Then c",
+      "Test",
+      "TST_X",
+    )),
+    ["MSL-B067"],
+  );
+  assertEquals(
+    await codes(nested(
+      "Scenario: S\n  When a\n  Then b",
+      "Component",
+      "SWC_X",
+    )),
+    ["MSL-B068"],
+  );
+});

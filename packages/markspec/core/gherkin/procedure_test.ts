@@ -565,3 +565,31 @@ Deno.test("unplacedStepLabels: a language header and plain comments are not labe
     [],
   );
 });
+
+Deno.test("scenarioProcedure: label spelling boundary", () => {
+  const view = (comment: string) =>
+    procedureWithComments(`Scenario: S\n  When a\n  Then b\n  ${comment}\n`);
+  for (
+    const comment of ["# Step-by-step", "# Step: 1", "# Step.1", "# Stepé"]
+  ) {
+    assertEquals(view(comment).unplacedLabels, []);
+    assertEquals(
+      unplaced(`Scenario: S\n  When a\n  Then b\n  ${comment}\n`),
+      [],
+    );
+  }
+  assertEquals(unplaced("Scenario: S\n  When a\n  Then b\n  # Step\n"), [
+    "4:# Step",
+  ]);
+  assertEquals(unplaced("Scenario: S\n  When a\n  Then b\n  # Step 2\n"), [
+    "4:# Step 2",
+  ]);
+});
+
+Deno.test("scenarioProcedure: a label above a leading Then labels that step", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # Step 1\n  Then a\n  When b\n  Then c\n",
+  );
+  assertEquals(view.steps[0].label, "Step 1");
+  assertEquals(view.unplacedLabels, []);
+});

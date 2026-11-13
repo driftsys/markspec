@@ -160,16 +160,18 @@ the base ADR and 1 to 6 of the procedure-view amendment are unchanged.
    after classification. The entry must be typed, so a profile is required, as
    for `MSL-B063`.
 4. **Comments and labels.** `FeatureAst.comments` keeps every comment line.
-   `scenarioProcedure(scenario, comments)` attaches a `# Step <text>` comment to
-   the procedure step that starts at the next step line as
-   `ProcedureStep.label`, only when comments and blank lines alone lie between
-   them (a scenario description line makes the label unplaced; the parser
-   records `ScenarioAst.descriptionEndLine` for this). A bare `# Step` is a
-   label. Compiled JSON for a project with a gherkin fence gains
-   `bodyAst[].feature.comments`, and `descriptionEndLine` on a scenario with a
-   description. `unplacedStepLabels(feature)` lists the labels that label no
-   step. The parser does not resolve labels. A label never changes the step
-   number. Only a procedure block reports `MSL-B067`.
+   `scenarioProcedure(scenario, comments)` attaches a `# Step` comment (`#`,
+   optional spaces, `Step`, then whitespace or the end of the line;
+   `# Step-by-step` is not one) to the procedure step that starts at the next
+   step line as `ProcedureStep.label`, only when comments and blank lines alone
+   lie between them (a scenario description line makes the label unplaced; the
+   parser records `ScenarioAst.descriptionEndLine` for this). A bare `# Step` is
+   a label. Compiled JSON for a project with a gherkin fence gains
+   `feature.comments`, and `descriptionEndLine` on a scenario with a
+   description, on every feature node, including one nested in a list item
+   (`bodyAst[].items[].blocks[].feature`). `unplacedStepLabels(feature)` lists
+   the labels that label no step. The parser does not resolve labels. A label
+   never changes the step number. Only a procedure block reports `MSL-B067`.
 5. **Where it runs.** `checkBlockRoles` runs in `markspec check` and in the LSP
    cross-file validation. A project without a feature fence gives the same
    output as before.

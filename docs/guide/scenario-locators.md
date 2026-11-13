@@ -70,8 +70,10 @@ The locator has these properties:
   requirement. A value without a closed locator is read as it was before
   locators existed.
 - Only scenarios in top-level `feature` blocks are indexed for locators. A block
-  nested in a list item or a block quote yields no scenarios for them. The role
-  checks below and `MSL-B062` do check nested blocks.
+  nested in a list item yields no scenarios for them. The role checks below and
+  `MSL-B062` do check blocks nested in list items, at any depth. A block in a
+  block quote is not walked: it gets no locators, no role check and no
+  `MSL-B062`.
 - A locator never changes the link: the link goes to the requirement whether the
   locator resolves or not.
 
@@ -143,8 +145,8 @@ role from the type each time it checks; it stores nothing on the entry.
 The check needs a profile that types the entry, as for locators and procedure
 steps. Upstream entries and blocks that do not parse are skipped.
 
-Each check applies to a feature block at any depth: a top-level block or a block
-in a list item.
+Each check applies to a feature block that is top-level or nested in a list item
+at any depth.
 
 - `MSL-B064` (warning) applies to a criteria block. It reports a scenario that
   has no `Then` step, or no step at all. A scenario with `Given` and `Then` and
@@ -166,9 +168,11 @@ block.
 
 ### Step labels
 
-In a procedure block, a comment of the form `# Step <text>` names a step of the
+In a procedure block, a comment that starts with `#`, optional spaces, the word
+`Step`, and then whitespace or the end of the line names a step of the
 procedure, for example `# Step 1` or `# Step Brake`. The word `Step` is fixed
-for every Gherkin language. Write the comment on its own line, above the first
+for every Gherkin language. `# Step-by-step`, `# Step: 1` and `# Steps 1` are
+plain comments, not labels. Write the comment on its own line, above the first
 line of the step: the first action, the first precondition that follows an
 action or an expected result, or a leading `Then`. Only comments and blank lines
 may lie between the label and that line; a description line makes the label

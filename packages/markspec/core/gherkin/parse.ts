@@ -226,12 +226,33 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
         b.line > a.line || (b.line === a.line && b.column > a.column) ? b : a
       )
       : { line: start, column: column + s.keyword.length + 1 };
-    // Last description line: the last text line between the keyword line and
-    // the first step (or Examples), ignoring blank and comment lines.
+    // Last description line: the last text line of the scenario's own head,
+    // ignoring blank and comment lines.
     let descriptionEndLine: number | undefined;
     if (s.description.trim() !== "") {
-      const bound = steps[0]?.range.start.line ??
-        exs[0]?.range.start.line ?? sourceLines.length + 1;
+      // The description ends before the first step, the next tag line or the
+      // next structural keyword, whichever comes first.
+      let bound = steps[0]?.range.start.line ?? sourceLines.length + 1;
+      const dialect = api.dialects[wrap.language];
+      const words = dialect
+        ? [
+          ...dialect.feature,
+          ...dialect.background,
+          ...dialect.rule,
+          ...dialect.scenario,
+          ...dialect.scenarioOutline,
+          ...dialect.examples,
+        ]
+        : ["Feature", "Background", "Rule", "Scenario", "Examples"];
+      for (let line = start + 1; line < bound; line++) {
+        const text = (sourceLines[line - 1] ?? "").trim();
+        if (
+          text.startsWith("@") || words.some((w) => text.startsWith(`${w}:`))
+        ) {
+          bound = line;
+          break;
+        }
+      }
       for (let line = bound - 1; line > start; line--) {
         const text = (sourceLines[line - 1] ?? "").trim();
         if (text !== "" && !text.startsWith("#")) {

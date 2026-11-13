@@ -417,13 +417,15 @@ functions of `source`. When the parser is not loaded, the node has neither.
 `MSL-B062` checks a `Feature` node in a top-level block or in a list item at any
 depth; `Entry.criteria` is read from top-level `Feature` nodes only. The
 normalized `FeatureAst` also keeps every comment line in `comments`, including
-`# language:`; `# Step <text>` comments become the label of a procedure step in
-the on-demand procedure view (`ProcedureStep.label`). A scenario with a
-description also records `descriptionEndLine`. Compiled JSON for a project with
-a gherkin fence therefore gains `bodyAst[].feature.comments` and, for such
-scenarios, `descriptionEndLine`. The role of a block (`criteria`, `procedure` or
-`illustration`) is derived from the entry type and is not stored. See
-[ADR-038](../../architecture/adr-038-gherkin-ast.md).
+`# language:`; a `# Step` comment (`#`, optional spaces, `Step`, then whitespace
+or the end of the line) becomes the label of a procedure step in the on-demand
+procedure view (`ProcedureStep.label`). A scenario with a description also
+records `descriptionEndLine`. Compiled JSON for a project with a gherkin fence
+therefore gains `feature.comments` and, for such scenarios,
+`descriptionEndLine`, on every feature node, including one nested in a list item
+(`bodyAst[].items[].blocks[].feature`). The role of a block (`criteria`,
+`procedure` or `illustration`) is derived from the entry type and is not stored.
+See [ADR-038](../../architecture/adr-038-gherkin-ast.md).
 
 #### 2.4.1 Excluded constructs
 
@@ -910,7 +912,7 @@ invariants).
 | `MSL-B064` | warning  | A scenario of a criteria block has no outcome step. A criteria block is a feature block in an entry whose type is or extends Requirement or Contract, so the check needs a profile that types the entry. Nested blocks at any depth are checked. The scenario has no `Then` step (including an `And` or `But` after one), or no step at all; a scenario with `Given` and `Then` and no action is valid. `Scenario Outline` Examples are not considered. A block that does not parse is skipped. Reported at the file line of the `Scenario` keyword, at column 1 (see [Role of a Gherkin block](../../guide/scenario-locators.md#role-of-a-gherkin-block)). |
 | `MSL-B065` | info     | A step of the procedure of a scenario in a procedure block has an expected result and no action. A procedure block is a feature block in an entry whose type is or extends Test. Reported at the file line of the first expected-result step of that step, at column 1 (see [Procedure steps](../../guide/scenario-locators.md#procedure-steps-in-a-test-entry)).                                                                                                                                                                                                                                                                                           |
 | `MSL-B066` | info     | A scenario in a criteria block or a procedure block starts with `And` or `But`, which is read as an action. Reported at the file line of that step, at column 1. Not reported for an illustration.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `MSL-B067` | info     | A `# Step <text>` comment in a procedure block labels no step: it is above a leading precondition or a step that does not open a procedure step, it has a description line between it and the next step, it has no step after it (also one before `Examples:` or outside every scenario), or it is a second label above the same step. Reported at the file line of the comment, at column 1 (see [Step labels](../../guide/scenario-locators.md#step-labels)).                                                                                                                                                                                             |
+| `MSL-B067` | info     | A `# Step` comment (`#`, optional spaces, `Step`, then whitespace or the end of the line) in a procedure block labels no step: it is above a leading precondition or a step that does not open a procedure step, it has a description line between it and the next step, it has no step after it (also one before `Examples:` or outside every scenario), or it is a second label above the same step. Reported at the file line of the comment, at column 1 (see [Step labels](../../guide/scenario-locators.md#step-labels)).                                                                                                                             |
 | `MSL-B068` | info     | A feature block is in an entry that has a type but whose type is neither a Requirement, a Contract nor a Test (or an extension of one), so the block is an illustration. Reported at the first line of the block, at column 1. An entry with no type, after classification with the profile, is not reported.                                                                                                                                                                                                                                                                                                                                               |
 
 ### 4.6 Markers (M)

@@ -353,3 +353,18 @@ Deno.test("parseFeature: records the last description line of a scenario", () =>
   const none = feature("Scenario: S\n  # note\n  When a\n  Then b\n");
   assertEquals("descriptionEndLine" in none.scenarios[0], false);
 });
+
+Deno.test("parseFeature: a stepless scenario's description stops at the next scenario", () => {
+  const f = feature(
+    "Scenario: A\n  Some desc.\nScenario: B\n  When c\n  Then d\n",
+  );
+  assertEquals(f.scenarios[0].descriptionEndLine, 2);
+  assertEquals("descriptionEndLine" in f.scenarios[1], false);
+});
+
+Deno.test("parseFeature: a stepless outline's description stops before a tag line", () => {
+  const f = feature(
+    "Scenario Outline: A\n  Some desc.\n  @t\n  Examples:\n    | a |\n    | 1 |\n",
+  );
+  assertEquals(f.scenarios[0].descriptionEndLine, 2);
+});

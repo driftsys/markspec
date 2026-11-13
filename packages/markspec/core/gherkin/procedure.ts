@@ -89,8 +89,12 @@ export interface ScenarioProcedure {
   readonly unplacedLabels: readonly GherkinComment[];
 }
 
-/** A step label comment: `#`, the fixed word `Step`, then text. */
-const STEP_LABEL_RE = /^#\s*Step\b.*$/;
+/**
+ * A step label comment: `#`, optional spaces, the fixed word `Step`, then
+ * whitespace or the end of the line. `# Step`, `# Step 2` and `#Step 2` are
+ * labels; `# Step-by-step`, `# Step: 1` and `# Steps 1` are not.
+ */
+const STEP_LABEL_RE = /^#\s*Step(?:\s|$)/;
 
 /**
  * Derive the procedure view of a scenario.
