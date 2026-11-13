@@ -1671,12 +1671,12 @@ requirements") are profile concerns, not core concerns.
 
 Existence and cardinality rules for the targets of trace-relation links.
 
-| ID         | Severity | Rule                                                                                                                                                             |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-L006` | warning  | Profile trace-relation target does not resolve to any entry (resolved by display ID or ULID). Scheme-qualified URIs are exempt.                                  |
-| `MSL-L007` | warning  | A locator on `Satisfies:` or `Verifies:` names no addressable scenario of its target. Reported only when the target resolves to a Requirement or Contract entry. |
-| `MSL-L008` | warning  | A locator on a trace relation that does not accept one. Only `References:`, `Derived-from:`, `Satisfies:` and `Verifies:` accept a locator.                      |
-| `MSL-L009` | warning  | A trace value has a `[` after whitespace that no `]` closes. The value has no locator and is read as a value without a locator.                                  |
+| ID         | Severity | Rule                                                                                                                                                                  |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-L006` | warning  | Profile trace-relation target does not resolve to any entry (resolved by display ID or ULID). Scheme-qualified URIs are exempt.                                       |
+| `MSL-L007` | warning  | A locator on `Satisfies:` or `Verifies:` names no addressable scenario of its target. Reported only when the target resolves to a Requirement or Contract entry.      |
+| `MSL-L008` | warning  | A locator on a trace relation that does not accept one. Only `References:`, `Derived-from:`, `Satisfies:` and `Verifies:` accept a locator.                           |
+| `MSL-L009` | warning  | A trace value has a `[` after whitespace that no `]` closes. It has no locator; commas after the `[` still separate values (`A [x], B [z, C` → `A [x]`, `B [z`, `C`). |
 
 A trace value can carry a locator after its target, as in the value
 `REQ_BRK_0010 [Brake at 20 m]` of a `Verifies:` attribute (see

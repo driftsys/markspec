@@ -212,9 +212,12 @@ value   = target [ 1*WSP "[" locator "]" ]
   brackets.
 - A locator is normalized for comparison: Unicode NFC, trimmed, and each run of
   whitespace collapsed to one space.
-- A value with a `[` that no `]` closes has no locator. `MSL-L009` reports it,
-  and the value is read as a value without a locator: every comma separates
-  values.
+- A value with a `[` after whitespace that no `]` closes has no locator.
+  `MSL-L009` reports it. An unclosed `[` never protects commas: the commas after
+  it always separate values, also when another value on the line has a closed
+  locator. `A [x], B [z, C` gives the values `A [x]`, `B [z` and `C`, and
+  `MSL-L009` reports `B [z`. A value without a closed locator is read as before
+  locators existed.
 - An empty locator (`REQ_BRK_0010 []`) is a locator with an empty name. It names
   no scenario, so on `Satisfies` or `Verifies` it raises `MSL-L007` when the
   target carries scenarios.
@@ -253,7 +256,9 @@ addressable when it is not empty and occurs once in the entry.
 - A locator that names no addressable scenario raises `MSL-L007`.
 - A locator on a target that does not resolve raises `MSL-L006` only.
 - The target may be written as a display ID or as a ULID.
-- An upstream (federated) entry carries no criteria.
+- An upstream (federated) entry carries no criteria. A locator on an upstream
+  target raises no `MSL-L007`, the coverage report does not list the target, and
+  on an upstream Requirement or Contract the link has `locatorResolved: false`.
 - A locator on a target that is not a Requirement or Contract entry (or is a
   Reference entry) is free text and raises no `MSL-L007`.
 

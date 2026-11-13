@@ -48,19 +48,22 @@ small scenario index and leave room for it.
    Brackets do not nest. A comma inside a locator does not split the value. The
    shared splitter in `core/refs/split.ts` is used by the compiler, the
    validator, the formatter, the attribute parser, the lockfile resolver and the
-   LSP reference scans. Two scanners keep their own copy of the grammar: the
-   `core/refs` rename-heal token regex and the LSP rename span regex, and the
-   lockfile resolver keeps its whitespace split for parts without a locator. A
-   locator is normalized for comparison (Unicode NFC, trim, collapse whitespace
-   runs) and compared exactly and case-sensitively. An empty locator (`A []`) is
-   a locator with an empty name and names no scenario. A value without a closed
-   locator after whitespace is read exactly as before locators existed, for
-   every relation: `Derived-from` and `References` keep the leading token, every
-   other relation keeps the whole value, and when no value on the line has a
-   closed locator the line splits on every comma. A value with an unclosed `[`
-   after whitespace has no locator; `MSL-L009` reports it. An ID inside a
-   locator is not a reference: rename-heal, LSP rename, find references, the
-   incoming count and code lenses skip it.
+   LSP reference scans. Four scanners keep their own copy of the grammar: the
+   `core/refs` rename-heal token regex, the LSP rename span regex, the
+   `MSL-A011` bracket-depth check in `core/validator/mod.ts`, and the `MSL-A011`
+   quick fix in `lsp/code_actions.ts` (which opens a locator on any `[`); the
+   lockfile resolver keeps its whitespace split for parts without a locator. An
+   unclosed `[` never protects commas: `A [x], B [z, C` gives `A [x]`, `B [z`
+   and `C`. A locator is normalized for comparison (Unicode NFC, trim, collapse
+   whitespace runs) and compared exactly and case-sensitively. An empty locator
+   (`A []`) is a locator with an empty name and names no scenario. A value
+   without a closed locator after whitespace is read exactly as before locators
+   existed, for every relation: `Derived-from` and `References` keep the leading
+   token, every other relation keeps the whole value, and when no value on the
+   line has a closed locator the line splits on every comma. A value with an
+   unclosed `[` after whitespace has no locator; `MSL-L009` reports it. An ID
+   inside a locator is not a reference: rename-heal, LSP rename, find
+   references, the incoming count and code lenses skip it.
 2. **Locator modes.** `RelationDef.locator` is `criterion` for `Satisfies` and
    `Verifies`, `free` for `References` and `Derived-from`, and absent for every
    other relation. The facet is core-only (option 4a): profiles cannot declare a
@@ -76,8 +79,9 @@ small scenario index and leave room for it.
    `{ form: "scenario", name,
    addressable, location }` records. Only entries
    whose resolved core ancestor is Requirement or Contract get them; others keep
-   none. Upstream (federated) entries get none. Only top-level fenced blocks are
-   scanned; a fence nested in a list item or block quote is not. There is no
+   none. Upstream (federated) entries get none, and the validator raises no
+   `MSL-L007` for a locator on an upstream target. Only top-level fenced blocks
+   are scanned; a fence nested in a list item or block quote is not. There is no
    `CORE_SCHEMA_VERSION` bump. The scanner (`core/criteria/scenarios.ts`) reads
    `Scenario:`, `Scenario Outline:`, `Scenario Template:` and `Example:` lines,
    English keywords only, and ignores lines inside doc strings and non-feature
@@ -107,17 +111,18 @@ small scenario index and leave room for it.
    scenario locator, and also an existing `References: X [§4.3]` value, which
    was two quads and is now one quad with a locator. Projects without such
    values keep their hash.
-7. **Coverage.** `markspec report coverage` adds a `criteria` section in `md`,
-   `json` and `csv`, emitted only when a reported entry has criteria.
-   Entry-level output is unchanged for projects without feature blocks. Per
-   entry the state is `full`, `partial` or `none`. Only `Verifies` counts, and
-   only when the verifier's type is, or extends, the core `Test` type (with the
-   active profile's extends chain); an entry never verifies itself. Upstream
-   entries are not reported and do not count in the totals. A whole-entry
-   `Verifies` covers every scenario; a locator covers the scenario it names when
-   it resolves to an addressable scenario; an unresolved locator covers nothing;
-   a non-addressable scenario is covered only by a whole-entry `Verifies`. A
-   `Satisfies` locator has no effect on coverage.
+7. **Coverage.** `markspec report coverage` adds a `criteria` section in `md`
+   and `json` (in `csv`, only `Criteria total` and `Criteria verified` rows),
+   emitted only when a reported entry has criteria. Entry-level output is
+   unchanged for projects without feature blocks. Per entry the state is `full`,
+   `partial` or `none`. Only `Verifies` counts, and only when the verifier's
+   type is, or extends, the core `Test` type (with the active profile's extends
+   chain); an entry never verifies itself. Upstream entries are not reported and
+   do not count in the totals. A whole-entry `Verifies` covers every scenario; a
+   locator covers the scenario it names when it resolves to an addressable
+   scenario; an unresolved locator covers nothing; a non-addressable scenario is
+   covered only by a whole-entry `Verifies`. A `Satisfies` locator has no effect
+   on coverage.
 
 ### Alternatives considered
 
@@ -148,7 +153,8 @@ small scenario index and leave room for it.
   to the validator, formatter, lockfile and compiler together. The rename
   regexes in `core/refs` and `lsp/rename.ts` must be kept in step with it.
 - Compiled JSON, `fmt` output, the lockfile and the coverage report are
-  unchanged for a project without closed bracket locators.
+  unchanged for a project with no closed bracket locators and no feature blocks
+  in Requirement or Contract entries.
 - `Entry.criteria` and `Link.locatorResolved` are additive, so JSON consumers
   that ignore unknown keys keep working.
 - Scenarios in non-English feature blocks yield no criteria until the AST slice,

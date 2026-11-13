@@ -73,7 +73,7 @@ See [Locators](../spec/model/relations.md#locators) for the full grammar.
 | ---------- | -------- | ---------------------------------------------------------------------------------------- |
 | `MSL-L007` | warning  | The locator names no addressable scenario of its target.                                 |
 | `MSL-L008` | warning  | The relation does not accept a locator. The link to the target is kept.                  |
-| `MSL-L009` | warning  | A value has a `[` that no `]` closes. The value is read as a value without a locator.    |
+| `MSL-L009` | warning  | A value has a `[` that no `]` closes. Commas after the `[` still separate values.        |
 | `MSL-B060` | warning  | A scenario name is used more than once in one entry. A locator cannot address that name. |
 | `MSL-B061` | info     | A scenario has an empty name. A locator cannot address it.                               |
 
