@@ -133,7 +133,6 @@ Deno.test({
 // Enabled by Task 7 (criterion-level coverage report).
 Deno.test({
   name: "locator coverage: report coverage json has criteria",
-  ignore: true,
   fn: async () => {
     const { code, stdout } = await markspec(
       ["report", "coverage", "docs/braking.md", "--format", "json"],
@@ -141,8 +140,11 @@ Deno.test({
     );
     assertEquals(code, 0);
     const report = JSON.parse(stdout);
-    const first = report.criteria.entries[0];
-    assertEquals(first.displayId, "REQ_BRK_0010");
+    // deno-lint-ignore no-explicit-any
+    const first = (report.criteria.entries as any[]).find((e) =>
+      e.displayId === "REQ_BRK_0010"
+    );
+    assertEquals(first?.displayId, "REQ_BRK_0010");
     assertEquals(first.state, "partial");
     assertEquals(first.verified, 1);
     assertEquals(first.total, 2);
