@@ -547,6 +547,11 @@ docs/
   write tools will only propose (formatted preview, never write a file) and a
   person accepts; `insert` stdin body (#40) first; amends ADR-023's read-only
   guidance once #63 ships
+- `adr-037-scenario-locators.md` — scenario locators on `Satisfies` / `Verifies`
+  (`ID [Scenario name]`): core-only relation locator modes, `Entry.criteria`
+  from fenced `gherkin`/`feature` blocks, compiled `Link.locator`,
+  MSL-L007/L008/L009/B060/B061, optional `locator` on lockfile `[[edge]]`,
+  criteria section in `report coverage`
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
