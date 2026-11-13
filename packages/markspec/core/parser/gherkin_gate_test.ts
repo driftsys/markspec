@@ -359,3 +359,12 @@ Deno.test("parseFile: loader failure on a headerless .feature gives nothing", as
   assertEquals(result.entries, []);
   assertEquals(result.diagnostics, []);
 });
+
+Deno.test("parseFile: a .FEATURE extension in any case is routed to the feature extractor", async () => {
+  for (const file of ["brake.FEATURE", "brake.Feature"]) {
+    const result = await parseFile(HEADED_FEATURE, { file });
+    assertEquals(result.entries.length, 1, file);
+    assertEquals(result.entries[0].displayId, "SRS_BRK_0011", file);
+    assertEquals(result.entries[0].source.kind, "feature-file", file);
+  }
+});

@@ -151,11 +151,12 @@ export async function parseFile(
   },
 ): Promise<ParseFileResult> {
   const ext = extname(options.file);
+  const lowerExt = ext.toLowerCase();
   const normalised = normalizeLineEndings(content);
   // A `.feature` file always needs the parser (ADR-038): entries come from
   // its `# [ID]` header comments. A load failure gives no entries and one
   // MSL-B062 when the file has a header line, and never throws.
-  if (ext === ".feature") {
+  if (lowerExt === ".feature") {
     let api: GherkinApi;
     try {
       api = await (options.gherkinLoader ?? loadGherkin)();

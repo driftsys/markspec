@@ -6,6 +6,7 @@
 
 import { assertEquals } from "@std/assert";
 import { runPipeline } from "./pipeline.ts";
+import { resolvedCoreTypeWithProvenance } from "./type_resolution.ts";
 import type {
   EffectiveProfile,
   EffectiveTypeDef,
@@ -879,6 +880,28 @@ Deno.test("runPipeline: Stage 2.4 — upstream entry is exempt from late-stage M
     origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
   }], profile).diagnostics.filter((d) => d.code === "MSL-T021");
   assertEquals(upstreamT021, []);
+});
+
+Deno.test("runPipeline: a .feature entry resolved by step 6a gets no MSL-T021", async () => {
+  const text = [
+    "# [ZZZ_BRK_0001] Brake feature",
+    "Feature: Brake",
+    "",
+    "  # [ZZZ_BRK_0002] Stop test",
+    "  Scenario: Stop",
+    "    Given a car",
+    "    Then it stops",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "brake.feature" });
+  assertEquals(entries.length, 2);
+  // Control: both entries resolve at step 6a, so the check is not vacuous.
+  assertEquals(
+    entries.map((e) => resolvedCoreTypeWithProvenance(e)?.step),
+    ["6a", "6a"],
+  );
+  const { diagnostics } = runPipeline(entries, null);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-T021"), []);
 });
 
 Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {

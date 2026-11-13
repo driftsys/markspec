@@ -1,6 +1,12 @@
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
-import { discoverFiles, MARKDOWN_EXTENSIONS } from "./mod.ts";
+import {
+  discoverFiles,
+  FEATURE_EXTENSIONS,
+  MARKDOWN_EXTENSIONS,
+  RELEVANT_EXTENSIONS,
+  SOURCE_EXTENSIONS,
+} from "./mod.ts";
 import { makeTree, realIO } from "./test_helpers.ts";
 
 async function collect(
@@ -438,4 +444,29 @@ Deno.test("discovery: inheritGitignoreFrom below the walk root is ignored", asyn
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("discoverFiles: finds .feature, honours .gitignore and exclude:", async () => {
+  const dir = await makeTree({
+    ".gitignore": "ignored/\n",
+    "a.md": "",
+    "features/login.feature": "",
+    "features/UPPER.FEATURE": "",
+    "ignored/skip.feature": "",
+    "legacy/old.feature": "",
+  });
+  try {
+    assertEquals(
+      await collect(dir, { exclude: ["legacy/"] }),
+      ["a.md", "features/UPPER.FEATURE", "features/login.feature"],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: FEATURE_EXTENSIONS is relevant but not a source extension", () => {
+  assertEquals([...FEATURE_EXTENSIONS], [".feature"]);
+  assertEquals(RELEVANT_EXTENSIONS.has(".feature"), true);
+  assertEquals(SOURCE_EXTENSIONS.has(".feature"), false);
 });

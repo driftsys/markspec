@@ -514,6 +514,7 @@ export {
 // ── Gitignore-aware project file discovery ───────────────────────────────
 export {
   discoverFiles,
+  FEATURE_EXTENSIONS,
   isIgnored,
   MARKDOWN_EXTENSIONS,
   parseGitignore,

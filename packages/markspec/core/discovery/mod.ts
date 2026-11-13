@@ -52,10 +52,18 @@ export const SOURCE_EXTENSIONS: ReadonlySet<string> = new Set([
 /** Markdown only — the `fmt` scope (the formatter never rewrites source). */
 export const MARKDOWN_EXTENSIONS: ReadonlySet<string> = new Set([".md"]);
 
-/** Everything MarkSpec-relevant: markdown + source families. */
+/**
+ * Gherkin `.feature` files, whose `# [ID]` header comments define entries
+ * (ADR-038). Not part of {@linkcode SOURCE_EXTENSIONS}: that set drives the
+ * tree-sitter grammars and the LSP, and `.feature` files use neither.
+ */
+export const FEATURE_EXTENSIONS: ReadonlySet<string> = new Set([".feature"]);
+
+/** Everything MarkSpec-relevant: markdown, source and `.feature` files. */
 export const RELEVANT_EXTENSIONS: ReadonlySet<string> = new Set([
   ...MARKDOWN_EXTENSIONS,
   ...SOURCE_EXTENSIONS,
+  ...FEATURE_EXTENSIONS,
 ]);
 
 /** One directory entry from {@linkcode DiscoveryIO.readDir}.
