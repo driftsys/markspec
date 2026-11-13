@@ -189,20 +189,52 @@ jobs:
         run: |
           set -e
           bin="$PWD/dist/markspec"
-          dir="$(mktemp -d)"
-          cd "$dir"
+          root="$(mktemp -d)"
+          tmp="$(mktemp -d)"
+          mkdir "$root/assets" "$root/docs"
+          cd "$root/docs"
           printf 'name: t\nversion: 0.1.0\n' > project.yaml
-          printf '# T\n\nHello.\n' > t.md
-          "$bin" doc build t.md
+          printf '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>\n' > "$root/assets/d.svg"
+          printf '# T\n\nHello.\n\n![d](../assets/d.svg)\n' > t.md
+          # A parent-directory asset renders only when the staged package does
+          # not narrow the Typst workspace root to the document folder.
+          TMPDIR="$tmp" "$bin" doc build t.md
           test -s t.pdf
+          leftovers() { find "$root/docs" "$tmp" -maxdepth 1 -name '*markspec-typst-*'; }
+          test -z "$(leftovers)" || { echo "staged folder left behind"; leftovers; exit 1; }
+          # A failing build must also remove the staged folder.
+          printf '# T\n\n![x](missing.svg)\n' > bad.md
+          set +e
+          TMPDIR="$tmp" "$bin" doc build bad.md
+          rc=$?
+          set -e
+          test $rc -ne 0 || { echo "failing doc build exited 0"; exit 1; }
+          test -z "$(leftovers)" || { echo "staged folder left behind after failure"; leftovers; exit 1; }
       - name: Smoke test — self-upgrade reaches the network
         run: |
           set +e
+          # --check contacts api.github.com. An unauthenticated rate limit is
+          # not a regression, so it only warns.
           out="$(./dist/markspec self-upgrade --check 2>&1)"
           rc=$?
           echo "$out"
           if echo "$out" | grep -q "Requires net access"; then exit 1; fi
-          if [ $rc -ne 0 ] && [ $rc -ne 1 ]; then exit $rc; fi
+          if echo "$out" | grep -qiE "rate limit|status 403"; then
+            echo "::warning::GitHub API rate limit reached; --check not verified"
+          elif [ $rc -ne 0 ] && [ $rc -ne 1 ]; then
+            exit $rc
+          fi
+          # A pinned install contacts the release download hosts (tarball and
+          # checksum). It runs on a copy, because self-upgrade replaces its
+          # own binary and refuses names that do not start with "markspec".
+          copydir="$(mktemp -d)"
+          cp dist/markspec "$copydir/markspec"
+          out="$("$copydir/markspec" self-upgrade --version v0.12.0 2>&1)"
+          rc=$?
+          echo "$out"
+          if echo "$out" | grep -q "Requires net access"; then exit 1; fi
+          test $rc -eq 0
+          "$copydir/markspec" --version | grep -q "0.12.0"
       - name: Smoke test — lock fetches a snapshot over HTTP
         run: |
           set -e
@@ -211,16 +243,20 @@ jobs:
           mkdir "$dir/site" "$dir/proj"
           printf '%s' '{"markspecSchemaVersion":1,"generator":{"coreSchema":1},"entries":{"format":"inline","file":"entries.json"}}' > "$dir/site/manifest.json"
           printf '%s' '{"entries":{}}' > "$dir/site/entries.json"
+          # 127.0.0.2 lies outside the old 127.0.0.1 allowlist, so a permission
+          # regression fails this step. It needs Linux (macOS cannot bind it).
           printf 'name: t\nversion: 0.1.0\nreferences:\n  - url: http://127.0.0.2:8765\n    name: snap\n' > "$dir/proj/project.yaml"
           (cd "$dir/site" && python3 -m http.server 8765 --bind 127.0.0.2 > /dev/null 2>&1 &)
-          sleep 1
+          for _ in $(seq 1 20); do
+            curl -s -o /dev/null http://127.0.0.2:8765/manifest.json && break
+            sleep 0.5
+          done
           cd "$dir/proj"
           set +e
           out="$("$bin" lock 2>&1)"
           rc=$?
           set -e
           echo "$out"
-          if echo "$out" | grep -q "Requires net access"; then exit 1; fi
           if echo "$out" | grep -q "MSL-L213"; then exit 1; fi
           test $rc -eq 0
           echo "$out" | grep -q "1 registries"

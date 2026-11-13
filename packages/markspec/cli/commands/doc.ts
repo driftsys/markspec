@@ -28,6 +28,7 @@ export const docCmd = new Command()
       bundledTypstPackagePath,
       sourceFilePath,
     );
+    let failed = false;
     try {
       const result = renderPdf(markdown, {
         compiled,
@@ -43,15 +44,17 @@ export const docCmd = new Command()
 
       if (result.output.length === 0) {
         console.error("error: PDF rendering failed");
-        Deno.exit(1);
+        failed = true;
+      } else {
+        const outPath = options.output ?? file.replace(/\.md$/, ".pdf");
+        await Deno.writeFile(outPath, result.output);
+        console.error(`wrote ${outPath}`);
       }
-
-      const outPath = options.output ?? file.replace(/\.md$/, ".pdf");
-      await Deno.writeFile(outPath, result.output);
-      console.error(`wrote ${outPath}`);
     } finally {
       await cleanup();
     }
+    // Exit after the cleanup: `Deno.exit` inside the try would skip it.
+    if (failed) Deno.exit(1);
   });
 
 /**
@@ -60,16 +63,22 @@ export const docCmd = new Command()
  *
  * Typst runs as a native addon that reads the real filesystem, so it cannot
  * see files embedded in a `deno compile` binary. When running from such a
- * binary (`Deno.build.standalone`), the package is always copied to a temp
- * dir next to the source document, and that copy is used.
+ * binary (`Deno.build.standalone`), the package is copied to a folder in the
+ * system temp directory, and that copy is used. The system temp directory
+ * keeps the Typst workspace root (the longest common directory of the
+ * package and the source, see `render/mod.ts`) at least as wide as when
+ * running from source, so references such as `../assets/x.svg` keep working,
+ * and a read-only document folder does not fail. If the system temp
+ * directory is on another Windows drive than the source, the copy is made
+ * next to the source instead, because paths on different drives share no
+ * common ancestor.
  *
  * The Typst compiler also requires every input under a single workspace root.
  * On Windows the package may live on a different drive than the source
- * (e.g., installed CLI on `C:` rendering docs on `D:`), and cross-drive
- * paths share no common ancestor. When that happens we copy the package
- * (≈1 MB) to a temp dir next to the source so the workspace computation
- * finds a real ancestor. Outside a compiled binary, POSIX hosts never trigger
- * this path.
+ * (e.g., installed CLI on `C:` rendering docs on `D:`). When that happens we
+ * copy the package (about 1 MB) to a temp dir next to the source so the
+ * workspace computation finds a real ancestor. Outside a compiled binary,
+ * POSIX hosts never trigger this path.
  *
  * The returned `cleanup` is a no-op when no copy was made.
  */
@@ -78,7 +87,15 @@ async function stageTypstPackage(
   sourceFilePath: string,
 ): Promise<{ path: string; cleanup: () => Promise<void> }> {
   const standalone = Deno.build.standalone === true;
-  if (!standalone) {
+  let stagingParent: string | undefined;
+  if (standalone) {
+    const systemTemp = Deno.env.get("TMPDIR") ?? Deno.env.get("TEMP") ??
+      Deno.env.get("TMP") ?? "/tmp";
+    const sameDrive = Deno.build.os !== "windows" ||
+      parse(resolve(systemTemp)).root.toLowerCase() ===
+        parse(sourceFilePath).root.toLowerCase();
+    if (!sameDrive) stagingParent = dirname(sourceFilePath);
+  } else {
     if (Deno.build.os !== "windows") {
       return { path: bundledPath, cleanup: () => Promise.resolve() };
     }
@@ -87,11 +104,13 @@ async function stageTypstPackage(
     if (pkgRoot === srcRoot) {
       return { path: bundledPath, cleanup: () => Promise.resolve() };
     }
+    stagingParent = dirname(sourceFilePath);
   }
-  const stagingDir = await Deno.makeTempDir({
-    dir: dirname(sourceFilePath),
-    prefix: ".markspec-typst-",
-  });
+  const stagingDir = await Deno.makeTempDir(
+    stagingParent === undefined
+      ? { prefix: "markspec-typst-" }
+      : { dir: stagingParent, prefix: ".markspec-typst-" },
+  );
   await copy(bundledPath, stagingDir, { overwrite: true });
   return {
     path: stagingDir,
