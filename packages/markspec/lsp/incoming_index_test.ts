@@ -92,3 +92,11 @@ Deno.test("buildIncomingCount: an ID inside a locator is not counted (#915)", ()
   assertEquals(count.get("REQ_A" as DisplayId), 1);
   assertEquals(count.get("REQ_B" as DisplayId), undefined);
 });
+
+Deno.test("buildIncomingCount: a value with free text counts its first token", () => {
+  const child = fakeEntry({
+    displayId: "TST_1",
+    attrs: [{ key: "Satisfies", value: "STK_A note" }],
+  });
+  assertEquals(buildIncomingCount([child]).get("STK_A" as DisplayId), 1);
+});

@@ -1407,3 +1407,50 @@ Deno.test("compile: a locator naming a duplicated scenario is not resolved", asy
   const [link] = linkFrom(result, "TST_BRK_0034", "REQ_BRK_0010");
   assertEquals(link.locatorResolved, false);
 });
+
+Deno.test("compile: an unclosed '[' after a closed locator keeps the next link", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0035] Mixed
+
+  Measure.
+
+      Id: 01TST00000000000000000035A
+      Satisfies: A [x], B [z, C
+`);
+  const links = result.links.filter((l) => l.from === "TST_BRK_0035");
+  assertEquals(links.map((l) => l.to), ["A", "B [z", "C"]);
+});
+
+Deno.test("compile: an empty locator is kept and does not resolve", async () => {
+  for (const loc of ["[]", "[ ]"]) {
+    const result = await compileLocators(`
+- [TST_BRK_0036] Empty
+
+  Measure.
+
+      Id: 01TST00000000000000000036A
+      Type: test
+      Verifies: REQ_BRK_0010 ${loc}
+`);
+    const [link] = linkFrom(result, "TST_BRK_0036", "REQ_BRK_0010");
+    assertEquals(link.locator, "", loc);
+    assertEquals(link.locatorResolved, false, loc);
+  }
+});
+
+Deno.test("compile: a repeated Verifies to one target gives one generated link", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0037] Twice
+
+  Measure.
+
+      Id: 01TST00000000000000000037A
+      Type: test
+      Verifies: 01REQ00000000000000000010A
+      Verifies: 01REQ00000000000000000010A
+`);
+  const generated = result.links.filter((l) =>
+    l.origin === "generated" && l.from === "REQ_BRK_0010"
+  );
+  assertEquals(generated.length, 1);
+});

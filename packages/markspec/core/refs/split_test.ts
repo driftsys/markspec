@@ -3,6 +3,7 @@ import {
   isUnterminatedLocator,
   normalizeLocator,
   parseTraceValue,
+  referenceTokens,
   splitTraceValues,
   traceTarget,
 } from "./split.ts";
@@ -26,8 +27,13 @@ Deno.test("splitTraceValues: without a closed locator, every comma splits", () =
   assertEquals(splitTraceValues("A [x, y"), ["A [x", "y"]);
 });
 
-Deno.test("splitTraceValues: a closed locator elsewhere enables bracket splitting", () => {
+Deno.test("splitTraceValues: an unclosed '[' never swallows commas", () => {
   assertEquals(splitTraceValues("A [x, y], B [z"), ["A [x, y]", "B [z"]);
+  assertEquals(splitTraceValues("A [x], B [z, C"), ["A [x]", "B [z", "C"]);
+});
+
+Deno.test("splitTraceValues: a locator opens only on '[' after whitespace", () => {
+  assertEquals(splitTraceValues("A[x, y], B [z]"), ["A[x", "y]", "B [z]"]);
 });
 
 Deno.test("parseTraceValue: locator is normalized, raw text is kept", () => {
@@ -116,4 +122,9 @@ Deno.test("isUnterminatedLocator: open bracket after whitespace", () => {
   assertEquals(isUnterminatedLocator("A [x]"), false);
   assertEquals(isUnterminatedLocator("A[x"), false);
   assertEquals(isUnterminatedLocator("A [x\\]"), true);
+});
+
+Deno.test("referenceTokens: a value without a locator splits on whitespace", () => {
+  assertEquals(referenceTokens("STK_A note"), ["STK_A", "note"]);
+  assertEquals(referenceTokens("STK_A [x REQ_B], STK_C"), ["STK_A", "STK_C"]);
 });

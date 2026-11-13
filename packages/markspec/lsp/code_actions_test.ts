@@ -849,3 +849,19 @@ Deno.test("buildCodeActions: MSL-A011 keeps an escaped ']' inside a locator (#91
     "      References: x [a\\]b, c]\n      References: y\n",
   );
 });
+
+Deno.test("buildCodeActions: MSL-A011 splits at a backslash comma outside a locator (#915)", () => {
+  const doc = [
+    "- [REQ-001] Title",
+    "",
+    "      References: x\\, y",
+    "",
+  ].join("\n");
+  const actions = buildCodeActions("file:///x.md", [
+    diag({ code: "MSL-A011", message: "'References'", line: 0, character: 0 }),
+  ], doc);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.md"][0].newText,
+    "      References: x\\\n      References: y\n",
+  );
+});

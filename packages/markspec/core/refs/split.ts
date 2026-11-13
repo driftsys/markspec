@@ -36,13 +36,14 @@ export function normalizeLocator(text: string): string {
  * value is read. Parts are trimmed and empty parts are dropped.
  */
 export function splitTraceValues(value: string): string[] {
+  // An unclosed `[` never protects commas (see splitOutsideLocators).
   const bracketParts = splitOutsideLocators(value);
   if (bracketParts.some((p) => LOCATOR_VALUE_RE.test(p))) return bracketParts;
   return value.split(",").map((p) => p.trim()).filter((p) => p.length > 0);
 }
 
-/** Split on commas outside a locator. A `[` opens a locator only after
- * whitespace; an unterminated locator keeps the rest of the value. */
+/** Split on commas outside a closed locator. A `[` opens a locator only
+ * after whitespace; an unclosed locator does not protect its commas. */
 function splitOutsideLocators(value: string): string[] {
   const parts: string[] = [];
   let current = "";
@@ -66,7 +67,9 @@ function splitOutsideLocators(value: string): string[] {
       current += ch;
     }
   }
-  parts.push(current);
+  // An unclosed `[` never swallows commas: the rest splits on each comma.
+  if (inLocator) parts.push(...current.split(","));
+  else parts.push(current);
   return parts.map((p) => p.trim()).filter((p) => p.length > 0);
 }
 

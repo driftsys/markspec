@@ -245,3 +245,21 @@ Deno.test("validateLocators: empty scenario name → MSL-B061 info", () => {
   assertEquals(diags[0].severity, "info");
   assertEquals(diags[0].location?.line, 17);
 });
+
+Deno.test("validateLocators: an empty locator → MSL-L007", () => {
+  for (const loc of ["[]", "[ ]"]) {
+    const diags = run(testEntry(`Verifies: REQ_BRK_0010 ${loc}`));
+    assertEquals(codes(diags, "MSL-L007").length, 1, loc);
+  }
+});
+
+Deno.test("validateLocators: a locator on an upstream target → no MSL-L007", () => {
+  const entries = [
+    ...parse(REQ, { file: "/r.md" }).map((e) => ({
+      ...e,
+      origin: { kind: "upstream" as const, upstreamId: "up", version: "1" },
+    })),
+    ...parse(testEntry("Verifies: REQ_BRK_0010 [Nope]"), { file: "/t.md" }),
+  ].map((e) => ({ ...e, type: e.typedAttributes.get("Type")?.[0] }));
+  assertEquals(codes(validateLocators(entries, null), "MSL-L007"), []);
+});

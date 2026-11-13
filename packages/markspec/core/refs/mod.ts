@@ -9,7 +9,8 @@
  *
  * Architecture: composed AROUND the pure `core/formatter` by the `markspec fmt`
  * CLI. It MUST NOT import `core/formatter`, and `core/formatter` MUST NOT import
- * it (WASM-migration purity guard, AGENTS.md).
+ * this module (WASM-migration purity guard, AGENTS.md). The formatter may
+ * import only the pure leaf `core/refs/split.ts` (ADR-026 D6).
  */
 
 import type { Entry } from "../model/mod.ts";

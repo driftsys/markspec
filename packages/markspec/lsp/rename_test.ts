@@ -366,3 +366,16 @@ Deno.test("findIdOccurrencesInFile: a doc-comment trailer locator is skipped (#9
   const edits = findIdOccurrencesInFile(text, "REQ_1", "REQ_9");
   assertEquals(edits.map((e) => e.range.start.character), [18]);
 });
+
+Deno.test("findIdOccurrencesInFile: '*' and '#' comment trailers skip locators (#915)", () => {
+  for (const prefix of [" *", "#"]) {
+    const text = `${prefix}     Verifies: REQ_1 [Check REQ_1 behaviour]`;
+    const edits = findIdOccurrencesInFile(text, "REQ_1", "REQ_9");
+    assertEquals(edits.length, 1, prefix);
+  }
+});
+
+Deno.test("findIdOccurrencesInFile: a '[' without whitespace before it is not a locator (#915)", () => {
+  const text = "      Satisfies: REQ_2[REQ_1]";
+  assertEquals(findIdOccurrencesInFile(text, "REQ_1", "REQ_9").length, 1);
+});

@@ -775,3 +775,12 @@ Deno.test("reporter criteria: a non-addressable scenario is covered only by a wh
   const whole = makeResult([req, tst], [verifyLink("TST_0012", "REQ_0010")]);
   assertEquals(criteriaJson(whole).entries[0].state, "full");
 });
+
+Deno.test("reporter criteria: an untyped verifier does not count", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const untyped = makeEntry("TST_0050", "Untyped");
+  const result = makeResult([req, untyped], [
+    verifyLink("TST_0050", "REQ_0010"),
+  ]);
+  assertEquals(criteriaJson(result).verified, 0);
+});

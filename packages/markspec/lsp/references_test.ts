@@ -171,3 +171,14 @@ Deno.test("findReferencingEntries: an ID inside a locator is not a reference (#9
     ["TST_1", "TST_2"],
   );
 });
+
+Deno.test("findReferencingEntries: a value with free text still references its first token", () => {
+  const entries = [
+    makeEntry("STK_A", [["Id", "01"]], 1),
+    makeEntry("TST_1", [["Satisfies", "STK_A note"]], 10),
+  ];
+  assertEquals(
+    findReferencingEntries(entries, "STK_A").map((e) => e.displayId),
+    ["TST_1"],
+  );
+});

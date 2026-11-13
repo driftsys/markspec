@@ -33,6 +33,7 @@ import {
   ATTRIBUTE_CATALOG,
   CORE_RELATIONS,
   emittableEntries,
+  isUpstreamEntry,
   relationLocatorMode,
 } from "../model/mod.ts";
 import { buildCriteria, isCriteriaBearing } from "../criteria/scenarios.ts";
@@ -110,7 +111,9 @@ export function validateLocators(
         }
         if (mode !== "criterion") continue;
         const target = byKey.get(parsed.target);
-        if (!target || !isCriteriaBearing(target, profile)) continue;
+        // An upstream target carries no criteria (as in the compiler).
+        if (!target || isUpstreamEntry(target)) continue;
+        if (!isCriteriaBearing(target, profile)) continue;
         const resolved = buildCriteria(target).some((c) =>
           c.addressable && c.name === parsed.locator
         );
