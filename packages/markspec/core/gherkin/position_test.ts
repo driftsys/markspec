@@ -173,3 +173,61 @@ fn go() {}
   await check(rs, "a.rs", 0, ["Stop"]);
   await check(rs, "a.rs", 1, ["Run"]);
 });
+
+Deno.test("featureFileLine: a plain comment line ends the entry body (Rust)", async () => {
+  const rs = `/// [SRS_001] Brake
+///
+/// The unit shall brake.
+// plain comment inside the body
+/// More text.
+///
+/// \`\`\`gherkin
+/// Scenario: Stop
+///   Given a car
+/// \`\`\`
+///
+///     Id:
+fn brake() {}
+`;
+  const { entries } = await parseFile(rs, { file: "a.rs" });
+  // A plain `//` line ends the doc comment, so the entry stops before it:
+  // no feature block exists and no position can drift.
+  assertEquals(entries.length, 1);
+  assertEquals(featuresOf(entries[0]).length, 0);
+});
+
+Deno.test("featureFileLine: blank line inside a block doc comment body", async () => {
+  const rs = `fn first() {}
+
+/**
+ * [SRS_001] Brake
+ *
+
+ * The unit shall brake.
+ *
+ * \`\`\`gherkin
+ * Scenario: Stop
+ *   Given a car
+ * \`\`\`
+ *
+ *     Id:
+ */
+fn brake() {}
+`;
+  await check(rs, "a.rs", 0, ["Stop"]);
+});
+
+Deno.test("featureFileLine: entry body that starts with the fence (blank line after the title)", async () => {
+  const md = `# Doc
+
+- [REQ-001] Brake
+
+  \`\`\`gherkin
+  Scenario: Stop
+    Given a car
+  \`\`\`
+
+      Id:
+`;
+  await check(md, "a.md", 0, ["Stop"]);
+});

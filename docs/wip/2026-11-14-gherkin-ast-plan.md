@@ -282,10 +282,13 @@ type FeatureParse =
 
 **Files:**
 
-- Modify: `core/parser/translate.ts` (translate `FeatureAst` ranges through the
-  `LineMap`), `core/parser/markdown.ts` (no change expected; verify)
-- Test: `core/parser/translate_test.ts`, `tests/e2e/source_body_tokens_test.ts`,
-  `packages/markspec/lsp/server` path via `lsp/workspace_test.ts`
+- Create: `core/gherkin/position.ts` (`featureFileLine`),
+  `core/gherkin/position_test.ts`
+- Modify: `core/mod.ts` (export `featureFileLine`), `core/parser/mod.ts` (export
+  `GHERKIN_FENCE_RE`; match 3+ marks and a `>` prefix),
+  `core/parser/gherkin_gate_test.ts`, `lsp/workspace_test.ts`
+- No change to `core/parser/translate.ts`: `bodyStartLine` is already
+  file-relative.
 
 **Interfaces:**
 
@@ -319,6 +322,9 @@ type FeatureParse =
 - Test: `core/parser/body_tokens_test.ts`,
   `tests/e2e/parse_body_tokens_test.ts`,
   `tests/e2e/lsp_semantic_tokens_test.ts`, their `__snapshots__`
+
+Token columns include the source comment prefix (Review Focus 2) — pin with a
+test.
 
 **Interfaces:**
 
