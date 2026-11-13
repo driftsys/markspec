@@ -62,7 +62,7 @@ export interface ProcedureStep {
   /** 1-based position in the scenario. */
   readonly n: number;
   /**
-   * The `# Step <text>` label above the step's first line, without the `#`
+   * The `# Step` label above the step's first line, without the `#`
    * (for example `Step 1`). Absent when the step has no label. It never
    * changes `n`.
    */
@@ -81,7 +81,8 @@ export interface ScenarioProcedure {
   /**
    * `# Step` labels inside the scenario's range that do not label a step: one
    * before a leading precondition or a step that does not open a procedure
-   * step, one with no step after it (including one before `Examples:`), or a
+   * step, one with a description line between it and the step, one with no
+   * step after it (including one before `Examples:`), or a
    * second label above the same step. Labels outside every scenario are
    * reported by {@linkcode unplacedStepLabels}.
    */
@@ -89,7 +90,7 @@ export interface ScenarioProcedure {
 }
 
 /** A step label comment: `#`, the fixed word `Step`, then text. */
-const STEP_LABEL_RE = /^#\s*Step\s+\S/;
+const STEP_LABEL_RE = /^#\s*Step\b.*$/;
 
 /**
  * Derive the procedure view of a scenario.
@@ -99,7 +100,7 @@ const STEP_LABEL_RE = /^#\s*Step\s+\S/;
  * an expected result, or a precondition after an action or expected result,
  * opens a new step. Examples of an outline are not expanded.
  *
- * `comments` are the block's comments. A `# Step <text>` comment inside the
+ * `comments` are the block's comments. A `# Step` comment inside the
  * scenario's range labels the procedure step that starts at the next step
  * line; any other label is returned in `unplacedLabels`.
  */
@@ -170,7 +171,12 @@ export function scenarioProcedure(
     const next = scenario.steps.findIndex((s) =>
       s.range.start.line > comment.line
     );
-    const target = next < 0 ? -1 : startIndexes.indexOf(next);
+    // Only comments and blank lines may lie between a label and its step: a
+    // description line after the label makes the label unplaced.
+    const afterDescription = comment.line > (scenario.descriptionEndLine ?? 0);
+    const target = next < 0 || !afterDescription
+      ? -1
+      : startIndexes.indexOf(next);
     if (target < 0 || labels.has(target)) unplacedLabels.push(comment);
     else labels.set(target, comment.text.slice(1).trim());
   }

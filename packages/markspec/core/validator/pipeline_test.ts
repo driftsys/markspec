@@ -1308,3 +1308,28 @@ Deno.test("runPipeline: reports MSL-B064 for a Requirement criterion with no The
     [6],
   );
 });
+
+Deno.test("runPipeline: a Type trailer with no profile gives none of MSL-B064 to MSL-B068", async () => {
+  for (const type of ["Requirement", "Test", "Component"]) {
+    const md = `- [REQ_X_0001] Criterion
+
+  Text.
+
+  \`\`\`feature
+  Scenario: S
+    # Step 0
+    And a
+    Given b
+  \`\`\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: ${type}
+`;
+    const { entries } = await parseFile(md, { file: "t.md" });
+    const result = runPipeline(entries, null);
+    assertEquals(
+      result.diagnostics.filter((d) => /^MSL-B06[4-8]$/.test(d.code)),
+      [],
+    );
+  }
+});

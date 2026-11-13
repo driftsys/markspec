@@ -140,7 +140,7 @@ export function checkBlockRoles(
             comment.line,
             "info",
             `"${comment.text.trim()}" labels no procedure step; place it ` +
-              "directly above the first action of a step",
+              "on the first line of a procedure step",
           );
         }
       }

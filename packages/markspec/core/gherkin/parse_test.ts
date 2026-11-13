@@ -331,3 +331,25 @@ Deno.test("parseFeature: a hash line in a doc string is not a comment", () => {
 Deno.test("parseFeature: no comments gives an empty list", () => {
   assertEquals(feature("Scenario: S\n  Then ok").comments, []);
 });
+
+Deno.test("parseFeature: the language comment keeps its line with an explicit Feature", () => {
+  const f = feature(
+    "# language: fr\nFonctionnalité: F\n  Scénario: S\n    Soit a\n",
+  );
+  assertEquals(f.comments, [{ line: 1, text: "# language: fr" }]);
+});
+
+Deno.test("parseFeature: the language comment keeps its line when it is not the first", () => {
+  const f = feature("\n# note\n# language: fr\nScénario: S\n  Soit a\n");
+  assertEquals(f.comments.map((c) => c.line), [2, 3]);
+  assertEquals(f.comments[1].text, "# language: fr");
+});
+
+Deno.test("parseFeature: records the last description line of a scenario", () => {
+  const f = feature(
+    "Scenario: S\n  First line.\n  # note\n  Second line.\n\n  When a\n  Then b\n",
+  );
+  assertEquals(f.scenarios[0].descriptionEndLine, 4);
+  const none = feature("Scenario: S\n  # note\n  When a\n  Then b\n");
+  assertEquals("descriptionEndLine" in none.scenarios[0], false);
+});

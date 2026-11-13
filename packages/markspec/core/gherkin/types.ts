@@ -53,6 +53,11 @@ export interface ScenarioAst {
   readonly tags: readonly string[];
   readonly ruleName?: string;
   readonly description: string;
+  /**
+   * 1-based block line of the last description text line. Absent when the
+   * scenario has no description.
+   */
+  readonly descriptionEndLine?: number;
   readonly isOutline: boolean;
   /** Feature background steps, then Rule background steps, in order. */
   readonly background: readonly StepAst[];

@@ -226,12 +226,27 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
         b.line > a.line || (b.line === a.line && b.column > a.column) ? b : a
       )
       : { line: start, column: column + s.keyword.length + 1 };
+    // Last description line: the last text line between the keyword line and
+    // the first step (or Examples), ignoring blank and comment lines.
+    let descriptionEndLine: number | undefined;
+    if (s.description.trim() !== "") {
+      const bound = steps[0]?.range.start.line ??
+        exs[0]?.range.start.line ?? sourceLines.length + 1;
+      for (let line = bound - 1; line > start; line--) {
+        const text = (sourceLines[line - 1] ?? "").trim();
+        if (text !== "" && !text.startsWith("#")) {
+          descriptionEndLine = line;
+          break;
+        }
+      }
+    }
     scenarios.push({
       name: s.name.trim(),
       keyword: s.keyword,
       tags: s.tags.map((t) => t.name),
       ...(ruleName !== undefined ? { ruleName } : {}),
       description: s.description,
+      ...(descriptionEndLine !== undefined ? { descriptionEndLine } : {}),
       isOutline: s.examples.length > 0 ||
         isOutlineKeyword(api, wrap.language, s.keyword),
       background,

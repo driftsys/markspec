@@ -524,6 +524,44 @@ Deno.test("scenarioProcedure: label spelling", () => {
       .steps[0].label;
   assertEquals(label("#Step 1"), "Step 1");
   assertEquals(label("# step 1"), undefined);
-  assertEquals(label("# Step"), undefined);
+  assertEquals(label("# Step"), "Step");
   assertEquals(label("# Steps 1"), undefined);
+});
+
+Deno.test("scenarioProcedure: a description line between label and step leaves the label unplaced", () => {
+  for (
+    const source of [
+      "Scenario: S\n  # Step 1\n  A description.\n  When a\n  Then b\n",
+      "Scenario Outline: S\n  # Step 1\n  A description.\n  When <a>\n  Then b\n  Examples:\n    | a |\n    | 1 |\n",
+    ]
+  ) {
+    const view = procedureWithComments(source);
+    assertEquals(view.unplacedLabels, [{ line: 2, text: "# Step 1" }]);
+    assertEquals("label" in view.steps[0], false);
+  }
+});
+
+Deno.test("scenarioProcedure: a label after the description, with comments and blank lines before the step, attaches", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  A description.\n  # Step 1\n\n  # note\n  When a\n  Then b\n",
+  );
+  assertEquals(view.steps[0].label, "Step 1");
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("scenarioProcedure: a label above a precondition that opens a later step attaches", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  When a\n  Then b\n  # Step 2\n  Given c\n  When d\n  Then e\n",
+  );
+  assertEquals(view.steps.map((s) => s.label), [undefined, "Step 2"]);
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("unplacedStepLabels: a language header and plain comments are not labels", () => {
+  assertEquals(
+    unplaced(
+      "# language: en\n# note\nScenario: S\n  When a\n  Then b\n# note\n",
+    ),
+    [],
+  );
 });

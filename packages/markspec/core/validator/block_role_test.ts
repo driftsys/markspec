@@ -289,8 +289,8 @@ Deno.test("MSL-B067: misplaced Step label in a Test", async () => {
   assertEquals(lineOf(text, diags[0].location!.line), "# Step 0");
   assertEquals(
     diags[0].message,
-    'TST_X_0001: "# Step 0" labels no procedure step; place it directly ' +
-      "above the first action of a step",
+    'TST_X_0001: "# Step 0" labels no procedure step; place it on ' +
+      "the first line of a procedure step",
   );
 });
 
@@ -341,4 +341,132 @@ Deno.test("checkBlockRoles: diagnostics are sorted by file line within an entry"
   const lines = diags.map((d) => d.location!.line);
   assertEquals(diags.length >= 3, true);
   assertEquals(lines, [...lines].sort((a, b) => a - b));
+});
+
+/** An entry with two fenced `feature` blocks in its body. */
+const twoBlocks = (first: string, second: string, type: string): string => {
+  const fence = (block: string) =>
+    "  ```feature\n" + block.split("\n").map((l) => "  " + l).join("\n") +
+    "\n  ```";
+  return `# Doc
+
+- [TST_X_0001] Title
+
+  Text.
+
+${fence(first)}
+
+  More text.
+
+${fence(second)}
+
+    Id: 01TST00000000000000000010A
+      Type: ${type}
+`;
+};
+
+Deno.test("MSL-B067: a # language header and plain comments give none", async () => {
+  const text = entry(
+    "# language: en\n# note\nScenario: S\n  When a\n  Then b",
+    "Test",
+    "TST_X",
+  );
+  assertEquals(checkBlockRoles(await load(text), null), []);
+  const outside = entry(
+    "Scenario: A\n  When a\n  Then b\n# note\nScenario: B\n  When c\n  Then d",
+    "Test",
+    "TST_X",
+  );
+  assertEquals(checkBlockRoles(await load(outside), null), []);
+});
+
+Deno.test("MSL-B067: a label above a precondition that opens a later step is placed", async () => {
+  const text = entry(
+    "Scenario: S\n  When a\n  Then b\n  # Step 2\n  Given c\n  When d\n  Then e",
+    "Test",
+    "TST_X",
+  );
+  assertEquals(checkBlockRoles(await load(text), null), []);
+});
+
+Deno.test("MSL-B067: a bare # Step that labels no step is reported", async () => {
+  const text = entry(
+    "Scenario: S\n  # Step\n  Given a\n  When b\n  Then c",
+    "Test",
+    "TST_X",
+  );
+  assertEquals(
+    checkBlockRoles(await load(text), null).map((d) => d.code),
+    ["MSL-B067"],
+  );
+});
+
+Deno.test("MSL-B067: a label above a description line is reported", async () => {
+  const text = entry(
+    "Scenario: S\n  # Step 1\n  Some description.\n  When a\n  Then b",
+    "Test",
+    "TST_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B067"]);
+  assertEquals(lineOf(text, diags[0].location!.line), "# Step 1");
+});
+
+Deno.test("MSL-B068: reported once per block, at its first line, with no other role info", async () => {
+  const text = entry(
+    "Scenario: A\n  And a\n  Then b\n\nScenario: B\n  Then c",
+    "Component",
+    "SWC_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B068"]);
+  assertEquals(
+    lineOf(text, diags[0].location!.line),
+    "Scenario: A",
+  );
+});
+
+Deno.test("MSL-B068: both blocks of an entry are checked", async () => {
+  const text = twoBlocks(
+    "Scenario: A\n  When a\n  Then b",
+    "Scenario: B\n  When c\n  Then d",
+    "Component",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B068", "MSL-B068"]);
+  assertEquals(lineOf(text, diags[0].location!.line), "Scenario: A");
+  assertEquals(lineOf(text, diags[1].location!.line), "Scenario: B");
+});
+
+Deno.test("MSL-B064: both blocks of an entry are checked", async () => {
+  const text = twoBlocks(
+    "Scenario: A\n  When a\n  Then b",
+    "Scenario: B\n  Given c\n  When d",
+    "Requirement",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B064"]);
+  assertEquals(lineOf(text, diags[0].location!.line), "Scenario: B");
+});
+
+Deno.test("MSL-B065: reported at the first expected-result step", async () => {
+  const text = entry(
+    "Scenario: S\n  Given a\n  Then b\n  And c",
+    "Test",
+    "TST_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B065"]);
+  assertEquals(lineOf(text, diags[0].location!.line), "Then b");
+});
+
+Deno.test("MSL-B066: a localized And is reported", async () => {
+  const text = entry(
+    "# language: fr\nFonctionnalité: F\n  Scénario: S\n    Et a\n    Alors b",
+    "Test",
+    "TST_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B066"]);
+  assertEquals(lineOf(text, diags[0].location!.line), "Et a");
 });
