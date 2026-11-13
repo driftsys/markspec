@@ -6,7 +6,12 @@
  * normalized AST; nothing is stored on the AST.
  */
 
-import type { GherkinComment, ScenarioAst, StepAst } from "./types.ts";
+import type {
+  FeatureAst,
+  GherkinComment,
+  ScenarioAst,
+  StepAst,
+} from "./types.ts";
 
 /** What a step does in a procedure. */
 export type StepRole = "precondition" | "action" | "outcome";
@@ -74,9 +79,11 @@ export interface ScenarioProcedure {
   readonly preconditions: readonly ProcedureStepRef[];
   readonly steps: readonly ProcedureStep[];
   /**
-   * `# Step` labels inside the scenario that do not label a step: one before
-   * a leading precondition or a step that does not open a procedure step, one
-   * with no step after it, or a second label above the same step.
+   * `# Step` labels inside the scenario's range that do not label a step: one
+   * before a leading precondition or a step that does not open a procedure
+   * step, one with no step after it (including one before `Examples:`), or a
+   * second label above the same step. Labels outside every scenario are
+   * reported by {@linkcode unplacedStepLabels}.
    */
   readonly unplacedLabels: readonly GherkinComment[];
 }
@@ -100,6 +107,8 @@ export function scenarioProcedure(
   scenario: ScenarioAst,
   comments: readonly GherkinComment[] = [],
 ): ScenarioProcedure {
+  // Guards a call through `Array.prototype.map`, which passes the index.
+  if (!Array.isArray(comments)) comments = [];
   const preconditions: ProcedureStepRef[] = scenario.background.map((step) => ({
     step,
     role: "precondition",
@@ -172,4 +181,30 @@ export function scenarioProcedure(
     ),
     unplacedLabels,
   };
+}
+
+/**
+ * Every `# Step` label of a feature block that labels no step, each once, in
+ * document order. A label inside a scenario's range is unplaced when
+ * {@linkcode scenarioProcedure} leaves it unplaced; a label outside every
+ * scenario (in a Background, a Rule header, after a scenario's last step, or
+ * between scenarios) is always unplaced.
+ */
+export function unplacedStepLabels(feature: FeatureAst): GherkinComment[] {
+  const perScenario = feature.scenarios.map((scenario) => ({
+    scenario,
+    unplaced: new Set(
+      scenarioProcedure(scenario, feature.comments).unplacedLabels,
+    ),
+  }));
+  const out: GherkinComment[] = [];
+  for (const comment of feature.comments) {
+    if (!STEP_LABEL_RE.test(comment.text)) continue;
+    const owner = perScenario.find(({ scenario }) =>
+      comment.line >= scenario.range.start.line &&
+      comment.line <= scenario.range.end.line
+    );
+    if (!owner || owner.unplaced.has(comment)) out.push(comment);
+  }
+  return out;
 }
