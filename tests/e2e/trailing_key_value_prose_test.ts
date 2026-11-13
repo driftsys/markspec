@@ -1,10 +1,12 @@
 /**
  * @module tests/e2e/trailing_key_value_prose_test
  *
- * E2E (#916): a trailing `Key: value` prose line is body text, not an
- * attribute. `markspec fmt` keeps such prose in the body paragraph (it may
- * reflow the paragraph text) and never moves it into the trailer, and
- * `check` reports no MSL-P020 for it.
+ * E2E (#916): a trailing `Key: value` line directly under prose, or a final
+ * paragraph that uses a key outside the core set (`Note:`), is body text,
+ * not an attribute. `markspec fmt` keeps such prose in the body paragraph
+ * (it may reflow the paragraph text) and never moves it into the trailer,
+ * and `check` reports no MSL-P020 for it. An `Id:` run under prose stays the
+ * trailer with an MSL-P020 warning.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -77,7 +79,9 @@ Deno.test("check warns and fmt keeps the Id of an Id run under prose (#916)", as
   };
   const checked = await markspecPersist(["check", "doc.md"], { files });
   try {
-    assertStringIncludes(checked.stderr + checked.stdout, "MSL-P020");
+    const out = checked.stderr + checked.stdout;
+    assertStringIncludes(out, "warning[MSL-P020]");
+    assertEquals(out.includes("error[MSL-P020]"), false);
   } finally {
     await Deno.remove(checked.dir, { recursive: true });
   }

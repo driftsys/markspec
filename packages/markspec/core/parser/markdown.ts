@@ -365,9 +365,11 @@ function extractEntry(
   // keeps its text in the body, and `markspec fmt` cannot change it, so
   // an error there could never be cleared (#654, #916).
   //
-  // - Error: an `Id:` line, or a trace-relation line with other content
-  //   after it (body content or the trailer block). The trailer is not at
-  //   the final position, so the link is lost.
+  // - Error: an `Id:` or trace-relation line with other content after it
+  //   (body content or the trailer block). The trailer is not at the final
+  //   position, so the identity or the link is lost. A trailing run that
+  //   holds an `Id:` line is always the trailer (findTrailerStart), so an
+  //   `Id:` line never reaches the warning case below.
   // - Warning: a trace-relation line in the trailing run of `Key: Value`
   //   lines of an entry with no trailer. The run was not accepted as the
   //   trailer (no blank line above it, or a key outside the core set), so
@@ -395,9 +397,7 @@ function extractEntry(
       const key = trimmed.match(/^([A-Z][A-Za-z-]*):/)?.[1];
       if (key === undefined) continue;
       if (key !== IDENTITY_KEY && !TRACE_RELATION_KEYS.has(key)) continue;
-      if (
-        key === IDENTITY_KEY || i < tailStart || attrLines.length > 0
-      ) {
+      if (i < tailStart || attrLines.length > 0) {
         diagnostics.push({
           code: "MSL-P020",
           severity: "error",
@@ -424,15 +424,15 @@ function extractEntry(
     }
   }
 
-  // MSL-P020 (warning): the trailer is an unindented `Id:` run directly
-  // under prose. It is still read as the trailer, so the entry keeps its
+  // MSL-P020 (warning): the trailer is an `Id:` run directly under prose,
+  // with no blank line above it. It is still read as the trailer, so the entry keeps its
   // identity, but it is not in the canonical layout (#916).
   if (isTrailerUnderProse(bodyContent.split("\n"))) {
     diagnostics.push({
       code: "MSL-P020",
       severity: "warning",
       message: `${displayId}: trailers block is not separated from the ` +
-        `body by a blank line and is not indented; run 'markspec fmt' to ` +
+        `body by a blank line; run 'markspec fmt' to ` +
         `move it to the canonical layout (spec section 4.1)`,
       location: { file, line: entryLine, column: 1 },
     });

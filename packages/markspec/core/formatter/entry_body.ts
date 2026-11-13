@@ -226,13 +226,14 @@ function dedent(line: string, indent: number): string {
  * before or after the edit. So the edit is refused when an `MSL-P020`,
  * `MSL-P021` or `MSL-P022` names the entry (the message starts with
  * `<displayId>:`). This is broader than that case: `MSL-P020` also fires
- * when a body line with a recognized trailer key has other body content
- * after it, when an `Id:` run sits directly under prose, and (as a
- * warning) when a trace-relation key line is body prose, so such an entry
+ * when a body `Id:` or trace-relation line has other content after it,
+ * when an `Id:` run sits directly under prose (warning), and when a
+ * trailing trace-relation line is body prose (warning), so such an entry
  * is refused too. An entry whose trailer-looking lines the parser reads as
- * body without a diagnostic (unrecognized keys, or a final `Rationale:` or
- * `Labels:` prose line) is edited as the parser sees it: those lines are
- * body.
+ * body without a diagnostic (for example `Note:` lines, or `Status:`
+ * directly under prose) is edited as the parser sees it: those lines are
+ * body. A final paragraph of only core keys after a blank line, such as a
+ * lone `Rationale:` line, is the trailer, not body.
  */
 export async function replaceEntryBody(
   text: string,
@@ -338,9 +339,10 @@ function sameEntries(
  * blank line between them, raises no diagnostic; the parser keeps it as
  * body text and adds no entry, so the edit is accepted.
  *
- * Known limit: the parser raises at most one MSL-P020 per entry, so when
- * the target body already has a trailer-like line, a proposal that adds
- * more such lines raises no new MSL-P020 and is accepted. The lines stay
+ * Known limit: the body scan raises at most one MSL-P020 per entry (the
+ * under-prose warning can add a second one), so when the target body
+ * already has a trailer-like line, a proposal that adds more such lines
+ * raises no new MSL-P020 and is accepted. The lines stay
  * body text; no trailer or entry changes.
  */
 function addsParseDiagnostic(

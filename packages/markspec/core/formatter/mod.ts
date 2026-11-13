@@ -21,7 +21,11 @@ import {
   IDENTITY_KEY,
 } from "../model/mod.ts";
 import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
-import { findTrailerStart, parseAttributes } from "../parser/attributes.ts";
+import {
+  ATTR_LINE_RE,
+  findTrailerStart,
+  parseAttributes,
+} from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { fencedCodeLines } from "../util/fence.ts";
@@ -819,6 +823,24 @@ function formatEntries(
     // input reproduces the same identity. Falls back to fresh random
     // when `Source:` is missing — synthesizing without a source pointer
     // makes no sense, but the formatter never fails a stamp.
+    // A trailer holding a line the attribute parser cannot read (a
+    // continuation of a value) is left exactly as it is: rewriting it
+    // would drop that line, and stamping an Id would replace the
+    // identity the author wrote. The parser reports the line as MSL-P021.
+    const trailerRange = findAttributeBlockRange(
+      lines,
+      entry.location.line,
+      indent,
+      itemEndFloor(),
+      protectedRanges,
+    );
+    if (
+      trailerRange &&
+      lines.slice(trailerRange.start, trailerRange.end).some((l) =>
+        l.trim() !== "" && !ATTR_LINE_RE.test(l.trim())
+      )
+    ) continue;
+
     const hasIdentity = attrs.some((a) => a.key === IDENTITY_KEY);
     if (!hasIdentity && entry.shape === "Authored") {
       const origin = attrs.find((a) => a.key === "Origin")?.value.trim();

@@ -36,6 +36,13 @@ const SHAPES: Record<string, string> = {
   "mixed space and tab indent": `  Body.\n\n \t  Id: ${ULID}`,
   "indented run below an unindented key line":
     `  Status: draft\n      Id: ${ULID}\n      Satisfies: SYS_0001`,
+  "Id trailer with a backslash continuation":
+    `  Body.\n\n  Id: ${ULID}\n  Satisfies: A\\\n    B`,
+  "canonical trailer with a comma continuation":
+    `  Body.\n\n      Id: ${ULID}\n      Satisfies: A,\n        B`,
+  "indented Id under prose, then an unindented key":
+    `  Body.\n      Id: ${ULID}\n  Status: draft`,
+  "core key under prose": "  Body.\n  Satisfies: SYS_0001",
   "prose, unknown key, indented Id":
     `  Body.\n  Status: draft\n      Id: ${ULID}`,
 };
@@ -70,7 +77,13 @@ for (const [name, shape] of Object.entries(SHAPES)) {
     // fmt keeps the Id and every attribute, and is idempotent.
     const output = format(text, { file: "a.md" }).output;
     const after = await entryOf(output);
-    if (entry.id !== undefined) assertEquals(after.id, entry.id);
+    // Whenever the input holds an `Id:` line, the parser reads it as the
+    // entry's Id and fmt keeps it.
+    const authoredId = /^\s*Id: (\S+)$/m.exec(text)?.[1];
+    if (authoredId !== undefined) {
+      assertEquals(entry.id, authoredId);
+      assertEquals(after.id, authoredId);
+    }
     for (const attr of entry.rawAttributes) {
       assertEquals(
         after.rawAttributes.some((a) =>
@@ -93,6 +106,27 @@ Deno.test("fmt: an Id run under prose moves below a blank line with its Id", () 
     .output;
   assertEquals(
     output,
+    `- [REQ_0001] Title\n\n  Body.\n\n      Id: ${ULID}\n      Satisfies: SYS_0001\n`,
+  );
+});
+
+Deno.test("fmt: leaves a trailer with a continuation line unchanged", () => {
+  for (
+    const name of [
+      "Id trailer with a backslash continuation",
+      "canonical trailer with a comma continuation",
+    ]
+  ) {
+    const text = doc(SHAPES[name]);
+    assertEquals(format(text, { file: "a.md" }).output, text, name);
+  }
+});
+
+Deno.test("fmt: a canonical trailer under prose gets only a blank line", () => {
+  const text =
+    `- [REQ_0001] Title\n\n  Body.\n      Id: ${ULID}\n      Satisfies: SYS_0001\n`;
+  assertEquals(
+    format(text, { file: "a.md" }).output,
     `- [REQ_0001] Title\n\n  Body.\n\n      Id: ${ULID}\n      Satisfies: SYS_0001\n`,
   );
 });

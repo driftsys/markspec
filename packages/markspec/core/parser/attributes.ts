@@ -23,9 +23,12 @@ import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/relations.ts";
  * - Trailer detection: an unindented final paragraph without an `Id:` line
  *   is a trailer only when every key is in this set
  *   ({@linkcode findTrailerStart}, #916).
- * - MSL-P020 (misplaced trailer) fires only when a body line's key is in
- *   this set; any other capitalized `Word:` lead-in (`Note:`, `Example:`,
- *   `Assumption:`) is prose, not a misplaced trailer (#654).
+ * - The MSL-P022 typo check: a malformed key that is a typo of a key in
+ *   this set still raises MSL-P022 (#697).
+ *
+ * MSL-P020 on body prose uses only `Id` and the trace-relation keys of this
+ * set; any other `Word:` lead-in (`Rationale:`, `Note:`) is prose (#654,
+ * #916).
  */
 export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
   ...UNIVERSAL_ATTRIBUTE_KEYS.filter((key) =>
@@ -157,10 +160,13 @@ function trailerKey(line: string): string | undefined {
  * list-item indent removed. The parser and `markspec fmt` both call this
  * function, so they always agree on which lines are attributes.
  *
- * Every trailer line is a `Key: Value` line. A line of any other shape
- * (prose, a whitespace-led continuation of a value) ends the trailer: the
- * attribute parser reads one attribute per line, so a continuation line
- * could not be kept as part of a value.
+ * Every trailer line is a `Key: Value` line or a continuation line: a
+ * whitespace-led line below a line that ends with `\` or `,`. The attribute
+ * parser reads one attribute per line and cannot read a continuation line,
+ * so the parser reports it as MSL-P021 and `markspec fmt` leaves such a
+ * trailer unchanged. Keeping it in the trailer means no layout makes the
+ * entry lose its `Id:` or an attribute. A line of any other shape ends the
+ * trailer.
  *
  * Three shapes are trailers:
  *
@@ -171,8 +177,9 @@ function trailerKey(line: string): string | undefined {
  *   that start the content or follow an empty line, when they hold an `Id:`
  *   line or use only keys in {@linkcode RECOGNIZED_TRAILER_KEYS} (#916, rule
  *   of #914).
- * - The Id run under prose: trailing unindented `Key: Value` lines directly
- *   under a prose line, with no blank line between, that hold an `Id:` line.
+ * - The Id run under prose: trailing `Key: Value` lines directly under a
+ *   prose line, with no blank line between, that hold an `Id:` line on any
+ *   of their lines, indented or not.
  *   The `Id:` line shows that the author meant a trailer; reading it as
  *   prose would make `markspec fmt` stamp a new Id.
  *   {@linkcode isTrailerUnderProse} reports this shape.
@@ -198,25 +205,42 @@ function locateTrailer(
   let end = lines.length;
   while (end > 0 && lines[end - 1].trim() === "") end--;
 
-  // The indented run.
+  // The trailing run of `Key: Value` lines and continuation lines.
+  const continuation: boolean[] = [];
+  let blockStart = end;
+  while (blockStart > 0) {
+    const i = blockStart - 1;
+    if (trailerKey(lines[i]) !== undefined) {
+      continuation[i] = false;
+    } else if (isContinuation(lines, i)) {
+      continuation[i] = true;
+    } else break;
+    blockStart--;
+  }
+
+  // The indented run: indented `Key: Value` lines and their continuations.
   let indentedStart = end;
   while (
-    indentedStart > 0 &&
-    isIndented(lines[indentedStart - 1]) &&
-    trailerKey(lines[indentedStart - 1]) !== undefined
+    indentedStart > blockStart &&
+    (continuation[indentedStart - 1] || isIndented(lines[indentedStart - 1]))
   ) indentedStart--;
+  while (indentedStart < end && continuation[indentedStart]) indentedStart++;
 
-  // Unindented `Key: Value` lines directly above it.
+  // Unindented `Key: Value` lines (and continuations) directly above it.
   let runStart = indentedStart;
   while (
-    runStart > 0 &&
-    !isIndented(lines[runStart - 1]) &&
-    trailerKey(lines[runStart - 1]) !== undefined
+    runStart > blockStart &&
+    (continuation[runStart - 1] || !isIndented(lines[runStart - 1]))
   ) runStart--;
+  while (runStart < indentedStart && continuation[runStart]) runStart++;
 
+  const keysOf = (from: number, to: number): string[] =>
+    lines.slice(from, to).map((l) => trailerKey(l)).filter(
+      (k): k is string => k !== undefined,
+    );
   if (runStart < indentedStart) {
     const ownParagraph = runStart === 0 || lines[runStart - 1].trim() === "";
-    const keys = lines.slice(runStart, end).map((l) => trailerKey(l)!);
+    const keys = keysOf(runStart, end);
     if (
       ownParagraph &&
       (keys.includes("Id") ||
@@ -224,15 +248,41 @@ function locateTrailer(
     ) {
       return { start: runStart, underProse: false };
     }
-    const unindentedKeys = keys.slice(0, indentedStart - runStart);
-    if (!ownParagraph && unindentedKeys.includes("Id")) {
+    if (!ownParagraph && keysOf(runStart, indentedStart).includes("Id")) {
       return { start: runStart, underProse: true };
     }
+  }
+  // Any other trailing run that holds an `Id:` line is the trailer too,
+  // whatever its indentation: reading it as body would make `markspec fmt`
+  // stamp a replacement Id.
+  let idRunStart = blockStart;
+  while (idRunStart < end && continuation[idRunStart]) idRunStart++;
+  if (
+    idRunStart < (indentedStart < end ? indentedStart : end) &&
+    keysOf(idRunStart, end).includes("Id")
+  ) {
+    const ownParagraph = idRunStart === 0 ||
+      lines[idRunStart - 1].trim() === "";
+    return { start: idRunStart, underProse: !ownParagraph };
   }
   return {
     start: indentedStart < end ? indentedStart : lines.length,
     underProse: false,
   };
+}
+
+/**
+ * `true` when `lines[i]` continues the value of the line above it: it
+ * starts with whitespace, and the line above ends with `\` or `,`. The
+ * attribute parser cannot read such a line, so the parser reports it as
+ * MSL-P021 and `markspec fmt` leaves the trailer as it is. Keeping it in
+ * the trailer keeps the trailer's `Id:` and attributes.
+ */
+function isContinuation(lines: readonly string[], i: number): boolean {
+  if (i === 0 || !/^\s/.test(lines[i]) || lines[i].trim() === "") {
+    return false;
+  }
+  return /[\\,]$/.test(lines[i - 1].trimEnd());
 }
 
 /**
