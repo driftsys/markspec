@@ -300,3 +300,42 @@ Deno.test("scenarioProcedure: two calls on one scenario are deep-equal", () => {
 Deno.test("scenarioProcedure: the same source parsed twice gives equal views", () => {
   assertEquals(procedure(PURITY_SOURCE), procedure(PURITY_SOURCE));
 });
+
+Deno.test("scenarioProcedure: a precondition after an outcome opens a new step", () => {
+  const p = procedure(
+    "Scenario: S\n  When a\n  Then b\n  Given c\n  When d\n  Then e\n",
+  );
+  assertEquals(p.steps.length, 2);
+  assertEquals(texts(p.steps[0].actions), ["a"]);
+  assertEquals(texts(p.steps[0].expected), ["b"]);
+  assertEquals(texts(p.steps[1].setup), ["c"]);
+  assertEquals(texts(p.steps[1].actions), ["d"]);
+  assertEquals(texts(p.steps[1].expected), ["e"]);
+});
+
+Deno.test("scenarioProcedure: setup then action stays one step", () => {
+  const p = procedure(
+    "Scenario: S\n  When a\n  Given b\n  When c\n  Then d\n",
+  );
+  assertEquals(p.steps.length, 2);
+  assertEquals(texts(p.steps[1].setup), ["b"]);
+  assertEquals(texts(p.steps[1].actions), ["c"]);
+  assertEquals(texts(p.steps[1].expected), ["d"]);
+});
+
+Deno.test("stepRoles: a first But is an action", () => {
+  assertEquals(roles("Scenario: S\n  But a\n  Then b\n  But c\n"), [
+    "action",
+    "outcome",
+    "outcome",
+  ]);
+});
+
+Deno.test("scenarioProcedure: a precondition after an outcome-only step opens a new step", () => {
+  const p = procedure("Scenario: S\n  Then a\n  Given b\n  When c\n");
+  assertEquals(p.steps.length, 2);
+  assertEquals(texts(p.steps[0].expected), ["a"]);
+  assertEquals(p.steps[0].setup, []);
+  assertEquals(texts(p.steps[1].setup), ["b"]);
+  assertEquals(texts(p.steps[1].actions), ["c"]);
+});

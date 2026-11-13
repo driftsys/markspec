@@ -227,3 +227,61 @@ Deno.test("checkProcedureSteps: upstream entry → none", async () => {
   })) as unknown as Entry[];
   assertEquals(checkProcedureSteps(entries, null), []);
 });
+
+Deno.test("checkProcedureSteps: a setup-only step gives no warning and no throw", async () => {
+  const text = doc("Scenario: S\n  When a\n  Then b\n  Given c", "Test");
+  assertEquals(checkProcedureSteps(await load(text), null), []);
+});
+
+Deno.test("checkProcedureSteps: two result-less steps give two warnings at their own lines", async () => {
+  const text = doc("Scenario: S\n  When a\n  Given b\n  When c", "Test");
+  const diags = checkProcedureSteps(await load(text), null);
+  assertEquals(diags.length, 2);
+  const lines = text.split("\n");
+  assertEquals(lines[diags[0].location!.line - 1].trim(), "When a");
+  assertEquals(lines[diags[1].location!.line - 1].trim(), "When c");
+  assertEquals(diags[0].message.includes("step 1"), true);
+  assertEquals(diags[1].message.includes("step 2"), true);
+});
+
+Deno.test("checkProcedureSteps: every feature fence of an entry is checked", async () => {
+  const text = `- [TST_BRK_0010] Braking procedure
+
+  \`\`\`feature
+  Scenario: One
+    When a
+  \`\`\`
+
+  \`\`\`feature
+  Scenario: Two
+    When b
+  \`\`\`
+
+      Id: 01TST00000000000000000010A
+      Type: Test
+`;
+  const diags = checkProcedureSteps(await load(text), null);
+  assertEquals(diags.length, 2);
+  const lines = text.split("\n");
+  assertEquals(lines[diags[0].location!.line - 1].trim(), "When a");
+  assertEquals(lines[diags[1].location!.line - 1].trim(), "When b");
+});
+
+Deno.test("checkProcedureSteps: classifies an unclassified entry by its display-ID prefix", async () => {
+  const profile = {
+    types: new Map([["test", {
+      value: {
+        name: "test",
+        extends: "Test",
+        displayIdPattern: { value: "TST_BRK_{n:04d}", origin: "p" },
+        displayIdPatternEnforcement: { value: "off", origin: "p" },
+      },
+      origin: "p",
+    }]]),
+  } as unknown as EffectiveProfile;
+  const text = doc(TRAILING, "Test").replace("      Type: Test\n", "");
+  const { entries } = await parseFile(text, { file: "/t.md" });
+  assertEquals(entries.every((e) => e.type === undefined), true);
+  assertEquals(checkProcedureSteps(entries, profile).length, 1);
+  assertEquals(checkProcedureSteps(entries, null), []);
+});

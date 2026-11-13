@@ -660,7 +660,8 @@ Deno.test("WorkspaceIndex: validateAll reports an unresolved scenario locator on
   assertEquals(l007[0].location?.line, 18);
 });
 
-Deno.test("WorkspaceIndex: validateAll reports MSL-B063 for an entry typed only by its display-ID prefix", async () => {
+/** A profile whose `test` type extends core `Test` with prefix `TST_BRK_`. */
+function testProfile(): EffectiveProfile {
   const typeDef = (
     name: string,
     parent: string,
@@ -699,6 +700,11 @@ Deno.test("WorkspaceIndex: validateAll reports MSL-B063 for an entry typed only 
     },
     disciplineMode: { value: "none", origin: "inferred" },
   };
+  return profile;
+}
+
+Deno.test("WorkspaceIndex: validateAll reports MSL-B063 for an entry typed only by its display-ID prefix", async () => {
+  const profile = testProfile();
   const md = `- [TST_BRK_0010] Braking procedure
 
   Verify braking.
@@ -717,6 +723,40 @@ Deno.test("WorkspaceIndex: validateAll reports MSL-B063 for an entry typed only 
   const b063 = index.validateAll(profile).filter((d) => d.code === "MSL-B063");
   assertEquals(b063.length, 1);
   assertEquals(b063[0].location?.line, 7);
+});
+
+const PROCEDURE_ENTRY = (type: string) =>
+  `- [TST_BRK_0010] Braking procedure
+
+  Verify braking.
+
+  \`\`\`feature
+  Scenario: Stop
+    When the driver brakes
+  \`\`\`
+
+      Id: 01TST00000000000000000010A
+      Type: ${type}
+`;
+
+Deno.test("WorkspaceIndex: validateAll reports no MSL-B063 for a Requirement entry", async () => {
+  const parsed = await parseFile(PROCEDURE_ENTRY("Requirement"), {
+    file: "t.md",
+  });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  const b063 = index.validateAll(testProfile()).filter((d) =>
+    d.code === "MSL-B063"
+  );
+  assertEquals(b063, []);
+});
+
+Deno.test("WorkspaceIndex: validateAll reports no MSL-B063 without a profile", async () => {
+  const parsed = await parseFile(PROCEDURE_ENTRY("Test"), { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  const b063 = index.validateAll(null).filter((d) => d.code === "MSL-B063");
+  assertEquals(b063, []);
 });
 
 /**
