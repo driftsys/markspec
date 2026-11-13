@@ -20,7 +20,9 @@
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
 import { isCorpusEntry } from "../model/mod.ts";
+import { extname } from "@std/path";
 import { format } from "../formatter/mod.ts";
+import { formatFeatureText } from "../formatter/feature_file.ts";
 import type { ProseFormatter } from "../formatter/dprint.ts";
 import { parseFile } from "../parser/mod.ts";
 import { buildRefIndex, canonicalizeRefs } from "../refs/mod.ts";
@@ -43,8 +45,8 @@ import { runLint } from "../lint/mod.ts";
  * `fmt --check` never disagree on what "formatted" means. `MSL-F010` is pure
  * formatter drift; `MSL-F011` is reference-canonicalization drift (a ULID or
  * stale display ID `fmt` would rewrite) — kept distinct so the author knows
- * which fmt concern fired. Markdown only — `markspec fmt` never rewrites source
- * files, so the caller passes only Markdown file contents.
+ * which fmt concern fired. Markdown and `.feature` files only — `markspec fmt`
+ * never rewrites source files, so the caller passes only those file contents.
  *
  * @param mdContents Markdown file path → current on-disk content.
  * @param entries The full parsed entry set (project + corpus). Only
@@ -71,6 +73,19 @@ export async function fmtDriftGate(
   // `emittableEntries` (upstream-only, #771); do not "unify" it.
   const refIndex = buildRefIndex(entries.filter((e) => !isCorpusEntry(e)));
   for (const [filePath, content] of mdContents) {
+    // A `.feature` file only drifts when a headed entry lacks its Id. It has
+    // no prose pass and no reference canonicalisation.
+    if (extname(filePath).toLowerCase() === ".feature") {
+      if ((await formatFeatureText(content, filePath)).changed) {
+        diagnostics.push({
+          code: "MSL-F010",
+          severity: "error",
+          message: "file is not formatted (run `markspec fmt`)",
+          location: { file: filePath, line: 1, column: 1 },
+        });
+      }
+      continue;
+    }
     const formatted = format(content, {
       file: filePath,
       formatMarkdownProse,

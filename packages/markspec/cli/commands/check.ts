@@ -8,6 +8,7 @@ import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
 import {
   deriveUpstreamId,
+  FEATURE_EXTENSIONS,
   loadConfig,
   loadToolConfig,
   MARKDOWN_EXTENSIONS,
@@ -212,7 +213,10 @@ async function checkGroup(
       console.error(`error: ${filePath}: file not found`);
       Deno.exit(1);
     }
-    if (MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase())) {
+    if (
+      MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase()) ||
+      FEATURE_EXTENSIONS.has(extname(filePath).toLowerCase())
+    ) {
       mdContents.set(filePath, content);
     }
     const result = await parseFile(content, { file: filePath });

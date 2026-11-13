@@ -252,3 +252,125 @@ Deno.test("lint: runs on .feature entries without crashing", async () => {
   assertEquals(stderr.includes("error:"), false, stderr);
   assertEquals(stderr.includes("TypeError"), false, stderr);
 });
+
+/** The worked example without its Id lines (`fmt` has not stamped it). */
+const UNSTAMPED_FEATURE = BRAKE_FEATURE.replace(/^\s*# Id: .*\n/gm, "");
+
+Deno.test("check: a headed .feature entry without an Id reports MSL-F010 only", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: withFeature({ "features/brake.feature": UNSTAMPED_FEATURE }),
+  });
+  assertEquals(code, 1, stderr);
+  assertStringIncludes(stderr, "MSL-F010");
+  assertStringIncludes(stderr, "brake.feature");
+  // The Id-related and other diagnostics are not the F010 finding's business.
+  assertEquals(stderr.includes("MSL-F011"), false, stderr);
+});
+
+Deno.test("fmt --check: exits 1 for a .feature entry without an Id and does not write", async () => {
+  const run = await markspecPersist([
+    "fmt",
+    "--check",
+    "features/brake.feature",
+  ], {
+    files: withFeature({ "features/brake.feature": UNSTAMPED_FEATURE }),
+  });
+  try {
+    assertEquals(run.code, 1, run.stderr);
+    assertEquals(
+      await Deno.readTextFile(join(run.dir, "features", "brake.feature")),
+      UNSTAMPED_FEATURE,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("fmt --check: exits 0 for a stamped .feature file", async () => {
+  const { code, stderr } = await markspec(
+    ["fmt", "--check", "features/brake.feature"],
+    { files: withFeature() },
+  );
+  assertEquals(code, 0, stderr);
+});
+
+Deno.test("fmt then check: stamps Ids in a .feature file, only Id lines change, second run is idempotent", async () => {
+  const run = await markspecPersist(["fmt", "features/brake.feature"], {
+    files: withFeature({ "features/brake.feature": UNSTAMPED_FEATURE }),
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const path = join(run.dir, "features", "brake.feature");
+    const stamped = await Deno.readTextFile(path);
+    const before = UNSTAMPED_FEATURE.split("\n");
+    const added = stamped.split("\n").filter((l) => !before.includes(l));
+    assertEquals(added.length, 2);
+    for (const line of added) {
+      assertEquals(/# Id: [0-9A-Z]{26}$/.test(line), true);
+    }
+    assertEquals(stamped.split("\n").length, before.length + 2);
+
+    const again = await markspecInDir(run.dir, [
+      "fmt",
+      "features/brake.feature",
+    ]);
+    assertEquals(again.code, 0, again.stderr);
+    assertEquals(await Deno.readTextFile(path), stamped);
+
+    const check = await markspecInDir(run.dir, ["check"]);
+    assertEquals(check.code, 0, check.stderr);
+    assertEquals(check.stderr.includes("MSL-F010"), false, check.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("fmt: bare project scope stamps a .feature file", async () => {
+  const run = await markspecPersist(["fmt"], {
+    files: withFeature({ "features/brake.feature": UNSTAMPED_FEATURE }),
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const stamped = await Deno.readTextFile(
+      join(run.dir, "features", "brake.feature"),
+    );
+    assertEquals(/# Id: [0-9A-Z]{26}/.test(stamped), true);
+    const check = await markspecInDir(run.dir, ["check"]);
+    assertEquals(check.code, 0, check.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("fmt: a .feature file that does not parse is left byte-identical", async () => {
+  const broken = UNSTAMPED_FEATURE + "Feature: Again\n";
+  const run = await markspecPersist(["fmt", "features/brake.feature"], {
+    files: withFeature({ "features/brake.feature": broken }),
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertEquals(
+      await Deno.readTextFile(join(run.dir, "features", "brake.feature")),
+      broken,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("fmt: a headerless .feature file is left byte-identical", async () => {
+  const plain =
+    "Feature: Plain\n\n  # a comment\n  Scenario: S\n    Given a\n    Then b\n";
+  const run = await markspecPersist(["fmt"], {
+    files: withFeature({ "features/plain.feature": plain }),
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertEquals(
+      await Deno.readTextFile(join(run.dir, "features", "plain.feature")),
+      plain,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

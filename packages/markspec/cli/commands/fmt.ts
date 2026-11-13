@@ -31,10 +31,12 @@ export const fmtCmd = new Command()
       options: { check?: boolean; quiet?: boolean },
       ...fileArgs: string[]
     ) => {
-      const { MARKDOWN_EXTENSIONS } = await import("../../core/mod.ts");
+      const { MARKDOWN_EXTENSIONS, FEATURE_EXTENSIONS } = await import(
+        "../../core/mod.ts"
+      );
       const scope = await resolveScope(fileArgs, {
         verb: options.check ? "checking format of" : "formatting",
-        extensions: MARKDOWN_EXTENSIONS,
+        extensions: new Set([...MARKDOWN_EXTENSIONS, ...FEATURE_EXTENSIONS]),
         quiet: options.quiet === true,
       });
       const { format } = await import("../../core/mod.ts");
@@ -138,6 +140,21 @@ export const fmtCmd = new Command()
           // Markdown paragraphs — destructive, and undetectable by the
           // CommonMark-semantic equivalence gate (line-joining is
           // wrap-equivalent as Markdown).
+          // A `.feature` file only gets a missing `# Id:` header line; it
+          // has no prose pass and no reference canonicalisation.
+          if (FEATURE_EXTENSIONS.has(extname(filePath).toLowerCase())) {
+            const { formatFeatureText } = await import("../../core/mod.ts");
+            const stamped = await formatFeatureText(content, filePath);
+            if (stamped.changed) {
+              totalFormatted++;
+              if (!options.check) {
+                await Deno.writeTextFile(filePath, stamped.output);
+              }
+            } else {
+              totalUnchanged++;
+            }
+            continue;
+          }
           const isMarkdown = MARKDOWN_EXTENSIONS.has(
             extname(filePath).toLowerCase(),
           );
