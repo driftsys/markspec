@@ -58,12 +58,18 @@ export const docCmd = new Command()
  * Ensure the markspec-typst package is reachable from the same Typst
  * workspace as the source document.
  *
- * The Typst compiler requires every input under a single workspace root.
+ * Typst runs as a native addon that reads the real filesystem, so it cannot
+ * see files embedded in a `deno compile` binary. When running from such a
+ * binary (`Deno.build.standalone`), the package is always copied to a temp
+ * dir next to the source document, and that copy is used.
+ *
+ * The Typst compiler also requires every input under a single workspace root.
  * On Windows the package may live on a different drive than the source
  * (e.g., installed CLI on `C:` rendering docs on `D:`), and cross-drive
  * paths share no common ancestor. When that happens we copy the package
  * (≈1 MB) to a temp dir next to the source so the workspace computation
- * finds a real ancestor. POSIX hosts never trigger this path.
+ * finds a real ancestor. Outside a compiled binary, POSIX hosts never trigger
+ * this path.
  *
  * The returned `cleanup` is a no-op when no copy was made.
  */
@@ -71,13 +77,16 @@ async function stageTypstPackage(
   bundledPath: string,
   sourceFilePath: string,
 ): Promise<{ path: string; cleanup: () => Promise<void> }> {
-  if (Deno.build.os !== "windows") {
-    return { path: bundledPath, cleanup: () => Promise.resolve() };
-  }
-  const pkgRoot = parse(bundledPath).root.toLowerCase();
-  const srcRoot = parse(sourceFilePath).root.toLowerCase();
-  if (pkgRoot === srcRoot) {
-    return { path: bundledPath, cleanup: () => Promise.resolve() };
+  const standalone = Deno.build.standalone === true;
+  if (!standalone) {
+    if (Deno.build.os !== "windows") {
+      return { path: bundledPath, cleanup: () => Promise.resolve() };
+    }
+    const pkgRoot = parse(bundledPath).root.toLowerCase();
+    const srcRoot = parse(sourceFilePath).root.toLowerCase();
+    if (pkgRoot === srcRoot) {
+      return { path: bundledPath, cleanup: () => Promise.resolve() };
+    }
   }
   const stagingDir = await Deno.makeTempDir({
     dir: dirname(sourceFilePath),

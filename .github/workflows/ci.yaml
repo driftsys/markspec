@@ -185,6 +185,45 @@ jobs:
           ./dist/markspec compile --format json /tmp/smoke-project
       - name: Smoke test — desk serves and stops when stdin closes
         run: bash scripts/check_desk_binary.sh dist/markspec tests/fixtures/desk-project
+      - name: Smoke test — doc build renders a PDF
+        run: |
+          set -e
+          bin="$PWD/dist/markspec"
+          dir="$(mktemp -d)"
+          cd "$dir"
+          printf 'name: t\nversion: 0.1.0\n' > project.yaml
+          printf '# T\n\nHello.\n' > t.md
+          "$bin" doc build t.md
+          test -s t.pdf
+      - name: Smoke test — self-upgrade reaches the network
+        run: |
+          set +e
+          out="$(./dist/markspec self-upgrade --check 2>&1)"
+          rc=$?
+          echo "$out"
+          if echo "$out" | grep -q "Requires net access"; then exit 1; fi
+          if [ $rc -ne 0 ] && [ $rc -ne 1 ]; then exit $rc; fi
+      - name: Smoke test — lock fetches a snapshot over HTTP
+        run: |
+          set -e
+          bin="$PWD/dist/markspec"
+          dir="$(mktemp -d)"
+          mkdir "$dir/site" "$dir/proj"
+          printf '%s' '{"markspecSchemaVersion":1,"generator":{"coreSchema":1},"entries":{"format":"inline","file":"entries.json"}}' > "$dir/site/manifest.json"
+          printf '%s' '{"entries":{}}' > "$dir/site/entries.json"
+          printf 'name: t\nversion: 0.1.0\nreferences:\n  - url: http://127.0.0.2:8765\n    name: snap\n' > "$dir/proj/project.yaml"
+          (cd "$dir/site" && python3 -m http.server 8765 --bind 127.0.0.2 > /dev/null 2>&1 &)
+          sleep 1
+          cd "$dir/proj"
+          set +e
+          out="$("$bin" lock 2>&1)"
+          rc=$?
+          set -e
+          echo "$out"
+          if echo "$out" | grep -q "Requires net access"; then exit 1; fi
+          if echo "$out" | grep -q "MSL-L213"; then exit 1; fi
+          test $rc -eq 0
+          echo "$out" | grep -q "1 registries"
 
   commits:
     name: Conventional commits
