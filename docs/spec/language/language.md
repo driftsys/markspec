@@ -356,11 +356,31 @@ never confused with the attribute block — different syntactic shape.
 block with no attribute meaning. Authors must place attributes at the very end
 of the entry.
 
-**Backward compatibility.** During the transition, the parser also accepts the
-legacy paragraph-with-trailing-`\` shape. Running `markspec fmt` rewrites legacy
-blocks to the canonical indented form. The legacy shape emits a deprecation
-diagnostic (`MSL-DEPRECATED-ATTR-001`) and will be removed in a future major
-release.
+**Unindented trailers.** The parser also accepts a trailer that is not indented,
+in two shapes. `markspec fmt` rewrites both to the canonical indented block
+after a blank line, and keeps the `Id:` value.
+
+- The final paragraph of the entry, after a blank line, when every line is
+  `Key: Value` and the paragraph holds an `Id:` line or uses only core trailer
+  keys (Part 2 §2.1 universal attributes and the core trace relations). The
+  legacy paragraph-with-trailing-`\` shape is accepted only in this form, and
+  emits a deprecation diagnostic (`MSL-DEPRECATED-ATTR-001`) that a future major
+  release will turn into an error.
+- A run of `Key: Value` lines directly under body prose, with no blank line,
+  when the run holds an `Id:` line. The `Id:` line shows that the run is a
+  trailer, so the entry keeps its identity. `check` reports it as `MSL-P020`
+  (warning).
+
+Any other trailing `Key: value` line is body prose: for example `Status: draft`
+directly under a prose line, or a final paragraph of `Rationale:` and `Note:`
+lines. A whitespace-led continuation line is not part of a trailer, because each
+attribute takes exactly one line. When such body prose uses a core trace
+relation key (`Satisfies:`, `Verifies:`, ...), `check` reports `MSL-P020`
+(warning), because the line does not create a trace link.
+
+An indented block directly under body prose, with no blank line, continues the
+paragraph in CommonMark. The parser still reads it as the trailer, as it did
+before, and `markspec fmt` inserts the blank line.
 
 #### §3 Table captions
 

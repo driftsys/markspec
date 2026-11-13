@@ -2,7 +2,9 @@
  * @module tests/e2e/trailing_key_value_prose_test
  *
  * E2E (#916): a trailing `Key: value` prose line is body text, not an
- * attribute. `markspec fmt` must leave such prose where it is.
+ * attribute. `markspec fmt` keeps such prose in the body paragraph (it may
+ * reflow the paragraph text) and never moves it into the trailer, and
+ * `check` reports no MSL-P020 for it.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -22,6 +24,17 @@ const DOC = `# Doc
   Rationale: the link drops for up to 1 s.
   Note: see the field report.
 `;
+
+Deno.test("check: trailing Key: value prose raises no MSL-P020 (#916)", async () => {
+  const run = await markspecPersist(["check", "doc.md"], {
+    files: { "project.yaml": "name: p916\nversion: 0.1.0\n", "doc.md": DOC },
+  });
+  try {
+    assertEquals((run.stderr + run.stdout).includes("MSL-P020"), false);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
 
 Deno.test("fmt: trailing Key: value prose stays in the body (#916)", async () => {
   const run = await markspecPersist(["fmt", "doc.md"], {

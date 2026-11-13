@@ -877,11 +877,15 @@ function formatEntries(
       const newBlock = renderAttributeBlock(normalized, indent);
       const oldBlock = lines.slice(range.start, range.end).join("\n");
 
-      // A block directly under body prose (no blank line) is not a code
-      // block in CommonMark; the canonical layout separates it (#916).
-      const needsBlank = range.start - 1 > titleLineIdx &&
-        lines[range.start - 1].trim() !== "" &&
-        !/^\s/.test(lines[range.start].slice(indent));
+      // A block directly under body prose (no blank line), indented or
+      // not, is not a code block in CommonMark: it continues the
+      // paragraph. The canonical layout separates it (#916). A line above
+      // that belongs to a preserved range (a refused child entry) is left
+      // as it is.
+      const above = range.start - 1;
+      const needsBlank = above > titleLineIdx &&
+        lines[above].trim() !== "" &&
+        !protectedRanges.some((r) => above >= r.start && above < r.end);
       if (newBlock !== oldBlock || needsBlank) {
         lines.splice(
           range.start,
@@ -1295,7 +1299,11 @@ function removeEmptyTrailerLines(
  * for an entry starting at the given line.
  *
  * Scans forward from the entry start to find the list item boundary,
- * then walks backwards to find the contiguous trailing attribute block.
+ * then passes the entry content below the last preserved range, with the
+ * list-item indent removed, to the parser's {@linkcode findTrailerStart}.
+ * The formatter and the parser therefore agree on which lines are the
+ * trailer, so `markspec fmt` never rewrites a line that the parser read as
+ * body, and never drops an attribute line that the parser read (#916).
  */
 export function findAttributeBlockRange(
   lines: readonly string[],

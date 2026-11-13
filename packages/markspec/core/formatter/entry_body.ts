@@ -226,11 +226,13 @@ function dedent(line: string, indent: number): string {
  * before or after the edit. So the edit is refused when an `MSL-P020`,
  * `MSL-P021` or `MSL-P022` names the entry (the message starts with
  * `<displayId>:`). This is broader than that case: `MSL-P020` also fires
- * when a body paragraph starts with a recognized trailer key, so such an
- * entry is refused too. The file already fails `markspec check` there.
- * An entry whose trailer-looking lines use only unrecognized keys, and
- * that the parser reads as body without a diagnostic, is edited as the
- * parser sees it: those lines are body.
+ * when a body line with a recognized trailer key has other body content
+ * after it, when an `Id:` run sits directly under prose, and (as a
+ * warning) when a trace-relation key line is body prose, so such an entry
+ * is refused too. An entry whose trailer-looking lines the parser reads as
+ * body without a diagnostic (unrecognized keys, or a final `Rationale:` or
+ * `Labels:` prose line) is edited as the parser sees it: those lines are
+ * body.
  */
 export async function replaceEntryBody(
   text: string,

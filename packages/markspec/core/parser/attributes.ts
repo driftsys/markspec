@@ -16,10 +16,16 @@ import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/relations.ts";
  * every authored universal attribute, every core trace relation, and the
  * extra inverse lock key (`Verified-by`). Universal keys with
  * `origin: "generated"` (`Contains`, `Caused`, ...) are left out: the compiler
- * computes them and authors never write them (#706). MSL-P020 (misplaced
- * trailer) fires only when a body line's key is in this set; any other
- * capitalized `Word:` lead-in (`Note:`, `Example:`, `Assumption:`) is prose,
- * not a misplaced trailer (#654).
+ * computes them and authors never write them (#706).
+ *
+ * Two uses:
+ *
+ * - Trailer detection: an unindented final paragraph without an `Id:` line
+ *   is a trailer only when every key is in this set
+ *   ({@linkcode findTrailerStart}, #916).
+ * - MSL-P020 (misplaced trailer) fires only when a body line's key is in
+ *   this set; any other capitalized `Word:` lead-in (`Note:`, `Example:`,
+ *   `Assumption:`) is prose, not a misplaced trailer (#654).
  */
 export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
   ...UNIVERSAL_ATTRIBUTE_KEYS.filter((key) =>
@@ -117,28 +123,59 @@ export function collateAttributes(
   );
 }
 
-/** A line indented by at least four spaces or a tab (code-block indent). */
-const INDENTED_RE = /^(?: {4}|\t)/;
+/**
+ * Width of the leading whitespace of `line` in columns, with a tab moving
+ * to the next multiple of 4. CommonMark uses the same tab stop, so a line
+ * that mixes spaces and tabs is measured as the code-block rule sees it.
+ */
+function leadingColumns(line: string): number {
+  let column = 0;
+  for (const ch of line) {
+    if (ch === " ") column++;
+    else if (ch === "\t") column += 4 - (column % 4);
+    else break;
+  }
+  return column;
+}
+
+/** `true` when `line` is indented by 4 or more columns (code-block indent). */
+function isIndented(line: string): boolean {
+  return leadingColumns(line) >= 4;
+}
+
+/** The key of a `Key: Value` line, or `undefined` for any other line. */
+function trailerKey(line: string): string | undefined {
+  const trimmed = line.trim();
+  return ATTR_LINE_RE.test(trimmed)
+    ? /^([A-Z][A-Za-z-]*):/.exec(trimmed)?.[1]
+    : undefined;
+}
 
 /**
  * Find the index of the first line of the trailer block in `lines`, or
  * `lines.length` when there is none. `lines` holds entry content with the
- * list-item indent already removed.
+ * list-item indent removed. The parser and `markspec fmt` both call this
+ * function, so they always agree on which lines are attributes.
  *
- * Two shapes are trailers:
+ * Every trailer line is a `Key: Value` line. A line of any other shape
+ * (prose, a whitespace-led continuation of a value) ends the trailer: the
+ * attribute parser reads one attribute per line, so a continuation line
+ * could not be kept as part of a value.
  *
- * - The indented block (canonical): the trailing run of `Key: Value` lines
- *   that are all indented by 4 or more columns.
- * - The unindented block: the final paragraph, when it starts the content or
- *   follows an empty line, every line is `Key: Value` or starts with
- *   whitespace (a continuation), and it holds an `Id:` line or uses only
- *   recognized core trailer keys (#916, rule of #914).
+ * Three shapes are trailers:
  *
- * - The Id run under prose: a trailing unindented run with no blank line
- *   before it, where every line is `Key: Value` or a continuation and the
- *   run holds an `Id:` line. The `Id:` line proves the author meant a
- *   trailer, and treating it as prose would make `markspec fmt` stamp a new
- *   Id. {@linkcode isTrailerUnderProse} reports this shape.
+ * - The indented run (canonical): the trailing `Key: Value` lines that are
+ *   each indented by 4 or more columns. This is accepted with or without a
+ *   blank line above it, as before #916.
+ * - The trailer paragraph: the trailing `Key: Value` lines, indented or not,
+ *   that start the content or follow an empty line, when they hold an `Id:`
+ *   line or use only keys in {@linkcode RECOGNIZED_TRAILER_KEYS} (#916, rule
+ *   of #914).
+ * - The Id run under prose: trailing unindented `Key: Value` lines directly
+ *   under a prose line, with no blank line between, that hold an `Id:` line.
+ *   The `Id:` line shows that the author meant a trailer; reading it as
+ *   prose would make `markspec fmt` stamp a new Id.
+ *   {@linkcode isTrailerUnderProse} reports this shape.
  *
  * Any other trailing `Key: value` line is body prose.
  */
@@ -149,90 +186,53 @@ export function findTrailerStart(lines: readonly string[]): number {
 /**
  * `true` when the trailer of `lines` is an Id run directly under prose
  * (no blank line before it, no indentation). The parser reports it as
- * MSL-P020; `markspec fmt` moves it to the canonical layout.
+ * MSL-P020 (warning); `markspec fmt` moves it to the canonical layout.
  */
 export function isTrailerUnderProse(lines: readonly string[]): boolean {
   return locateTrailer(lines).underProse;
 }
 
-/** Find the Id run directly under prose that ends at `end`, if any. */
-function findIdRunUnderProse(
-  lines: readonly string[],
-  end: number,
-): number | undefined {
-  let start = end;
-  while (start > 0) {
-    const line = lines[start - 1];
-    if (line.trim() === "") break;
-    if (/^\s/.test(line) || /^[A-Z][A-Za-z-]*: .+\\?$/.test(line)) start--;
-    else break;
-  }
-  // A continuation line before the first `Key: Value` line belongs to prose.
-  while (start < end && /^\s/.test(lines[start])) start++;
-  if (start >= end || start === 0 || lines[start - 1].trim() === "") {
-    return undefined;
-  }
-  const hasId = lines.slice(start, end).some((l) => /^Id: /.test(l));
-  return hasId ? start : undefined;
-}
-
 function locateTrailer(
   lines: readonly string[],
 ): { start: number; underProse: boolean } {
-  const none = { start: lines.length, underProse: false };
-  // Walk backwards over the trailing contiguous `Key: Value` run.
-  let runStart = lines.length;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const trimmed = lines[i].trim();
-    if (trimmed === "") {
-      if (runStart < lines.length) break;
-      continue;
-    }
-    if (ATTR_LINE_RE.test(trimmed)) runStart = i;
-    else break;
-  }
-
   let end = lines.length;
   while (end > 0 && lines[end - 1].trim() === "") end--;
-  if (end === 0) return none;
 
-  // Indented block: accepted as before.
-  if (
-    runStart < end &&
-    lines.slice(runStart, end).every((l) => INDENTED_RE.test(l))
-  ) {
-    return { start: runStart, underProse: false };
-  }
+  // The indented run.
+  let indentedStart = end;
+  while (
+    indentedStart > 0 &&
+    isIndented(lines[indentedStart - 1]) &&
+    trailerKey(lines[indentedStart - 1]) !== undefined
+  ) indentedStart--;
 
-  // Unindented block: apply the final-paragraph rule.
-  let paraStart = end - 1;
-  while (paraStart > 0 && lines[paraStart - 1].trim() !== "") paraStart--;
-  const paragraph = lines.slice(paraStart, end);
-  const keys: string[] = [];
-  for (const line of paragraph) {
-    if (/^\s/.test(line)) {
-      if (keys.length === 0) return underProseResult(lines, end);
-      continue; // continuation line
+  // Unindented `Key: Value` lines directly above it.
+  let runStart = indentedStart;
+  while (
+    runStart > 0 &&
+    !isIndented(lines[runStart - 1]) &&
+    trailerKey(lines[runStart - 1]) !== undefined
+  ) runStart--;
+
+  if (runStart < indentedStart) {
+    const ownParagraph = runStart === 0 || lines[runStart - 1].trim() === "";
+    const keys = lines.slice(runStart, end).map((l) => trailerKey(l)!);
+    if (
+      ownParagraph &&
+      (keys.includes("Id") ||
+        keys.every((k) => RECOGNIZED_TRAILER_KEYS.has(k)))
+    ) {
+      return { start: runStart, underProse: false };
     }
-    const key = /^([A-Z][A-Za-z-]*): .+\\?$/.exec(line)?.[1];
-    if (key === undefined) return underProseResult(lines, end);
-    keys.push(key);
+    const unindentedKeys = keys.slice(0, indentedStart - runStart);
+    if (!ownParagraph && unindentedKeys.includes("Id")) {
+      return { start: runStart, underProse: true };
+    }
   }
-  const accepted = keys.includes("Id") ||
-    keys.every((k) => RECOGNIZED_TRAILER_KEYS.has(k));
-  return accepted
-    ? { start: paraStart, underProse: false }
-    : underProseResult(lines, end);
-}
-
-function underProseResult(
-  lines: readonly string[],
-  end: number,
-): { start: number; underProse: boolean } {
-  const start = findIdRunUnderProse(lines, end);
-  return start === undefined
-    ? { start: lines.length, underProse: false }
-    : { start, underProse: true };
+  return {
+    start: indentedStart < end ? indentedStart : lines.length,
+    underProse: false,
+  };
 }
 
 /**

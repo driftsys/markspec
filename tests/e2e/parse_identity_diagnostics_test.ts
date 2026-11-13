@@ -279,8 +279,9 @@ Deno.test("validate: spaced-key trailer typo still -> MSL-P022 (#697)", async ()
 
 // ---------------------------------------------------------------------------
 // #654: MSL-P020 (misplaced trailer) must fire only for a RECOGNIZED trailer
-// key. A body paragraph that merely starts with a capitalized word + colon
-// (`Note:`, `Example:`, `Rationale:`) is prose, not a misplaced trailer, and
+// key (since #916: `Id:` or a trace relation). A body paragraph that merely
+// starts with a capitalized word + colon (`Note:`, `Example:`, `Rationale:`)
+// is prose, not a misplaced trailer, and
 // must not be flagged. A genuinely misplaced real trailer (`Id:`, `Satisfies:`)
 // in the body still fires.
 // ---------------------------------------------------------------------------
@@ -331,8 +332,8 @@ Deno.test("validate: 'Example:' prose paragraph is not a misplaced trailer (#654
 
 Deno.test("validate: arbitrary 'Assumption:' prose is not a misplaced trailer (#654)", async () => {
   // A skip-list of admonition words would miss this; only an allowlist of
-  // recognized trailer keys covers every prose lead-in. (Note: words that ARE
-  // recognized attribute keys, e.g. `Rationale`, remain flagged by design.)
+  // recognized trailer keys covers every prose lead-in. (Since #916 only
+  // `Id:` and trace-relation keys are flagged; `Rationale:` is prose too.)
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
