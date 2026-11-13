@@ -159,8 +159,10 @@ and the parser reads a row without it. Rows are sorted by
 `(sourceUlid,
 relation, authoredTarget, locator, targetUlid)`, and a missing
 locator sorts as the empty string. The edge hash (`generated-cache.edges-hash`)
-covers the locator, so it changes only for a project that uses locators. A
-project without locators keeps its previous hash.
+covers the locator, so it changes for a project that writes a closed bracket
+after a trace target: a scenario locator, or an existing `References: X [§4.3]`
+value, which was two edges and is now one edge with a locator. A project without
+such values keeps its previous hash.
 
 The ledger covers the core relations that record an edge (every core relation
 except `Verifies`, `Mitigated-by` and `Affects`) and the hand-written
@@ -168,10 +170,11 @@ except `Verifies`, `Mitigated-by` and `Affects`) and the hand-written
 locator is not recorded here.
 
 A value with a closed locator yields one row with that locator. A value with
-free text before the locator (`ISO-1 §4.3 [loc]`) or after it has no valid
-target form: the ledger splits the text on whitespace and records each fragment
-as an authored target without a `target-ulid`, as it does for any plain value
-with free text.
+free text before the locator (`ISO-1 §4.3 [loc]`) or after it has no locator:
+the ledger splits it on whitespace, as it does for any plain value with free
+text, and records one row per token. The first token resolves as usual (so
+`STK_1 [AC one] extra` records `STK_1` with its `target-ulid`); the other tokens
+are rows without a `target-ulid`.
 
 ## 4. Update mechanics
 
@@ -249,9 +252,11 @@ availability (project choice; the lockfile is the source of truth either way).
    purl tarball) ship as separate ADRs post-MVP.
 3. **Vendor mirror default: deferred post-1.0** (see §6 above).
 4. **Edge-hash coupling: canonical edge model, not file bytes.** Sorted
-   `(source, relation, target, provenance)` quad list, RFC-8785-style canonical
-   JSON, sha256 of canonical serialization. Decouples lockfile from
-   compile-output NDJSON format.
+   `(source, relation, target, provenance)` quad list, each quad with an
+   optional `locator` (ADR-037), sorted by source, relation, target, locator
+   (missing sorts as empty) and provenance; RFC-8785-style canonical JSON,
+   sha256 of canonical serialization. Decouples lockfile from compile-output
+   NDJSON format.
 5. **Profile `extends:` chain: each tier its own row.** Every tier in the
    `extends:` chain becomes an `[[upstream.profile]]` row with an `extends`
    field referencing its parent. Verbose but auditable per-tier diffs.

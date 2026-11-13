@@ -45,15 +45,22 @@ small scenario index and leave room for it.
 
 1. **Locator grammar.** A value is a target, optionally followed by whitespace
    and a bracketed locator. `\]` and `\\` escape inside the locator only.
-   Brackets do not nest. A comma inside a locator does not split the value. One
-   shared splitter in `core/refs/split.ts` replaces the earlier ad-hoc splits
-   (in the validator, the formatter, the lockfile resolver, the reference scan
-   and the attribute parser). A locator is normalized for comparison (Unicode
-   NFC, trim, collapse whitespace runs) and compared exactly and
-   case-sensitively. A value with an unclosed `[` has no locator; `MSL-L009`
-   reports it and commas after the `[` do not split. A value without a locator
-   on a relation that accepts one links to its first whitespace-separated token,
-   as before.
+   Brackets do not nest. A comma inside a locator does not split the value. The
+   shared splitter in `core/refs/split.ts` is used by the compiler, the
+   validator, the formatter, the attribute parser, the lockfile resolver and the
+   LSP reference scans. Two scanners keep their own copy of the grammar: the
+   `core/refs` rename-heal token regex and the LSP rename span regex, and the
+   lockfile resolver keeps its whitespace split for parts without a locator. A
+   locator is normalized for comparison (Unicode NFC, trim, collapse whitespace
+   runs) and compared exactly and case-sensitively. An empty locator (`A []`) is
+   a locator with an empty name and names no scenario. A value without a closed
+   locator after whitespace is read exactly as before locators existed, for
+   every relation: `Derived-from` and `References` keep the leading token, every
+   other relation keeps the whole value, and when no value on the line has a
+   closed locator the line splits on every comma. A value with an unclosed `[`
+   after whitespace has no locator; `MSL-L009` reports it. An ID inside a
+   locator is not a reference: rename-heal, LSP rename, find references, the
+   incoming count and code lenses skip it.
 2. **Locator modes.** `RelationDef.locator` is `criterion` for `Satisfies` and
    `Verifies`, `free` for `References` and `Derived-from`, and absent for every
    other relation. The facet is core-only (option 4a): profiles cannot declare a
@@ -62,18 +69,21 @@ small scenario index and leave room for it.
    kept.
 3. **A locator never changes the link.** `Link.to` is the target only. The
    compiled `Link` gains `locator` (normalized, absent when none) and, for
-   `criterion` mode on a Requirement or Contract target, `locatorResolved`.
-   Generated inverse links copy both fields.
+   `criterion` mode on a Requirement or Contract target, `locatorResolved`. The
+   target may be a display ID or a ULID. Generated inverse links copy both
+   fields; two locators from one source give two inverse links.
 4. **Criteria storage.** `Entry.criteria` holds
    `{ form: "scenario", name,
    addressable, location }` records. Only entries
    whose resolved core ancestor is Requirement or Contract get them; others keep
-   none. There is no `CORE_SCHEMA_VERSION` bump. The scanner
-   (`core/criteria/scenarios.ts`) reads `Scenario:`, `Scenario Outline:`,
-   `Scenario Template:` and `Example:` lines, English keywords only, and ignores
-   lines inside doc strings and non-feature fences. The later Gherkin AST slice
-   replaces the scanner body and only adds fields. A scenario is addressable
-   when its name is not empty and occurs once in the entry.
+   none. Upstream (federated) entries get none. Only top-level fenced blocks are
+   scanned; a fence nested in a list item or block quote is not. There is no
+   `CORE_SCHEMA_VERSION` bump. The scanner (`core/criteria/scenarios.ts`) reads
+   `Scenario:`, `Scenario Outline:`, `Scenario Template:` and `Example:` lines,
+   English keywords only, and ignores lines inside doc strings and non-feature
+   fences. The later Gherkin AST slice replaces the scanner body and only adds
+   fields. A scenario is addressable when its name is not empty and occurs once
+   in the entry.
 5. **Diagnostics** extend existing families (the current `language.md` code
    scheme stays authoritative, per ADR-012):
 
@@ -81,7 +91,7 @@ small scenario index and leave room for it.
    | ---------- | -------- | ----------------------------------------------------------- |
    | `MSL-L007` | warning  | Locator names no addressable criterion of a resolved target |
    | `MSL-L008` | warning  | Relation does not accept a locator                          |
-   | `MSL-L009` | warning  | Value has a `[` that no `]` closes                          |
+   | `MSL-L009` | warning  | Value has a `[` after whitespace that no `]` closes         |
    | `MSL-B060` | warning  | Duplicate normalized scenario name in one entry             |
    | `MSL-B061` | info     | Scenario with an empty name                                 |
 
@@ -93,15 +103,21 @@ small scenario index and leave room for it.
    key on `[[edge]]` only when the value has one. Edges sort by
    `(sourceUlid, relation, authoredTarget, locator, targetUlid)`, a missing
    locator sorting as the empty string. The edges hash covers the locator, so it
-   changes only for projects that use locators.
+   changes for projects that write a closed bracket after a trace target: a
+   scenario locator, and also an existing `References: X [§4.3]` value, which
+   was two quads and is now one quad with a locator. Projects without such
+   values keep their hash.
 7. **Coverage.** `markspec report coverage` adds a `criteria` section in `md`,
    `json` and `csv`, emitted only when a reported entry has criteria.
    Entry-level output is unchanged for projects without feature blocks. Per
-   entry the state is `full`, `partial` or `none`. Only `Verifies` counts. A
-   whole-entry `Verifies` covers every scenario; a locator covers the scenario
-   it names when it resolves to an addressable scenario; an unresolved locator
-   covers nothing; a non-addressable scenario is covered only by a whole-entry
-   `Verifies`. A `Satisfies` locator has no effect on coverage.
+   entry the state is `full`, `partial` or `none`. Only `Verifies` counts, and
+   only when the verifier's type is, or extends, the core `Test` type (with the
+   active profile's extends chain); an entry never verifies itself. Upstream
+   entries are not reported and do not count in the totals. A whole-entry
+   `Verifies` covers every scenario; a locator covers the scenario it names when
+   it resolves to an addressable scenario; an unresolved locator covers nothing;
+   a non-addressable scenario is covered only by a whole-entry `Verifies`. A
+   `Satisfies` locator has no effect on coverage.
 
 ### Alternatives considered
 
@@ -128,14 +144,17 @@ small scenario index and leave room for it.
 
 ## Consequences
 
-- One splitter defines how a trace value is read everywhere; a fix there applies
-  to the validator, formatter, lockfile and compiler together.
+- One splitter defines how most surfaces read a trace value; a fix there applies
+  to the validator, formatter, lockfile and compiler together. The rename
+  regexes in `core/refs` and `lsp/rename.ts` must be kept in step with it.
+- Compiled JSON, `fmt` output, the lockfile and the coverage report are
+  unchanged for a project without closed bracket locators.
 - `Entry.criteria` and `Link.locatorResolved` are additive, so JSON consumers
   that ignore unknown keys keep working.
 - Scenarios in non-English feature blocks yield no criteria until the AST slice,
   so a locator to them raises `MSL-L007`.
-- A project that adopts locators gets a new edges hash on its next
-  `markspec lock`.
+- A project that adopts locators, or that already wrote `X [§4.3]` values, gets
+  a new edges hash on its next `markspec lock`.
 
 ## Trace
 

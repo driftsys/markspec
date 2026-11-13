@@ -732,6 +732,11 @@ The counting rules:
 
 - Only `Verifies` links count. A `Satisfies` locator never counts as
   verification.
+- Only a verifier whose type is, or extends, the core `Test` type counts (the
+  active profile's `extends:` chain is followed). An entry never verifies
+  itself.
+- Upstream (federated) entries get no criteria rows and do not count in the
+  totals.
 - A `Verifies` value without a locator covers every scenario of its target.
 - A `Verifies` value with a locator covers the scenario it names, when the
   locator resolves to an addressable scenario. A locator that does not resolve

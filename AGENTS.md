@@ -44,8 +44,15 @@ markspec/
 │       │   │                            markdown parser
 │       │   ├── formatter/           ← write-back: ULID stamping, indentation
 │       │   │   └── mod.ts             normalization, trailing backslashes
+│       │   ├── refs/                ← trace-value rewrite (rename-heal);
+│       │   │   ├── mod.ts             split.ts is the shared trace-value
+│       │   │   └── split.ts           splitter and locator parser (ADR-037)
+│       │   ├── criteria/            ← scenario index of fenced feature
+│       │   │   └── scenarios.ts       blocks → Entry.criteria (ADR-037)
 │       │   ├── validator/           ← file-local + cross-file checks (broken
-│       │   │   └── mod.ts             refs, missing Ids, duplicates)
+│       │   │   ├── mod.ts             refs, missing Ids, duplicates)
+│       │   │   └── locators.ts      ←   scenario-locator diagnostics (L007-L009,
+│       │   │                            B060, B061)
 │       │   ├── compiler/            ← glob → parsed entries → resolved graph →
 │       │   │   └── mod.ts             compiled JSON
 │       │   └── reporter/            ← compiled JSON → output formats (json, csv,

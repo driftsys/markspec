@@ -58,7 +58,10 @@ The locator has these properties:
   `Derived-from:` accept free-text locators such as `[§4.3]` that are not
   checked. Other relations do not accept a locator.
 - A `Verifies:` value without a locator verifies every scenario of the
-  requirement.
+  requirement. A value without a closed locator is read as it was before
+  locators existed.
+- Only scenarios in top-level `feature` blocks are indexed. A block nested in a
+  list item or a block quote yields no scenarios.
 - A locator never changes the link: the link goes to the requirement whether the
   locator resolves or not.
 
@@ -70,7 +73,7 @@ See [Locators](../spec/model/relations.md#locators) for the full grammar.
 | ---------- | -------- | ---------------------------------------------------------------------------------------- |
 | `MSL-L007` | warning  | The locator names no addressable scenario of its target.                                 |
 | `MSL-L008` | warning  | The relation does not accept a locator. The link to the target is kept.                  |
-| `MSL-L009` | warning  | A value has a `[` that no `]` closes. Commas after the `[` do not separate values.       |
+| `MSL-L009` | warning  | A value has a `[` that no `]` closes. The value is read as a value without a locator.    |
 | `MSL-B060` | warning  | A scenario name is used more than once in one entry. A locator cannot address that name. |
 | `MSL-B061` | info     | A scenario has an empty name. A locator cannot address it.                               |
 
@@ -97,6 +100,8 @@ REQ_BRK_0010  Emergency braking for close obstacles  1/2 criteria verified
 ````
 
 A scenario with no verifier is a gap in the report. It does not raise a
-diagnostic. Only `Verifies:` counts; a `Satisfies:` locator does not. The `json`
-and `csv` formats carry the same data. See the [CLI reference](cli.md#report)
-for the counting rules.
+diagnostic. Only `Verifies:` from a test counts (an entry whose type is, or
+extends, Test); a `Satisfies:` locator does not, and an entry never verifies
+itself. The `json` format carries the same data; `csv` carries only the
+`Criteria total` and `Criteria verified` counts. See the
+[CLI reference](cli.md#report) for the counting rules.

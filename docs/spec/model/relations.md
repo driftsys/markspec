@@ -213,7 +213,13 @@ value   = target [ 1*WSP "[" locator "]" ]
 - A locator is normalized for comparison: Unicode NFC, trimmed, and each run of
   whitespace collapsed to one space.
 - A value with a `[` that no `]` closes has no locator. `MSL-L009` reports it,
-  and commas after the `[` do not separate values.
+  and the value is read as a value without a locator: every comma separates
+  values.
+- An empty locator (`REQ_BRK_0010 []`) is a locator with an empty name. It names
+  no scenario, so on `Satisfies` or `Verifies` it raises `MSL-L007` when the
+  target carries scenarios.
+- When no value on the line has a closed locator, the line is split on every
+  comma, as before locators existed.
 
 ### Which relations accept a locator
 
@@ -228,9 +234,10 @@ core relation. Profile-declared relations have no locator mode.
 | `References`   | free         | Free text (a section, a page). Not checked.    |
 | other          | none         | A locator raises `MSL-L008`. The link is kept. |
 
-A value without a locator on `Satisfies`, `Verifies`, `Derived-from` or
-`References` links to its first whitespace-separated token. Text after that
-token is not part of the target.
+A value without a closed locator is read as before locators existed: on
+`Derived-from` and `References` it links to its first whitespace-separated
+token; on every other relation, `Satisfies` and `Verifies` included, it links to
+the whole value.
 
 ### Resolution
 
@@ -239,11 +246,14 @@ brackets whether or not the locator resolves. `MSL-L006` checks the target only.
 
 A locator in `criterion` mode resolves when the target is a Requirement or
 Contract entry and one of its scenarios has that normalized name. Scenarios come
-from the fenced `feature` (or `gherkin`) blocks of the target body. A scenario
-name is addressable when it is not empty and occurs once in the entry.
+from the top-level fenced `feature` (or `gherkin`) blocks of the target body; a
+fence nested in a list item or a block quote is not indexed. A scenario name is
+addressable when it is not empty and occurs once in the entry.
 
 - A locator that names no addressable scenario raises `MSL-L007`.
 - A locator on a target that does not resolve raises `MSL-L006` only.
+- The target may be written as a display ID or as a ULID.
+- An upstream (federated) entry carries no criteria.
 - A locator on a target that is not a Requirement or Contract entry (or is a
   Reference entry) is free text and raises no `MSL-L007`.
 
