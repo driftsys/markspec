@@ -41,6 +41,7 @@ export type {
   CaptionConventions,
   CaptionPosition,
   ConfigFieldError,
+  Criterion,
   DeliveredDocument,
   Diagnostic,
   Directive,
@@ -421,6 +422,8 @@ export {
   splitTraceValues,
 } from "./refs/split.ts";
 export type { ParsedTraceValue } from "./refs/split.ts";
+
+export { buildCriteria, scanScenarioNames } from "./criteria/scenarios.ts";
 
 // ── Composite-`check` gate stages (ADR-027, #659) ─────────────────────────
 export { fmtDriftGate, lockfileDriftGate, proseLintGate } from "./gates/mod.ts";

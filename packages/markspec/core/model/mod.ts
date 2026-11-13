@@ -531,6 +531,23 @@ export function emittableEntries(
 }
 
 /**
+ * One acceptance criterion of an entry. This slice indexes scenarios only;
+ * later slices add fields without changing these.
+ */
+export interface Criterion {
+  readonly form: "scenario";
+  /** Scenario name after NFC, trim and whitespace-run collapse. */
+  readonly name: string;
+  /**
+   * `true` when a locator can address this criterion: the name is not empty
+   * and is unique within the entry.
+   */
+  readonly addressable: boolean;
+  /** File-relative position of the scenario keyword. */
+  readonly location: SourceLocation;
+}
+
+/**
  * A parsed MarkSpec entry — the core AST node.
  *
  * The `shape` field discriminates the two core categories:
@@ -551,6 +568,11 @@ export interface Entry {
   readonly body: string;
   /** Canonical body AST (PR 2: additive, not yet consumed). */
   readonly bodyAst?: readonly BodyBlock[];
+  /**
+   * Acceptance criteria indexed from the entry's fenced Gherkin blocks.
+   * Absent when the entry has none. Set by the compiler, not the parser.
+   */
+  readonly criteria?: readonly Criterion[];
   /**
    * Source-order raw attribute array. Used by the formatter for round-trip
    * fidelity (preserving key casing, line order, and trailing backslashes).
