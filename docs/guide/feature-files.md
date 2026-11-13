@@ -33,15 +33,21 @@ Feature: Emergency braking
 
 The rules:
 
+- The `ID` must look like a display ID: an uppercase letter, then uppercase
+  letters or digits, then at least one `_` or `-`, and a letter or digit at the
+  end (`REQ_BRK_0011`, `TST-12`). Other bracketed comments, such as
+  `# [TODO] fix later`, `# [x] done` or `# [WIP]`, are plain comments: they give
+  no entry and no diagnostic, and `fmt` does not change them.
 - The run must end on the line directly above the node keyword (`Feature:`,
   `Rule:`, `Scenario:`, `Scenario Outline:`, or the keyword of another
   language). Tag lines (`@safety`) and plain comment lines may stand between the
   run and the keyword.
 - A blank line between the run and the node breaks the link. The header is then
   not an entry, and `check` reports `MSL-B069`.
-- A comment line whose text starts with `[ID]` starts a new header, so two
-  headers can stand one above the other. Each header belongs to the first node
-  after its own run.
+- A comment line whose text starts with `[ID]` starts a new header. When two
+  headers stand one above the other, only the lower header is directly above the
+  node and gives an entry. The upper header has no node: it is not an entry, and
+  `check` reports `MSL-B069` for it.
 - A `# language:` line is never part of a header.
 - A header above a `Background`, an `Examples` table or a step is not an entry.
   `check` reports `MSL-B069` for it.
@@ -161,15 +167,20 @@ a header without an `Id:`. Nothing else counts as format drift in such a file.
 
 ## Discovery
 
-`check`, `lint`, `compile`, `fmt` and `lock` include `.feature` files in the
-files they find under the project root, with the same `.gitignore` and
-`exclude:` rules as other files. The scope line of a bare `markspec check` or
-`markspec fmt` counts a `.feature` file, so a project that has such files shows
-a larger `N` in `checking N file(s)` than before, even if no file has a header.
+`check`, `lint`, `fmt` and `lock` include `.feature` files in the files they
+find under the project root, with the same `.gitignore` and `exclude:` rules as
+other files. `compile` does no discovery: it reads a `.feature` file that you
+name in its paths. The scope line of a bare `markspec check` or `markspec fmt`
+counts a `.feature` file, so a project that has such files shows a larger `N` in
+`checking N file(s)` than before, even if no file has a header.
 
 The language server does not index `.feature` files yet, so an editor shows no
-diagnostics, hover or completion for them. The MCP server tracks them, so
-`markspec_refresh` sees a changed `.feature` file.
+diagnostics, hover or completion for them. A rename of a display ID in the
+editor also does not update `.feature` files: a `Satisfies:` or `Verifies:`
+trailer in a `.feature` header keeps the old ID until you change it by hand, and
+the project-wide `markspec check` reports it as an unresolved reference. This
+gap closes when the language server reads `.feature` files. The MCP server
+tracks them, so `markspec_refresh` sees a changed `.feature` file.
 
 ## Example
 

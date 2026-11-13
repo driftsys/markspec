@@ -161,7 +161,9 @@ silent.
 Step 6a applies only to entries read from a `.feature` file (epic #915, Case B;
 language spec §1.3 §7). It follows step 6 and is silent: it gives no `MSL-T021`.
 An explicit `Type:`, a profile pattern or a display-ID prefix wins because those
-steps come first.
+steps come first. Profile classification (`classifyEntry`) also falls back to
+step 6a for a `.feature` entry that no `display-id-pattern` matches, so such an
+entry gets no `MSL-T003`.
 
 Steps 4 and 5 are mutually exclusive (each applies only to its own shape) and
 are jointly equivalent to ADR-004 §Part 2 step 3 (“`Id:` value structure”). Step
@@ -176,8 +178,9 @@ Once a type is established (explicit or inferred), tooling reports:
 
 - `MSL-T020` — `error` — `Type:` value is not a known abstract type, core
   concrete type, or active-profile concrete type. (ADR-004 §Annex A.)
-- `MSL-T021` — `warning` — type resolved via late-stage inference (step ≥ 5).
-  Suggests adding an explicit `Type:`. (ADR-004 §Annex A.)
+- `MSL-T021` — `warning` — type resolved via late-stage inference (step ≥ 5,
+  except step 6a, which is silent). Suggests adding an explicit `Type:`.
+  (ADR-004 §Annex A.)
 - `MSL-T022` — `warning` — attribute presence inconsistent with resolved type
   (e.g., `Bus-protocol` on a `SoftwareComponent`). Profiles may promote to
   error. (ADR-003 §Part 5 “Validity check”.)
@@ -418,11 +421,13 @@ verbatim from ADR-005 §Part 1.
 A `Feature` node keeps the authored text in `source`. When the Gherkin parser is
 loaded, the node also carries exactly one of `feature` (the normalized Gherkin
 AST, with positions relative to `source`) and `parseError` (the line, column and
-message of the first parser error, reported as `MSL-B062`). Both fields are pure
-functions of `source`. When the parser is not loaded, the node has neither.
-`MSL-B062` checks a `Feature` node in a top-level block or in a list item at any
-depth; `Entry.criteria` is read from top-level `Feature` nodes only. The
-normalized `FeatureAst` also keeps every comment line in `comments`, including
+message of the first parser error, reported as `MSL-B062`). In a Markdown or
+source file, both fields are pure functions of `source`. In a `.feature` entry,
+`feature` also holds the inherited `Background` steps, which come from the
+whole-file AST. When the parser is not loaded, the node has neither. `MSL-B062`
+checks a `Feature` node in a top-level block or in a list item at any depth;
+`Entry.criteria` is read from top-level `Feature` nodes only. The normalized
+`FeatureAst` also keeps every comment line in `comments`, including
 `# language:`; a `# Step` comment (`#`, optional spaces, `Step`, then whitespace
 or the end of the line) becomes the label of a procedure step in the on-demand
 procedure view (`ProcedureStep.label`). A scenario with a description also
@@ -437,7 +442,10 @@ end of its `bodyAst`, after the header prose and description blocks. Its
 blanked, and its `feature` holds only the scenarios the entry owns, with ranges
 relative to that text. Such an entry has `EntrySource`
 `{kind: "feature-file", node}`; the field is additive and does not change
-`CORE_SCHEMA_VERSION`. See [ADR-038](../../architecture/adr-038-gherkin-ast.md).
+`CORE_SCHEMA_VERSION`. Only a header whose bracketed ID matches
+`[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]` gives an entry; a comment such as
+`# [TODO] fix later`, `# [x] done` or `# [WIP]` is a plain comment. See
+[ADR-038](../../architecture/adr-038-gherkin-ast.md).
 
 #### 2.4.1 Excluded constructs
 
@@ -861,17 +869,17 @@ invariants).
 
 ### 4.1 Parse errors (P)
 
-| Code       | Severity | Meaning                                                                                                                                                                                                                                                                                                                            |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-P001` | error    | List item starts with `[…]` but the bracketed content is empty.                                                                                                                                                                                                                                                                    |
-| `MSL-P002` | error    | Title line missing title text after `]`.                                                                                                                                                                                                                                                                                           |
-| `MSL-P003` | error    | Display-ID brackets unterminated (missing `]` before newline).                                                                                                                                                                                                                                                                     |
-| `MSL-P010` | error    | Title is empty after trimming.                                                                                                                                                                                                                                                                                                     |
-| `MSL-P020` | error    | Trailers block is not the final indented code block of the entry. A warning when an `Id:` run sits directly under prose (still the trailer), or a trace-relation key line is body prose.                                                                                                                                           |
-| `MSL-P021` | error    | Trailer line does not match `Key: Value` syntax.                                                                                                                                                                                                                                                                                   |
-| `MSL-P022` | error    | Trailer key contains characters outside `[A-Za-z][A-Za-z0-9-]*`.                                                                                                                                                                                                                                                                   |
-| `MSL-P023` | warning  | Markdown only: a line of the final-paragraph trailer is indented less than 4 columns (git style). Not reported for the legacy trailing `\` shape. `fmt` indents it.                                                                                                                                                                |
-| `MSL-P030` | error    | Body contains no body block (entry has a title and trailers but no body). For Authored shape: error. For Reference shape: allowed (ADR-002 §Part 3 “Body is optional”). A `.feature` entry has a body when it has header prose, a node description or owned steps; otherwise it gets this error at the `# [ID]` line, at column 1. |
+| Code       | Severity | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-P001` | error    | List item starts with `[…]` but the bracketed content is empty.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `MSL-P002` | error    | Title line missing title text after `]`.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `MSL-P003` | error    | Display-ID brackets unterminated (missing `]` before newline).                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `MSL-P010` | error    | Title is empty after trimming.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `MSL-P020` | error    | Trailers block is not the final indented code block of the entry. A warning when an `Id:` run sits directly under prose (still the trailer), or a trace-relation key line is body prose.                                                                                                                                                                                                                                                                       |
+| `MSL-P021` | error    | Trailer line does not match `Key: Value` syntax.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `MSL-P022` | error    | Trailer key contains characters outside `[A-Za-z][A-Za-z0-9-]*`.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `MSL-P023` | warning  | Markdown only: a line of the final-paragraph trailer is indented less than 4 columns (git style). Not reported for the legacy trailing `\` shape. `fmt` indents it.                                                                                                                                                                                                                                                                                            |
+| `MSL-P030` | error    | Body contains no body block (entry has a title and trailers but no body). For Authored shape: error. For Reference shape: allowed (ADR-002 §Part 3 “Body is optional”). A `.feature` entry has a body when it has header prose or a node description. Without either, a `Scenario` entry gets this error when its scenario has no step, and a `Feature` or `Rule` entry when it owns no scenario; the error is at the `# [ID]` line, at the column of its `#`. |
 
 ### 4.2 Identity & shape (I)
 
@@ -891,7 +899,7 @@ invariants).
 | Code       | Severity | Meaning                                                                                                                                                             |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MSL-T020` | error    | `Type:` value resolves to neither a core abstract / concrete type nor an active-profile type. (ADR-004 §Annex A.)                                                   |
-| `MSL-T021` | warning  | Type resolved by late-stage inference (chain step ≥ 5). Suggests writing an explicit `Type:`. (ADR-004 §Annex A.)                                                   |
+| `MSL-T021` | warning  | Type resolved by late-stage inference (chain step ≥ 5, except the silent step 6a). Suggests writing an explicit `Type:`. (ADR-004 §Annex A.)                        |
 | `MSL-T022` | warning  | Attribute presence inconsistent with resolved type (e.g., `Bus-protocol` on `SoftwareComponent`). Profile may promote to error. (ADR-003 §Part 5 “Validity check”.) |
 | `MSL-T023` | error    | `Type:` value is profile-only but no profile is loaded. (ADR-009 “core-only mode”.)                                                                                 |
 

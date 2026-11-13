@@ -44,7 +44,7 @@ markspec/
 │       │   │                          illustration, derived from the entry type
 │       │   ├── profile/             ← profile manifest load, merge, resolver
 │       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
-│       │   ├── parser/              ← file → Entry[]. Two sub-modules:
+│       │   ├── parser/              ← file → Entry[]. Three sub-modules:
 │       │   │   ├── mod.ts
 │       │   │   ├── markdown.ts      ←   CommonMark AST walk, entry detection
 │       │   │   ├── markdown_test.ts ←   unit test (colocated)
@@ -298,7 +298,7 @@ runs its always-on Markdown rules (links, images, anchors); strict mode is off.
 
 | Command                               | Module                            | Purpose                                                                                                                                                                                                                                                |
 | ------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes, and format the whole Markdown document (ADR-029). Bare = whole-project markdown scope.                                                                                                             |
+| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes, and format the whole Markdown document (ADR-029). Bare = whole-project Markdown and `.feature` scope.                                                                                              |
 | `markspec check [...files]`           | `core/validator` + gates          | Composite gate: structure, traceability, listing docs, fmt drift (MSL-F010 + MSL-F011 reference canon), offline lockfile drift (MSL-L212), advisory prose lint. Bare = whole project; the extra gates run project-wide only.                           |
 | `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.                                                                                                                                                                                       |
 | `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                                                                                                                                                                                                  |
@@ -583,13 +583,14 @@ docs/
   MSL-L007/L008/L009/B060/B061, optional `locator` on lockfile `[[edge]]`,
   criteria section in `report coverage`
 - `adr-038-gherkin-ast.md` — normalized Gherkin AST on `FeatureNode` from
-  exact-pinned `@cucumber/gherkin@42.0.1`; parser loaded lazily only for texts
-  with a `gherkin`/`feature` fence; scanner fallback for a block that does not
-  parse; MSL-B062; procedure view (`core/gherkin/procedure.ts`) and MSL-B063;
-  Case A block role (`core/gherkin/role.ts`, `# Step` labels, MSL-B064–B068);
-  Case B `.feature` entries (`# [ID] Title` header comments,
-  `core/parser/feature_file.ts`, `EntrySource` `feature-file`, type step 6a,
-  `fmt` stamps `# Id:`, MSL-B069); amends ADR-015/016/037
+  exact-pinned `@cucumber/gherkin@42.0.1`; parser loaded lazily for texts with a
+  `gherkin`/`feature` fence and always for `.feature` files; scanner fallback
+  for a block that does not parse; MSL-B062; procedure view
+  (`core/gherkin/procedure.ts`) and MSL-B063; Case A block role
+  (`core/gherkin/role.ts`, `# Step` labels, MSL-B064–B068); Case B `.feature`
+  entries (`# [ID] Title` header comments, `core/parser/feature_file.ts`,
+  `EntrySource` `feature-file`, type step 6a, `fmt` stamps `# Id:`, MSL-B069);
+  amends ADR-015/016/037
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

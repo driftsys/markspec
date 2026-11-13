@@ -619,6 +619,15 @@ lines are the body prose and the trailer, parsed as for a source doc comment
 (§5), except that git-style trailers (no indent) are canonical and give no
 `MSL-P023`. A header that has only a title is an entry with an empty body.
 
+**Header ID.** The `DISPLAY_ID` of a header must match
+`[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]`: an uppercase letter, then
+uppercase letters or digits, at least one `_` or `-` separator, and a letter or
+digit at the end. This is a subset of the display-ID grammar without `/`. A
+bracketed comment whose text is not such an ID (`# [TODO] fix later`,
+`# [x] done`, `# [WIP]`) is a plain comment: it gives no entry and no
+diagnostic, and `fmt` does not change it. In the rules below, `[ID]` means a
+bracketed ID of this shape.
+
 **Header detection.**
 
 1. A header is the run of consecutive comment lines that ends directly above a
@@ -627,8 +636,9 @@ lines are the body prose and the trailer, parsed as for a source doc comment
 2. A blank line, or any other line, between the run and the node breaks the
    link.
 3. A comment line whose text starts with `[ID]` starts a new run, so stacked
-   headers are separate headers. Each belongs to the first node after its own
-   run.
+   headers are separate headers. Only the lowest header of a stack is directly
+   above the node; each upper header has no node, is not an entry, and gives
+   `MSL-B069`.
 4. A `# language:` line is never part of a header.
 5. A header above a `Background`, an `Examples` table or a step, or one that is
    not directly above a node, is not an entry and gives `MSL-B069`.
@@ -655,12 +665,14 @@ them, with ranges relative to that text. The `Feature` node therefore gives
 `feature`, `rule` or `scenario`. Locations are line and column of the `.feature`
 file. The type of an entry follows the resolution chain (data model §1.3.1),
 where step 6a gives `Feature` and `Rule` the type `Requirement` and `Scenario`
-the type `Test`.
+the type `Test`. Profile classification applies step 6a too, so a `.feature`
+entry that no `display-id-pattern` matches is never un-classified (no
+`MSL-T003`).
 
-**Discovery.** `check`, `lint`, `compile`, `fmt` and `lock` find `.feature`
-files like other project files. A `.feature` file with no header changes no
-output of these commands, except that the scope line of a bare `check` or `fmt`
-counts it.
+**Discovery.** `check`, `lint`, `fmt` and `lock` find `.feature` files like
+other project files. `compile` does no discovery and reads the `.feature` files
+named in its paths. A `.feature` file with no header changes no output of these
+commands, except that the scope line of a bare `check` or `fmt` counts it.
 
 **Formatting.** `markspec fmt` inserts a missing `# Id: <ULID>` line into a
 header, in front of its first trailer line, and changes nothing else. A file

@@ -328,16 +328,16 @@ markspec fmt --check [...files]
 | --------- | ---- | ------- | -------------------------------------------------------- |
 | `--check` | bool | false   | Report changes without writing. Exit 1 if changes needed |
 
-**Bare invocation = whole-project markdown scope.** With no file arguments,
-`fmt` discovers every `.md` and `.feature` file under the project root
-(gitignore + `.markspec.yaml` `exclude:` honored) and prints a one-line scope
-header to stderr (`formatting N file(s) under <root>`), suppressed by `-q`. Bare
-invocation requires a project root above the current directory (a `project.yaml`
-or a `.markspec.yaml`); outside a project it errors rather than silently
-scanning the cwd. `fmt` never rewrites source files, unlike `check`/`lint` which
-also cover source doc comments. In a `.feature` file `fmt` only inserts a
-missing `# Id:` line into a `# [ID]` header; a file with no header, or one that
-does not parse, is left unchanged (see
+**Bare invocation = whole-project Markdown and `.feature` scope.** With no file
+arguments, `fmt` discovers every `.md` and `.feature` file under the project
+root (gitignore + `.markspec.yaml` `exclude:` honored) and prints a one-line
+scope header to stderr (`formatting N file(s) under <root>`), suppressed by
+`-q`. Bare invocation requires a project root above the current directory (a
+`project.yaml` or a `.markspec.yaml`); outside a project it errors rather than
+silently scanning the cwd. `fmt` never rewrites source files, unlike
+`check`/`lint` which also cover source doc comments. In a `.feature` file `fmt`
+only inserts a missing `# Id:` line into a `# [ID]` header; a file with no
+header, or one that does not parse, is left unchanged (see
 [Entries in `.feature` files](feature-files.md)). The scope line counts every
 `.feature` file, with or without a header.
 
@@ -396,8 +396,9 @@ markspec fmt docs/*.md
 
 **Project-aware trace canonicalisation (requires a project root):**
 
-When a file that `markspec fmt` formats belongs to a project, it also
-canonicalises and heals trace reference values:
+When a Markdown file that `markspec fmt` formats belongs to a project, it also
+canonicalises and heals trace reference values (a `.feature` file only gets its
+missing `# Id:` lines):
 
 - **Canonicalise** — any ULID written directly in a trace attribute
   (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.) is rewritten to the

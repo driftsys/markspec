@@ -132,14 +132,6 @@ export const fmtCmd = new Command()
             continue;
           }
 
-          // ADR-029's whole-document markdown pass is Markdown-only:
-          // `resolveScope`'s explicit-file branch passes any named file
-          // through regardless of extension (its filter only applies to
-          // bare/directory scope), so a source file (e.g. `main.rs`) reaching
-          // here without this guard would have dprint join its lines as
-          // Markdown paragraphs — destructive, and undetectable by the
-          // CommonMark-semantic equivalence gate (line-joining is
-          // wrap-equivalent as Markdown).
           // A `.feature` file only gets a missing `# Id:` header line; it
           // has no prose pass and no reference canonicalisation.
           if (FEATURE_EXTENSIONS.has(extname(filePath).toLowerCase())) {
@@ -155,6 +147,14 @@ export const fmtCmd = new Command()
             }
             continue;
           }
+          // ADR-029's whole-document markdown pass is Markdown-only:
+          // `resolveScope`'s explicit-file branch passes any named file
+          // through regardless of extension (its filter only applies to
+          // bare/directory scope), so a source file (e.g. `main.rs`) reaching
+          // here without this guard would have dprint join its lines as
+          // Markdown paragraphs — destructive, and undetectable by the
+          // CommonMark-semantic equivalence gate (line-joining is
+          // wrap-equivalent as Markdown).
           const isMarkdown = MARKDOWN_EXTENSIONS.has(
             extname(filePath).toLowerCase(),
           );

@@ -1,7 +1,7 @@
 # ADR-038 — Gherkin AST for feature blocks
 
-Status: Accepted, implemented (epic #915, Gherkin AST, procedure-view and Case A
-slices)\
+Status: Accepted, implemented (epic #915, Gherkin AST, procedure-view, Case A
+and Case B slices)\
 Amends: [ADR-016](adr-016-body-token-ast.md) (token source for Gherkin tokens),
 [ADR-015](adr-015-ast-equivalence-formatting-contract.md) (equivalence gate),
 [ADR-037](adr-037-scenario-locators.md) (source of criteria)\
@@ -23,7 +23,8 @@ synchronous.
 
 1. **How the parser is loaded.**
    - (a) A cached `loadGherkin()` built on dynamic `import()`. `parseFile`
-     awaits it only when the text holds a `gherkin` or `feature` fence.
+     awaits it only when the text holds a `gherkin` or `feature` fence, or when
+     the file is a `.feature` file (Case B amendment).
    - (b) A static import in `core/gherkin/`. Rejected: every command (`check`,
      `lsp`, `mcp`) would load about 1.2 MB of extra JavaScript.
    - (c) An asynchronous post-pass that rewrites `bodyAst` and `bodyTokens`
@@ -51,18 +52,22 @@ synchronous.
    follow spaces, blockquote markers, doc-comment prefixes and list markers
    (`-`, `*`, `+`, `1.`, `1)`) on its own line, and the info word must end at
    whitespace or the end of the line, so `gherkin-json` does not load the
-   parser. When the import fails, `parseFile` continues without the AST
-   (Decision 4 applies) and the failure is not cached, so a later file tries
-   again. The synchronous `parse()` fills the AST only when the parser is
+   parser. When the import fails for a Markdown or source file, `parseFile`
+   continues without the AST (Decision 4 applies); a `.feature` file then gives
+   no entries (Case B decision 8). The failure is not cached, so a later file
+   tries again. The synchronous `parse()` fills the AST only when the parser is
    already loaded. `loadGherkin` is exported from `core/mod.ts` so a caller of
-   `parse()` can preload. A project with no such fence never loads the parser,
-   and its output is unchanged.
+   `parse()` can preload. A project with no such fence and no `.feature` file
+   never loads the parser, and its output is unchanged.
 3. **Parse gate.** When the parser is loaded, each `FeatureNode` has exactly one
    of `feature` (the normalized `FeatureAst`) and `parseError`. When it is not
    loaded, it has neither. `FeatureNode.source` always holds the authored text.
-   Both new fields are pure functions of `source`, so the equivalence gate does
-   not compare them (see the ADR-015 amendment). No `CORE_SCHEMA_VERSION`
-   change: the field is optional.
+   In a Markdown or source file, both new fields are pure functions of `source`,
+   so the equivalence gate does not compare them. The `feature` of a `.feature`
+   entry is not: its inherited `Background` steps come from the whole-file AST
+   (Case B decision 4), and the formatter never rewrites a `.feature` file's
+   Gherkin text, so the gate does not compare it either (see the ADR-015
+   amendment). No `CORE_SCHEMA_VERSION` change: the field is optional.
 4. **Scanner fallback.** For a block with a `parseError`, and for a block built
    while the parser is not loaded, criteria come from the line scanner of
    ADR-037, which reads English keywords only.
@@ -223,16 +228,25 @@ The Case B slice (epic #915) reads entries from `.feature` files. Decisions 1 to
 of #584 is superseded by this amendment.
 
 1. **Header.** A header is a run of comment lines whose first line is
-   `# [ID] Title`, directly above a `Feature`, `Rule` or `Scenario`. Tag lines
-   and plain comment lines may stand between the run and the node. A blank line
-   breaks the link. A comment line that starts with `[ID]` starts a new run, so
-   headers can be stacked. The runs come from `GherkinDocument.comments`, not
-   from a line scanner (`findHeaders` in `core/parser/feature_file.ts`).
-2. **Header to entry.** The header lines lose the `#` and one space, are wrapped
-   as a list item with `wrapAsListItem`, and are read by `parseMarkdown` with a
-   `LineMap`. The trailer rule (#914), the P-family diagnostics and the body
-   tokens therefore apply unchanged, with file positions. `MSL-P023` is not
-   reported, because git-style trailers are canonical in a header.
+   `# [ID] Title`, directly above a `Feature`, `Rule` or `Scenario`. The `ID`
+   must match `[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]`: an uppercase
+   start, at least one `_` or `-` separator, and a letter or digit at the end.
+   This is a subset of the core display-ID grammar (`DISPLAY_ID_RE`) without
+   `/`. Other bracketed comments (`# [TODO] fix later`, `# [x] done`, `# [WIP]`)
+   are plain comments: no entry, no `MSL-B069` or `MSL-B062`, and `fmt` leaves
+   them alone. Tag lines and plain comment lines may stand between the run and
+   the node. A blank line breaks the link. A comment line that starts with
+   `[ID]` starts a new run, so two stacked headers are two runs: only the lower
+   one is directly above the node, and the upper one has no node and gets
+   `MSL-B069`. The runs come from `GherkinDocument.comments`, not from a line
+   scanner (`findHeaders` in `core/parser/feature_file.ts`).
+2. **Header to entry.** The first header line loses the `#` and every space
+   after it; each later line loses the `#` and at most one space, so extra
+   indent stays part of the body. The lines are wrapped as a list item with
+   `wrapAsListItem`, and are read by `parseMarkdown` with a `LineMap`. The
+   trailer rule (#914), the P-family diagnostics and the body tokens therefore
+   apply unchanged, with file positions. `MSL-P023` is not reported, because
+   git-style trailers are canonical in a header.
 3. **Ownership.** A headed `Scenario` is its own entry. An unheaded scenario
    belongs to the nearest headed `Rule`, else the headed `Feature`. A scenario
    with no headed ancestor is not in the model. Nesting creates no `Part-of`,
@@ -251,27 +265,37 @@ of #584 is superseded by this amendment.
    is additive and does not bump `CORE_SCHEMA_VERSION`.
 6. **Type step 6a.** In the type resolution chain, step 6a follows step 6:
    `feature` and `rule` give `Requirement`, `scenario` gives `Test`. It is
-   silent, so it gives no `MSL-T021`.
+   silent, so it gives no `MSL-T021`. Profile classification (`classifyEntry`)
+   applies it too: a `.feature` entry that no `display-id-pattern` matches gets
+   the step-6a type and no `MSL-T003`. Without a profile, the checks that
+   classify an entry on demand (`MSL-B063` to `MSL-B068`, locators) use the
+   step-6a type.
 7. **Diagnostics.** `MSL-B069` (warning, body family) reports a header above a
    `Background`, an `Examples` table or a step, or not directly above a node, at
    the first line of the header. `MSL-P030` applies to an entry with no header
-   prose, no description and no content. `MSL-B062` reports a `.feature` file
-   that does not parse, or whose parser fails to load, with no entries; it is
-   reported only when the file has a `# [ID]` header line, so a plain Cucumber
-   file never gets a new diagnostic.
+   prose, no description and no content, at the `#` of its header line. The
+   content of a `Scenario` entry is a step in its scenario; the content of a
+   `Feature` or `Rule` entry is an owned scenario, with or without steps.
+   `MSL-B062` reports a `.feature` file that does not parse, or whose parser
+   fails to load, with no entries; it is reported only when the file has a
+   `# [ID]` header line, so a plain Cucumber file never gets a new diagnostic.
 8. **Loading.** `parseFile` always loads the parser for the `.feature`
    extension. A load failure gives no entries and never throws.
 9. **Discovery and `fmt`.** `FEATURE_EXTENSIONS` adds `.feature` to the files
-   that `check`, `lint`, `compile`, `fmt` and `lock` find. `fmt` inserts a
-   missing `# Id:` line into a header (`core/formatter/feature_file.ts`) and
-   changes nothing else; a file that does not parse is unchanged. `MSL-F010` for
-   a `.feature` file means only a missing `Id:`.
+   that `check`, `lint`, `fmt` and `lock` find. `compile` does no discovery; it
+   reads the `.feature` files named in its paths. `fmt` inserts a missing
+   `# Id:` line into a header (`core/formatter/feature_file.ts`) and changes
+   nothing else; a file that does not parse is unchanged. `MSL-F010` for a
+   `.feature` file means only a missing `Id:`.
 10. **Existing Cucumber projects.** A `.feature` file with no header gives no
     entries, no diagnostics, no lockfile drift and the same `compile` and
     `check` output as before. The scope line of a bare `check` or `fmt` counts
     the file, which is an accepted wording change.
 11. **Tools.** The LSP walk skips `.feature` files until a later slice adds
-    support. The MCP staleness list tracks them.
+    support. Until then, a rename of a display ID in the editor does not update
+    `.feature` files: a trailer in a `.feature` header keeps the old ID, and the
+    project-wide `check` reports it as unresolved. The MCP staleness list tracks
+    `.feature` files.
 
 ### Alternatives considered (Case B `.feature` entries)
 
