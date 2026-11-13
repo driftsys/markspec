@@ -10,6 +10,7 @@ import { findOccurrencesInFile } from "./highlights.ts";
 
 import { assertEquals } from "@std/assert";
 import { TextDocument } from "vscode-languageserver-textdocument";
+import { fencedLinesForFile } from "./context.ts";
 import {
   displayIdForRename,
   findIdOccurrencesInFile,
@@ -378,4 +379,28 @@ Deno.test("findIdOccurrencesInFile: '*' and '#' comment trailers skip locators (
 Deno.test("findIdOccurrencesInFile: a '[' without whitespace before it is not a locator (#915)", () => {
   const text = "      Satisfies: REQ_2[REQ_1]";
   assertEquals(findIdOccurrencesInFile(text, "REQ_1", "REQ_9").length, 1);
+});
+
+Deno.test("rename: .feature files rewrite IDs on # lines only and keep locators", () => {
+  const text = [
+    "# [TST_0001] Login",
+    "# Verified-by: TST_0001[Login]",
+    "Feature: F",
+    "  Scenario: S",
+    "    Given TST_0001",
+    '    """',
+    "    TST_0001",
+    '    """',
+  ].join("\n");
+  const edits = findIdOccurrencesInFile(
+    text,
+    "TST_0001",
+    "TST_0009",
+    fencedLinesForFile(text, "a.feature"),
+  );
+  assertEquals(edits.map((e) => e.range.start.line), [0, 1]);
+  assertEquals(
+    edits[1].range.end.character - edits[1].range.start.character,
+    8,
+  );
 });

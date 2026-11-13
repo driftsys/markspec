@@ -6,6 +6,9 @@
  * next entry's title line (or to the document's last line for the
  * final entry).
  *
+ * Entries in `.feature` files fold over their owned Gherkin node (the
+ * Feature or Scenario the `#` header sits above), not up to the next entry.
+ *
  * Single-line regions (start == end) are dropped because folding a
  * one-line block does nothing useful and just clutters the gutter.
  *

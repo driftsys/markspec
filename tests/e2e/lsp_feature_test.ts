@@ -112,6 +112,8 @@ async function withNavProject(
   });
   try {
     await client.initialize();
+    // Wait for the startup index, which covers req.md and login.feature.
+    await client.waitForNotification("markspec/indexed", 15000);
     const mdUri = toFileUrl(join(client.workDir, "req.md")).href;
     const featureUri = toFileUrl(join(client.workDir, "login.feature")).href;
     for (
@@ -195,4 +197,91 @@ Deno.test("lsp feature: highlights mark header IDs only, not step text", async (
     // (line 9); only the comment occurrence is a reference.
     assertEquals(highlights.map((h) => h.range.start.line), [4]);
   });
+});
+
+Deno.test("lsp feature: hover on a # [TST_0001] header shows the entry", async () => {
+  await withNavProject(async (client, _md, featureUri) => {
+    const hover = await client.request("textDocument/hover", {
+      textDocument: { uri: featureUri },
+      position: { line: 0, character: 5 },
+    }) as { contents: { value: string } } | null;
+    assertEquals(hover?.contents.value.includes("TST_0001"), true);
+  });
+});
+
+Deno.test("lsp feature: renaming a requirement rewrites .feature comments, not steps", async () => {
+  await withNavProject(async (client, mdUri, featureUri) => {
+    const result = await client.request("textDocument/rename", {
+      textDocument: { uri: mdUri },
+      position: { line: 0, character: 6 },
+      newName: "REQ_0009",
+    }) as {
+      changes: Record<
+        string,
+        Array<{ range: { start: { line: number } }; newText: string }>
+      >;
+    };
+    assertEquals(
+      result.changes[featureUri].map((e) => [e.range.start.line, e.newText]),
+      [[4, "REQ_0009"]],
+    );
+  });
+});
+
+Deno.test("lsp feature: renaming a test ID rewrites the header and keeps a Verified-by locator", async () => {
+  const md = MD_REQ.replace(
+    "Verified-by: TST_0001",
+    "Verified-by: TST_0001[Login]",
+  );
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "req.md": md,
+    "login.feature": FEATURE_NAV,
+  });
+  try {
+    await client.initialize();
+    await client.waitForNotification("markspec/indexed", 15000);
+    const mdUri = toFileUrl(join(client.workDir, "req.md")).href;
+    const featureUri = toFileUrl(join(client.workDir, "login.feature")).href;
+    for (
+      const [uri, text, languageId] of [
+        [mdUri, md, "markdown"],
+        [featureUri, FEATURE_NAV, "feature"],
+      ]
+    ) {
+      await client.notify("textDocument/didOpen", {
+        textDocument: { uri, languageId, version: 1, text },
+      });
+    }
+    const result = await client.request("textDocument/rename", {
+      textDocument: { uri: featureUri },
+      position: { line: 0, character: 6 },
+      newName: "TST_0009",
+    }) as {
+      changes: Record<
+        string,
+        Array<
+          {
+            range: {
+              start: { line: number; character: number };
+              end: { character: number };
+            };
+            newText: string;
+          }
+        >
+      >;
+    };
+    assertEquals(
+      result.changes[featureUri].map((e) => [e.range.start.line, e.newText]),
+      [[0, "TST_0009"]],
+    );
+    // Only the ID span is edited; `[Login]` is outside the range.
+    const mdEdit = result.changes[mdUri][0];
+    assertEquals(
+      [mdEdit.range.start.character, mdEdit.range.end.character],
+      [19, 27],
+    );
+  } finally {
+    await client.shutdown();
+  }
 });
