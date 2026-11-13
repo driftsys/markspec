@@ -59,6 +59,10 @@ export class WorkspaceIndex {
   /** Global lookup by display ID. Rebuilt on mutation. */
   private byDisplayId = new Map<DisplayId, Entry>();
 
+  /** Parse diagnostics of the last {@linkcode parseAndUpdateFile} per
+   * file. Kept so the cross-file publish can re-send them (#939). */
+  private fileParseDiagnostics = new Map<string, readonly Diagnostic[]>();
+
   // -----------------------------------------------------------------------
   // Mutation
   // -----------------------------------------------------------------------
@@ -74,6 +78,9 @@ export class WorkspaceIndex {
    * ones — O(old + new) rather than O(total).
    */
   updateFile(filePath: string, entries: Entry[]): void {
+    // Entries set without a parse (corpus seeding) have no parse
+    // diagnostics; parseAndUpdateFile sets them after this call.
+    this.fileParseDiagnostics.delete(filePath);
     // Remove old entries for this file from the global index.
     const oldEntries = this.fileEntries.get(filePath);
     if (oldEntries) {
@@ -117,6 +124,7 @@ export class WorkspaceIndex {
   removeFile(filePath: string): void {
     const oldEntries = this.fileEntries.get(filePath);
     this.fileEntries.delete(filePath);
+    this.fileParseDiagnostics.delete(filePath);
     if (!oldEntries) return;
 
     // Incrementally remove deleted entries from the global index.
@@ -156,6 +164,17 @@ export class WorkspaceIndex {
   /** Return entries for a specific file, or an empty array. */
   getEntriesForFile(filePath: string): Entry[] {
     return this.fileEntries.get(filePath) ?? [];
+  }
+
+  /** Parse diagnostics stored for `filePath` by the last
+   * {@linkcode parseAndUpdateFile}, or an empty array. */
+  getParseDiagnostics(filePath: string): readonly Diagnostic[] {
+    return this.fileParseDiagnostics.get(filePath) ?? [];
+  }
+
+  /** Parse diagnostics of every indexed file. */
+  getAllParseDiagnostics(): Diagnostic[] {
+    return [...this.fileParseDiagnostics.values()].flat();
   }
 
   /** Lookup a single entry by display ID. */
@@ -274,7 +293,8 @@ export class WorkspaceIndex {
 
   /**
    * Parse a file's content and update the index.
-   * Returns parse-level diagnostics for the file.
+   * Returns parse-level diagnostics for the file and stores them, so
+   * {@linkcode getParseDiagnostics} can return them later.
    */
   async parseAndUpdateFile(
     filePath: string,
@@ -282,6 +302,7 @@ export class WorkspaceIndex {
   ): Promise<readonly Diagnostic[]> {
     const result = await parseFile(content, { file: filePath });
     this.updateFile(filePath, result.entries);
+    this.fileParseDiagnostics.set(filePath, result.diagnostics);
     return result.diagnostics;
   }
 

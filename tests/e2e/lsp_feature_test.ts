@@ -15,11 +15,19 @@ type Diag = {
   range?: { start: { line: number } };
 };
 
+/** Quiet time after open: longer than the 50 ms parse debounce plus the
+ * 1 s cross-file debounce, so the latest publish is the settled state. */
+const SETTLE_MS = 2000;
+
 /** Open `text` as `name` in a fresh project and return the diagnostics of
- * the latest publish for that file. Waits for the parse-stage publish and
- * then for the debounced cross-file publish (1 s debounce), so the result
- * is the settled state. */
-async function openFeature(name: string, text: string): Promise<Diag[]> {
+ * the latest publish for that file. Waits for the first publish, then for a
+ * fixed quiet period, so the result is the state after the debounced
+ * cross-file publish (#939: that publish used to drop parse diagnostics). */
+async function openDocument(
+  name: string,
+  text: string,
+  languageId = "feature",
+): Promise<Diag[]> {
   const client = await LspTestClient.create({
     "project.yaml": "name: test-project\n",
   });
@@ -27,24 +35,29 @@ async function openFeature(name: string, text: string): Promise<Diag[]> {
     await client.initialize();
     const uri = toFileUrl(join(client.workDir, name)).href;
     await client.notify("textDocument/didOpen", {
-      textDocument: { uri, languageId: "feature", version: 1, text },
+      textDocument: { uri, languageId, version: 1, text },
     });
     await client.waitUntil(
       () => client.latestDiagnosticsFor(uri) !== undefined,
       `diagnostics for ${name}`,
       10000,
     );
-    const afterParse = client.publishCountFor(uri);
-    await client.waitUntil(
-      () => client.publishCountFor(uri) > afterParse,
-      `cross-file publish for ${name}`,
-      10000,
-    );
+    await new Promise((r) => setTimeout(r, SETTLE_MS));
     return client.latestDiagnosticsFor(uri) as Diag[];
   } finally {
     await client.shutdown();
   }
 }
+
+/** Open a `.feature` buffer; see {@linkcode openDocument}. */
+function openFeature(name: string, text: string): Promise<Diag[]> {
+  return openDocument(name, text, "feature");
+}
+
+Deno.test("lsp: Markdown parse diagnostics survive the cross-file publish (#939)", async () => {
+  const diags = await openDocument("bad.md", "- [] Title\n", "markdown");
+  assertEquals(diags.filter((d) => d.code === "MSL-P001").length, 1);
+});
 
 const HEADER = "# [TST_0001] Login";
 // `Feature` without a colon does not parse. (`Feature:\n  Given\n  Scenario`

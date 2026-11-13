@@ -485,7 +485,11 @@ export class ProjectContext {
       ...histogram,
     });
 
-    const grouped = groupDiagnosticsByFile(allDiags);
+    // Parse diagnostics are not part of validateAll; add them so this
+    // publish does not replace them with an empty list (#939).
+    const grouped = groupDiagnosticsByFile(
+      mergeDiagnostics(this.index.getAllParseDiagnostics(), allDiags),
+    );
 
     // Send diagnostics for files that have issues. Delivered corpus files
     // (ADR-030) are never published — they are read-only, sourced from a
@@ -823,6 +827,33 @@ export class ProjectContext {
       }
     }
   }
+}
+
+/**
+ * Concatenate diagnostic lists, dropping any diagnostic equal to an
+ * earlier one (same code, file, position and message). Used to publish a
+ * file's parse diagnostics together with its cross-file diagnostics.
+ */
+export function mergeDiagnostics(
+  ...lists: readonly (readonly CoreDiagnostic[])[]
+): CoreDiagnostic[] {
+  const seen = new Set<string>();
+  const out: CoreDiagnostic[] = [];
+  for (const list of lists) {
+    for (const d of list) {
+      const key = [
+        d.code,
+        d.location?.file,
+        d.location?.line,
+        d.location?.column,
+        d.message,
+      ].join("\u0000");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(d);
+    }
+  }
+  return out;
 }
 
 /** `true` when both lists hold the same strings in the same order. */

@@ -1097,3 +1097,26 @@ Deno.test("ProjectContext: a headerless .feature file is indexed with no entries
     [],
   );
 });
+
+Deno.test("ProjectContext: the cross-file publish keeps parse diagnostics (#939)", async () => {
+  const published = new Map<string, string[]>();
+  const host: ProjectContextHost = {
+    readFile: () => Promise.resolve(undefined),
+    realPath: (p) => Promise.resolve(p),
+    readDir: async function* () {},
+    sendDiagnostics: (uri, diags) =>
+      published.set(uri, diags.map((d) => d.code)),
+    sendNotification: () => {},
+    refreshLenses: () => {},
+    log: () => {},
+    warn: () => {},
+    logEvent: () => {},
+  };
+  const ctx = new ProjectContext(abs("p"), host);
+  await ctx.index.parseAndUpdateFile(abs("p/bad.md"), "- [] Title\n");
+  ctx.publishAllDiagnostics();
+  const codes = published.get(pathToUri(abs("p/bad.md"))) ?? [];
+  assertEquals(codes.filter((c) => c === "MSL-P001").length, 1);
+  // lastDiagnostics stays the cross-file validation result only.
+  assertEquals(ctx.lastDiagnostics.some((d) => d.code === "MSL-P001"), false);
+});

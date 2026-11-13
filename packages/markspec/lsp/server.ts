@@ -52,7 +52,11 @@ import {
   VERSION,
 } from "../core/mod.ts";
 import { parseUxRef } from "../core/uxil/mod.ts";
-import { ProjectContext, type ProjectContextHost } from "./project_context.ts";
+import {
+  mergeDiagnostics,
+  ProjectContext,
+  type ProjectContextHost,
+} from "./project_context.ts";
 import { ProjectRegistry } from "./project_registry.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
@@ -372,7 +376,7 @@ async function reindexOpenDocuments(): Promise<void> {
     // The buffer was closed, or the context replaced, during the awaits.
     if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) continue;
     if (!stillOwnedBy(ctx, filePath)) continue;
-    publishFileDiagnostics(filePath, parseDiags);
+    publishFileDiagnostics(ctx, filePath, parseDiags);
     ctx.scheduleValidateAll();
   }
 }
@@ -393,13 +397,16 @@ async function readFile(path: string): Promise<string | undefined> {
 // Diagnostics
 // ---------------------------------------------------------------------------
 
-/** Publish diagnostics for a single file from its parsed entries. */
+/** Publish diagnostics for a single file: its parse diagnostics plus the
+ * cached cross-file diagnostics of `ctx` for that file, so this publish
+ * does not hide the cross-file ones until the next validation (#939). */
 function publishFileDiagnostics(
+  ctx: ProjectContext,
   filePath: string,
   diagnostics: readonly CoreDiagnostic[],
 ): void {
   const uri = pathToUri(filePath);
-  const lspDiags = diagnostics
+  const lspDiags = mergeDiagnostics(diagnostics, ctx.lastDiagnostics)
     .filter((d) => d.location?.file === filePath)
     .map(toLspDiagnostic) as unknown as LspDiagnosticType[];
   connection.sendDiagnostics({ uri, diagnostics: lspDiags });
@@ -462,7 +469,7 @@ function scheduleParse(filePath: string, text: string): void {
       // The just-parsed entries now carry any display ID a scaffold accept
       // reserved — drop those reservations so the numbers aren't blocked.
       ctx.releaseObservedReservations(filePath);
-      publishFileDiagnostics(filePath, parseDiags);
+      publishFileDiagnostics(ctx, filePath, parseDiags);
       ctx.scheduleValidateAll();
     }, 50);
     debouncedFileParses.set(filePath, debouncedParse);
@@ -775,7 +782,7 @@ documents.onDidOpen(async (event) => {
   if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) return;
   if (!stillOwnedBy(ctx, filePath)) return;
   ctx.releaseObservedReservations(filePath);
-  publishFileDiagnostics(filePath, parseDiags);
+  publishFileDiagnostics(ctx, filePath, parseDiags);
   ctx.scheduleValidateAll();
 });
 // ---------------------------------------------------------------------------
