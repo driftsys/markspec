@@ -265,7 +265,7 @@ Deno.test("scenarioProcedure: each scenario gets only its own Rule background", 
       "    Scenario: SB\n      When act b\n      Then check b\n",
   );
   assert(result.ok, result.ok ? "" : result.message);
-  const [sa, sb] = result.feature.scenarios.map(scenarioProcedure);
+  const [sa, sb] = result.feature.scenarios.map((s) => scenarioProcedure(s));
   assertEquals(texts(sa.preconditions), ["feature setup", "rule A setup"]);
   assertEquals(texts(sb.preconditions), ["feature setup", "rule B setup"]);
 });
@@ -338,4 +338,102 @@ Deno.test("scenarioProcedure: a precondition after an outcome-only step opens a 
   assertEquals(p.steps[0].setup, []);
   assertEquals(texts(p.steps[1].setup), ["b"]);
   assertEquals(texts(p.steps[1].actions), ["c"]);
+});
+
+function procedureWithComments(source: string): ScenarioProcedure {
+  const result = parseFeature(api, source);
+  assert(result.ok, result.ok ? "" : result.message);
+  return scenarioProcedure(
+    result.feature.scenarios[0],
+    result.feature.comments,
+  );
+}
+
+Deno.test("scenarioProcedure: labels the steps of the radar example", () => {
+  const view = procedureWithComments(
+    [
+      "Scenario: Radar calibration",
+      "  Given the radar is mounted on the bench",
+      "  # Step 1",
+      "  * place the target at 10 m",
+      "  Then the measured range is 10 m",
+      "  # Step 2",
+      "  * move the target to 50 m",
+      "  Then the measured range is 50 m",
+      "",
+    ].join("\n"),
+  );
+  assertEquals(view.steps.map((s) => s.label), ["Step 1", "Step 2"]);
+  assertEquals(view.steps.map((s) => s.n), [1, 2]);
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("scenarioProcedure: label before a leading Given is unplaced", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # Step 0\n  Given a\n  When b\n  Then c\n",
+  );
+  assertEquals(view.unplacedLabels, [{ line: 2, text: "# Step 0" }]);
+  assertEquals(view.steps[0].label, undefined);
+});
+
+Deno.test("scenarioProcedure: label before a non-first step is unplaced", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  When a\n  # Step 1\n  And b\n  Then c\n",
+  );
+  assertEquals(view.unplacedLabels, [{ line: 3, text: "# Step 1" }]);
+  assertEquals("label" in view.steps[0], false);
+});
+
+Deno.test("scenarioProcedure: plain comments are ignored", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # note\n  When a\n  Then b\n",
+  );
+  assertEquals(view.unplacedLabels, []);
+  assertEquals("label" in view.steps[0], false);
+});
+
+Deno.test("scenarioProcedure: label text inside a doc string is not a label", () => {
+  const view = procedureWithComments(
+    'Scenario: S\n  When a\n    """\n    # Step 9\n    """\n  Then b\n',
+  );
+  assertEquals(view.unplacedLabels, []);
+  assertEquals("label" in view.steps[0], false);
+});
+
+Deno.test("scenarioProcedure: without comments, labels are absent", () => {
+  const result = parseFeature(
+    api,
+    "Scenario: S\n  # Step 1\n  When a\n  Then b\n",
+  );
+  assert(result.ok, result.ok ? "" : result.message);
+  const view = scenarioProcedure(result.feature.scenarios[0]);
+  assertEquals("label" in view.steps[0], false);
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("scenarioProcedure: only comments inside the scenario count", () => {
+  const result = parseFeature(
+    api,
+    "Scenario: A\n  When a\n  Then b\n# Step 1\nScenario: B\n  # Step 1\n  When c\n  Then d\n",
+  );
+  assert(result.ok, result.ok ? "" : result.message);
+  const a = scenarioProcedure(
+    result.feature.scenarios[0],
+    result.feature.comments,
+  );
+  assertEquals(a.unplacedLabels, []);
+  assertEquals("label" in a.steps[0], false);
+  const b = scenarioProcedure(
+    result.feature.scenarios[1],
+    result.feature.comments,
+  );
+  assertEquals(b.steps[0].label, "Step 1");
+});
+
+Deno.test("scenarioProcedure: the first of two labels wins, the second is unplaced", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # Step 1\n  # Step 2\n  When a\n  Then b\n",
+  );
+  assertEquals(view.steps[0].label, "Step 1");
+  assertEquals(view.unplacedLabels, [{ line: 3, text: "# Step 2" }]);
 });

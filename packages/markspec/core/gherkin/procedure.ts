@@ -6,7 +6,7 @@
  * normalized AST; nothing is stored on the AST.
  */
 
-import type { ScenarioAst, StepAst } from "./types.ts";
+import type { GherkinComment, ScenarioAst, StepAst } from "./types.ts";
 
 /** What a step does in a procedure. */
 export type StepRole = "precondition" | "action" | "outcome";
@@ -56,6 +56,12 @@ export interface ProcedureStepRef {
 export interface ProcedureStep {
   /** 1-based position in the scenario. */
   readonly n: number;
+  /**
+   * The `# Step <text>` label above the step's first line, without the `#`
+   * (for example `Step 1`). Absent when the step has no label. It never
+   * changes `n`.
+   */
+  readonly label?: string;
   /** Preconditions that follow the first non-precondition step. */
   readonly setup: readonly ProcedureStepRef[];
   readonly actions: readonly ProcedureStepRef[];
@@ -67,7 +73,16 @@ export interface ScenarioProcedure {
   /** Background steps, then the leading precondition steps of the scenario. */
   readonly preconditions: readonly ProcedureStepRef[];
   readonly steps: readonly ProcedureStep[];
+  /**
+   * `# Step` labels inside the scenario that do not label a step: one before
+   * a leading precondition or a step that does not open a procedure step, one
+   * with no step after it, or a second label above the same step.
+   */
+  readonly unplacedLabels: readonly GherkinComment[];
 }
+
+/** A step label comment: `#`, the fixed word `Step`, then text. */
+const STEP_LABEL_RE = /^#\s*Step\s+\S/;
 
 /**
  * Derive the procedure view of a scenario.
@@ -76,8 +91,15 @@ export interface ScenarioProcedure {
  * precondition steps. The remaining steps are paired in order: an action after
  * an expected result, or a precondition after an action or expected result,
  * opens a new step. Examples of an outline are not expanded.
+ *
+ * `comments` are the block's comments. A `# Step <text>` comment inside the
+ * scenario's range labels the procedure step that starts at the next step
+ * line; any other label is returned in `unplacedLabels`.
  */
-export function scenarioProcedure(scenario: ScenarioAst): ScenarioProcedure {
+export function scenarioProcedure(
+  scenario: ScenarioAst,
+  comments: readonly GherkinComment[] = [],
+): ScenarioProcedure {
   const preconditions: ProcedureStepRef[] = scenario.background.map((step) => ({
     step,
     role: "precondition",
@@ -98,9 +120,14 @@ export function scenarioProcedure(scenario: ScenarioAst): ScenarioProcedure {
   let setup: ProcedureStepRef[] = [];
   let actions: ProcedureStepRef[] = [];
   let expected: ProcedureStepRef[] = [];
-  const close = () => {
+  let startIndex = first;
+  // Scenario step index that opens each procedure step.
+  const startIndexes: number[] = [];
+  const close = (next: number) => {
     if (setup.length + actions.length + expected.length === 0) return;
     steps.push({ n: steps.length + 1, setup, actions, expected });
+    startIndexes.push(startIndex);
+    startIndex = next;
     setup = [];
     actions = [];
     expected = [];
@@ -112,15 +139,37 @@ export function scenarioProcedure(scenario: ScenarioAst): ScenarioProcedure {
       origin: "scenario",
     };
     if (ref.role === "precondition") {
-      if (actions.length > 0 || expected.length > 0) close();
+      if (actions.length > 0 || expected.length > 0) close(i);
       setup.push(ref);
     } else if (ref.role === "action") {
-      if (expected.length > 0) close();
+      if (expected.length > 0) close(i);
       actions.push(ref);
     } else {
       expected.push(ref);
     }
   }
-  close();
-  return { preconditions, steps };
+  close(roles.length);
+
+  const labels = new Map<number, string>();
+  const unplacedLabels: GherkinComment[] = [];
+  for (const comment of comments) {
+    if (!STEP_LABEL_RE.test(comment.text)) continue;
+    if (
+      comment.line < scenario.range.start.line ||
+      comment.line > scenario.range.end.line
+    ) continue;
+    const next = scenario.steps.findIndex((s) =>
+      s.range.start.line > comment.line
+    );
+    const target = next < 0 ? -1 : startIndexes.indexOf(next);
+    if (target < 0 || labels.has(target)) unplacedLabels.push(comment);
+    else labels.set(target, comment.text.slice(1).trim());
+  }
+  return {
+    preconditions,
+    steps: steps.map((step, i) =>
+      labels.has(i) ? { ...step, label: labels.get(i)! } : step
+    ),
+    unplacedLabels,
+  };
 }
