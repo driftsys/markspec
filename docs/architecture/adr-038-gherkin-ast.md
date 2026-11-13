@@ -131,7 +131,8 @@ above are unchanged.
    - (b) All entries. Rejected: a requirement scenario may end in an action
      without being a procedure, so the warning would be noise.
 4. **`# Step N` labels.** Deferred to the Case A slice, together with the two
-   info diagnostics. This slice only needs the role rule.
+   info diagnostics. This slice only needs the role rule. (Done in the Case A
+   amendment below.)
 
 ## Amendment 2026-11-14 — Case A block role
 
@@ -142,7 +143,8 @@ the base ADR and 1 to 5 of the procedure-view amendment are unchanged.
    returns `criteria` for an entry whose type is or extends Requirement or
    Contract, `procedure` for Test, `illustration` for any other typed entry, and
    `undefined` for an entry with no type. It stores nothing on `Entry` or in the
-   compiled JSON. It reuses `isCriteriaBearing` and `isTestEntry`.
+   compiled JSON. It reuses `isCriteriaBearing` and `isTestEntry`; a
+   `facetForType` helper is not added until a caller needs it.
 2. **Codes.** `MSL-B064` (warning): a criteria scenario has no outcome step, so
    it has no `Then` step or no step at all; `Given` and `Then` without an action
    is valid. `MSL-B065` (info): in a procedure block, a step has an expected
@@ -152,6 +154,8 @@ the base ADR and 1 to 5 of the procedure-view amendment are unchanged.
    whose type has no role. All are in the body family and are reported in column
    1; `MSL-B064` at the `Scenario` line, `MSL-B065` and `MSL-B066` at the step,
    `MSL-B067` at the comment, `MSL-B068` at the first line of the block.
+   `MSL-B065` and `MSL-B066` are the two info diagnostics deferred by the
+   procedure-view amendment; `MSL-B067` belongs to the label feature.
 3. **Typed entries only.** `MSL-B068` applies only to an entry that has a type
    after classification. The entry must be typed, so a profile is required, as
    for `MSL-B063`.
@@ -172,6 +176,8 @@ the base ADR and 1 to 5 of the procedure-view amendment are unchanged.
      second copy of data that the type already fixes.
    - (b) A facet stored on `Entry` (`lowerFacets`). Rejected for this slice: no
      consumer yet, and it adds compile-output keys and a schema-file change.
+   - (d) A `facetForType` helper now. Rejected: the two existing predicates give
+     the same answer, so a helper has no caller yet.
    - (c) A role set by a profile setting. Rejected: ADR-009 keeps the meaning of
      a facet in core.
 2. **Which entries get `MSL-B064`.**
