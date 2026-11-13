@@ -627,3 +627,80 @@ Deno.test(
     assertEquals(ledger.length, 0);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Scenario locators (#915, Task 6)
+// ---------------------------------------------------------------------------
+
+Deno.test("extractEdgeQuads: a locator value yields one quad with target and locator", async () => {
+  const { extractEdgeQuads } = await import("./resolve.ts");
+  const src = makeEntry({
+    displayId: "SWE_0001",
+    id: "01J0000000000000000000SRC1",
+    rawAttributes: [
+      { key: "Satisfies", value: "STK_1 [AC one], STK_2" },
+      { key: "Derived-from", value: "ISO-1 [§4.3 part]" },
+    ],
+  });
+  assertEquals(extractEdgeQuads([src]), [
+    {
+      source: "SWE_0001",
+      relation: "Satisfies",
+      target: "STK_1",
+      locator: "AC one",
+      provenance: "local",
+    },
+    {
+      source: "SWE_0001",
+      relation: "Satisfies",
+      target: "STK_2",
+      provenance: "local",
+    },
+    {
+      source: "SWE_0001",
+      relation: "Derived-from",
+      target: "ISO-1",
+      locator: "§4.3 part",
+      provenance: "local",
+    },
+  ]);
+});
+
+Deno.test("extractEdgeQuads: a value without a locator splits as before", async () => {
+  const { extractEdgeQuads } = await import("./resolve.ts");
+  const src = makeEntry({
+    displayId: "SWE_0001",
+    id: "01J0000000000000000000SRC1",
+    rawAttributes: [{ key: "Derived-from", value: "ISO-1 §4.3, ISO-2" }],
+  });
+  assertEquals(
+    extractEdgeQuads([src]).map((q) => q.target),
+    ["ISO-1", "§4.3", "ISO-2"],
+  );
+});
+
+Deno.test("extractEdgeLedger: a locator value records authored target and locator", async () => {
+  const { extractEdgeLedger } = await import("./resolve.ts");
+  const source = makeEntry({
+    displayId: "SWE_0001",
+    id: "01J0000000000000000000SRC1",
+    rawAttributes: [{ key: "Satisfies", value: "STK_1 [AC one]" }],
+  });
+  const target = makeEntry({
+    displayId: "STK_1",
+    id: "01J0000000000000000000TGT1",
+    rawAttributes: [],
+  });
+  const ledger = extractEdgeLedger(
+    [source, target],
+    new Map([["SWE_0001", source], ["STK_1", target]]),
+    new Map(),
+  );
+  assertEquals(ledger, [{
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    authoredTarget: "STK_1",
+    locator: "AC one",
+    targetUlid: "01J0000000000000000000TGT1",
+  }]);
+});

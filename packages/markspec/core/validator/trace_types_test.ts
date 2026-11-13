@@ -326,3 +326,32 @@ Deno.test("Requires: HardwareInterface target → no MSL-R083 (Contract subtype)
   const r083 = result.filter((d) => d.code === "MSL-R083");
   assertEquals(r083.length, 0);
 });
+
+Deno.test("trace target types: a value with a locator checks its target (#915)", () => {
+  const rec = (key: string, value: string) =>
+    entry({
+      displayId: "REC-001",
+      type: "Record",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "Record" },
+        { key, value },
+      ],
+    });
+  const comp = entry({
+    displayId: "comp-1",
+    type: "Component",
+    id: ULID_B,
+    rawAttributes: [
+      { key: "Id", value: ULID_B },
+      { key: "Type", value: "Component" },
+    ],
+  });
+  const caused = run([rec("Caused-by", `${ULID_B} [step 2, part]`), comp]);
+  assertEquals(caused.filter((d) => d.code === "MSL-R083").length, 1);
+  const superseded = run([
+    rec("Supersedes", "comp-1 [old part]"),
+    { ...comp, shape: "Reference" },
+  ]);
+  assertEquals(superseded.filter((d) => d.code === "MSL-R084").length, 1);
+});

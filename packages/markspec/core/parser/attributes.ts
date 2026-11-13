@@ -8,6 +8,7 @@
 
 import type { Attribute, TypedAttributes } from "../model/mod.ts";
 import { attributeSpec, CSV_SPLITTABLE_TYPES } from "../model/attributes.ts";
+import { splitTraceValues } from "../refs/split.ts";
 import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/attributes.ts";
 import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/relations.ts";
 
@@ -104,7 +105,8 @@ export function collateAttributes(
 
     let values: string[];
     if (type && CSV_SPLITTABLE_TYPES.has(type) && attr.value.includes(",")) {
-      values = attr.value
+      // An id-list value keeps commas inside a bracket locator (#915).
+      values = type === "id-list" ? splitTraceValues(attr.value) : attr.value
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);

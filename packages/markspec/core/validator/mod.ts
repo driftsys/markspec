@@ -26,6 +26,7 @@ import {
   URI_SCHEME_RE,
 } from "../model/mod.ts";
 import { HTTP_URL_RE } from "./value_types.ts";
+import { splitTraceValues } from "../refs/split.ts";
 import { validateTypl } from "../typl/mod.ts";
 
 /** Universal attribute keys the core recognizes. */
@@ -316,6 +317,8 @@ function checkStructural(
       const isCitation = spec.type === "citation";
       const values = isCitation
         ? [raw.trim()].filter((s) => s.length > 0)
+        : spec.type === "id-list"
+        ? splitTraceValues(raw)
         : raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
       if (values.length === 0) {
         diagnostics.push({

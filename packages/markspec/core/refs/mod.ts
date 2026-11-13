@@ -67,8 +67,13 @@ const TRACE_TRAILER_RE = /^(\s{4,})([A-Z][A-Za-z-]*)(\s*:\s*)(.*)$/;
  */
 const CONTINUATION_LINE_RE = /^(\s+)(\S.*)$/;
 
-/** Token splitter that preserves separators between value tokens. */
-const VALUE_TOKEN_RE = /[^\s,]+/g;
+/**
+ * Token splitter that preserves separators between value tokens. The first
+ * alternative matches a closed scenario locator after whitespace
+ * (`STK_1 [AC one]`, #915, same grammar as `refs/split.ts`); a locator is
+ * kept verbatim, so only the target before it is rewritten.
+ */
+const VALUE_TOKEN_RE = /(\s\[(?:\\[\s\S]|[^\]\\])+\])|[^\s,]+/g;
 
 /**
  * Rewrite trace-attribute values in `content` per the canonicalise/heal rules.
@@ -207,7 +212,10 @@ function rewriteValuePreservingContinuation(
   const core = hasBackslash ? value.slice(0, -1) : value;
   const rewritten = core.replace(
     VALUE_TOKEN_RE,
-    (token) => rewriteToken(token, sourceUlid, relation, index, ledgerByKey),
+    (token, locator) =>
+      locator !== undefined
+        ? token
+        : rewriteToken(token, sourceUlid, relation, index, ledgerByKey),
   );
   return hasBackslash ? `${rewritten}\\` : rewritten;
 }

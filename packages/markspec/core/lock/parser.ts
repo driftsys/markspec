@@ -304,10 +304,12 @@ export function parseLockfile(toml: string): ParseLockfileResult {
       );
     }
     const targetUlid = e["target-ulid"];
+    const locator = e["locator"];
     edges.push({
       sourceUlid,
       relation,
       authoredTarget,
+      ...(typeof locator === "string" ? { locator } : {}),
       ...(typeof targetUlid === "string" ? { targetUlid } : {}),
     });
   }

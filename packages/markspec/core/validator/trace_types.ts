@@ -19,6 +19,7 @@ import {
   isUpstreamEntry,
 } from "../model/mod.ts";
 import { resolvedCoreType } from "./type_resolution.ts";
+import { traceTarget } from "../refs/split.ts";
 
 /**
  * Trace-relation target-type rules. Each entry maps a trace attribute
@@ -134,7 +135,7 @@ export function validateTraceTargetTypes(
     // MSL-R084: Supersedes target must be the same shape as the source.
     for (const attr of entry.rawAttributes) {
       if (attr.key !== "Supersedes") continue;
-      const target = attr.value.trim();
+      const target = traceTarget(attr.value);
       const resolved = byId.get(target) ?? byDisplayId.get(target);
       if (!resolved) continue;
       if (resolved.shape === entry.shape) continue;
@@ -151,7 +152,7 @@ export function validateTraceTargetTypes(
     for (const rule of TRACE_RULES) {
       for (const attr of entry.rawAttributes) {
         if (attr.key !== rule.attr) continue;
-        const target = attr.value.trim();
+        const target = traceTarget(attr.value);
         const resolved = byId.get(target) ?? byDisplayId.get(target);
         if (!resolved) continue;
         // Target-side exemption (#771, matching #765's MSL-L004 fix): an
@@ -192,7 +193,7 @@ export function validateTraceTargetTypes(
     if (sourceRole) {
       for (const attr of entry.rawAttributes) {
         if (attr.key !== "Caused-by") continue;
-        const target = attr.value.trim();
+        const target = traceTarget(attr.value);
         const resolved = byId.get(target) ?? byDisplayId.get(target);
         if (!resolved) continue;
         // Target-side exemption (#771) — same rationale as the

@@ -366,3 +366,34 @@ Deno.test("parse: registry row without new optional fields still parses", () => 
   assertEquals(row?.kind, "registry");
   assertEquals((row as UpstreamRegistry).snapshot, undefined);
 });
+
+Deno.test("serializeLockfile: a locator edge serializes the locator key and round-trips", () => {
+  const withLocator = {
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    authoredTarget: "STK_1",
+    locator: "AC one",
+    targetUlid: "01J0000000000000000000TGT1",
+  };
+  const plain = {
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    authoredTarget: "STK_1",
+    targetUlid: "01J0000000000000000000TGT1",
+  };
+  const lf: Lockfile = {
+    ...EMPTY_LOCKFILE,
+    edges: [withLocator, plain],
+    generatedCache: { edgesHash: "sha256:x", edgesCount: 2 },
+  };
+  const toml = serializeLockfile(lf);
+  assertStringIncludes(toml, 'locator         = "AC one"\n');
+  // The edge without a locator sorts first: the locator is a sort key.
+  assertEquals(
+    serializeLockfile({ ...lf, edges: [plain, withLocator] }),
+    toml,
+  );
+  assertEquals(toml.indexOf("locator") > toml.lastIndexOf("[[edge]]"), true);
+  const parsed = parseLockfile(toml);
+  assertEquals(parsed.lockfile?.edges, [plain, withLocator]);
+});
