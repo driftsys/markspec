@@ -268,3 +268,18 @@ Deno.test("formatFeatureText: parses, stamps, and is idempotent", async () => {
   assertEquals(second.changed, false);
   assertEquals(second.output, first.output);
 });
+
+Deno.test("formatFeatureText: input the Gherkin parser rejects never throws and is unchanged", async () => {
+  for (
+    const text of [
+      "# [FEAT_0001] Feat\nFeature F\n  Scenarioo\n",
+      "Feature F\n  Scenarioo\n",
+      "Feature F\n",
+      "# [REQ_A_0001] T\n@@@ ::: Feature F\n | | |\n",
+    ]
+  ) {
+    const result = await formatFeatureText(text, "x.feature");
+    assertEquals(result.output, text);
+    assertEquals(result.changed, false);
+  }
+});

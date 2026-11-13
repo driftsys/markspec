@@ -290,23 +290,50 @@ export function parseFeatureFile(
   const diagnostics: Diagnostic[] = [];
   const hasHeader = HEADER_LINE_RE.test(text);
 
-  const parsed = parseFeature(api, text);
-  if (!parsed.ok) {
+  const unparsed = (
+    reason: string,
+    line: number,
+    column: number,
+  ): { entries: Entry[]; diagnostics: Diagnostic[] } => {
     if (hasHeader) {
-      const reason = parsed.message.split("\n")[0]
-        .replace(/^\(\d+:\d+\):\s*/, "").trim();
       diagnostics.push({
         code: "MSL-B062",
         severity: "warning",
         message: `Gherkin file does not parse: ${reason}`,
-        location: { file, line: parsed.line, column: parsed.column },
+        location: { file, line, column },
       });
     }
     return { entries, diagnostics };
+  };
+  const firstLineOf = (message: string) =>
+    message.split("\n")[0].replace(/^\(\d+:\d+\):\s*/, "").trim();
+
+  const parsed = parseFeature(api, text);
+  if (!parsed.ok) {
+    return unparsed(firstLineOf(parsed.message), parsed.line, parsed.column);
   }
   if (!hasHeader) return { entries, diagnostics };
 
-  const document = api.parse(text);
+  // `parseFeature` parses a wrapped copy of the text; the raw text can still
+  // fail (for example `Feature F` without a colon), and the parser throws.
+  let document: GherkinDocument;
+  try {
+    document = api.parse(text);
+  } catch (err) {
+    const first = (err as {
+      errors?: {
+        location?: { line: number; column?: number };
+        message?: string;
+      }[];
+    }).errors?.[0];
+    return unparsed(
+      firstLineOf(
+        first?.message ?? (err instanceof Error ? err.message : String(err)),
+      ),
+      first?.location ? Math.max(1, first.location.line) : 1,
+      first?.location?.column ?? 1,
+    );
+  }
   const headers = findHeaders(document, text);
   for (const header of headers.values()) {
     if (

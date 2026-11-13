@@ -921,3 +921,31 @@ Deno.test("parseFeatureFile: a Background-only headed Feature", () => {
   assertEquals(buildCriteria(entries[0]), []);
   assertEquals(node.source, "Feature: F\n  Background:\n    Given a");
 });
+
+Deno.test("parseFeatureFile: a headed file the raw parser rejects gives one MSL-B062 and never throws", () => {
+  const text = "# [FEAT_0001] Feat\nFeature F\n  Scenarioo\n";
+  const result = parseFeatureFile(text, { file: "a.feature", api });
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.map((d) => d.code), ["MSL-B062"]);
+});
+
+Deno.test("parseFeatureFile: the same text without a header gives nothing", () => {
+  for (
+    const text of [
+      "Feature F\n  Scenarioo\n",
+      "Feature F\n",
+      "\u0000\u0001 garbage ::: @@@ \n]]] [[[\n#\n",
+      "Scenario: no feature\n  Given a\n",
+    ]
+  ) {
+    const result = parseFeatureFile(text, { file: "a.feature", api });
+    assertEquals(result.entries, []);
+    assertEquals(result.diagnostics, []);
+  }
+});
+
+Deno.test("parseFeatureFile: garbage with a header line never throws", () => {
+  const text = '# [REQ_A_0001] T\n@@@ ::: Feature F\n | | |\n"""\n';
+  const result = parseFeatureFile(text, { file: "a.feature", api });
+  assertEquals(result.entries, []);
+});

@@ -374,3 +374,39 @@ Deno.test("fmt: a headerless .feature file is left byte-identical", async () => 
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+const HEADED_BROKEN = "# [FEAT_0001] Feat\nFeature F\n  Scenarioo\n";
+const HEADERLESS_BROKEN = "Feature F\n  Scenarioo\n";
+
+Deno.test("check and fmt: broken .feature files never crash and fmt leaves them untouched", async () => {
+  const files = withFeature({
+    "features/headed_broken.feature": HEADED_BROKEN,
+    "features/plain_broken.feature": HEADERLESS_BROKEN,
+  });
+  const run = await markspecPersist(["fmt"], { files });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertEquals(run.stderr.includes("CompositeParserException"), false);
+    for (
+      const [name, text] of [
+        ["headed_broken", HEADED_BROKEN],
+        ["plain_broken", HEADERLESS_BROKEN],
+      ]
+    ) {
+      assertEquals(
+        await Deno.readTextFile(join(run.dir, "features", `${name}.feature`)),
+        text,
+      );
+    }
+    const check = await markspecInDir(run.dir, ["check"]);
+    assertEquals(check.stderr.includes("CompositeParserException"), false);
+    assertEquals(check.stderr.includes("Error:"), false, check.stderr);
+    assertStringIncludes(check.stderr, "MSL-B062");
+    assertStringIncludes(check.stderr, "headed_broken.feature");
+    assertEquals(check.stderr.includes("plain_broken.feature"), false);
+    // MSL-B062 is a warning: the exit code is 0 or 2, never a crash.
+    assertEquals(check.code === 0 || check.code === 2, true, check.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
