@@ -6,10 +6,29 @@
  * node, optionally with tag lines in between.
  */
 
-import type { GherkinDocument } from "@cucumber/messages";
+import type {
+  Background,
+  GherkinDocument,
+  Scenario,
+  Step,
+} from "@cucumber/messages";
+
+/** The kind of Gherkin node a header sits above. */
+export type FeatureNodeKind =
+  | "feature"
+  | "rule"
+  | "background"
+  | "scenario"
+  | "examples"
+  | "step";
 
 /** One header comment block of a `.feature` file. */
 export interface FeatureHeader {
+  /**
+   * The kind of node the header sits above, or `undefined` when it is not
+   * directly above a node (an orphan header).
+   */
+  readonly kind: FeatureNodeKind | undefined;
   /** 1-based file line of the first comment line. */
   readonly startLine: number;
   /** 1-based file line of the last comment line. */
@@ -20,7 +39,7 @@ export interface FeatureHeader {
   readonly lines: readonly string[];
   /**
    * For each line, the number of characters from the line start up to and
-   * including the removed `#` and space. File column = width + offset + 1.
+   * including the removed `#` and spaces. File column = width + offset + 1.
    */
   readonly prefixWidths: readonly number[];
 }
@@ -28,39 +47,50 @@ export interface FeatureHeader {
 const LANGUAGE_RE = /^\s*#\s*language\s*:/;
 const HEADER_START_RE = /^\[[^\]]+\]\s/;
 
-/** File lines of every node keyword a header may head. */
-function nodeLines(document: GherkinDocument): Set<number> {
-  const lines = new Set<number>();
+/** File line of every node keyword a header may head, with its kind. */
+function nodeKinds(document: GherkinDocument): Map<number, FeatureNodeKind> {
+  const kinds = new Map<number, FeatureNodeKind>();
   const feature = document.feature;
-  if (!feature) return lines;
-  lines.add(feature.location.line);
-  const addScenario = (
-    scenario: NonNullable<
-      typeof feature.children[number]["scenario"]
-    >,
-  ) => {
-    lines.add(scenario.location.line);
+  if (!feature) return kinds;
+  kinds.set(feature.location.line, "feature");
+  const addSteps = (steps: readonly Step[]) => {
+    for (const step of steps) kinds.set(step.location.line, "step");
+  };
+  const addScenario = (scenario: Scenario) => {
+    kinds.set(scenario.location.line, "scenario");
+    addSteps(scenario.steps);
     for (const examples of scenario.examples) {
-      lines.add(examples.location.line);
+      kinds.set(examples.location.line, "examples");
     }
   };
+  const addBackground = (background: Background) => {
+    kinds.set(background.location.line, "background");
+    addSteps(background.steps);
+  };
   for (const child of feature.children) {
-    if (child.background) lines.add(child.background.location.line);
+    if (child.background) addBackground(child.background);
     if (child.scenario) addScenario(child.scenario);
     if (child.rule) {
-      lines.add(child.rule.location.line);
+      kinds.set(child.rule.location.line, "rule");
       for (const ruleChild of child.rule.children) {
-        if (ruleChild.background) lines.add(ruleChild.background.location.line);
+        if (ruleChild.background) addBackground(ruleChild.background);
         if (ruleChild.scenario) addScenario(ruleChild.scenario);
       }
     }
   }
-  return lines;
+  return kinds;
 }
 
 /**
- * Find the header comment blocks of a parsed `.feature` file, keyed by the
- * file line of the node keyword each one heads.
+ * Find the header comment blocks of a parsed `.feature` file.
+ *
+ * A comment line whose text starts with `[ID] ` starts a new header, so
+ * stacked headers are separate. The result is keyed by the file line of the
+ * node keyword that a header sits above. A header that is not directly above
+ * a node (only tag lines and plain comments may stand between; a blank line,
+ * another header or any other line breaks the link) has `kind: undefined`
+ * and is keyed by its own first line, so a caller can report it. The two
+ * kinds of key never collide, because a node line is not a comment line.
  *
  * @param document - The parsed Gherkin document of `text`.
  * @param text - The file text. Line endings may be LF or CRLF.
@@ -71,10 +101,14 @@ export function findHeaders(
 ): Map<number, FeatureHeader> {
   const result = new Map<number, FeatureHeader>();
   const fileLines = text.split("\n").map((l) => l.replace(/\r$/, ""));
-  const nodes = nodeLines(document);
+  const nodes = nodeKinds(document);
+  const commentLines = new Set(document.comments.map((c) => c.location.line));
+
+  // The text of a comment line without the `#` and the spaces after it.
+  const headerText = (raw: string) => raw.trimStart().slice(1).trimStart();
 
   // Group comments into runs of consecutive lines. A `# language:` line is
-  // never part of a run.
+  // never part of a run; a header-start line begins a new run.
   const runs: { line: number; column: number; text: string }[][] = [];
   for (const comment of document.comments) {
     const raw = comment.text.replace(/\r$/, "");
@@ -89,8 +123,10 @@ export function findHeaders(
       text: raw,
     };
     const last = runs[runs.length - 1];
+    const startsHeader = HEADER_START_RE.test(headerText(raw));
     if (
-      last && last.length > 0 && last[last.length - 1].line + 1 === entry.line
+      last && last.length > 0 && !startsHeader &&
+      last[last.length - 1].line + 1 === entry.line
     ) {
       last.push(entry);
     } else {
@@ -102,25 +138,44 @@ export function findHeaders(
     if (run.length === 0) continue;
     const lines: string[] = [];
     const prefixWidths: number[] = [];
-    for (const c of run) {
+    run.forEach((c, i) => {
       const indent = c.text.length - c.text.trimStart().length;
       const afterHash = c.text.slice(indent + 1);
-      const spaces = afterHash.startsWith(" ") ? 1 : 0;
+      // The first line drops all spaces after `#`; later lines keep any
+      // extra indent, because it can be part of the body.
+      const spaces = i === 0
+        ? afterHash.length - afterHash.trimStart().length
+        : afterHash.startsWith(" ")
+        ? 1
+        : 0;
       lines.push(afterHash.slice(spaces));
       prefixWidths.push(indent + 1 + spaces);
-    }
+    });
     if (!HEADER_START_RE.test(lines[0])) continue;
-    // The node follows the run, past any tag lines.
-    let next = run[run.length - 1].line + 1;
-    while (fileLines[next - 1]?.trim().startsWith("@")) next++;
-    if (!nodes.has(next)) continue;
-    result.set(next, {
-      startLine: run[0].line,
-      endLine: run[run.length - 1].line,
+    const startLine = run[0].line;
+    const endLine = run[run.length - 1].line;
+    // The node follows the run, past tag lines and plain comments.
+    let next = endLine + 1;
+    for (;;) {
+      const line = fileLines[next - 1];
+      if (line === undefined) break;
+      if (line.trim().startsWith("@")) {
+        next++;
+      } else if (commentLines.has(next)) {
+        if (HEADER_START_RE.test(headerText(line))) break;
+        next++;
+      } else break;
+    }
+    const kind = nodes.get(next);
+    const header = {
+      kind,
+      startLine,
+      endLine,
       column: run[0].column,
       lines,
       prefixWidths,
-    });
+    };
+    result.set(kind ? next : startLine, header);
   }
   return result;
 }

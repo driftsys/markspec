@@ -54,9 +54,9 @@ Deno.test("findHeaders: tag lines between header and node are allowed", () => {
   assertEquals([...headers(text).keys()], [5]);
 });
 
-Deno.test("findHeaders: a blank line between header and node drops the header", () => {
+Deno.test("findHeaders: a blank line between header and node leaves an orphan", () => {
   const text = `Feature: F\n  ${HEADER}\n\n  Scenario: S\n    Given a\n`;
-  assertEquals(headers(text).size, 0);
+  assertEquals([...headers(text).values()].map((h) => h.kind), [undefined]);
 });
 
 Deno.test("findHeaders: CRLF line endings", () => {
@@ -91,4 +91,75 @@ Deno.test("findHeaders: a comment run without [ID] is not a header", () => {
 
 Deno.test("findHeaders: a file with no headers gives an empty result", () => {
   assertEquals(headers("Feature: F\n  Scenario: S\n    Given a\n").size, 0);
+});
+
+Deno.test("findHeaders: records the node kind", () => {
+  const text = [
+    `${HEADER}`,
+    "Feature: F",
+    "  # [SRS_A_0001] Bg",
+    "  Background:",
+    "    Given a",
+    "  # [SRS_A_0002] Rule",
+    "  Rule: R",
+    "    # [SRS_A_0003] Out",
+    "    Scenario Outline: O",
+    "      Given <x>",
+    "      # [SRS_A_0004] Step",
+    "      Then ok",
+    "      # [SRS_A_0005] Ex",
+    "      Examples:",
+    "        | x |",
+    "        | 1 |",
+    "",
+  ].join("\n");
+  const kinds = [...headers(text)].map(([line, h]) => [line, h.kind]);
+  assertEquals(kinds, [
+    [2, "feature"],
+    [4, "background"],
+    [7, "rule"],
+    [9, "scenario"],
+    [12, "step"],
+    [14, "examples"],
+  ]);
+});
+
+Deno.test("findHeaders: a header above a step inside a Background", () => {
+  const text =
+    `Feature: F\n  Background:\n    # [SRS_A_0001] T\n    Given a\n  Scenario: S\n    Given b\n`;
+  assertEquals(headers(text).get(4)!.kind, "step");
+});
+
+Deno.test("findHeaders: no space after #", () => {
+  const text = `Feature: F\n  #[SRS_A_0001] T\n  Scenario: S\n    Given a\n`;
+  const header = headers(text).get(3)!;
+  assertEquals(header.lines, ["[SRS_A_0001] T"]);
+  assertEquals(header.prefixWidths, [3]);
+});
+
+Deno.test("findHeaders: extra spaces after # are trimmed", () => {
+  const text =
+    `Feature: F\n  #  [SRS_A_0001] T\n  #   body\n  Scenario: S\n    Given a\n`;
+  const header = headers(text).get(4)!;
+  assertEquals(header.lines, ["[SRS_A_0001] T", "  body"]);
+  assertEquals(header.prefixWidths, [5, 4]);
+});
+
+Deno.test("findHeaders: stacked headers split, the upper has no node", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Upper\n  # [SRS_A_0002] Lower\n  Scenario: S\n    Given a\n`;
+  const map = headers(text);
+  assertEquals([...map.keys()], [2, 4]);
+  // An orphan header is keyed by its own first line and has no kind.
+  assertEquals(map.get(2)!.kind, undefined);
+  assertEquals(map.get(2)!.lines, ["[SRS_A_0001] Upper"]);
+  assertEquals(map.get(4)!.kind, "scenario");
+  assertEquals(map.get(4)!.lines, ["[SRS_A_0002] Lower"]);
+});
+
+Deno.test("findHeaders: a header with a blank line before the node is an orphan", () => {
+  const text = `Feature: F\n  ${HEADER}\n\n  Scenario: S\n    Given a\n`;
+  const map = headers(text);
+  assertEquals([...map.keys()], [2]);
+  assertEquals(map.get(2)!.kind, undefined);
 });
