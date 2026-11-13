@@ -229,11 +229,18 @@ jobs:
           # own binary and refuses names that do not start with "markspec".
           copydir="$(mktemp -d)"
           cp dist/markspec "$copydir/markspec"
-          out="$("$copydir/markspec" self-upgrade --version v0.12.0 2>&1)"
-          rc=$?
-          echo "$out"
-          if echo "$out" | grep -q "Requires net access"; then exit 1; fi
-          test $rc -eq 0 || exit 1
+          # Retry network failures up to 3 attempts (waits of 5 s and 15 s).
+          # A permission error is the regression this step guards: fail at once.
+          for wait in 5 15 0; do
+            out="$("$copydir/markspec" self-upgrade --version v0.12.0 2>&1)"
+            rc=$?
+            echo "$out"
+            if echo "$out" | grep -q "Requires net access"; then exit 1; fi
+            test $rc -eq 0 && break
+            if [ "$wait" -eq 0 ]; then echo "self-upgrade failed after 3 attempts"; exit 1; fi
+            echo "::warning::self-upgrade failed (exit $rc); retrying in ${wait}s"
+            sleep "$wait"
+          done
           "$copydir/markspec" --version | grep -q "0.12.0"
       - name: Smoke test — lock fetches a snapshot over HTTP
         run: |
@@ -245,12 +252,19 @@ jobs:
           printf '%s' '{"entries":{}}' > "$dir/site/entries.json"
           # 127.0.0.2 lies outside the old 127.0.0.1 allowlist, so a permission
           # regression fails this step. It needs Linux (macOS cannot bind it).
-          printf 'name: t\nversion: 0.1.0\nreferences:\n  - url: http://127.0.0.2:8765\n    name: snap\n' > "$dir/proj/project.yaml"
-          (cd "$dir/site" && python3 -m http.server 8765 --bind 127.0.0.2 > /dev/null 2>&1 &)
+          # Port 0 lets the OS pick a free port; the server prints it.
+          (cd "$dir/site" && exec python3 -u -c 'import http.server as h; s = h.ThreadingHTTPServer(("127.0.0.2", 0), h.SimpleHTTPRequestHandler); print(s.server_address[1], flush=True); s.serve_forever()' > "$dir/port" 2> /dev/null) &
+          server_pid=$!
+          trap 'kill "$server_pid" 2> /dev/null || true' EXIT
+          port=""
           for _ in $(seq 1 20); do
-            curl -s -o /dev/null http://127.0.0.2:8765/manifest.json && break
+            port="$(cat "$dir/port" 2> /dev/null || true)"
+            if [ -n "$port" ] && curl -sf -o /dev/null "http://127.0.0.2:$port/manifest.json"; then break; fi
+            port=""
             sleep 0.5
           done
+          if [ -z "$port" ]; then echo "snapshot server did not answer on 127.0.0.2"; exit 1; fi
+          printf 'name: t\nversion: 0.1.0\nreferences:\n  - url: http://127.0.0.2:%s\n    name: snap\n' "$port" > "$dir/proj/project.yaml"
           cd "$dir/proj"
           set +e
           out="$("$bin" lock 2>&1)"
