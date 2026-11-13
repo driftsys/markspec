@@ -1065,16 +1065,35 @@ Deno.test("ProjectContext: a disposed context sends no diagnostics or notificati
   assertEquals(sent, [`diagnostics ${pathToUri(abs("p/req.md"))}`]);
 });
 
-Deno.test("ProjectRegistry: a headed .feature file is not indexed until the LSP supports it", async () => {
+Deno.test("ProjectContext: the walk indexes a .feature file with a MarkSpec header", async () => {
   const fx = new Fixture({
-    ".markspec.yaml": "profiles: []\n",
-    "req.md": entry("REQ_0001", "A"),
-    "brake.feature":
-      "# [REQ_0002] Brake\n# Id: 01HGW2Q8MNP3RSTVWXYZABCDEB\nFeature: Brake\n  Scenario: Stop\n    Given a car\n    Then it stops\n",
+    "docs/a.md": entry("REQ_0001", "A"),
+    "tests/login.feature":
+      "Feature: Login\n\n  # [TST_0001] Login\n  Scenario: Log in\n    Given a user\n",
   });
   await fx.start("");
+
   const ctx = fx.registry.primary;
   assertExists(ctx);
-  assertEquals(ctx.index.getFilePaths(), [abs("req.md")]);
-  assertEquals(ctx.index.getAllEntries().map((e) => e.displayId), ["REQ_0001"]);
+  const found = ctx.index.getEntryByDisplayId("TST_0001" as never);
+  assertExists(found);
+  assertEquals(found.location.file, abs("tests/login.feature"));
+});
+
+Deno.test("ProjectContext: a headerless .feature file is indexed with no entries and no diagnostics", async () => {
+  const fx = new Fixture({
+    "docs/a.md": entry("REQ_0001", "A"),
+    "tests/plain.feature": "Feature: Plain\n  Scenario: S\n    Given a user\n",
+  });
+  await fx.start("");
+
+  const ctx = fx.registry.primary;
+  assertExists(ctx);
+  const path = abs("tests/plain.feature");
+  assert(ctx.index.getFilePaths().includes(path));
+  assertEquals(ctx.index.getEntriesForFile(path), []);
+  assertEquals(
+    ctx.index.validateAll(null).filter((d) => d.location?.file === path),
+    [],
+  );
 });
