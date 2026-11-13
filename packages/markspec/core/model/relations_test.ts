@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "./relations.ts";
+import {
+  CORE_RELATIONS,
+  LOCK_EXTRA_INVERSE_KEYS,
+  relationLocatorMode,
+} from "./relations.ts";
 
 const EXPECTED_ATTR_TO_LINK_KIND: Record<string, string> = {
   "Satisfies": "satisfies",
@@ -93,4 +97,13 @@ Deno.test("registry projects lock TRACE_KEYS identically", () => {
     ...LOCK_EXTRA_INVERSE_KEYS,
   ]);
   assertEquals(derived, EXPECTED_LOCK_TRACE_KEYS);
+});
+
+Deno.test("relationLocatorMode: reports the locator mode per relation", () => {
+  assertEquals(relationLocatorMode("References"), "free");
+  assertEquals(relationLocatorMode("Derived-from"), "free");
+  assertEquals(relationLocatorMode("Verifies"), "criterion");
+  assertEquals(relationLocatorMode("Satisfies"), "criterion");
+  assertEquals(relationLocatorMode("Allocated-to"), undefined);
+  assertEquals(relationLocatorMode("Unknown-attr"), undefined);
 });

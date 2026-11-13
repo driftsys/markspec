@@ -31,6 +31,7 @@ export {
   makeUlid,
   MIXED_DISCIPLINE,
   PALETTE_HUES,
+  relationLocatorMode,
   sameOriginSource,
 } from "./model/mod.ts";
 export type {

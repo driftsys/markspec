@@ -15,7 +15,7 @@ import type {
   Link,
   SourceLocation,
 } from "../model/mod.ts";
-import { makeDisplayId } from "../model/mod.ts";
+import { CORE_RELATIONS, makeDisplayId } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
   applyCorpusPostPass,
@@ -422,13 +422,13 @@ function extractLinks(entries: readonly Entry[]): Link[] {
 
 /**
  * Attributes whose value is `slug + optional free-text locator` per
- * ADR-002 §2.6 (citation type + legacy Derived-from tolerance). The link
- * target is the leading non-whitespace token only.
+ * ADR-002 §2.6 (citation type + legacy Derived-from tolerance), derived from
+ * the relations that declare a `"free"` locator. The link target is the
+ * leading non-whitespace token only.
  */
-const LOCATOR_BEARING_ATTRS: ReadonlySet<string> = new Set([
-  "Derived-from",
-  "References",
-]);
+const LOCATOR_BEARING_ATTRS: ReadonlySet<string> = new Set(
+  CORE_RELATIONS.filter((r) => r.locator === "free").map((r) => r.attr),
+);
 
 /** Map an attribute key+value to zero or more links. */
 function extractLinksFromAttribute(

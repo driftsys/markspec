@@ -38,7 +38,11 @@ export {
 } from "./type_hierarchy.ts";
 export type { CoreTypeDef } from "./type_hierarchy.ts";
 
-export { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "./relations.ts";
+export {
+  CORE_RELATIONS,
+  LOCK_EXTRA_INVERSE_KEYS,
+  relationLocatorMode,
+} from "./relations.ts";
 export type { RelationDef } from "./relations.ts";
 
 export { inferTypeFromUriScheme } from "./uri_scheme_map.ts";
