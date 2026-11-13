@@ -144,7 +144,9 @@ Deno.test("MSL-B064: entry classified only by display-ID prefix", async () => {
 Deno.test("MSL-B064: not reported for Test or Component entries", async () => {
   for (const type of ["Test", "Component"]) {
     assertEquals(
-      checkBlockRoles(await load(entry(NO_THEN, type)), null),
+      checkBlockRoles(await load(entry(NO_THEN, type)), null).filter((d) =>
+        d.code === "MSL-B064"
+      ),
       [],
       type,
     );
@@ -185,4 +187,158 @@ Deno.test("checkBlockRoles: no feature fences returns []", async () => {
   const text =
     "# Doc\n\n- [REQ_X_0001] T\n\n  Text.\n\n      Id: 01TST00000000000000000010A\n      Type: Requirement\n";
   assertEquals(checkBlockRoles(await load(text), null), []);
+});
+
+// ---------------------------------------------------------------------------
+// Task 3 review additions
+// ---------------------------------------------------------------------------
+
+Deno.test("MSL-B064: outline with no Then is reported", async () => {
+  const text = entry(
+    "Scenario Outline: O\n  Given <a>\n  When b\n\n  Examples:\n    | a |\n    | 1 |",
+    "Requirement",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B064"]);
+});
+
+Deno.test("MSL-B064: Then only in a Background is not the outcome", async () => {
+  const text = entry(
+    "Background:\n  Then bg\n\nScenario: S\n  When b",
+    "Requirement",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B064"]);
+});
+
+// ---------------------------------------------------------------------------
+// MSL-B065 to MSL-B068
+// ---------------------------------------------------------------------------
+
+const lineOf = (text: string, line: number): string =>
+  text.split("\n")[line - 1].trim();
+
+Deno.test("MSL-B065: procedure step with a Then and no action", async () => {
+  const text = entry(
+    "Scenario: S\n  Given a\n  Then b\n  When c\n  Then d",
+    "Test",
+    "TST_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.length, 1);
+  assertEquals(diags[0].code, "MSL-B065");
+  assertEquals(diags[0].severity, "info");
+  assertEquals(diags[0].location!.column, 1);
+  assertEquals(lineOf(text, diags[0].location!.line), "Then b");
+  assertEquals(
+    diags[0].message,
+    'TST_X_0001: step 1 of scenario "S" has an expected result and no ' +
+      "action; add a When step before the Then step",
+  );
+});
+
+Deno.test("MSL-B065: not reported in a Requirement", async () => {
+  const text = entry("Scenario: S\n  Given a\n  Then b", "Requirement");
+  assertEquals(checkBlockRoles(await load(text), null), []);
+});
+
+Deno.test("MSL-B066: first And in a Test", async () => {
+  const text = entry("Scenario: S\n  And a\n  Then b", "Test", "TST_X");
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B066"]);
+  assertEquals(diags[0].severity, "info");
+  assertEquals(lineOf(text, diags[0].location!.line), "And a");
+  assertEquals(
+    diags[0].message,
+    'TST_X_0001: scenario "S" starts with "And"; the step is read as an ' +
+      "action; start with Given, When or Then",
+  );
+});
+
+Deno.test("MSL-B066: first But in a Requirement", async () => {
+  const text = entry("Scenario: S\n  But a\n  Then b", "Requirement");
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B066"]);
+  assertEquals(
+    diags[0].message,
+    'REQ_X_0001: scenario "S" starts with "But"; the step is read as an ' +
+      "action; start with Given, When or Then",
+  );
+});
+
+Deno.test("MSL-B066: a first And after a Background is still reported", async () => {
+  const text = entry(
+    "Background:\n  Given bg\n\nScenario: S\n  And a\n  Then b",
+    "Requirement",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B066"]);
+  assertEquals(lineOf(text, diags[0].location!.line), "And a");
+});
+
+Deno.test("MSL-B067: misplaced Step label in a Test", async () => {
+  const text = entry(
+    "Scenario: S\n  # Step 0\n  Given a\n  When b\n  Then c",
+    "Test",
+    "TST_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B067"]);
+  assertEquals(diags[0].severity, "info");
+  assertEquals(diags[0].location!.column, 1);
+  assertEquals(lineOf(text, diags[0].location!.line), "# Step 0");
+  assertEquals(
+    diags[0].message,
+    'TST_X_0001: "# Step 0" labels no procedure step; place it directly ' +
+      "above the first action of a step",
+  );
+});
+
+Deno.test("MSL-B067: labels in a Requirement are not checked", async () => {
+  const text = entry(
+    "Scenario: S\n  # Step 0\n  Given a\n  When b\n  Then c",
+    "Requirement",
+  );
+  assertEquals(checkBlockRoles(await load(text), null), []);
+});
+
+Deno.test("MSL-B067: a label in a Background is reported", async () => {
+  const text = entry(
+    "Background:\n  # Step 1\n  Given bg\n\nScenario: S\n  When b\n  Then c",
+    "Test",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.map((d) => d.code), ["MSL-B067"]);
+});
+
+Deno.test("MSL-B068: feature block in a Component", async () => {
+  const text = entry("Scenario: S\n  When a\n  Then b", "Component", "SWC_X");
+  const diags = checkBlockRoles(await load(text), null);
+  assertEquals(diags.length, 1);
+  assertEquals(diags[0].code, "MSL-B068");
+  assertEquals(diags[0].severity, "info");
+  assertEquals(diags[0].location!.column, 1);
+  assertEquals(
+    diags[0].message,
+    "SWC_X_0001: Gherkin block in a Component entry is an illustration; " +
+      "only Requirement, Contract and Test entries give it a meaning",
+  );
+});
+
+Deno.test("MSL-B068: not reported for an untyped entry", async () => {
+  const text = entry("Scenario: S\n  When a\n  Then b", undefined);
+  const { entries } = await parseFile(text, { file: "/t.md" });
+  assertEquals(checkBlockRoles(entries, null), []);
+});
+
+Deno.test("checkBlockRoles: diagnostics are sorted by file line within an entry", async () => {
+  const text = entry(
+    "Scenario: A\n  # Step 9\n  Given g\n  And a\n  Then b\n\nScenario: B\n  Given c\n  Then d",
+    "Test",
+    "TST_X",
+  );
+  const diags = checkBlockRoles(await load(text), null);
+  const lines = diags.map((d) => d.location!.line);
+  assertEquals(diags.length >= 3, true);
+  assertEquals(lines, [...lines].sort((a, b) => a - b));
 });
