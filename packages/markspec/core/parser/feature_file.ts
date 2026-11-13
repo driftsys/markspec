@@ -12,6 +12,10 @@ import type {
   Scenario,
   Step,
 } from "@cucumber/messages";
+import type { Diagnostic, Entry } from "../model/mod.ts";
+import { parseMarkdown } from "./markdown.ts";
+import { buildBlockLineMap } from "./line_map.ts";
+import { wrapAsListItem } from "./source.ts";
 
 /** The kind of Gherkin node a header sits above. */
 export type FeatureNodeKind =
@@ -178,4 +182,60 @@ export function findHeaders(
     result.set(kind ? next : startLine, header);
   }
   return result;
+}
+
+/** Diagnostics that do not apply to a `.feature` header. */
+const IGNORED_CODES: ReadonlySet<string> = new Set([
+  // Git-style (unindented) trailers are canonical in a header.
+  "MSL-P023",
+  // The body may come from the Gherkin node description, added later.
+  "MSL-P030",
+]);
+
+/**
+ * Turn one header into an entry whose positions are file-relative.
+ *
+ * The header lines are wrapped as a Markdown list item and parsed like a
+ * source doc comment. A trailer in git style (no indent) is canonical in a
+ * `.feature` header, so the Markdown-only MSL-P023 warning is dropped. An
+ * empty body is not an error here: the node description can supply it.
+ * A header that is only a title still gives an entry, with an empty body.
+ * The result has no entry when the header text does not form one.
+ *
+ * @param header - A header found by {@linkcode findHeaders}.
+ * @param file - File path used in locations.
+ */
+export function headerEntry(
+  header: FeatureHeader,
+  file: string,
+): { entry?: Entry; diagnostics: Diagnostic[] } {
+  const lineMap = buildBlockLineMap({
+    startLine: header.startLine,
+    startColumn: header.column,
+    prefixWidths: header.prefixWidths,
+  });
+  const parse = (lines: readonly string[]) =>
+    parseMarkdown(wrapAsListItem([...lines]), { file, lineMap });
+  let { entries, diagnostics } = parse(header.lines);
+  let entry = entries[0];
+  if (!entry && header.lines.length === 1) {
+    // The parser admits a title-only item only as a reference. Parse with a
+    // placeholder body paragraph, then remove it again.
+    const padded = parse([...header.lines, "", "x"]);
+    diagnostics = padded.diagnostics;
+    if (padded.entries[0]) {
+      entry = {
+        ...padded.entries[0],
+        body: "",
+        bodyAst: [],
+        bodyTokens: [],
+        bodyStartLine: undefined,
+        endLine: header.endLine,
+      };
+    }
+  }
+  return {
+    entry,
+    diagnostics: diagnostics.filter((d) => !IGNORED_CODES.has(d.code)),
+  };
 }

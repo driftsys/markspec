@@ -163,3 +163,132 @@ Deno.test("findHeaders: a header with a blank line before the node is an orphan"
   assertEquals([...map.keys()], [2]);
   assertEquals(map.get(2)!.kind, undefined);
 });
+
+// --- headerEntry ---------------------------------------------------------
+
+import { ulid } from "@std/ulid";
+import { headerEntry } from "./feature_file.ts";
+
+function entryAt(text: string, line: number) {
+  const header = headers(text).get(line)!;
+  return headerEntry(header, "f.feature");
+}
+
+Deno.test("headerEntry: single-line header", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  Scenario: S\n    Given a\n`;
+  const { entry, diagnostics } = entryAt(text, 3);
+  assertEquals(entry!.displayId, "SRS_A_0001");
+  assertEquals(entry!.title, "Stop");
+  assertEquals(diagnostics, []);
+});
+
+Deno.test("headerEntry: git-style trailer becomes rawAttributes", () => {
+  const id = ulid();
+  const text =
+    `Feature: F\n  # [SRS_BRK_0011] Stop\n  #\n  # Id: ${id}\n  # Satisfies: SYS_BRK_0003\n  Scenario: S\n    Given a\n`;
+  const { entry, diagnostics } = entryAt(text, 6);
+  assertEquals(entry!.rawAttributes.map((a) => a.key), ["Id", "Satisfies"]);
+  assertEquals(diagnostics, []);
+});
+
+Deno.test("headerEntry: indented trailer becomes rawAttributes", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  #     Satisfies: SYS_A_0003\n  Scenario: S\n    Given a\n`;
+  const { entry, diagnostics } = entryAt(text, 5);
+  assertEquals(entry!.rawAttributes.map((a) => a.key), ["Satisfies"]);
+  assertEquals(diagnostics, []);
+});
+
+Deno.test("headerEntry: a final paragraph with 'Note: x' stays body", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # Some prose.\n  #\n  # Note: x\n  Scenario: S\n    Given a\n`;
+  const { entry } = entryAt(text, 7);
+  assertEquals(entry!.rawAttributes, []);
+  assertEquals(entry!.body.includes("Note: x"), true);
+});
+
+Deno.test("headerEntry: location is the header line and the # column", () => {
+  const text =
+    `Feature: F\n\n\n\n\n\n  # [SRS_A_0001] Stop\n  Scenario: S\n    Given a\n`;
+  const { entry } = entryAt(text, 8);
+  assertEquals(
+    { line: entry!.location.line, column: entry!.location.column },
+    { line: 7, column: 3 },
+  );
+});
+
+Deno.test("headerEntry: attribute lines carry file lines", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # Body.\n  #\n  # Id: ${ulid()}\n  # Satisfies: SYS_A_0003\n  Scenario: S\n    Given a\n`;
+  const { entry } = entryAt(text, 8);
+  assertEquals(entry!.attributeLines, [6, 7]);
+});
+
+Deno.test("headerEntry: body tokens are file-relative", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # The brake shall stop.\n  Scenario: S\n    Given a\n`;
+  const { entry } = entryAt(text, 5);
+  const tok = entry!.bodyTokens!.find((t) => t.text === "shall")!;
+  assertEquals(tok.location.line, 4);
+  // "  # The brake shall": `shall` starts at file column 15.
+  assertEquals(tok.location.column, 15);
+});
+
+Deno.test("headerEntry: multi-line header with blank # lines", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # Para one.\n  #\n  # Para two.\n  Scenario: S\n    Given a\n`;
+  const { entry } = entryAt(text, 7);
+  assertEquals(entry!.body.includes("Para one."), true);
+  assertEquals(entry!.body.includes("Para two."), true);
+});
+
+Deno.test("headerEntry: Id absent and present", () => {
+  const none = entryAt(
+    `Feature: F\n  # [SRS_A_0001] Stop\n  Scenario: S\n    Given a\n`,
+    3,
+  ).entry!;
+  assertEquals(none.id, undefined);
+  const id = ulid();
+  const some = entryAt(
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # Id: ${id}\n  Scenario: S\n    Given a\n`,
+    5,
+  ).entry!;
+  assertEquals(some.id, id);
+});
+
+Deno.test("headerEntry: CRLF input gives the same locations", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # The brake shall stop.\n  # \n  # Satisfies: SYS_A_0003\n  Scenario: S\n    Given a\n`;
+  const lf = entryAt(text, 7);
+  const crlf = entryAt(text.replaceAll("\n", "\r\n"), 7);
+  assertEquals(crlf.entry!.location, lf.entry!.location);
+  assertEquals(crlf.entry!.rawAttributes.length, 1);
+  assertEquals(
+    crlf.entry!.bodyTokens!.map((t) => t.location),
+    lf.entry!.bodyTokens!.map((t) => t.location),
+  );
+  assertEquals(crlf.diagnostics, lf.diagnostics);
+});
+
+Deno.test("headerEntry: header in a Rule nested in a Feature", () => {
+  const text =
+    `Feature: F\n  Rule: R\n    # [SRS_A_0002] Inner\n    #\n    # It shall hold.\n    Scenario: S\n      Given a\n`;
+  const { entry } = entryAt(text, 6);
+  assertEquals(entry!.displayId, "SRS_A_0002");
+  assertEquals(
+    { line: entry!.location.line, column: entry!.location.column },
+    { line: 3, column: 5 },
+  );
+  const tok = entry!.bodyTokens!.find((t) => t.text === "shall")!;
+  assertEquals(tok.location, { file: "f.feature", line: 5, column: 10 });
+});
+
+Deno.test("headerEntry: parse diagnostics carry file positions", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # Satisfies: SYS_A_0003\n  # Bad line without colon\n  Scenario: S\n    Given a\n`;
+  const { diagnostics } = entryAt(text, 6);
+  assertEquals(diagnostics.map((d) => [d.code, d.location]), [
+    ["MSL-P020", { file: "f.feature", line: 2, column: 3 }],
+  ]);
+});
