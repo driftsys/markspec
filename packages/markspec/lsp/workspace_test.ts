@@ -864,3 +864,27 @@ Deno.test("WorkspaceIndex: validateAll reports MSL-B064 for an entry typed only 
   assertEquals(b064.length, 1);
   assertEquals(b064[0].location?.line, 6);
 });
+
+Deno.test("parseAndUpdateFile: headerless .feature returns no diagnostics", async () => {
+  const index = new WorkspaceIndex();
+  const parses = await index.parseAndUpdateFile(
+    "plain.feature",
+    "Feature: F\n  Scenario: S\n    Given a\n",
+  );
+  assertEquals(parses, []);
+  assertEquals(index.getEntriesForFile("plain.feature"), []);
+  const broken = await index.parseAndUpdateFile(
+    "broken.feature",
+    "Feature F\n  Scenario: S\n    Given a\n",
+  );
+  assertEquals(broken, []);
+});
+
+Deno.test("parseAndUpdateFile: headed unparsable .feature returns MSL-B062", async () => {
+  const index = new WorkspaceIndex();
+  const diags = await index.parseAndUpdateFile(
+    "headed.feature",
+    "# [TST_0001] Login\nFeature F\n  Scenario: S\n    Given a\n",
+  );
+  assertEquals(diags.map((d) => d.code), ["MSL-B062"]);
+});
