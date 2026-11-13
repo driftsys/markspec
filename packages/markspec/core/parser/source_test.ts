@@ -8,6 +8,10 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { Language, Parser } from "web-tree-sitter";
 import { join } from "@std/path";
 import { parseSource } from "./source.ts";
+import { loadGherkin } from "../gherkin/load.ts";
+
+// Gherkin tokens come from the AST, which exists once the parser is loaded.
+await loadGherkin();
 
 // ---------------------------------------------------------------------------
 // Setup: load grammars once per language for all tests
@@ -538,6 +542,13 @@ Deno.test("parseSource: Gherkin tokens in Rust fixture are file-relative", async
   assertEquals(sections[0].location.line, 7);
   assertEquals(sections[0].location.column, 5);
   assertEquals(sections[0].location.file, "in-code-rust.rs");
+  // Step columns include the comment prefix too: "///   Given" puts the
+  // keyword after "/// " (4) and two indent spaces, so column 7.
+  const steps = first.bodyTokens.filter((t) => t.kind === "gherkin-step");
+  assertEquals(steps.length, 8);
+  assertEquals(steps[0].text, "Given");
+  assertEquals(steps[0].location.line, 8);
+  assertEquals(steps[0].location.column, 7);
 });
 
 Deno.test("parseSource: doc comments without entry blocks produce no entries", async () => {

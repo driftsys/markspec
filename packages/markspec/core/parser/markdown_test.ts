@@ -10,6 +10,10 @@ import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap, type LineMap } from "./line_map.ts";
 import { wrapAsListItem } from "./source.ts";
+import { loadGherkin } from "../gherkin/load.ts";
+
+// Gherkin tokens come from the AST, which exists once the parser is loaded.
+await loadGherkin();
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 
