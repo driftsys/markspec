@@ -35,7 +35,10 @@ markspec/
 │       │   ├── discovery/           ← gitignore-aware file walk; projects.ts
 │       │   │   └── projects.ts        finds every project root under a folder
 │       │   ├── gherkin/             ← lazy @cucumber/gherkin load, block → FeatureAst
-│       │   │   └── procedure.ts       procedure view: step roles, numbered steps
+│       │   │   ├── procedure.ts       procedure view: step roles, numbered steps,
+│       │   │   │                      `# Step` labels
+│       │   │   └── role.ts            blockRole: criteria / procedure /
+│       │   │                          illustration, derived from the entry type
 │       │   ├── profile/             ← profile manifest load, merge, resolver
 │       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
@@ -55,7 +58,8 @@ markspec/
 │       │   │   ├── mod.ts             refs, missing Ids, duplicates)
 │       │   │   ├── locators.ts      ←   scenario-locator diagnostics (L007-L009,
 │       │   │                            B060, B061)
-│       │   │   └── procedure.ts     ←   MSL-B063 procedure steps with no result
+│       │   │   ├── procedure.ts     ←   MSL-B063 procedure steps with no result
+│       │   │   └── block_role.ts    ←   MSL-B064-B068 block-role checks
 │       │   ├── compiler/            ← glob → parsed entries → resolved graph →
 │       │   │   └── mod.ts             compiled JSON
 │       │   └── reporter/            ← compiled JSON → output formats (json, csv,
@@ -574,6 +578,7 @@ docs/
   exact-pinned `@cucumber/gherkin@42.0.1`; parser loaded lazily only for texts
   with a `gherkin`/`feature` fence; scanner fallback for a block that does not
   parse; MSL-B062; procedure view (`core/gherkin/procedure.ts`) and MSL-B063;
+  Case A block role (`core/gherkin/role.ts`, `# Step` labels, MSL-B064–B068);
   amends ADR-015/016/037
 - `overview.md` — narrative architecture tour
 
