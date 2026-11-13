@@ -447,3 +447,44 @@ Deno.test("classifyEntriesStage: malformed pattern with explicit Type does not c
   // Still classified by the explicit Type:; enforcement silently skipped.
   assertEquals(result.entries[0].type, "component");
 });
+
+function buildFeatureEntry(
+  displayId: string,
+  node: "feature" | "rule" | "scenario",
+): Entry {
+  return {
+    ...buildEntry({ displayId, shape: "Authored" }),
+    source: { kind: "feature-file", node },
+  };
+}
+
+Deno.test("classifyEntry: an unmatched .feature entry gets its step-6a type, no MSL-T003", () => {
+  const profile = buildProfile([
+    buildType({ name: "requirement", displayIdPattern: "REQ-{n:04d}" }),
+  ]);
+  for (
+    const [node, type] of [
+      ["feature", "Requirement"],
+      ["rule", "Requirement"],
+      ["scenario", "Test"],
+    ] as const
+  ) {
+    const result = classifyEntry(
+      buildFeatureEntry("SC_BRK_0001", node),
+      profile,
+    );
+    assertEquals(result.type, type);
+    assertEquals(result.diagnostics, []);
+  }
+});
+
+Deno.test("classifyEntry: a profile pattern match wins over step 6a for a .feature entry", () => {
+  const profile = buildProfile([
+    buildType({ name: "requirement", displayIdPattern: "REQ-{n:04d}" }),
+  ]);
+  const result = classifyEntry(
+    buildFeatureEntry("REQ-0001", "scenario"),
+    profile,
+  );
+  assertEquals(result.type, "requirement");
+});

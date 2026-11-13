@@ -1356,3 +1356,27 @@ Deno.test("runPipeline: a Type trailer with no profile gives none of MSL-B064 to
     );
   }
 });
+
+Deno.test("runPipeline: an untyped .feature Scenario is a Test without a matching profile", async () => {
+  const text = [
+    "Feature: Brake",
+    "",
+    "  # [SC_BRK_0001] Stop test",
+    "  Scenario: Stop",
+    "    Given a car",
+    "    When the driver brakes",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "brake.feature" });
+  assertEquals(entries.length, 1);
+  // No profile, and a profile whose pattern does not match the ID: both
+  // classify the Scenario as a Test (step 6a), so the procedure check runs.
+  for (
+    const profile of [null, makeProfile({ req: { pattern: "REQ-{n:04d}" } })]
+  ) {
+    const { diagnostics } = runPipeline(entries, profile);
+    const codes = diagnostics.map((d) => d.code);
+    assertEquals(codes.includes("MSL-B063"), true, codes.join(","));
+    assertEquals(codes.includes("MSL-T003"), false, codes.join(","));
+  }
+});

@@ -146,6 +146,17 @@ export function validateCoreTypeAttribute(
   }];
 }
 
+/**
+ * The core type of a `.feature` header entry from its node kind (step 6a of
+ * the type resolution chain, epic #915 Case B): `Test` for a Scenario,
+ * `Requirement` for a Feature or a Rule. `undefined` for every other entry.
+ * Step 6a never raises MSL-T021.
+ */
+export function featureFileCoreType(entry: Entry): string | undefined {
+  if (entry.source.kind !== "feature-file") return undefined;
+  return entry.source.node === "scenario" ? "Test" : "Requirement";
+}
+
 /** Result of classifying a single entry. */
 export interface ClassifyResult {
   /** The assigned type name, or `undefined` if un-classified. */
@@ -160,6 +171,8 @@ export interface ClassifyResult {
  *   1. Explicit `Type:` trailer attribute (if present).
  *   2. Display-ID pattern match across types whose `shape` matches
  *      `entry.shape`.
+ *   3. For a `.feature` header entry that no pattern matched, the node
+ *      kind (step 6a, {@linkcode featureFileCoreType}).
  *
  * Emits:
  *   - `MSL-T001` when explicit `Type:` value is not in the profile's type
@@ -193,7 +206,9 @@ export function classifyEntry(
   // 2. Display-ID pattern match across same-shape types (Authored only).
   // Reference entries use URI scheme or explicit Type: for classification;
   // matching display-id-patterns against their slug-style IDs is incorrect.
-  if (entry.shape !== "Authored") return { type: undefined, diagnostics };
+  if (entry.shape !== "Authored") {
+    return { type: featureFileCoreType(entry), diagnostics };
+  }
   const matches: string[] = [];
   for (const [typeName, typeEntry] of profile.types) {
     const pattern = typeEntry.value.displayIdPattern.value;
@@ -225,7 +240,12 @@ export function classifyEntry(
     return { type: undefined, diagnostics };
   }
 
-  // 0 matches. Strict mode → MSL-T003; permissive → OK.
+  // 0 matches. A `.feature` header entry falls back to step 6a (Feature and
+  // Rule are Requirements, Scenario is a Test) and is never un-classified.
+  const fromNode = featureFileCoreType(entry);
+  if (fromNode !== undefined) return { type: fromNode, diagnostics };
+
+  // Strict mode → MSL-T003; permissive → OK.
   if (profile.types.size > 0) {
     diagnostics.push({
       code: "MSL-T003",
