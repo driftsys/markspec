@@ -403,11 +403,18 @@ verbatim from ADR-005 §Part 1.
 | `Table`          | GFM pipe table                                                | Per ADR-001 §GFM/GLFM shared extensions.                      |
 | `Figure`         | `![alt](path)` (image link)                                   | PlantUML/SVG paths flagged for rendering.                     |
 | `Code`           | Fenced code block, language-tagged                            | Tag determines syntax highlighting only.                      |
-| `Feature`        | Fenced code block with info-string `gherkin`                  | Body is parsed as Gherkin; AST records scenarios/steps.       |
+| `Feature`        | Fenced code block with info-string `gherkin` or `feature`     | Body is parsed as Gherkin; AST records scenarios/steps.       |
 | `Math`           | `$$ … $$` block                                               | Per ADR-001 §GFM/GLFM shared extensions.                      |
 | `DefinitionList` | `Term\n: definition` (GLFM)                                   | `Term` may use `$Identifier` (§2.5.2).                        |
 | `Note`           | `> [!NOTE]`/`[!TIP]`/`[!IMPORTANT]`/`[!WARNING]`/`[!CAUTION]` | ADR-001 §Admonitions.                                         |
 | `Blockquote`     | Plain `>` blockquote                                          | For external citation excerpts.                               |
+
+A `Feature` node keeps the authored text in `source`. When the Gherkin parser is
+loaded, the node also carries exactly one of `feature` (the normalized Gherkin
+AST, with positions relative to `source`) and `parseError` (the line, column and
+message of the first parser error, reported as `MSL-B062`). Both fields are pure
+functions of `source`. When the parser is not loaded, the node has neither. See
+[ADR-038](../../architecture/adr-038-gherkin-ast.md).
 
 #### 2.4.1 Excluded constructs
 
@@ -1048,8 +1055,10 @@ where:
   §3.4.1 modal-keyword case normalization (and any future §3.4 body rewrites) as
   an AST→AST transform. It is **never called on the validate path**.
 - `≈` = `astEquivalent` — strict `BodyBlock[]` structural deep-equality ignoring
-  every `SourceRange` field. Defined in `core/ast/equivalence.ts` and exported
-  from `core/mod.ts`.
+  every `SourceRange` field. It also skips `FeatureNode.feature` and
+  `FeatureNode.parseError`, which are pure functions of `source` (see the
+  [ADR-015 amendment](../../architecture/adr-015-ast-equivalence-formatting-contract.md#amendment-2026-11-14--derived-fields-of-feature-nodes)).
+  Defined in `core/ast/equivalence.ts` and exported from `core/mod.ts`.
 
 **What this replaces.** ADR-014 Decision-2 gated body emission on byte-identity
 (`render(build(body)) === body`). That guard is retired by ADR-015: the

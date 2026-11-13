@@ -13,7 +13,9 @@ the body of a Requirement or Contract entry. Each scenario line starts with
 `Scenario:` (`Scenario Outline:`, `Scenario Template:` and `Example:` also
 work). MarkSpec reads each block with a Gherkin parser, so the keywords can be
 in any language that Gherkin supports. Start the block with a language line, for
-example `# language: fr`, and write `Scénario: Freinage à 20 m`.
+example `# language: fr`, and write `Scénario: Freinage à 20 m`. Free text
+between a scenario line and its first step is the description of the scenario,
+not an error.
 
 If a block does not parse, `markspec check` reports `MSL-B062` for it. The
 scenarios of that block are then read by a simple line scanner that knows only

@@ -1809,6 +1809,9 @@ language that Gherkin supports (`# language: fr`). A block that has no
 `Feature:` line is read as if it had one, and the added line is not counted in
 any position.
 
+Free text between a scenario line and its first step is the description of the
+scenario, not an error.
+
 | ID         | Severity | Rule                                                                                                                                                                                                                               |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry. Reported on the second and later occurrences, at column 1 of the scenario line. A locator cannot address that name.              |

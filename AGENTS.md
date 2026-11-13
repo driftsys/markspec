@@ -566,6 +566,10 @@ docs/
   from fenced `gherkin`/`feature` blocks, compiled `Link.locator`,
   MSL-L007/L008/L009/B060/B061, optional `locator` on lockfile `[[edge]]`,
   criteria section in `report coverage`
+- `adr-038-gherkin-ast.md` — normalized Gherkin AST on `FeatureNode` from
+  exact-pinned `@cucumber/gherkin@42.0.1`; parser loaded lazily only for texts
+  with a `gherkin`/`feature` fence; scanner fallback for a block that does not
+  parse; MSL-B062; amends ADR-015/016/037
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
