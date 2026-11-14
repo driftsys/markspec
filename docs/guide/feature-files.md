@@ -5,8 +5,8 @@ with `# [ID] Title` directly above a `Feature`, `Rule` or `Scenario` turns that
 node into an entry. The entry joins the traceability graph like an entry from a
 Markdown file or a source doc comment. The Gherkin text stays as it is, so your
 test runner still reads the file. MarkSpec reads the file with the same Gherkin
-parser as [Scenario locators](scenario-locators.md), so the keywords can be in
-any language that Gherkin supports.
+parser as [Gherkin scenarios](gherkin.md), so the keywords can be in any
+language that Gherkin supports.
 
 A `.feature` file with no `# [ID]` header changes nothing. A project that uses
 Cucumber files for other purposes gets no entries, no new diagnostics, and the
@@ -59,8 +59,9 @@ The rules:
 - **Type.** A `Feature` or `Rule` entry is a `Requirement`, and a `Scenario`
   entry is a `Test`. This is the last step (6a) of the
   [type resolution chain](../spec/internal/markspec-core-data-model.md#131-resolution-chain).
-  An explicit `Type:` trailer, a profile `display-id-pattern`, or a display-ID
-  prefix wins, because those steps come first. Step 6a gives no `MSL-T021`
+  An explicit `Type:` trailer, a profile `display-id-pattern`, a `Source:`
+  attribute, a display-ID prefix, or a discriminating attribute such as
+  `Verifies:` wins, because those steps come first. Step 6a gives no `MSL-T021`
   warning.
 - **Body.** The header prose, then the Gherkin description of the node (the free
   text between the keyword line and the first step), then the node itself as a
@@ -229,14 +230,19 @@ What works in a `.feature` file:
   Markdown and do not apply either.
 - The language server does not publish the traceability diagnostics `MSL-L006`
   and `MSL-T014`, for `.feature` files or for any other file. Only
-  `markspec
-  check` reports them (issue
+  `markspec check` reports them (issue
   [#938](https://github.com/driftsys/markspec/issues/938)).
 - Renaming a Scenario name does not update the scenario locators that point at
   it. Rename of a display ID is supported; rename of a scenario name is not.
 - There are no quick fixes for `.feature` files. The existing quick fixes match
   indented trailer lines, which a `#` header does not have. Fix the diagnostics
-  by hand or with `markspec fmt`.
+  by hand or with `markspec fmt` (issue
+  [#943](https://github.com/driftsys/markspec/issues/943)).
+- A headed `Scenario` that holds only steps, with no header prose and no
+  description, gets `MSL-Q401` (body is too short) from `markspec lint`. Two
+  more gaps are open: nested lists in a Gherkin description are flattened into
+  siblings, and an entry body does not get Gherkin body tokens (issue
+  [#937](https://github.com/driftsys/markspec/issues/937)).
 - The Gherkin keywords that the VS Code extension colours are English only. A
   `# language:` directive does not change them.
 - The header colours of the VS Code extension reach the grammar of the extension

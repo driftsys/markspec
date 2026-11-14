@@ -203,7 +203,7 @@ so this is an edge case.
 
 ## Relationship to ADR-012 (diagnostic code scheme)
 
-`language.md` §8.3 catalogues a per-relation existence family: `MSL-T001`
+`language.md` Part 8 §8.3 catalogues a per-relation existence family: `MSL-T001`
 (Satisfies=error), `MSL-T004` (Derived-from), `MSL-T006`–`T011`. Those codes
 **collide** with the implemented type-classification codes `MSL-T001`–`T004` in
 `core/validator/types.ts`. Resolving that collision requires the full ADR-012
@@ -211,8 +211,8 @@ catalogue migration.
 
 This epic deliberately used the clean slot `MSL-L006` (`L005` was already taken
 by inverse-consistency), emitting a warning rather than the aspirational
-per-relation error severity. When the ADR-012 migration reconciles §8.3, it
-should map `MSL-L006` to the eventual per-relation T-family codes.
+per-relation error severity. When the ADR-012 migration reconciles Part 8 §8.3,
+it should map `MSL-L006` to the eventual per-relation T-family codes.
 
 ## Relationship to ADR-022 (lockfile)
 

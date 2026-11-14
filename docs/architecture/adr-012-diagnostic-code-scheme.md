@@ -10,7 +10,7 @@ prefixes (`MSL-R*`, `MSL-T*`) rather than the categories the reviewers expected
 That finding rests on a spec mismatch, not a code defect:
 
 - **What `main` ships.**
-  [`docs/spec/language/language.md` §8](../spec/language/language.md) is the
+  [`docs/spec/language/language.md` Part 8](../spec/language/language.md) is the
   authoritative diagnostic contract for every released binary. It defines the
   `MSL-R` (entry format), `MSL-T` (traceability), `MSL-M` (Mustache), `MSL-D`
   (document), `MSL-G` (glossary), `MSL-S` (summary) scheme and **explicitly
@@ -34,9 +34,9 @@ review's largest section cannot be closed.
 
 ## Decision
 
-1. **The current scheme remains authoritative for `main`.** The `language.md` §8
-   scheme (`MSL-R/T/M/D/G/S`) is the diagnostic contract for `main` and all
-   releases. The validator continues to emit it unchanged. No renumbering
+1. **The current scheme remains authoritative for `main`.** The `language.md`
+   Part 8 scheme (`MSL-R/T/M/D/G/S`) is the diagnostic contract for `main` and
+   all releases. The validator continues to emit it unchanged. No renumbering
    happens as part of Prompt-1 or any slice that precedes the migration phase
    defined below.
 
@@ -83,8 +83,8 @@ review's largest section cannot be closed.
 
 - The Prompt-1 review's largest section is correctly resolved: the validator is
   spec-conformant; the broader catalogue is planned, not missing.
-- New validator slices have an unambiguous rule: emit into the `language.md` §8
-  scheme. No code accretes into a half-defined namespace.
+- New validator slices have an unambiguous rule: emit into the `language.md`
+  Part 8 scheme. No code accretes into a half-defined namespace.
 - The breaking migration is acknowledged and sequenced rather than done ad hoc
   under review pressure.
 
@@ -98,15 +98,15 @@ review's largest section cannot be closed.
 ### Trade-offs accepted
 
 - `main` and the nextgen design carry **different** code schemes until the
-  migration phase. Contributors must consult `language.md` §8 — not the nextgen
-  ADRs — for the codes `main` emits today.
+  migration phase. Contributors must consult `language.md` Part 8 — not the
+  nextgen ADRs — for the codes `main` emits today.
 - Closing the gate by decision (not by implementing the 24 absent codes now)
   means the reviewers' raw "26/50" number stands until migration — but it is
   correctly framed as deferred scope, not debt.
 
 ## Dependencies
 
-- [`docs/spec/language/language.md` §8](../spec/language/language.md) — the
+- [`docs/spec/language/language.md` Part 8](../spec/language/language.md) — the
   authoritative scheme this ADR ratifies for `main`.
 - Nextgen ADR-003 (information & traceability model, `nextgen` branch) — defines
   the destination catalogue.
@@ -133,10 +133,10 @@ review's largest section cannot be closed.
 ## Amendment (ADR-022): MSL-L and MSL-S diagnostic families
 
 ADR-022 (lockfile + external sync) introduces two new code families that extend
-the `language.md` §8 scheme without conflicting with existing families. They are
-recorded here as a bounded addition — the same pattern as the bounded exception
-for `MSL-B044`/`MSL-C072` in §Decision-6. The families follow the existing
-naming convention and are stable from their first emission.
+the `language.md` Part 8 scheme without conflicting with existing families. They
+are recorded here as a bounded addition — the same pattern as the bounded
+exception for `MSL-B044`/`MSL-C072` in §Decision-6. The families follow the
+existing naming convention and are stable from their first emission.
 
 ### Family overview (ADR-022 additions)
 
