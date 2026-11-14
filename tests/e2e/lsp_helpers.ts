@@ -288,6 +288,28 @@ export class LspTestClient {
     ).length;
   }
 
+  /**
+   * `true` when the latest `publishDiagnostics` for `uri` was sent by a
+   * cross-file validation run. The server ends every such run
+   * (`ProjectContext.publishAllDiagnostics`) with a
+   * `workspace/codeLens/refresh` request, sent after its publishes; a
+   * parse-stage publish sends none. So the latest publish for `uri` belongs
+   * to a cross-file run exactly when a refresh request arrived after it.
+   * Relies on message order only, not on arrival times.
+   */
+  latestPublishIsCrossFile(uri: string): boolean {
+    let lastPublish = -1;
+    let lastRefresh = -1;
+    this.notifications.forEach((n, i) => {
+      if (
+        n.method === "textDocument/publishDiagnostics" &&
+        (n.params as { uri: string }).uri === uri
+      ) lastPublish = i;
+      if (n.method === "workspace/codeLens/refresh") lastRefresh = i;
+    });
+    return lastPublish >= 0 && lastRefresh > lastPublish;
+  }
+
   /** Arrival times (ms, `performance.now()`) of the
    * `publishDiagnostics` notifications received so far for `uri`. */
   publishTimesFor(uri: string): readonly number[] {

@@ -15,18 +15,13 @@ type Diag = {
   range?: { start: { line: number } };
 };
 
-/** The server publishes the cross-file result after a 1000 ms debounce that
- * restarts on every parse, so it always arrives at least this long after the
- * last parse publish. */
-const CROSS_FILE_MIN_GAP_MS = 1000;
 /** Short quiet period after the cross-file publish. */
 const SETTLE_MS = 200;
 
 /** Open `text` as `name` in a fresh project and return the diagnostics of
  * the latest publish for that file. Waits for the parse-stage publishes, then
- * for a publish that arrives at least {@linkcode CROSS_FILE_MIN_GAP_MS} after
- * the publish before it and is the latest publish (the debounced
- * cross-file one), then a short settle,
+ * until the latest publish belongs to a cross-file validation run (see
+ * {@linkcode LspTestClient.latestPublishIsCrossFile}), then a short settle,
  * so the result is the state after the cross-file publish (#939: that publish
  * used to drop parse diagnostics). */
 async function openDocument(
@@ -49,12 +44,7 @@ async function openDocument(
       10000,
     );
     await client.waitUntil(
-      () => {
-        const times = client.publishTimesFor(uri);
-        const last = times.length - 1;
-        return last > 0 &&
-          times[last] - times[last - 1] >= CROSS_FILE_MIN_GAP_MS;
-      },
+      () => client.latestPublishIsCrossFile(uri),
       `cross-file diagnostics for ${name}`,
       10000,
     );
