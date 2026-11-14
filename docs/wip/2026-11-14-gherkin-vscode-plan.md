@@ -35,8 +35,14 @@ modules or JSON files so `node:test` can check it without a VS Code host.
   has no built-in `feature` language. Cucumber extensions register their own
   ids: the official Cucumber extension (`CucumberOpen.cucumber-official`) uses
   the id `cucumber`; "Cucumber (Gherkin) Full Support"
-  (`alexkrechik.cucumberautocomplete`) uses `feature`. Scope names must be
-  verified in Task 4 before they are hard-coded.
+  (`alexkrechik.cucumberautocomplete`) uses `feature`. Verified in Task 4
+  (2026-11-14): alexkrechik's grammar scope is `text.gherkin.feature` and its
+  `#` lines get `comment.line.number-sign`
+  ([package.json at 7722cc9](https://github.com/alexkrechik/VSCucumberAutoComplete/blob/7722cc935f42416453aa403cfee9eacd9b960dc5/package.json));
+  the official extension contributes no TextMate grammar and colors through
+  semantic tokens
+  ([package.json at 5c48d7e](https://github.com/cucumber/vscode/blob/5c48d7e54382621fc1570a4e3db4f4098f8ee3c6/package.json)),
+  so the injection targets only `text.gherkin.feature`.
 - Tests: `npm --prefix editors/vscode test` runs `tsc` then `node --test` on an
   explicit list of `out/*.test.js` files (new test files must be added to that
   list). CI: `.github/workflows/vsix-verify.yaml` runs `npm ci`,
@@ -123,7 +129,7 @@ list).
 
 ### Task 4: Header injection grammar for Cucumber extensions
 
-**Files:** create `editors/vscode/syntaxes/feature-header.injection.json`;
+**Files:** create `editors/vscode/syntaxes/feature-injection.tmLanguage.json`;
 modify `package.json` (`grammars` entry with `injectTo`); extend
 `grammar.test.ts`.
 

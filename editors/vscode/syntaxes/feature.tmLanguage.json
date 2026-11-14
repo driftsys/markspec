@@ -14,6 +14,7 @@
   ],
   "repository": {
     "header": {
+      "name": "meta.header.markspec",
       "begin": "^\\s*(#)\\s*(\\[)([A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9])(\\])\\s+(.*)$",
       "end": "(?=^\\s*#\\s*\\[[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]\\]\\s)|^(?!\\s*#)",
       "beginCaptures": {
