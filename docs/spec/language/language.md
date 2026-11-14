@@ -659,7 +659,7 @@ blocks of the description, and one `Feature` node (§1.3 of the data model). The
 keyword line to its last line. The text of a nested entry is blank in it. Its
 `feature` holds the owned scenarios and the `Background` steps that apply to
 them, with ranges relative to that text. The `Feature` node therefore gives
-`Entry.criteria` and the block-role checks of §8.12.
+`Entry.criteria` and the block-role checks of Part 8 §8.12.
 
 **Entry source.** Each entry has `source` of kind `feature-file` with `node`
 `feature`, `rule` or `scenario`. Locations are line and column of the `.feature`
@@ -710,12 +710,12 @@ entry. The role is derived when needed and is not stored on the entry.
 | no resolved type                            | no role        |
 
 The type is resolved through the profile's `extends` chain when a profile is
-loaded, else through the core type hierarchy. A type that extends both
-`Requirement` or `Contract` and `Test` takes the `criteria` role. An entry with
-no resolved type has no role: a validator check classifies the entry with the
-profile first, so an entry that the profile does not type gets no role-based
-diagnostic. A feature block that does not parse (below) is skipped by every role
-check.
+loaded, else through the core type hierarchy. The roles do not overlap: a type
+has one parent, and `Requirement`, `Contract` and `Test` are siblings in the
+core hierarchy. An entry with no resolved type has no role: a validator check
+classifies the entry with the profile first, so an entry that the profile does
+not type gets no role-based diagnostic. A feature block that does not parse
+(below) is skipped by every role check.
 
 - A `criteria` block: each scenario is an acceptance criterion. A scenario with
   no outcome step gives `MSL-B064`.
@@ -753,7 +753,7 @@ scenario), or when a second label stands above the same step.
 **Scenario names as locator targets.** A scenario of a feature block in a
 `criteria` entry is a criterion. Its name is normalized (Unicode NFC, trim, each
 whitespace run collapsed to one space) and a `Satisfies:` or `Verifies:` value
-can address it with a bracketed locator (see §8.4 and
+can address it with a bracketed locator (see Part 8 §8.4 and
 [Locators](../model/relations.md#locators); design record
 [ADR-037](../../architecture/adr-037-scenario-locators.md)). The feature blocks
 of one entry form one scope. A name that occurs more than once in the entry, or
@@ -765,15 +765,14 @@ AST, in any spoken language of the block.
 `MSL-B062`, for an entry of any type. The block keeps its source text and a
 parse error, and has no `feature`. Its role checks are skipped. The scenario
 names of a top-level block that did not parse are read by a line scanner that
-knows English keywords only (`Scenario`, `Scenario Outline`,
-`Scenario
-Template`, `Example`); `Background` and `Rule` are not scenarios, and
-lines inside a doc string are skipped. A block in another spoken language that
-does not parse therefore gives no scenario names for keywords that are not
-English. The scanner is also used when the Gherkin parser could not be loaded. A
-block that begins without a `Feature:` line is wrapped in a synthetic `Feature:`
-line for parsing; the synthetic line does not shift the positions that the AST
-reports.
+knows English keywords only: `Example`, `Scenario`, `Scenario Outline` and
+`Scenario Template`; `Background` and `Rule` are not scenarios, and lines inside
+a doc string are skipped. A block in another spoken language that does not parse
+therefore gives no scenario names for keywords that are not English. The scanner
+is also used when the Gherkin parser could not be loaded. A block that begins
+without a Feature line is wrapped in a synthetic line that holds the Feature
+keyword of the block language (`Feature:` for English) for parsing; the
+synthetic line does not shift the positions that the AST reports.
 
 | Rule                              | Diagnostic             |
 | --------------------------------- | ---------------------- |
@@ -786,7 +785,7 @@ reports.
 | Step label that labels no step    | `MSL-B067`             |
 | Illustration block                | `MSL-B068`             |
 
-All rows are specified in §8.12. Guide:
+All rows are specified in Part 8 §8.12. Guide:
 [Scenario locators](../../guide/scenario-locators.md).
 
 ---
