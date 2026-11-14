@@ -58,6 +58,7 @@ import {
   MARKSPEC_DOCUMENT_SELECTOR,
   WATCHED_FILE_GLOB,
 } from "./documentSelector";
+
 let client: LanguageClient | undefined;
 let outputChannel: OutputChannel | undefined;
 
