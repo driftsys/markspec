@@ -182,8 +182,8 @@ The MCP server tracks `.feature` files, so `markspec_refresh` sees a changed
 The language server (`markspec lsp`) indexes `.feature` files that have a
 `# [ID]` header, in the same project walk as Markdown and source files. A
 `.feature` file with no header gives no entries, no diagnostics, no symbols, and
-no edits. The language server loads the Gherkin parser only when a `.feature`
-file has a header line.
+no edits. The language server loads the Gherkin parser when it parses a
+`.feature` file, with or without a header, and caches the loaded parser.
 
 What works in a `.feature` file:
 
@@ -196,7 +196,9 @@ What works in a `.feature` file:
   nested Scenarios. Go-to-definition from a display ID elsewhere lands on the
   `#` of the header line. Find all references includes a `.feature` entry whose
   trailer names the ID. Hover shows the entry. Highlights mark the display ID in
-  the header and trailer comment lines.
+  the header and trailer comment lines. Hover, definition, references,
+  highlights and rename act on `#` comment lines only: a display ID in a step, a
+  doc string or a table gives no result.
 - **Folding.** An entry folds from its header line to the last line of the
   Gherkin node it owns, so a Feature entry stays folded over its Scenarios.
 - **Rename.** Renaming a display ID rewrites it in `#` comment lines of every

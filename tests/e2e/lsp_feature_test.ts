@@ -442,7 +442,7 @@ Deno.test("lsp feature: every handler is empty for a plain Cucumber file", async
         position: onId,
         context: { includeDeclaration: true },
       }),
-      [],
+      null,
     );
     assertEquals(await ask("documentHighlight", { position: onId }), null);
     assertEquals(await ask("prepareRename", { position: onId }), null);
@@ -459,6 +459,65 @@ Deno.test("lsp feature: every handler is empty for a plain Cucumber file", async
       }),
       [],
     );
+  } finally {
+    await client.shutdown();
+  }
+});
+
+const STEP_ID_HANDLERS = ["hover", "definition", "references"] as const;
+
+/** Ask hover, definition and references at `position` and assert each is
+ * empty: a display ID in a step line is not a MarkSpec reference. */
+async function assertNoIdHandlersAt(
+  client: LspTestClient,
+  uri: string,
+  position: { line: number; character: number },
+): Promise<void> {
+  for (const method of STEP_ID_HANDLERS) {
+    const result = await client.request(`textDocument/${method}`, {
+      textDocument: { uri },
+      position,
+      context: { includeDeclaration: true },
+    });
+    assertEquals(
+      result === null || (Array.isArray(result) && result.length === 0),
+      true,
+      `${method} on a step token must be empty, got ${JSON.stringify(result)}`,
+    );
+  }
+}
+
+Deno.test("lsp feature: hover, definition and references ignore an ID in a step line", async () => {
+  await withNavProject(async (client, _md, featureUri) => {
+    // Line 9 is `    Given a user REQ_0001`; REQ_0001 exists in req.md.
+    await assertNoIdHandlersAt(client, featureUri, { line: 9, character: 19 });
+  });
+});
+
+Deno.test("lsp feature: a plain Cucumber step holding a project ID gets no hover, definition or references", async () => {
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "req.md": MD_REQ,
+  });
+  try {
+    await client.initialize();
+    await client.waitForNotification("markspec/indexed", 15000);
+    const uri = toFileUrl(join(client.workDir, "plain.feature")).href;
+    const text = [
+      "Feature: Login",
+      "  Scenario: Valid",
+      "    Given a user REQ_0001",
+      "",
+    ].join("\n");
+    await client.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "feature", version: 1, text },
+    });
+    await client.waitUntil(
+      () => client.latestDiagnosticsFor(uri) !== undefined,
+      "diagnostics",
+      10000,
+    );
+    await assertNoIdHandlersAt(client, uri, { line: 2, character: 19 });
   } finally {
     await client.shutdown();
   }

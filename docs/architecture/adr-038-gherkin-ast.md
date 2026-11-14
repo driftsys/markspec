@@ -363,8 +363,8 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    does not apply: the header grammar is exact.
 2. **Walk and sync.** The project walk (`LSP_EXTENSIONS`) includes `.feature`
    files. Open, change and close events use the existing handlers. A headerless
-   file gives no entries and no diagnostics, and the Gherkin parser loads only
-   for a file that has a header line.
+   file gives no entries and no diagnostics. The Gherkin parser loads for every
+   `.feature` file that is parsed (see base decision 8 and #936).
 3. **Rename scope (D5, replaces the open question).** In `.feature` files only
    `#` comment lines are MarkSpec. `fencedLinesForFile` returns every line that
    does not start with `#` as excluded, so rename and highlights skip steps, doc
@@ -382,8 +382,9 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
 7. **Code actions (D6).** There is no dedicated handling for `.feature` files.
    The existing quick fixes match indented trailer lines and do not apply to `#`
    headers.
-8. **Parser load cost (D7).** The first headed `.feature` parse loads the
-   Gherkin parser lazily. There is no cache.
+8. **Parser load cost (D7).** The first `.feature` parse loads the Gherkin
+   parser lazily, and `loadGherkin` caches the loaded parser for later parses.
+   There is no per-text parse cache.
 9. **Formatting.** `onDocumentFormatting` calls `formatFeatureText` for a
    `.feature` file. It stamps missing `# Id:` lines and returns no edits for a
    file with no header, a file that does not parse, or a stamped file.

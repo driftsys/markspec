@@ -680,7 +680,9 @@ header, in front of its first trailer line, and changes nothing else. A file
 that does not parse is left unchanged. `MSL-F010` reports a header without
 `Id:`.
 
-The language server does not index `.feature` files in this version.
+The language server indexes `.feature` files and gives diagnostics, navigation,
+rename and Id stamping for headers; see
+[Editor support](../../guide/feature-files.md#editor-support).
 
 ---
 

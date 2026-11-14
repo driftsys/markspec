@@ -1152,6 +1152,21 @@ function isValidReplacementRange(
     typeof end?.character === "number";
 }
 
+/**
+ * `true` when the cursor line of a `.feature` file is not a `#` comment
+ * line. Only comment lines are MarkSpec there (D5), so a display ID in a
+ * step, doc string or table is not a reference.
+ */
+function isOutsideFeatureComments(
+  document: TextDocument,
+  filePath: string,
+  line: number,
+): boolean {
+  if (!isFeatureFile(filePath)) return false;
+  const text = document.getText();
+  return isLineFenced(text, line, fencedLinesForFile(text, filePath));
+}
+
 // ---------------------------------------------------------------------------
 // Hover
 // ---------------------------------------------------------------------------
@@ -1164,6 +1179,9 @@ connection.onHover((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   const ctx = projects.contextFor(filePath);
   if (!ctx) return null;
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return null;
+  }
 
   // Source-file position guard — only consider doc-comment context.
   if (isSourceFile(filePath)) {
@@ -1236,6 +1254,9 @@ connection.onDefinition((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   const ctx = projects.contextFor(filePath);
   if (!ctx) return null;
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return null;
+  }
 
   // Source-file position guard.
   if (isSourceFile(filePath)) {
@@ -1284,6 +1305,9 @@ connection.onReferences((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   const ctx = projects.contextFor(filePath);
   if (!ctx) return null;
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return null;
+  }
   if (isSourceFile(filePath)) {
     const lines = document.getText().split("\n");
     if (!isDocCommentContext(lines, params.position.line)) {
