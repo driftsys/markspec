@@ -85,8 +85,9 @@ extension with the id `cucumber` in your settings:
 }
 ```
 
-MarkSpec still receives the file through the pattern selector, so its
-diagnostics, hover, outline and the other features work whichever id applies.
+In a MarkSpec project, MarkSpec still receives the file through the pattern
+selector, so its diagnostics, hover, outline and the other features work
+whichever id applies.
 
 ### Nested projects
 
