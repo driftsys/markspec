@@ -15,14 +15,18 @@ type Diag = {
   range?: { start: { line: number } };
 };
 
-/** Quiet time after open: longer than the 50 ms parse debounce plus the
- * 1 s cross-file debounce, so the latest publish is the settled state. */
-const SETTLE_MS = 2000;
+/** Minimum time after open before the debounced cross-file publish (1 s
+ * debounce) can have arrived. */
+const CROSS_FILE_MIN_MS = 1000;
+/** Short quiet period after the cross-file publish. */
+const SETTLE_MS = 200;
 
 /** Open `text` as `name` in a fresh project and return the diagnostics of
- * the latest publish for that file. Waits for the first publish, then for a
- * fixed quiet period, so the result is the state after the debounced
- * cross-file publish (#939: that publish used to drop parse diagnostics). */
+ * the latest publish for that file. Waits for the parse-stage publish, then
+ * for a later publish (the debounced cross-file one) that arrives at least
+ * {@linkcode CROSS_FILE_MIN_MS} after open, then a short settle, so the result
+ * is the state after the cross-file publish (#939: that publish used to drop
+ * parse diagnostics). */
 async function openDocument(
   name: string,
   text: string,
@@ -34,12 +38,21 @@ async function openDocument(
   try {
     await client.initialize();
     const uri = toFileUrl(join(client.workDir, name)).href;
+    const openedAt = performance.now();
     await client.notify("textDocument/didOpen", {
       textDocument: { uri, languageId, version: 1, text },
     });
     await client.waitUntil(
       () => client.latestDiagnosticsFor(uri) !== undefined,
-      `diagnostics for ${name}`,
+      `parse diagnostics for ${name}`,
+      10000,
+    );
+    const parsePublishes = client.publishCountFor(uri);
+    await client.waitUntil(
+      () =>
+        client.publishCountFor(uri) > parsePublishes &&
+        performance.now() - openedAt >= CROSS_FILE_MIN_MS,
+      `cross-file diagnostics for ${name}`,
       10000,
     );
     await new Promise((r) => setTimeout(r, SETTLE_MS));
@@ -297,4 +310,67 @@ Deno.test("lsp feature: renaming a test ID rewrites the header and keeps a Verif
   } finally {
     await client.shutdown();
   }
+});
+
+type FormatEdit = { newText: string };
+
+/** Open `text` as `name` and return the edits of `textDocument/formatting`. */
+async function formatFeature(
+  name: string,
+  text: string,
+): Promise<FormatEdit[]> {
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+  });
+  try {
+    await client.initialize();
+    const uri = toFileUrl(join(client.workDir, name)).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "feature", version: 1, text },
+    });
+    return await client.request("textDocument/formatting", {
+      textDocument: { uri },
+      options: { tabSize: 2, insertSpaces: true },
+    }) as FormatEdit[];
+  } finally {
+    await client.shutdown();
+  }
+}
+
+Deno.test("lsp feature: formatting stamps one Id line and nothing else", async () => {
+  const text = `${HEADER}\nFeature: F\n  Scenario: S\n    Given a\n`;
+  const edits = await formatFeature("f1.feature", text);
+  assertEquals(edits.length, 1);
+  const out = edits[0].newText;
+  assertEquals(out.match(/^# Id: [0-9A-HJKMNP-TV-Z]{26}$/gm)?.length, 1);
+  assertEquals(
+    out.replace(/^#\n# Id: .*\n/m, "").replace(/^# Id: .*\n/m, ""),
+    text,
+  );
+});
+
+Deno.test("lsp feature: formatting a headerless file returns no edits", async () => {
+  assertEquals(
+    await formatFeature(
+      "f2.feature",
+      "Feature: F\n  Scenario: S\n    Given a\n",
+    ),
+    [],
+  );
+});
+
+Deno.test("lsp feature: formatting a file that does not parse returns no edits", async () => {
+  assertEquals(
+    await formatFeature("f3.feature", `${HEADER}\n${UNPARSABLE}`),
+    [],
+  );
+});
+
+Deno.test("lsp feature: formatting a stamped file returns no edits", async () => {
+  const text =
+    `${HEADER}\n# Id: 01KABCDEFGHJKMNPQRSTVWXYZ0\nFeature: F\n  Scenario: S\n    Given a\n`;
+  const stamped = (await formatFeature("f4.feature", text)) as FormatEdit[];
+  // A hand-written Id may be invalid; format the first result again.
+  const once = stamped.length ? stamped[0].newText : text;
+  assertEquals(await formatFeature("f5.feature", once), []);
 });

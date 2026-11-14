@@ -43,6 +43,7 @@ import {
   filterEntriesByTraceTargets,
   format,
   formatEntryOrigin,
+  formatFeatureText,
   isCorpusEntry,
   isLineFenced,
   isWithin,
@@ -399,7 +400,9 @@ async function readFile(path: string): Promise<string | undefined> {
 
 /** Publish diagnostics for a single file: its parse diagnostics plus the
  * cached cross-file diagnostics of `ctx` for that file, so this publish
- * does not hide the cross-file ones until the next validation (#939). */
+ * does not hide the cross-file ones until the next validation (#939). After
+ * an edit, the merged cross-file diagnostics can be up to one debounce
+ * (1 s) old, until the debounced validation republishes. */
 function publishFileDiagnostics(
   ctx: ProjectContext,
   filePath: string,
@@ -1515,8 +1518,15 @@ connection.onDocumentFormatting(async (params) => {
   // Delivered corpus files are read-only (ADR-030) — never format them.
   if (ctx.isCorpusFile(filePath)) return [];
 
-  // Gherkin files are not Markdown; Task 6 replaces this with Id stamping.
-  if (isFeatureFile(filePath)) return [];
+  // Gherkin files are not Markdown: only missing header Ids are stamped, and
+  // the Markdown formatter is never loaded. A headerless, unparsable or fully
+  // stamped file yields no edits.
+  if (isFeatureFile(filePath)) {
+    const featureText = document.getText();
+    const stamped = await formatFeatureText(featureText, filePath);
+    // deno-lint-ignore no-explicit-any
+    return buildFormattingEdits(featureText, stamped.output) as any;
+  }
 
   // Source files are read-only for formatting (ADR-029: Markdown files
   // only) — doc-comment layout belongs to the host language's formatter.
