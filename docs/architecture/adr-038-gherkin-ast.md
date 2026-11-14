@@ -393,6 +393,23 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
     This applies to all file types.
 11. **Known gap.** The LSP does not publish `MSL-L006` and `MSL-T014` (#938).
 
+### Alternatives considered (LSP support for `.feature` files)
+
+1. **Predicate (D1).**
+   - (a) Treat `.feature` as a source file and use the doc-comment radius guard.
+     Rejected: the header grammar is exact, and a radius scan of 20 lines would
+     match steps and tables.
+   - (b) A separate `isFeatureFile` predicate. Chosen.
+2. **Rename scope (D5).**
+   - (a) Scan the whole file for IDs. Rejected: step text, doc strings and
+     tables could hold the same text as sample data and would be rewritten.
+   - (b) Treat only `#` comment lines as MarkSpec. Chosen.
+3. **Folding (D4).** Folding to the next entry cuts a Feature entry at its first
+   nested Scenario header. The owned node range avoids that.
+4. **Scenario-name rename (D3), code actions (D6), per-text parse cache (D7),
+   Gherkin keyword highlighting (D2).** Not implemented. Alternatives not
+   documented beyond the reasons stated in the decisions above.
+
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
