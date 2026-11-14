@@ -2,7 +2,7 @@
 schema: 1
 name: markspec-gherkin
 description: |
-  Use when writing Gherkin acceptance criteria — Given/When/Then structure, Scenario Outline, Background, do/don't examples in MarkSpec entry format, and how scenarios map to the `Verified-by:` attribute.
+  Use when writing Gherkin acceptance criteria or test procedures — Given/When/Then structure, Scenario Outline, Background, scenario locators (`ID [Scenario name]`) on `Satisfies:` / `Verifies:`, block role by entry type (MSL-B064), procedure steps and `# Step` labels in Test entries, `.feature` files with `# [ID]` headers, and how scenarios map to the `Verified-by:` attribute.
 ---
 
 ## Overview
@@ -152,6 +152,102 @@ entry is a separate MarkSpec entry that implements the scenario.
 
 The `Tests:` attribute on the test entry is the reverse link;
 `markspec report traceability` uses both to compute coverage.
+
+---
+
+## Scenario locators
+
+A `Verifies:` or `Satisfies:` value can name one scenario of its target by
+adding the scenario name in square brackets after the display ID:
+
+```markdown
+Verifies: SWE_0060 [Round half-up]
+```
+
+- The `[` must follow whitespace after the ID. Case and spelling must match the
+  scenario name; runs of whitespace count as one space.
+- Only scenarios of a Requirement or Contract entry can be addressed. A name
+  used twice in one entry (`MSL-B060`) or an empty name (`MSL-B061`) cannot be
+  addressed, and a locator that names it gives `MSL-L007`.
+- A `Verifies:` value with no locator verifies every scenario of the
+  requirement.
+- `References:` and `Derived-from:` accept a free-text locator that is not
+  checked. Other relations accept none (`MSL-L008`).
+- `markspec report coverage` lists each scenario with its verifier.
+
+See the guide chapter _Scenario locators_.
+
+---
+
+## Block role by entry type
+
+The type of the entry decides what a `gherkin` / `feature` block means:
+
+| Entry type                             | Role         | Meaning                                   |
+| -------------------------------------- | ------------ | ----------------------------------------- |
+| Requirement, Contract, or an extension | criteria     | Each scenario is an acceptance criterion. |
+| Test, or an extension of it            | procedure    | The block is a test procedure.            |
+| Any other typed entry                  | illustration | The block is an example (`MSL-B068`).     |
+
+A scenario of a criteria block needs a `Then` step, or `MSL-B064` is reported.
+The checks need a profile that types the entry. A scenario that starts with
+`And` or `But` gives `MSL-B066`. A block that does not parse gives `MSL-B062`;
+the scenario names are then read by a scanner that knows English keywords only.
+
+---
+
+## Procedure steps in a Test entry
+
+In a Test entry, MarkSpec reads each scenario as a manual test procedure:
+
+- `Given` is a precondition, `When` and `*` are actions, `Then` is an outcome.
+  `And` and `But` take the role of the previous step.
+- An action after an outcome, or a precondition after an action or outcome,
+  opens a new numbered step.
+- A step with actions and no outcome gives `MSL-B063`; a step with an outcome
+  and no action gives `MSL-B065`.
+
+Name a step with a comment on its own line above its first line: `# Step 1`. The
+word `Step` is fixed for every Gherkin language; `# Step-by-step` is a plain
+comment. A label never changes the step number. A label that labels no step
+gives `MSL-B067`.
+
+```gherkin
+Scenario: Stop and release
+  Given a vehicle at 50 km/h
+  # Step 1
+  When the driver presses the brake pedal
+  Then the vehicle stops within 20 m
+  # Step 2
+  When the driver releases the brake pedal
+  Then the brake pedal returns to its rest position
+```
+
+See the guide chapter _Gherkin scenarios_.
+
+---
+
+## `.feature` files
+
+A Gherkin `.feature` file can declare entries. A comment block that starts with
+`# [ID] Title`, directly above a `Feature`, `Rule` or `Scenario`, makes that
+node an entry; the lines after the first one are body prose and trailers.
+
+```gherkin
+# [TST_BRK_0020] Brake release
+#
+# Verify that the brake releases.
+#
+# Verifies: REQ_BRK_0010 [Brake at 20 m]
+Scenario: Release
+  Given a braking vehicle
+  When the driver releases the pedal
+  Then the brake releases
+```
+
+Run `markspec fmt` to stamp the `# Id:` line. Without a profile, a headed
+`Feature` or `Rule` is a Requirement and a headed `Scenario` is a Test. See the
+guide chapter _Entries in `.feature` files_.
 
 ---
 
