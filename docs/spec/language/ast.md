@@ -472,6 +472,103 @@ paragraph
 
 ---
 
+## §7 Feature block — `feature`
+
+Unlike §1 to §6, this node is implemented. It is not an mdast extension node: it
+is a block of the entry body AST (`Entry.bodyAst`, type `FeatureNode` in
+`core/ast/nodes.ts`) that the body-AST builder produces from a fenced code node.
+Rules for authors are in the language specification, §1.3 §8.
+
+### Detection
+
+A fenced code block whose info string is `gherkin` or `feature` becomes a
+`FeatureNode`. Any other fence stays a `code` node.
+
+### Node type
+
+```typescript
+interface FeatureNode {
+  kind: "feature";
+  source: string; // authored text, verbatim
+  feature?: FeatureAst; // normalized AST
+  parseError?: { line: number; column: number; message: string };
+  range: SourceRange; // position of the node in the body
+}
+```
+
+When the Gherkin parser is loaded, exactly one of `feature` and `parseError` is
+set. When it is not loaded, neither is set. Both are pure functions of `source`.
+`parseError.line` is relative to `source`, where line 1 is the first line of
+`source`.
+
+For an entry declared in a `.feature` file, the entry has one `FeatureNode`
+whose `source` is the text of the owning node, from its first tag line or
+keyword line to its last line. The text of a nested node that is its own entry
+is blank in it. `feature` is the AST of the whole file reduced to the scenarios
+that the entry owns, with every range relative to `source`. The Background steps
+that the entry inherits from above its span keep ranges whose line can be 0 or
+less (`projectFeature`, `core/gherkin/project.ts`). See the language
+specification, §1.3 §7.
+
+### Normalized AST
+
+`FeatureAst` is built from the parser's `GherkinDocument` by `parseFeature` in
+`core/gherkin/parse.ts`. It has these fields:
+
+| Field         | Type               | Meaning                                                               |
+| ------------- | ------------------ | --------------------------------------------------------------------- |
+| `name`        | `string`           | Feature name, trimmed. Empty when the Feature line is synthetic.      |
+| `keyword`     | `string`           | The Feature keyword as authored.                                      |
+| `synthetic`   | `boolean`          | `true` when MarkSpec added the Feature line before parsing.           |
+| `language`    | `string`           | Language code of the block; `en` unless a `# language:` line sets it. |
+| `description` | `string`           | Feature description text.                                             |
+| `tags`        | `string[]`         | Feature tags.                                                         |
+| `scenarios`   | `ScenarioAst[]`    | Every scenario and scenario outline; Rules are flattened away.        |
+| `backgrounds` | `StepAst[]`        | Steps of every Background (Feature and Rule), each once.              |
+| `sections`    | `SectionAst[]`     | Every structural keyword in document order.                           |
+| `comments`    | `GherkinComment[]` | Every comment line in document order, including `# language:`.        |
+
+A `ScenarioAst` has `name` (trimmed, not normalized as a locator), `keyword`,
+`tags` (its own tags, not inherited), `ruleName` (absent outside a Rule),
+`description`, `descriptionEndLine` (absent without a description), `isOutline`,
+`background` (Feature background steps, then Rule background steps), `steps`,
+`examples` and `range`. A `StepAst` has `keyword` (as authored, trailing space
+removed), `normalized`, `text`, `docString` (`mediaType`, `content`),
+`dataTable` and `range`. `normalized` is one of `given`, `when`, `then`, `and`,
+`but` and `step` (the `*` keyword), taken from the parser's keyword type in the
+language of the block. An `ExamplesAst` has `name`, `keyword`, `tags`, `header`,
+`rows` and `range`; an outline is not expanded. A `SectionAst` has `keyword` and
+`range`. A `GherkinComment` has `line` and `text` (the trimmed line, including
+the `#`); comments inside a doc string are not reported.
+
+Steps, scenarios, examples and sections carry a `range` of `{ start, end }`
+positions with 1-based `line` and `column`. The end column is exclusive. Lines
+are relative to `source`: line 1 is its first line, and a synthetic Feature line
+is not counted. A step with a doc string or data table ends after its last line;
+a scenario ends after its last step or Examples row; a section covers its
+keyword and the colon.
+
+### Parser and loading
+
+The parser is `@cucumber/gherkin` 42.0.1 with `@cucumber/messages` 34.2.1, both
+pinned in `packages/markspec/deno.json`. It is imported dynamically by
+`loadGherkin` (`core/gherkin/load.ts`); the result is cached and a failed load
+is not. `parseFile` loads it only for a `.feature` file or for a text that holds
+a `gherkin` or `feature` fence, so commands that read no Gherkin do not load it.
+A load failure is not fatal for a fenced block: the node has neither `feature`
+nor `parseError`, and the scenario names come from the line scanner (language
+specification, §1.3 §8).
+
+### When parsing fails
+
+The node keeps `source` and sets `parseError` from the first parser error; it
+has no `feature`. A block with no Feature keyword line is parsed after MarkSpec
+inserts a synthetic Feature line, and `feature.synthetic` is `true` for it. If
+the document has no Feature after parsing, the block counts as a failure with
+the message `no Feature found in the Gherkin block`.
+
+---
+
 ## Transform order
 
 The transform processes the tree in a single depth-first pass, in this order:
