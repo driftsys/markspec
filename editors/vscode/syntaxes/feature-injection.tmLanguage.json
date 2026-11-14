@@ -1,0 +1,61 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MarkSpec header injection for Gherkin",
+  "scopeName": "markspec.feature.injection",
+  "injectionSelector": "L:text.gherkin.feature -comment -string",
+  "patterns": [
+    {
+      "include": "#header"
+    }
+  ],
+  "repository": {
+    "header": {
+      "name": "meta.header.markspec",
+      "begin": "^\\s*(#)\\s*(\\[)([A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9])(\\])\\s+(.*)$",
+      "end": "(?=^\\s*#\\s*\\[[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]\\]\\s)|^(?!\\s*#)",
+      "beginCaptures": {
+        "0": {
+          "name": "comment.line.number-sign.feature"
+        },
+        "1": {
+          "name": "punctuation.definition.comment.feature"
+        },
+        "3": {
+          "name": "entity.name.tag.markspec.display-id"
+        },
+        "5": {
+          "name": "markup.heading.markspec"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#trailer"
+        },
+        {
+          "include": "#comment"
+        }
+      ]
+    },
+    "trailer": {
+      "match": "^\\s*(#)\\s*([A-Z][A-Za-z-]*)(:)\\s*(.*)$",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.comment.feature"
+        },
+        "2": {
+          "name": "keyword.other.markspec.trailer-key"
+        },
+        "3": {
+          "name": "punctuation.separator.key-value.markspec"
+        },
+        "4": {
+          "name": "string.unquoted.markspec.trailer-value"
+        }
+      }
+    },
+    "comment": {
+      "match": "^\\s*#.*$",
+      "name": "comment.line.number-sign.feature"
+    }
+  }
+}

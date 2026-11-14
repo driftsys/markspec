@@ -15,18 +15,13 @@ type Diag = {
   range?: { start: { line: number } };
 };
 
-/** The server publishes the cross-file result after a 1000 ms debounce that
- * restarts on every parse, so it always arrives at least this long after the
- * last parse publish. */
-const CROSS_FILE_MIN_GAP_MS = 1000;
 /** Short quiet period after the cross-file publish. */
 const SETTLE_MS = 200;
 
 /** Open `text` as `name` in a fresh project and return the diagnostics of
  * the latest publish for that file. Waits for the parse-stage publishes, then
- * for a publish that arrives at least {@linkcode CROSS_FILE_MIN_GAP_MS} after
- * the publish before it and is the latest publish (the debounced
- * cross-file one), then a short settle,
+ * until the latest publish belongs to a cross-file validation run (see
+ * {@linkcode LspTestClient.latestPublishIsCrossFile}), then a short settle,
  * so the result is the state after the cross-file publish (#939: that publish
  * used to drop parse diagnostics). */
 async function openDocument(
@@ -49,12 +44,7 @@ async function openDocument(
       10000,
     );
     await client.waitUntil(
-      () => {
-        const times = client.publishTimesFor(uri);
-        const last = times.length - 1;
-        return last > 0 &&
-          times[last] - times[last - 1] >= CROSS_FILE_MIN_GAP_MS;
-      },
+      () => client.latestPublishIsCrossFile(uri),
       `cross-file diagnostics for ${name}`,
       10000,
     );
@@ -73,6 +63,45 @@ function openFeature(name: string, text: string): Promise<Diag[]> {
 Deno.test("lsp: Markdown parse diagnostics survive the cross-file publish (#939)", async () => {
   const diags = await openDocument("bad.md", "- [] Title\n", "markdown");
   assertEquals(diags.filter((d) => d.code === "MSL-P001").length, 1);
+});
+
+// `openDocument` waits with `latestPublishIsCrossFile`, which assumes that a
+// parse-stage publish sends no `workspace/codeLens/refresh`. This test pins
+// that assumption: if a parse publish sent a refresh, the wait could return
+// before the cross-file run and the #939 tests above would pass vacuously.
+Deno.test("lsp: a parse-stage publish sends no codeLens refresh", async () => {
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+  });
+  try {
+    await client.initialize();
+    const uri = toFileUrl(join(client.workDir, "a.md")).href;
+    const text = "- [REQ_0001] A\n\n  The system shall log in.\n";
+    await client.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "markdown", version: 1, text },
+    });
+    await client.waitUntil(
+      () => client.latestPublishIsCrossFile(uri),
+      "cross-file publish after open",
+      10000,
+    );
+    const before = client.publishCountFor(uri);
+    await client.notify("textDocument/didChange", {
+      textDocument: { uri, version: 2 },
+      contentChanges: [{ text: `${text}\n- [] Title\n` }],
+    });
+    await client.waitUntil(
+      () => client.publishCountFor(uri) > before,
+      "parse publish after the edit",
+      5000,
+    );
+    // Well inside the 1000 ms debounce before the next cross-file run.
+    await new Promise((r) => setTimeout(r, SETTLE_MS));
+    assertEquals(client.publishCountFor(uri), before + 1);
+    assertEquals(client.latestPublishIsCrossFile(uri), false);
+  } finally {
+    await client.shutdown();
+  }
 });
 
 const HEADER = "# [TST_0001] Login";

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Gherkin (MarkSpec)",
+  "scopeName": "source.feature.markspec",
+  "patterns": [
+    { "include": "#header" },
+    { "include": "#comment" },
+    { "include": "#docstring" },
+    { "include": "#table" },
+    { "include": "#feature-keyword" },
+    { "include": "#step-keyword" },
+    { "include": "#tag" },
+    { "include": "#parameter" }
+  ],
+  "repository": {
+    "header": {
+      "name": "meta.header.markspec",
+      "begin": "^\\s*(#)\\s*(\\[)([A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9])(\\])\\s+(.*)$",
+      "end": "(?=^\\s*#\\s*\\[[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]\\]\\s)|^(?!\\s*#)",
+      "beginCaptures": {
+        "0": { "name": "comment.line.number-sign.feature" },
+        "1": { "name": "punctuation.definition.comment.feature" },
+        "3": { "name": "entity.name.tag.markspec.display-id" },
+        "5": { "name": "markup.heading.markspec" }
+      },
+      "patterns": [
+        { "include": "#trailer" },
+        { "include": "#comment" }
+      ]
+    },
+    "trailer": {
+      "match": "^\\s*(#)\\s*([A-Z][A-Za-z-]*)(:)\\s*(.*)$",
+      "captures": {
+        "1": { "name": "punctuation.definition.comment.feature" },
+        "2": { "name": "keyword.other.markspec.trailer-key" },
+        "3": { "name": "punctuation.separator.key-value.markspec" },
+        "4": { "name": "string.unquoted.markspec.trailer-value" }
+      }
+    },
+    "comment": {
+      "match": "^\\s*#.*$",
+      "name": "comment.line.number-sign.feature"
+    },
+    "docstring": {
+      "begin": "^\\s*(\"\"\"|```)",
+      "end": "^\\s*\\1",
+      "name": "string.quoted.docstring.feature"
+    },
+    "table": {
+      "begin": "^\\s*(\\|)",
+      "end": "$",
+      "name": "markup.table.feature",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.table.feature" }
+      },
+      "patterns": [
+        { "match": "\\|", "name": "punctuation.separator.table.feature" },
+        { "include": "#parameter" }
+      ]
+    },
+    "feature-keyword": {
+      "match": "^\\s*(Feature|Rule|Background|Scenario Outline|Scenario Template|Scenario|Examples|Example|Scenarios)(:)",
+      "captures": {
+        "1": { "name": "keyword.other.feature.feature" },
+        "2": { "name": "punctuation.separator.keyword.feature" }
+      }
+    },
+    "step-keyword": {
+      "match": "^\\s*(Given|When|Then|And|But|\\*)(?=\\s)",
+      "captures": {
+        "1": { "name": "keyword.control.step.feature" }
+      }
+    },
+    "tag": {
+      "match": "(?<!\\S)@[^\\s@]+",
+      "name": "entity.name.tag.feature"
+    },
+    "parameter": {
+      "match": "<[^<>\\s|][^<>|]*>",
+      "name": "variable.parameter.feature"
+    }
+  }
+}

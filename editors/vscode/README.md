@@ -69,6 +69,13 @@ doc comments — Rust, Kotlin, Java, C/C++, TypeScript, JavaScript, C# — are
 indexed alongside Markdown. A unit test's `/// Satisfies: SRS_BRK_0001` links
 straight to the requirement it verifies.
 
+**Gherkin `.feature` files.** A `.feature` file with `# [ID]` headers is part of
+the graph too, with the same validation and navigation. The extension colours
+Gherkin keywords and the MarkSpec headers. If you use the official Cucumber
+extension, set `"files.associations": {"*.feature": "cucumber"}` so that its
+language server attaches; MarkSpec still receives the file. See the
+[VS Code guide](https://driftsys.github.io/markspec/guide/editor-vscode.html).
+
 **Readable entry blocks.** Each entry is marked with a colored left bar and
 label pills (red-bordered when a label isn't in the profile catalog), with
 themed admonitions for light, dark, and high-contrast color themes.
@@ -82,10 +89,11 @@ the first workspace folder.
 
 ## Requirements
 
-The extension activates when your workspace contains a **`.markspec.yaml`** file
-(the project activator). In a MarkSpec project it indexes your entries on open
-and reports the entry count in the status bar; in a plain Markdown or source
-repository it stays inert and writes nothing to disk.
+The extension starts the language server when your workspace contains a
+**`.markspec.yaml`** file (the project activator). In a MarkSpec project it
+indexes your entries on open and reports the entry count in the status bar; in a
+plain Markdown or source repository it starts no server and writes nothing to
+disk. The grammars and the commands work in every workspace.
 
 New to MarkSpec? The [documentation](https://driftsys.github.io/markspec/) walks
 through setting up a project and choosing a profile.
@@ -105,7 +113,8 @@ through setting up a project and choosing a profile.
 
 Both are available from the Command Palette (`Ctrl/Cmd+Shift+P`):
 
-- **MarkSpec: Show Output** — open the LSP output channel.
+- **MarkSpec: Show Output** — open the MarkSpec output channel (empty outside a
+  MarkSpec project, where no server runs).
 - **MarkSpec: Install CLI to PATH** — make the bundled `markspec` binary
   available in your terminal.
 

@@ -31,15 +31,65 @@ use on the command line.
 ### `.feature` files
 
 The language server supports Gherkin `.feature` files that have `# [ID]` headers
-(see [Entries in `.feature` files](feature-files.md#editor-support)). The VS
-Code extension does not list a `feature` language in its document selector, and
-the extension does not contribute that language, so VS Code does not send
-`.feature` buffers to the server. Without the buffers, the server still indexes
-`.feature` files from disk and publishes their diagnostics from the file on
-disk, and rename, definition and references started from a Markdown file reach
-`.feature` entries. Diagnostics of unsaved edits, hover, highlights, outline,
-folding, formatting and requests started inside a `.feature` file work only in a
-client that sends `.feature` buffers to the server.
+(see [Entries in `.feature` files](feature-files.md#editor-support)). The
+extension sends `.feature` buffers to the server. Its document selector matches
+the file pattern `**/*.feature`, with no language filter, so the server receives
+the buffer whichever language id an installed Cucumber extension gives the file.
+The extension also forwards disk events of `.feature` files, as it does for
+Markdown files.
+
+The server starts only in a workspace that contains a `.markspec.yaml`, or when
+one is created later. Opening a `.feature` file outside a MarkSpec project does
+not start it. The extension's language and grammar contributions below are
+declarative, so they apply even where the server does not run. Once started, the
+server keeps running for the session: deleting the `.markspec.yaml` does not
+stop it; reload the window to stop it.
+
+**Language and highlighting.** The extension contributes the language `feature`
+(alias `Gherkin`, extension `.feature`). Its language configuration sets only
+the `#` line comment, so the toggle-comment command works. It sets no brackets
+or auto-closing pairs, so it cannot override the ones that another extension
+registers for the same language id. The extension contributes a TextMate grammar
+(scope `source.feature.markspec`) that colours:
+
+- the Gherkin keywords `Feature`, `Rule`, `Background`, `Scenario`,
+  `Scenario Outline`, `Scenario Template`, `Examples`, `Example`, `Scenarios`
+  and the step keywords `Given`, `When`, `Then`, `And`, `But` and `*`;
+- tags (`@tag`), doc strings, table cells and `<parameter>` placeholders;
+- the MarkSpec header: the display ID and title of a `# [ID] Title` line and the
+  key and value of a `# Key: value` trailer line. A `#` line that does not have
+  this shape stays an ordinary comment.
+
+The keywords are English only. A `# language:` directive does not change them.
+
+**Cucumber extensions.** Two Cucumber extensions exist, and VS Code gives one
+language id to each file, so they behave differently:
+
+- _Cucumber (Gherkin) Full Support_ (`alexkrechik.cucumberautocomplete`) uses
+  the language id `feature` and the grammar scope `text.gherkin.feature`. The
+  MarkSpec extension adds an injection grammar to that scope, so the header
+  colours appear while that extension keeps its own colouring. If VS Code picks
+  the MarkSpec grammar for the file instead (the last registered grammar for a
+  language id wins), the MarkSpec grammar colours the headers directly. In that
+  case the scopes of the other extension and its own injections do not apply.
+- The official _Cucumber_ extension (`CucumberOpen.cucumber-official`) uses the
+  language id `cucumber` and contributes no TextMate grammar. Its colours come
+  from semantic tokens of its own language server, so the MarkSpec grammar and
+  injection do not colour the headers in a file that has the id `cucumber`.
+
+Both `feature` and `cucumber` claim `.feature`, and one language id applies to a
+file. To use the official Cucumber extension's language server, associate the
+extension with the id `cucumber` in your settings:
+
+```json
+{
+  "files.associations": { "*.feature": "cucumber" }
+}
+```
+
+In a MarkSpec project, MarkSpec still receives the file through the pattern
+selector, so its diagnostics, hover, outline and the other features work
+whichever id applies.
 
 ### Nested projects
 
@@ -79,12 +129,15 @@ editor as read-only citizens:
 <https://open-vsx.org/extension/driftsys/markspec-ide> — or
 `codium --install-extension driftsys.markspec-ide`.
 
-The extension activates only in a **MarkSpec project** — a workspace that
-contains a `.markspec.yaml` activator (per ADR-008). In a plain Markdown or
-source repository with no `.markspec.yaml` the extension stays dormant: it never
-spawns the language server, never indexes, and never writes a `.markspec/`
-directory. Run `markspec init` (or add a `.markspec.yaml`) to turn a workspace
-into a MarkSpec project.
+The extension starts the language server only in a **MarkSpec project** — a
+workspace that contains a `.markspec.yaml` activator (per ADR-008). In a plain
+Markdown or source repository with no `.markspec.yaml` it never spawns the
+language server, never indexes, and never writes a `.markspec/` directory. The
+grammars and the commands (**MarkSpec: Show Output**, **MarkSpec: Install CLI to
+PATH**) work in every workspace; outside a MarkSpec project, **Show Output**
+opens the MarkSpec output channel, which stays empty because no server runs. Run
+`markspec init` (or add a `.markspec.yaml`) to turn a workspace into a MarkSpec
+project.
 
 ## Configuration
 
@@ -200,10 +253,11 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 
 ## Troubleshooting
 
-**Extension never activates**
+**Language server never starts**
 
-- The extension activates only when the workspace contains a `.markspec.yaml`.
-  Add one (or run `markspec init`) to mark the folder as a MarkSpec project.
+- The extension starts the server only when the workspace contains a
+  `.markspec.yaml`. Add one (or run `markspec init`) to mark the folder as a
+  MarkSpec project.
 
 **Extension activates but shows no diagnostics**
 
