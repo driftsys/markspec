@@ -246,22 +246,23 @@ Scenario: Release
 ```
 
 Run `markspec fmt` to stamp the `# Id:` line. When no `Type:` trailer, profile
-`display-id-pattern` or display-ID prefix types the entry, a headed `Feature` or
-`Rule` is a Requirement and a headed `Scenario` is a Test (step 6a). See the
-guide chapter _Entries in `.feature` files_.
+`display-id-pattern`, `Source:` attribute, display-ID prefix or discriminating
+attribute such as `Verifies:` types the entry, a headed `Feature` or `Rule` is a
+Requirement and a headed `Scenario` is a Test (step 6a). See the guide chapter
+_Entries in `.feature` files_.
 
 ---
 
 ## Common mistakes
 
-| Mistake                                      | Fix                                                                                            |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Multiple `When` steps in a criteria scenario | Split into separate scenarios (in a Test entry, several actions form numbered procedure steps) |
-| "it", "this", "the thing" in steps           | Name the subject explicitly in each step                                                       |
-| Implementation detail in `Given`             | Describe observable state, not code internals                                                  |
-| No test with `Verifies:` for a requirement   | Add a test entry that verifies it, so the coverage report shows it                             |
-| Duplicate scenario name within an entry      | Names must be unique — the validator flags duplicates                                          |
-| Steps written in unfenced prose              | Wrap them in a `gherkin` or `feature` fence (see below)                                        |
+| Mistake                                      | Fix                                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Multiple `When` steps in a criteria scenario | Split into separate scenarios (in a Test entry, `When` steps after a `Then` open a new numbered step) |
+| "it", "this", "the thing" in steps           | Name the subject explicitly in each step                                                              |
+| Implementation detail in `Given`             | Describe observable state, not code internals                                                         |
+| No test with `Verifies:` for a requirement   | Add a test entry that verifies it, so the coverage report shows it                                    |
+| Duplicate scenario name within an entry      | Names must be unique — the validator flags duplicates                                                 |
+| Steps written in unfenced prose              | Wrap them in a `gherkin` or `feature` fence (see below)                                               |
 
 ---
 

@@ -59,8 +59,9 @@ The rules:
 - **Type.** A `Feature` or `Rule` entry is a `Requirement`, and a `Scenario`
   entry is a `Test`. This is the last step (6a) of the
   [type resolution chain](../spec/internal/markspec-core-data-model.md#131-resolution-chain).
-  An explicit `Type:` trailer, a profile `display-id-pattern`, or a display-ID
-  prefix wins, because those steps come first. Step 6a gives no `MSL-T021`
+  An explicit `Type:` trailer, a profile `display-id-pattern`, a `Source:`
+  attribute, a display-ID prefix, or a discriminating attribute such as
+  `Verifies:` wins, because those steps come first. Step 6a gives no `MSL-T021`
   warning.
 - **Body.** The header prose, then the Gherkin description of the node (the free
   text between the keyword line and the first step), then the node itself as a

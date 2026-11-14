@@ -518,6 +518,8 @@ the LSP amendment, and decisions 1 to 7 of the VS Code client amendment.
 Supersedes #584.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
+[Language §1.3 §8 (Gherkin blocks in entries)](../spec/language/language.md#8-gherkin-blocks-in-entries),
+[AST §7](../spec/language/ast.md#7-feature-block--feature),
 [core data model](../spec/internal/markspec-core-data-model.md).\
 Documented in: [Gherkin scenarios](../guide/gherkin.md),
 [Scenario locators](../guide/scenario-locators.md),

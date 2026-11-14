@@ -477,8 +477,8 @@ docs/
 - `adr-010-default-profile.md` — bundled RFC 2119 baseline profile
 - `adr-011-language-pack-and-dependency-ingestion.md` — languages + SBOM
 - `adr-012-diagnostic-code-scheme.md` — phased adoption of the nextgen
-  diagnostic-code catalogue (current `language.md` §8 scheme stays authoritative
-  for `main` until a sequenced migration phase)
+  diagnostic-code catalogue (current `language.md` Part 8 scheme stays
+  authoritative for `main` until a sequenced migration phase)
 - `adr-013-document-directive-not-a-resolution-step.md` — the family-hint
   document directive is a `markspec fmt` concern, not a validator
   type-resolution step (type-chain "step 7" deferred by design)

@@ -284,8 +284,8 @@ not scoped to this work.
 
 - **Done (#660).** `MSL-F010`, the new `MSL-F011` (reference-canonicalization
   drift), and the in-`check` `MSL-L212` are documented in the governed
-  diagnostic-code catalogue (`docs/spec/language/language.md` §8.9 / §8.10), and
-  the `MSL-F` family is recorded in
+  diagnostic-code catalogue (`docs/spec/language/language.md` Part 8 §8.9 /
+  §8.10), and the `MSL-F` family is recorded in
   [ADR-012](./adr-012-diagnostic-code-scheme.md) via its ADR-027 amendment, per
   the phased-adoption process.
 - `mcp/project.ts` still has its own, fourth, unrelated file-walker
