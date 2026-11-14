@@ -28,6 +28,16 @@ use on the command line.
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
+### `.feature` files
+
+The language server supports Gherkin `.feature` files that have `# [ID]` headers
+(see [Entries in `.feature` files](feature-files.md#editor-support)). The VS
+Code extension does not yet list a `feature` language in its document selector,
+and the extension does not contribute that language. Today VS Code does not send
+`.feature` files to the server, so the features above do not appear in them. The
+next extension release adds the registration. The server side is already in
+place for any other client that opens `.feature` files with the server.
+
 ### Nested projects
 
 Nested projects inherit `.gitignore` rules from the outermost enclosing project

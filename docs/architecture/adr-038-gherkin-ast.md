@@ -295,11 +295,10 @@ of #584 is superseded by this amendment.
     entries, no diagnostics, no lockfile drift and the same `compile` and
     `check` output as before. The scope line of a bare `check` or `fmt` counts
     the file, which is an accepted wording change.
-11. **Tools.** The LSP walk skips `.feature` files until a later slice adds
-    support. Until then, a rename of a display ID in the editor does not update
-    `.feature` files: a trailer in a `.feature` header keeps the old ID, and the
-    project-wide `check` reports it as unresolved. The MCP staleness list tracks
-    `.feature` files.
+11. **Tools.** The LSP indexes `.feature` files, so a rename of a display ID in
+    the editor updates `# [ID]` headers and trailer values in `.feature` files
+    and the former gap is closed (see the LSP amendment below). The MCP
+    staleness list tracks `.feature` files.
 
 ### Alternatives considered (Case B `.feature` entries)
 
@@ -354,12 +353,52 @@ of #584 is superseded by this amendment.
     - (b) Hide them from the count. Rejected: the number would not match the
       discovered files.
 
+## Amendment 2026-11-14 — LSP support for `.feature` files
+
+Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
+
+1. **Predicate (D1).** `isMarkspecFile` accepts `FEATURE_EXTENSIONS`. A new
+   predicate `isFeatureFile` selects Case B paths in `lsp/context.ts`. A
+   `.feature` file is not a source file, so the 20-line doc-comment radius guard
+   does not apply: the header grammar is exact.
+2. **Walk and sync.** The project walk (`LSP_EXTENSIONS`) includes `.feature`
+   files. Open, change and close events use the existing handlers. A headerless
+   file gives no entries and no diagnostics, and the Gherkin parser loads only
+   for a file that has a header line.
+3. **Rename scope (D5, replaces the open question).** In `.feature` files only
+   `#` comment lines are MarkSpec. `fencedLinesForFile` returns every line that
+   does not start with `#` as excluded, so rename and highlights skip steps, doc
+   strings and tables. Completion returns nothing on those lines.
+4. **Semantic tokens and inlay hints (D2).** They are built from entries, so
+   they appear for headed files and for nothing else. There is no Gherkin
+   keyword highlighting.
+5. **Scenario-name rename (D3).** Not implemented. Rewriting the scenario
+   locators that point at a renamed Scenario (design section 10.3) needs the
+   scenario position under the cursor, scope by owning entry, and locator
+   escaping. It is a later slice. Display-ID rename is implemented.
+6. **Folding (D4).** `lsp/folding.ts` folds a `.feature` entry from its header
+   line to the end line of its owned `feature` body node, not to the next entry.
+   Other entries keep the existing range.
+7. **Code actions (D6).** There is no dedicated handling for `.feature` files.
+   The existing quick fixes match indented trailer lines and do not apply to `#`
+   headers.
+8. **Parser load cost (D7).** The first headed `.feature` parse loads the
+   Gherkin parser lazily. There is no cache.
+9. **Formatting.** `onDocumentFormatting` calls `formatFeatureText` for a
+   `.feature` file. It stamps missing `# Id:` lines and returns no edits for a
+   file with no header, a file that does not parse, or a stamped file.
+10. **Parse diagnostics (#939).** `WorkspaceIndex` stores the parse diagnostics
+    of each file, and the cross-file publish merges them in, so they persist.
+    This applies to all file types.
+11. **Known gap.** The LSP does not publish `MSL-L006` and `MSL-T014` (#938).
+
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
 failure), 3 (pins) and 4 (code), and decisions 1 to 6 of the procedure-view
 amendment, and decisions 1 to 5 of the Case A block-role amendment, and
-decisions 1 to 11 of the Case B `.feature` amendment. Supersedes #584.\
+decisions 1 to 11 of the Case B `.feature` amendment, and decisions 1 to 11 of
+the LSP amendment. Supersedes #584.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
 [core data model](../spec/internal/markspec-core-data-model.md).\
@@ -371,4 +410,7 @@ Code: `packages/markspec/core/gherkin/`,
 `packages/markspec/core/validator/feature_parse.ts`,
 `packages/markspec/core/criteria/scenarios.ts`,
 `packages/markspec/core/parser/feature_file.ts`,
-`packages/markspec/core/formatter/feature_file.ts`.
+`packages/markspec/core/formatter/feature_file.ts`,
+`packages/markspec/lsp/context.ts`, `packages/markspec/lsp/folding.ts`,
+`packages/markspec/lsp/project_context.ts`, `packages/markspec/lsp/server.ts`,
+`packages/markspec/lsp/workspace.ts`.
