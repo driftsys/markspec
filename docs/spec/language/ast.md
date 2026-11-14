@@ -5,7 +5,8 @@
 > a single `Id:` attribute (ULID or URI). Examples below reflect these changes.
 > The AST node interface (`MsEntry`) has not yet been updated in the actual
 > codebase — the parser produces flat `Entry` objects, not mdast extension
-> nodes. This document describes the planned AST layer.
+> nodes. This document describes the planned AST layer. §7 (Feature block)
+> describes the implemented entry body AST.
 
 This document specifies the MarkSpec abstract syntax tree extensions. The input
 is a standard [mdast] tree produced by a CommonMark parser (remark). The
@@ -584,6 +585,9 @@ The transform processes the tree in a single depth-first pass, in this order:
 Steps 3 and 4 are independent and could run in either order. Step 5 runs last
 because it operates on `text` nodes inside any parent — including inside
 `msEntry` body content.
+
+The feature block (§7) is not part of this pass; the body-AST builder produces
+it from `code` nodes.
 
 ---
 
