@@ -1,19 +1,5 @@
 {
   "comments": {
     "lineComment": "#"
-  },
-  "brackets": [
-    ["(", ")"],
-    ["<", ">"]
-  ],
-  "autoClosingPairs": [
-    { "open": "\"", "close": "\"", "notIn": ["comment"] },
-    { "open": "(", "close": ")", "notIn": ["comment"] }
-  ],
-  "surroundingPairs": [
-    ["\"", "\""],
-    ["'", "'"],
-    ["<", ">"],
-    ["(", ")"]
-  ]
+  }
 }

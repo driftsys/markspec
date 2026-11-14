@@ -185,6 +185,11 @@ The language server (`markspec lsp`) indexes `.feature` files that have a
 no edits. The language server loads the Gherkin parser when it parses a
 `.feature` file, with or without a header, and caches the loaded parser.
 
+The VS Code extension sends `.feature` buffers to the server and colours the
+Gherkin keywords and the MarkSpec headers (see
+[VS Code extension](editor-vscode.md#feature-files)), when the workspace has a
+`.markspec.yaml`. Other clients must send `.feature` buffers themselves.
+
 What works in a `.feature` file:
 
 - **Diagnostics.** The parse diagnostics of the file (`MSL-B062`, `MSL-B069`)
@@ -231,14 +236,12 @@ What works in a `.feature` file:
 - There are no quick fixes for `.feature` files. The existing quick fixes match
   indented trailer lines, which a `#` header does not have. Fix the diagnostics
   by hand or with `markspec fmt`.
-- The VS Code extension does not send `.feature` buffers to the language server,
-  because its document selector has no `feature` language. Without the buffers,
-  the server still indexes `.feature` files from disk in its project walk and
-  publishes their diagnostics from the file on disk, and rename, definition and
-  references started from a Markdown file reach `.feature` entries. Diagnostics
-  of unsaved edits, hover, highlights, outline, folding, formatting and requests
-  started inside a `.feature` file need a client that sends `.feature` buffers
-  to the server.
+- The Gherkin keywords that the VS Code extension colours are English only. A
+  `# language:` directive does not change them.
+- The header colours of the VS Code extension reach the grammar of the extension
+  _Cucumber (Gherkin) Full Support_ through an injection. The official
+  _Cucumber_ extension has no TextMate grammar, so a file that has its language
+  id `cucumber` gets no MarkSpec header colours from the extension.
 
 ## Example
 

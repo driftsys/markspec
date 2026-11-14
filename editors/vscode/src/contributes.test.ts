@@ -30,20 +30,11 @@ test("does not contribute the cucumber language id", () => {
   assert.equal(languages.some((l) => l.id === "cucumber"), false);
 });
 
-test("language configuration uses # line comments and pairs", () => {
+test("language configuration only sets the # line comment", () => {
   const config = JSON.parse(
     readFileSync(join(ROOT, "language-configuration.json"), "utf8"),
-  ) as {
-    comments: { lineComment: string };
-    autoClosingPairs: Array<{ open: string; close: string }>;
-  };
-  assert.equal(config.comments.lineComment, "#");
-  const opens = config.autoClosingPairs.map((p) => p.open);
-  for (const open of ['"', "("]) {
-    assert.ok(opens.includes(open), `autoClosingPairs has ${open}`);
-  }
-  // An apostrophe is common in prose, and `<` is also a comparison sign.
-  assert.equal(opens.includes("'"), false);
-  assert.equal(opens.includes("<"), false);
-  assert.equal(opens.includes('"""'), false);
+  ) as Record<string, unknown>;
+  // Pairs and brackets are left to the other extensions that register the
+  // same language id, so this file cannot override them.
+  assert.deepEqual(config, { comments: { lineComment: "#" } });
 });

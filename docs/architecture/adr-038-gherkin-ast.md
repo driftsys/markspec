@@ -421,13 +421,101 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    Gherkin keyword highlighting (D2).** Not implemented. Alternatives not
    documented beyond the reasons stated in the decisions above.
 
+## Amendment 2026-11-14 — VS Code client for `.feature` files
+
+Case B slice 3 (epic #915). The LSP amendment above left the VS Code client out:
+it sent no `.feature` buffers and gave the file no language. The decisions below
+change only `editors/vscode/`.
+
+1. **Selector (D1).** `MARKSPEC_DOCUMENT_SELECTOR` gains the entry
+   `{ scheme: "file", pattern: "**/*.feature" }`, with no language filter, and
+   the file watcher glob is `**/*.{md,feature}`. The server receives the buffer
+   whichever language id another extension assigns.
+2. **Language (D2).** The extension contributes the language `feature` (alias
+   `Gherkin`, extension `.feature`) with a language configuration that sets only
+   the `#` line comment. It sets no brackets, auto-closing pairs or surrounding
+   pairs, so it cannot override the pairs of another extension that registers
+   the same id. It does not contribute the id `cucumber`.
+3. **Grammar scope (D3).** The contributed TextMate grammar has the scope
+   `source.feature.markspec`. It colours the Gherkin keywords, tags, doc
+   strings, table cells and `<parameter>` placeholders, and the MarkSpec header
+   (`# [ID] Title` and `# Key: value` lines). A `#` line without that shape
+   stays a comment.
+4. **Injection (D4).** A second grammar, `markspec.feature.injection`, injects
+   the header rules into the scope `text.gherkin.feature` (selector
+   `L:text.gherkin.feature -comment -string`). It never claims a file. The
+   language server emits no semantic token on a header line (LSP amendment,
+   decision 4), so the grammars are the only source of header colour.
+5. **Keywords (D5).** English keywords only. `# language:` is not honoured by
+   the grammar.
+6. **Grammar tests (D6).** `node:test` checks the patterns, with no new
+   dependency. The patterns stay in the subset that JavaScript and Oniguruma
+   share. A manual scope inspection in an Extension Development Host covers the
+   Oniguruma-specific behaviour.
+7. **Activation (D7).** `activationEvents` is unchanged:
+   `workspaceContains:**/.markspec.yaml`. The `feature` language contribution
+   also activates the extension when a `.feature` file opens, so
+   `projectGate.ts` starts the server only when the workspace holds a
+   `.markspec.yaml`, and a file watcher starts it when a `.markspec.yaml` is
+   created later. A `.feature` file outside a MarkSpec project does not start
+   the server.
+
+Facts about the Cucumber extensions, verified on 2026-11-14 from their published
+`package.json` files:
+
+- _Cucumber (Gherkin) Full Support_ (`alexkrechik.cucumberautocomplete`) uses
+  the language id `feature` and the grammar scope `text.gherkin.feature`; its
+  `#` lines get `comment.line.number-sign`
+  ([package.json at 7722cc9](https://github.com/alexkrechik/VSCucumberAutoComplete/blob/7722cc935f42416453aa403cfee9eacd9b960dc5/package.json)).
+- The official _Cucumber_ extension (`CucumberOpen.cucumber-official`) uses the
+  language id `cucumber` and contributes no TextMate grammar. Its colours come
+  from semantic tokens
+  ([package.json at 5c48d7e](https://github.com/cucumber/vscode/blob/5c48d7e54382621fc1570a4e3db4f4098f8ee3c6/package.json)).
+  The injection therefore targets only `text.gherkin.feature`.
+- Both `feature` and `cucumber` claim `.feature`, and one language id applies to
+  a file. When VS Code picks the MarkSpec grammar for a `feature` file (the last
+  registration wins, `TMGrammarFactory.ts`), `source.feature.markspec` colours
+  the headers directly, and the other extension's own scopes and its injections
+  do not apply. Users of the official extension set
+  `"files.associations": {"*.feature": "cucumber"}` so that its language server
+  attaches; MarkSpec still gets the file through the pattern selector.
+
+### Alternatives considered (VS Code client for `.feature` files)
+
+1. **Selector (D1).**
+   - (a) `language: "feature"` only. Rejected: it misses files that the official
+     extension owns under the id `cucumber`.
+   - (b) List `feature` and `cucumber`. Rejected: it hard-codes third-party
+     language ids.
+   - (c) A file pattern with no language filter. Chosen.
+2. **Language (D2).**
+   - (a) No language contribution, injection only. Rejected: without another
+     extension a `.feature` file would be plain text with no comment toggle.
+   - (b) Contribute `cucumber`. Rejected: it would take over the id of another
+     extension.
+   - (c) Contribute `feature`. Chosen.
+   - A language configuration with brackets and auto-closing pairs was rejected:
+     it could override the pairs that another extension registers for the same
+     id.
+3. **Grammar scope (D3).** `source.feature` could collide with a Cucumber
+   grammar of the same name, so the scope is namespaced.
+4. **Header colours under another extension (D4).** Relying on semantic tokens
+   was rejected: the server emits none on a header line. The injection gives the
+   header colour.
+5. **Keywords (D5).** Localised keywords were not implemented in this slice.
+6. **Grammar tests (D6).** `vscode-tmgrammar-test` was rejected to avoid a new
+   dev dependency.
+7. **Activation (D7).** Activating on `onLanguage:feature` alone was rejected:
+   it would start the server in workspaces that are not MarkSpec projects.
+
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
 failure), 3 (pins) and 4 (code), and decisions 1 to 6 of the procedure-view
 amendment, and decisions 1 to 5 of the Case A block-role amendment, and
 decisions 1 to 11 of the Case B `.feature` amendment, and decisions 1 to 11 of
-the LSP amendment. Supersedes #584.\
+the LSP amendment, and decisions 1 to 7 of the VS Code client amendment.
+Supersedes #584.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
 [core data model](../spec/internal/markspec-core-data-model.md).\
@@ -442,4 +530,5 @@ Code: `packages/markspec/core/gherkin/`,
 `packages/markspec/core/formatter/feature_file.ts`,
 `packages/markspec/lsp/context.ts`, `packages/markspec/lsp/folding.ts`,
 `packages/markspec/lsp/project_context.ts`, `packages/markspec/lsp/server.ts`,
-`packages/markspec/lsp/workspace.ts`.
+`packages/markspec/lsp/workspace.ts`, `editors/vscode/src/documentSelector.ts`,
+`editors/vscode/src/projectGate.ts`, `editors/vscode/syntaxes/`.

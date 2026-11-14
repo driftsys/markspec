@@ -69,6 +69,13 @@ doc comments — Rust, Kotlin, Java, C/C++, TypeScript, JavaScript, C# — are
 indexed alongside Markdown. A unit test's `/// Satisfies: SRS_BRK_0001` links
 straight to the requirement it verifies.
 
+**Gherkin `.feature` files.** A `.feature` file with `# [ID]` headers is part of
+the graph too, with the same validation and navigation. The extension colours
+Gherkin keywords and the MarkSpec headers. If you use the official Cucumber
+extension, set `"files.associations": {"*.feature": "cucumber"}` so that its
+language server attaches; MarkSpec still receives the file. See the
+[VS Code guide](https://driftsys.github.io/markspec/guide/editor-vscode.html).
+
 **Readable entry blocks.** Each entry is marked with a colored left bar and
 label pills (red-bordered when a label isn't in the profile catalog), with
 themed admonitions for light, dark, and high-contrast color themes.
