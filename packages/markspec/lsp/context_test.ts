@@ -242,3 +242,17 @@ Deno.test("fencedLinesForFile: .feature keeps an indented # header line", () => 
     1,
   );
 });
+
+Deno.test("fencedLinesForFile: a doc string closes only on its own delimiter", () => {
+  const text = [
+    "Feature: x",
+    '  """',
+    "  ```",
+    "  # inside REQ_0001",
+    '  """',
+    "  # [TST_0001] After",
+  ].join("\n");
+  const fenced = fencedLinesForFile(text, "x.feature");
+  assertEquals(fenced.has(3), true);
+  assertEquals(fenced.has(5), false);
+});

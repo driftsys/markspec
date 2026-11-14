@@ -156,3 +156,19 @@ Deno.test("mergeDiagnostics: drops a copy found in an earlier list, keeps copies
   assertEquals(mergeDiagnostics([diag, { ...diag }], [{ ...diag }]).length, 2);
   assertEquals(mergeDiagnostics([diag], [{ ...diag }]).length, 1);
 });
+
+Deno.test("mergeDiagnostics: keeps different diagnostics from different lists", () => {
+  const parse: CoreDiagnostic = {
+    code: "MSL-P001",
+    severity: "error",
+    message: "p",
+    location: { file: "/a.md", line: 1, column: 1 },
+  };
+  const crossFile: CoreDiagnostic = {
+    code: "MSL-R003",
+    severity: "error",
+    message: "r",
+    location: { file: "/a.md", line: 5, column: 7 },
+  };
+  assertEquals(mergeDiagnostics([parse], [crossFile]), [parse, crossFile]);
+});

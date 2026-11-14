@@ -210,9 +210,10 @@ What works in a `.feature` file:
   `markspec fmt` does, and changes nothing else. It returns no edits for a file
   with no header, a file that does not parse, and a file whose headers all have
   an Id. The Markdown formatter is not used.
-- **Completion.** Completion returns nothing on a step, a doc string or a table
-  line. On a `#` comment line no completion trigger matches today (see Known
-  limitations).
+- **Completion.** Completion returns nothing on a step, a table line or any line
+  of a doc string, including a `#` line inside it. On a `#` comment line outside
+  a doc string, the `$Name` and `ux:` reference triggers work as in Markdown;
+  the trailer-key and display-ID triggers do not match (see Known limitations).
 
 ### Known limitations
 

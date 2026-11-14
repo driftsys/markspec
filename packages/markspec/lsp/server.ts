@@ -809,14 +809,10 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
     }
   }
 
-  // Only `#` comment lines are MarkSpec in a .feature file (D5): steps,
-  // doc strings and tables get no completions.
-  if (isFeatureFile(filePath)) {
-    const featureLine = document.getText({
-      start: { line: params.position.line, character: 0 },
-      end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
-    });
-    if (!featureLine.trimStart().startsWith("#")) return [];
+  // Only `#` comment lines outside doc strings are MarkSpec in a .feature
+  // file (D5): steps, doc strings and tables get no completions.
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return [];
   }
 
   const line = document.getText({

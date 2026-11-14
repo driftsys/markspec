@@ -427,3 +427,15 @@ Deno.test("findIdOccurrencesInFile: a Markdown '# Key:' heading is not a trailer
     2,
   );
 });
+
+Deno.test("findIdOccurrencesInFile: an indented .feature '# Key:' trailer keeps its locator", () => {
+  const text = "  # Verifies: REQ_0001 [REQ_0001 login]";
+  const edits = findIdOccurrencesInFile(
+    text,
+    "REQ_0001",
+    "REQ_0009",
+    fencedLinesForFile(text, "a.feature"),
+    true,
+  );
+  assertEquals(edits.map((e) => e.range.start.character), [14]);
+});

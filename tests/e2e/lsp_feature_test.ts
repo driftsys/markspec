@@ -260,7 +260,7 @@ Deno.test("lsp feature: renaming a requirement rewrites .feature comments, not s
 Deno.test("lsp feature: renaming a test ID rewrites the header and keeps a Verified-by locator", async () => {
   const md = MD_REQ.replace(
     "Verified-by: TST_0001",
-    "Verified-by: TST_0001[Login]",
+    "Verified-by: TST_0001 [TST_0001 login]",
   );
   const client = await LspTestClient.create({
     "project.yaml": "name: test-project\n",
@@ -304,7 +304,9 @@ Deno.test("lsp feature: renaming a test ID rewrites the header and keeps a Verif
       result.changes[featureUri].map((e) => [e.range.start.line, e.newText]),
       [[0, "TST_0009"]],
     );
-    // Only the ID span is edited; `[Login]` is outside the range.
+    // Only the trailer value is edited; the locator `[TST_0001 login]` keeps
+    // its text.
+    assertEquals(result.changes[mdUri].length, 1);
     const mdEdit = result.changes[mdUri][0];
     assertEquals(
       [mdEdit.range.start.character, mdEdit.range.end.character],
@@ -549,9 +551,10 @@ Deno.test("lsp: the parse publish after an edit keeps the cross-file diagnostics
       10000,
     );
     const before = client.publishTimesFor(uri).length;
+    // The edit adds a parse error (MSL-P001: empty display ID).
     await client.notify("textDocument/didChange", {
       textDocument: { uri, version: 2 },
-      contentChanges: [{ text: `${text}\nMore prose.\n` }],
+      contentChanges: [{ text: `${text}\n- [] Title\n` }],
     });
     // The first publish after the edit is the parse publish (50 ms debounce);
     // the cross-file publish follows only after a 1000 ms quiet period.
@@ -562,6 +565,7 @@ Deno.test("lsp: the parse publish after an edit keeps the cross-file diagnostics
     );
     assertEquals(client.publishTimesFor(uri).length, before + 1);
     assertEquals(codes().includes("MSL-R003"), true);
+    assertEquals(codes().includes("MSL-P001"), true);
   } finally {
     await client.shutdown();
   }
@@ -665,6 +669,67 @@ Deno.test("lsp feature: renaming keeps the scenario-name locator of a # trailer"
       ]),
       [[4, 13]],
     );
+  } finally {
+    await client.shutdown();
+  }
+});
+
+Deno.test("lsp feature: a # line inside a doc string gets no completion or hover; a # header line completes $Name", async () => {
+  const md = [
+    "- [REQ_0001] Speed",
+    "",
+    "  The system shall limit `$Speed : signal int` to 30.",
+    "",
+  ].join("\n");
+  const feature = [
+    "# [TST_0001] Valid login",
+    "#",
+    "# Uses $",
+    "Feature: Login",
+    "  Scenario: Valid",
+    "    Given a payload",
+    '      """',
+    "      # see REQ_0001 and $",
+    '      """',
+    "",
+  ].join("\n");
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "req.md": md,
+    "login.feature": feature,
+  });
+  try {
+    await client.initialize();
+    await client.waitForNotification("markspec/indexed", 15000);
+    const uri = toFileUrl(join(client.workDir, "login.feature")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "feature", version: 1, text: feature },
+    });
+    await client.waitUntil(
+      () => client.latestDiagnosticsFor(uri) !== undefined,
+      "diagnostics",
+      10000,
+    );
+    const labels = (result: unknown) =>
+      (Array.isArray(result)
+        ? result
+        : (result as { items: Array<{ label: string }> }).items)
+        .map((i: { label: string }) => i.label);
+    const header = await client.request("textDocument/completion", {
+      textDocument: { uri },
+      position: { line: 2, character: 8 },
+    });
+    assertEquals(labels(header).includes("$Speed"), true);
+    const inDocString = await client.request("textDocument/completion", {
+      textDocument: { uri },
+      position: { line: 7, character: 27 },
+    });
+    assertEquals(inDocString, []);
+    const hover = await client.request("textDocument/hover", {
+      textDocument: { uri },
+      position: { line: 7, character: 14 },
+    });
+    assertEquals(hover, null);
   } finally {
     await client.shutdown();
   }

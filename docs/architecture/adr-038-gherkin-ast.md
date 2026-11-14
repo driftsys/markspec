@@ -369,15 +369,19 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    `#` comment lines are MarkSpec. `fencedLinesForFile` returns every line that
    does not start with `#` as excluded, and every line of a `"""` or `` ``` ``
    doc string, including a `#` line inside it. Rename, highlights, hover,
-   definition and references skip steps, doc strings and tables. Completion
-   returns nothing on those lines.
+   definition, references and completion skip steps, doc strings and tables. On
+   a `#` line outside a doc string, only the `$Name` and `ux:` completion
+   triggers can match.
 4. **Semantic tokens and inlay hints (D2).** They are built from entries, so a
    headerless file has none. For a headed file, the unchanged semantic-token
    builder emits the body tokens (modal verbs, EARS triggers and similar) of the
    header prose and of the Gherkin descriptions. It emits no token on a `# [ID]`
    line or a `# Key:` trailer line, because its title pattern expects `- [` and
-   its trailer pattern expects an indented line. Inlay hints appear at the end
-   of each header line. There is no Gherkin keyword highlighting.
+   its trailer pattern expects an indented line. The trailer tokenizer
+   (`^\s{4,}Key:`) does give an indented Gherkin keyword line such as
+   `Examples:` a property token. Inlay hints appear at the end of a header line
+   when a hint applies (an inferred type or at least one dependent). There is no
+   dedicated Gherkin keyword highlighting.
 5. **Scenario-name rename (D3).** Not implemented. Rewriting the scenario
    locators that point at a renamed Scenario (design section 10.3) needs the
    scenario position under the cursor, scope by owning entry, and locator
