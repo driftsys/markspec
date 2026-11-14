@@ -9,6 +9,7 @@
 # Authoring
 
 - [Entry blocks](authoring.md)
+- [Gherkin scenarios](gherkin.md)
 - [Scenario locators](scenario-locators.md)
 - [Entries in .feature files](feature-files.md)
 - [Profiles](profiles.md)

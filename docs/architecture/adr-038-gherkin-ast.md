@@ -519,7 +519,8 @@ Supersedes #584.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
 [core data model](../spec/internal/markspec-core-data-model.md).\
-Documented in: [Scenario locators](../guide/scenario-locators.md),
+Documented in: [Gherkin scenarios](../guide/gherkin.md),
+[Scenario locators](../guide/scenario-locators.md),
 [Entries in `.feature` files](../guide/feature-files.md).\
 Code: `packages/markspec/core/gherkin/`,
 `packages/markspec/core/validator/procedure.ts`,

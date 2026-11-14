@@ -5,8 +5,8 @@ with `# [ID] Title` directly above a `Feature`, `Rule` or `Scenario` turns that
 node into an entry. The entry joins the traceability graph like an entry from a
 Markdown file or a source doc comment. The Gherkin text stays as it is, so your
 test runner still reads the file. MarkSpec reads the file with the same Gherkin
-parser as [Scenario locators](scenario-locators.md), so the keywords can be in
-any language that Gherkin supports.
+parser as [Gherkin scenarios](gherkin.md), so the keywords can be in any
+language that Gherkin supports.
 
 A `.feature` file with no `# [ID]` header changes nothing. A project that uses
 Cucumber files for other purposes gets no entries, no new diagnostics, and the
