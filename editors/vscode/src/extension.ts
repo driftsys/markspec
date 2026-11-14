@@ -54,6 +54,7 @@ import { resolveServerOptions } from "./serverOptions";
 import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
 import { DecorationManager } from "./decorations";
+import { PROJECT_MARKER_GLOB, shouldStartServer } from "./projectGate";
 import {
   MARKSPEC_DOCUMENT_SELECTOR,
   WATCHED_FILE_GLOB,
@@ -117,7 +118,25 @@ function stripTypePrefix(detail: string | undefined): string | undefined {
   return detail.slice(idx + 3);
 }
 
-export function activate(context: ExtensionContext): void {
+export async function activate(context: ExtensionContext): Promise<void> {
+  // The `feature` language contribution activates the extension for any
+  // `.feature` file, so start the server only in a MarkSpec project.
+  if (
+    await shouldStartServer((glob, max) => workspace.findFiles(glob, null, max))
+  ) {
+    startMarkspec(context);
+    return;
+  }
+  // Start once when a `.markspec.yaml` is created later.
+  const markerWatcher = workspace.createFileSystemWatcher(PROJECT_MARKER_GLOB);
+  context.subscriptions.push(markerWatcher);
+  markerWatcher.onDidCreate(() => {
+    if (client) return;
+    startMarkspec(context);
+  });
+}
+
+function startMarkspec(context: ExtensionContext): void {
   const config = workspace.getConfiguration("markspec");
   const traceLevel = config.get<string>("trace.server", "off");
 

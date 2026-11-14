@@ -39,8 +39,11 @@ test("language configuration uses # line comments and pairs", () => {
   };
   assert.equal(config.comments.lineComment, "#");
   const opens = config.autoClosingPairs.map((p) => p.open);
-  for (const open of ['"', "'", "<", "("]) {
+  for (const open of ['"', "("]) {
     assert.ok(opens.includes(open), `autoClosingPairs has ${open}`);
   }
+  // An apostrophe is common in prose, and `<` is also a comparison sign.
+  assert.equal(opens.includes("'"), false);
+  assert.equal(opens.includes("<"), false);
   assert.equal(opens.includes('"""'), false);
 });
