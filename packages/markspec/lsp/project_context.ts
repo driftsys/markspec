@@ -830,8 +830,9 @@ export class ProjectContext {
 }
 
 /**
- * Concatenate diagnostic lists, dropping any diagnostic equal to an
- * earlier one (same code, file, position and message). Used to publish a
+ * Concatenate diagnostic lists, dropping any diagnostic equal to one in an
+ * earlier list (same code, file, position and message). Equal diagnostics
+ * within one list are all kept. Used to publish a
  * file's parse diagnostics together with its cross-file diagnostics.
  */
 export function mergeDiagnostics(
@@ -840,6 +841,9 @@ export function mergeDiagnostics(
   const seen = new Set<string>();
   const out: CoreDiagnostic[] = [];
   for (const list of lists) {
+    // Keys of this list join `seen` only after the list is done, so two
+    // equal diagnostics within one list are both kept.
+    const keys = new Set<string>();
     for (const d of list) {
       const key = [
         d.code,
@@ -849,9 +853,10 @@ export function mergeDiagnostics(
         d.message,
       ].join("\u0000");
       if (seen.has(key)) continue;
-      seen.add(key);
+      keys.add(key);
       out.push(d);
     }
+    for (const key of keys) seen.add(key);
   }
   return out;
 }

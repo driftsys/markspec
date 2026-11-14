@@ -35,7 +35,9 @@ export interface FoldingRange {
  */
 function ownedNodeEndLine(entry: Entry): number | undefined {
   if (entry.source.kind !== "feature-file") return undefined;
-  const node = entry.bodyAst?.find((b) => b.kind === "feature");
+  // The owned node is the last body block; a fenced Gherkin example in the
+  // header prose comes before it.
+  const node = entry.bodyAst?.findLast((b) => b.kind === "feature");
   if (!node) return undefined;
   const bodyStart = entry.bodyStartLine ?? entry.location.line + 1;
   return bodyStart + node.range.end.line - 1;

@@ -367,18 +367,25 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    `.feature` file that is parsed (see base decision 8 and #936).
 3. **Rename scope (D5, replaces the open question).** In `.feature` files only
    `#` comment lines are MarkSpec. `fencedLinesForFile` returns every line that
-   does not start with `#` as excluded, so rename and highlights skip steps, doc
-   strings and tables. Completion returns nothing on those lines.
-4. **Semantic tokens and inlay hints (D2).** They are built from entries, so
-   they appear for headed files and for nothing else. There is no Gherkin
-   keyword highlighting.
+   does not start with `#` as excluded, and every line of a `"""` or `` ``` ``
+   doc string, including a `#` line inside it. Rename, highlights, hover,
+   definition and references skip steps, doc strings and tables. Completion
+   returns nothing on those lines.
+4. **Semantic tokens and inlay hints (D2).** They are built from entries, so a
+   headerless file has none. For a headed file, the unchanged semantic-token
+   builder emits the body tokens (modal verbs, EARS triggers and similar) of the
+   header prose and of the Gherkin descriptions. It emits no token on a `# [ID]`
+   line or a `# Key:` trailer line, because its title pattern expects `- [` and
+   its trailer pattern expects an indented line. Inlay hints appear at the end
+   of each header line. There is no Gherkin keyword highlighting.
 5. **Scenario-name rename (D3).** Not implemented. Rewriting the scenario
    locators that point at a renamed Scenario (design section 10.3) needs the
    scenario position under the cursor, scope by owning entry, and locator
-   escaping. It is a later slice. Display-ID rename is implemented.
+   escaping. Display-ID rename is implemented.
 6. **Folding (D4).** `lsp/folding.ts` folds a `.feature` entry from its header
-   line to the end line of its owned `feature` body node, not to the next entry.
-   Other entries keep the existing range.
+   line to the end line of its owned `feature` body node (the last one, after
+   any fenced example in the header prose), not to the next entry. Other entries
+   keep the existing range.
 7. **Code actions (D6).** There is no dedicated handling for `.feature` files.
    The existing quick fixes match indented trailer lines and do not apply to `#`
    headers.

@@ -522,3 +522,150 @@ Deno.test("lsp feature: a plain Cucumber step holding a project ID gets no hover
     await client.shutdown();
   }
 });
+
+Deno.test("lsp: the parse publish after an edit keeps the cross-file diagnostics (#939)", async () => {
+  const text = [
+    "- [REQ_0001] A",
+    "",
+    "  The system shall log in a user.",
+    "",
+    "      Satisfies: NOPE_0001",
+    "",
+  ].join("\n");
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+  });
+  try {
+    await client.initialize();
+    const uri = toFileUrl(join(client.workDir, "a.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "markdown", version: 1, text },
+    });
+    const codes = () =>
+      ((client.latestDiagnosticsFor(uri) ?? []) as Diag[]).map((d) => d.code);
+    await client.waitUntil(
+      () => codes().includes("MSL-R003"),
+      "cross-file MSL-R003",
+      10000,
+    );
+    const before = client.publishTimesFor(uri).length;
+    await client.notify("textDocument/didChange", {
+      textDocument: { uri, version: 2 },
+      contentChanges: [{ text: `${text}\nMore prose.\n` }],
+    });
+    // The first publish after the edit is the parse publish (50 ms debounce);
+    // the cross-file publish follows only after a 1000 ms quiet period.
+    await client.waitUntil(
+      () => client.publishTimesFor(uri).length > before,
+      "parse publish after the edit",
+      5000,
+    );
+    assertEquals(client.publishTimesFor(uri).length, before + 1);
+    assertEquals(codes().includes("MSL-R003"), true);
+  } finally {
+    await client.shutdown();
+  }
+});
+
+Deno.test("lsp feature: definition from a # Satisfies comment goes to the Markdown entry", async () => {
+  await withNavProject(async (client, mdUri, featureUri) => {
+    const loc = await client.request("textDocument/definition", {
+      textDocument: { uri: featureUri },
+      position: { line: 4, character: 14 },
+    }) as Loc;
+    assertEquals(loc.uri, mdUri);
+    assertEquals(loc.range.start.line, 0);
+  });
+});
+
+Deno.test("lsp feature: references from a # header list the Markdown entry", async () => {
+  await withNavProject(async (client, mdUri, featureUri) => {
+    const locs = await client.request("textDocument/references", {
+      textDocument: { uri: featureUri },
+      position: { line: 0, character: 5 },
+      context: { includeDeclaration: false },
+    }) as Loc[];
+    assertEquals(locs.map((l) => [l.uri, l.range.start.line]), [[mdUri, 0]]);
+  });
+});
+
+Deno.test("lsp feature: an indented # Scenario header is navigable and renamable", async () => {
+  await withNavProject(async (client, _md, featureUri) => {
+    // Line 7 is `  # [TST_0002] Inner`.
+    const position = { line: 7, character: 6 };
+    const loc = await client.request("textDocument/definition", {
+      textDocument: { uri: featureUri },
+      position,
+    }) as Loc;
+    assertEquals([loc.uri, loc.range.start.line], [featureUri, 7]);
+    const result = await client.request("textDocument/rename", {
+      textDocument: { uri: featureUri },
+      position,
+      newName: "TST_0009",
+    }) as {
+      changes: Record<
+        string,
+        Array<{ range: { start: { line: number; character: number } } }>
+      >;
+    };
+    assertEquals(
+      result.changes[featureUri].map((e) => [
+        e.range.start.line,
+        e.range.start.character,
+      ]),
+      [[7, 5]],
+    );
+  });
+});
+
+Deno.test("lsp feature: renaming keeps the scenario-name locator of a # trailer", async () => {
+  const feature = [
+    "# [TST_0001] Valid login",
+    "#",
+    "# The login shall succeed.",
+    "#",
+    "# Satisfies: REQ_0001 [REQ_0001 login]",
+    "Feature: Login",
+    "  Scenario: Valid",
+    "    Given a user",
+    "",
+  ].join("\n");
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "req.md": MD_REQ,
+    "login.feature": feature,
+  });
+  try {
+    await client.initialize();
+    await client.waitForNotification("markspec/indexed", 15000);
+    const mdUri = toFileUrl(join(client.workDir, "req.md")).href;
+    const featureUri = toFileUrl(join(client.workDir, "login.feature")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: mdUri,
+        languageId: "markdown",
+        version: 1,
+        text: MD_REQ,
+      },
+    });
+    const result = await client.request("textDocument/rename", {
+      textDocument: { uri: mdUri },
+      position: { line: 0, character: 6 },
+      newName: "REQ_0009",
+    }) as {
+      changes: Record<
+        string,
+        Array<{ range: { start: { line: number; character: number } } }>
+      >;
+    };
+    assertEquals(
+      result.changes[featureUri].map((e) => [
+        e.range.start.line,
+        e.range.start.character,
+      ]),
+      [[4, 13]],
+    );
+  } finally {
+    await client.shutdown();
+  }
+});

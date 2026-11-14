@@ -109,3 +109,48 @@ Deno.test("entriesToFoldingRanges: a .feature entry folds over its owned node, p
     [8, 11],
   ]);
 });
+
+Deno.test("entriesToFoldingRanges: a Markdown entry with a gherkin fence keeps the next-entry range", async () => {
+  const text = [
+    "- [TST_0001] Login",
+    "",
+    "  ```gherkin",
+    "  Feature: Login",
+    "    Scenario: Valid",
+    "      Given a user",
+    "      Then ok",
+    "  ```",
+    "",
+    "      Id: 01JABCDEFGHJKMNPQRSTVWXYZ0",
+    "      Satisfies: REQ_0001",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "/t.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(
+    entries[0].bodyAst?.some((b) => b.kind === "feature"),
+    true,
+  );
+  const ranges = entriesToFoldingRanges(entries, 12);
+  assertEquals(ranges.map((r) => [r.startLine, r.endLine]), [[0, 11]]);
+});
+
+Deno.test("entriesToFoldingRanges: a .feature entry folds over its owned node, not a fenced example in its prose", async () => {
+  const text = [
+    "# [REQ_0001] Login",
+    "#",
+    "# ```gherkin",
+    "# Feature: Example",
+    "# ```",
+    "Feature: Login",
+    "",
+    "  Scenario: Valid",
+    "    Given a user",
+    "    Then ok",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "/t.feature" });
+  assertEquals(entries.length, 1);
+  const ranges = entriesToFoldingRanges(entries, 11);
+  assertEquals(ranges.map((r) => [r.startLine, r.endLine]), [[0, 9]]);
+});

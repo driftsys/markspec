@@ -119,19 +119,25 @@ export function prepareRenameRange(
  * Lines classified as fenced by the supplied set or CommonMark parser are skipped — an
  * illustrative example that happens to display the same ID as sample
  * text is not a real reference and must not be rewritten (#680).
+ *
+ * Set `featureFile` for a Gherkin `.feature` file: its trailers are
+ * `# Key: value` comment lines, so a bracketed scenario-name locator on such
+ * a line is kept, as on an indented trailer line.
  */
 export function findIdOccurrencesInFile(
   text: string,
   oldId: string,
   newId: string,
   fencedLines?: ReadonlySet<number>,
+  featureFile = false,
 ): TextEdit[] {
   // Skip the fence computation, which parses the document, when the text
   // cannot hold an occurrence.
   if (oldId.length === 0 || !text.includes(oldId)) return [];
   const edits: TextEdit[] = [];
+  const trailerLine = featureFile ? FEATURE_TRAILER_LINE_RE : TRAILER_LINE_RE;
   walkProseLines(text, (line, i) => {
-    const locators = locatorSpans(line);
+    const locators = locatorSpans(line, trailerLine);
     let start = 0;
     while (true) {
       const idx = line.indexOf(oldId, start);
@@ -167,14 +173,20 @@ export function findIdOccurrencesInFile(
  * indent, then `Key:`. */
 const TRAILER_LINE_RE = /^(?:\s*(?:\/\/[/!]?|\*|#))?\s{4,}[A-Z][A-Za-z-]*\s*:/;
 
+/** A `.feature` header trailer line: `#`, optional spaces, then `Key:`. */
+const FEATURE_TRAILER_LINE_RE = /^\s*#\s*[A-Z][A-Za-z-]*\s*:/;
+
 /** A closed bracket locator after whitespace, with escapes (same grammar
  * as `core/refs/split.ts`). */
 const LOCATOR_SPAN_RE = /\s\[(?:\\[\s\S]|[^\]\\])*\]/g;
 
-/** `[start, end)` column spans of the closed locators on a trailer line;
- * empty for any other line. */
-function locatorSpans(line: string): Array<[number, number]> {
-  if (!TRAILER_LINE_RE.test(line)) return [];
+/** `[start, end)` column spans of the closed locators on a line that
+ * `trailerLine` accepts; empty for any other line. */
+function locatorSpans(
+  line: string,
+  trailerLine: RegExp,
+): Array<[number, number]> {
+  if (!trailerLine.test(line)) return [];
   return [...line.matchAll(LOCATOR_SPAN_RE)].map((
     m,
   ) => [m.index!, m.index! + m[0].length]);

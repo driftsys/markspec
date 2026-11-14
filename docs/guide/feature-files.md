@@ -203,15 +203,16 @@ What works in a `.feature` file:
   Gherkin node it owns, so a Feature entry stays folded over its Scenarios.
 - **Rename.** Renaming a display ID rewrites it in `#` comment lines of every
   `.feature` file of the project: the `# [ID]` line and the trailer values. A
-  scenario locator such as `Verifies: REQ_BRK_0011 [Brake at 20 m]` keeps its
+  scenario locator such as `# Verifies: REQ_BRK_0011 [Brake at 20 m]` keeps its
   locator text. An ID in a step, a doc string or a table is not a reference and
   is not rewritten, and highlights and rename ignore it.
 - **Formatting.** Format document stamps a missing `# Id:` line, as
   `markspec fmt` does, and changes nothing else. It returns no edits for a file
   with no header, a file that does not parse, and a file whose headers all have
   an Id. The Markdown formatter is not used.
-- **Completion.** Completion works on `#` comment lines only, and returns
-  nothing on a step, a doc string or a table line.
+- **Completion.** Completion returns nothing on a step, a doc string or a table
+  line. On a `#` comment line no completion trigger matches today (see Known
+  limitations).
 
 ### Known limitations
 
@@ -225,16 +226,18 @@ What works in a `.feature` file:
   check` reports them (issue
   [#938](https://github.com/driftsys/markspec/issues/938)).
 - Renaming a Scenario name does not update the scenario locators that point at
-  it. Rename of a display ID is supported; rename of a scenario name is a later
-  slice.
+  it. Rename of a display ID is supported; rename of a scenario name is not.
 - There are no quick fixes for `.feature` files. The existing quick fixes match
   indented trailer lines, which a `#` header does not have. Fix the diagnostics
   by hand or with `markspec fmt`.
-- The VS Code extension does not send `.feature` files to the language server
-  yet, because its document selector has no `feature` language. Until a later
-  release adds it, an editor that registers the language server for `.feature`
-  files itself (see [VS Code extension](editor-vscode.md)) gets the behavior
-  above.
+- The VS Code extension does not send `.feature` buffers to the language server,
+  because its document selector has no `feature` language. Without the buffers,
+  the server still indexes `.feature` files from disk in its project walk and
+  publishes their diagnostics from the file on disk, and rename, definition and
+  references started from a Markdown file reach `.feature` entries. Diagnostics
+  of unsaved edits, hover, highlights, outline, folding, formatting and requests
+  started inside a `.feature` file need a client that sends `.feature` buffers
+  to the server.
 
 ## Example
 

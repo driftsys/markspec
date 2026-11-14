@@ -384,7 +384,7 @@ Deno.test("findIdOccurrencesInFile: a '[' without whitespace before it is not a 
 Deno.test("rename: .feature files rewrite IDs on # lines only and keep locators", () => {
   const text = [
     "# [TST_0001] Login",
-    "# Verified-by: TST_0001[Login]",
+    "# Verifies: TST_0001 [TST_0001 login]",
     "Feature: F",
     "  Scenario: S",
     "    Given TST_0001",
@@ -397,10 +397,33 @@ Deno.test("rename: .feature files rewrite IDs on # lines only and keep locators"
     "TST_0001",
     "TST_0009",
     fencedLinesForFile(text, "a.feature"),
+    true,
   );
   assertEquals(edits.map((e) => e.range.start.line), [0, 1]);
+  // The scenario-name locator `[TST_0001 login]` keeps its text.
+  assertEquals(edits[1].range.start.character, 12);
   assertEquals(
     edits[1].range.end.character - edits[1].range.start.character,
     8,
+  );
+});
+
+Deno.test("findIdOccurrencesInFile: a .feature '# Key:' trailer keeps its locator (#915)", () => {
+  const text = "# Verifies: REQ_0001 [REQ_0001 login]";
+  const edits = findIdOccurrencesInFile(
+    text,
+    "REQ_0001",
+    "REQ_0009",
+    fencedLinesForFile(text, "a.feature"),
+    true,
+  );
+  assertEquals(edits.map((e) => e.range.start.character), [12]);
+});
+
+Deno.test("findIdOccurrencesInFile: a Markdown '# Key:' heading is not a trailer", () => {
+  const text = "# Note: REQ_0001 [REQ_0001]";
+  assertEquals(
+    findIdOccurrencesInFile(text, "REQ_0001", "REQ_0009").length,
+    2,
   );
 });

@@ -1475,6 +1475,7 @@ connection.onRenameRequest(async (params) => {
       oldId,
       newId,
       fencedLinesForFile(text, path),
+      isFeatureFile(path),
     );
     if (fileEdits.length > 0) {
       changes[uri] = fileEdits as unknown as LspTextEdit[];

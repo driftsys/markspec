@@ -199,3 +199,46 @@ Deno.test("rename and highlight scans see only the .feature header ID", () => {
   );
   assertEquals(findOccurrencesInFile(text, "TST_0001", fenced).length, 1);
 });
+
+Deno.test("fencedLinesForFile: .feature excludes # lines inside a doc string", () => {
+  for (const delimiter of ['"""', "```"]) {
+    const text = [
+      "# [TST_0001] Login",
+      "# Satisfies: REQ_0001",
+      "Feature: x",
+      "  Scenario: y",
+      "    Given a payload",
+      `      ${delimiter}markdown`,
+      "      # see REQ_0001 here",
+      `      ${delimiter}`,
+      "  # [TST_0002] After",
+      "  Scenario: z",
+    ].join("\n");
+    const fenced = fencedLinesForFile(text, "x.feature");
+    assertEquals(fenced.has(6), true, delimiter);
+    assertEquals(fenced.has(8), false, delimiter);
+    assertEquals(
+      findIdOccurrencesInFile(text, "REQ_0001", "REQ_0009", fenced, true)
+        .map((e) => e.range.start.line),
+      [1],
+      delimiter,
+    );
+    assertEquals(
+      findOccurrencesInFile(text, "REQ_0001", fenced).map((h) =>
+        h.range.start.line
+      ),
+      [1],
+      delimiter,
+    );
+  }
+});
+
+Deno.test("fencedLinesForFile: .feature keeps an indented # header line", () => {
+  const text = "Feature: F\n  # [TST_0002] Inner\n  Scenario: S\n";
+  const fenced = fencedLinesForFile(text, "x.feature");
+  assertEquals(fenced.has(1), false);
+  assertEquals(
+    findIdOccurrencesInFile(text, "TST_0002", "TST_0009", fenced).length,
+    1,
+  );
+});

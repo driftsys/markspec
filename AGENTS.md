@@ -127,7 +127,8 @@ markspec/
 │       │   │                          MSL-P023 indent git-style trailer)
 │       │   ├── context.ts           ← doc comment context guard (source files);
 │       │   │                          `isFeatureFile`: `.feature` is MarkSpec on `#`
-│       │   │                          comment lines only; format stamps Ids
+│       │   │                          comment lines only (Id stamping on format
+│       │   │                          lives in server.ts)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       ├── mcp/
 │       │   ├── server.ts            ← MCP protocol adapter
