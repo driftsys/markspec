@@ -2,15 +2,15 @@
 schema: 1
 name: markspec-gherkin
 description: |
-  Use when writing Gherkin acceptance criteria or test procedures — Given/When/Then structure, Scenario Outline, Background, scenario locators (`ID [Scenario name]`) on `Satisfies:` / `Verifies:`, block role by entry type (MSL-B064), procedure steps and `# Step` labels in Test entries, `.feature` files with `# [ID]` headers, and how scenarios map to the `Verified-by:` attribute.
+  Use when writing Gherkin acceptance criteria or test procedures — Given/When/Then structure, Scenario Outline, Background, scenario locators (`ID [Scenario name]`) on `Satisfies:` / `Verifies:`, block role by entry type (MSL-B064), procedure steps and `# Step` labels in Test entries, `.feature` files with `# [ID]` headers, and how a test entry verifies scenarios with the `Verifies:` attribute.
 ---
 
 ## Overview
 
 Gherkin encodes acceptance criteria as concrete examples. A MarkSpec entry body
-can contain one or more Gherkin scenarios in a fenced code block. The entry's
-`Verified-by:` trailer links the requirement to the test entry that implements
-the scenario.
+can contain one or more Gherkin scenarios in a fenced code block. The test entry
+that implements the scenario names the requirement with a `Verifies:` trailer.
+MarkSpec generates the inverse `Verified-by:` link; do not write it.
 
 ## Basic structure
 
@@ -35,9 +35,7 @@ MarkSpec entry; the inner `gherkin` fence holds the scenarios):
     Then the displayed value is 100 km/h
   ```
 
-      Type: requirement
       Satisfies: STK_0002
-      Verified-by: SWT_0060
 ````
 
 The fence language must be `gherkin` or `feature` — see _Toolchain support_
@@ -119,10 +117,14 @@ scenarios belong in separate entries.
 
 ---
 
-## Linking requirements to tests via `Verified-by:`
+## Linking requirements to tests via `Verifies:`
 
-A requirement entry carries `Verified-by: <test-entry-display-ID>`. The test
-entry is a separate MarkSpec entry that implements the scenario.
+A test entry carries `Verifies: <requirement-display-ID>`. The requirement does
+not list its tests: MarkSpec generates the inverse `Verified-by:` link, and an
+author never writes it. The profile types the entries by their display-ID prefix
+(here `SWE_` is a software requirement and `SWT_` a unit test that extends Test)
+and declares `Verifies` on the test type, so no `Type:` trailer is needed. Run
+`markspec fmt` to stamp the `Id:` lines.
 
 **Requirement entry:**
 
@@ -131,10 +133,7 @@ entry is a separate MarkSpec entry that implements the scenario.
 
   …gherkin scenarios…
 
-      Id: 01JEMX9GZXYZ0000000000000A
-      Type: requirement
       Satisfies: STK_0002
-      Verified-by: SWT_0060
 ```
 
 **Test entry (colocated in source or test file):**
@@ -145,13 +144,12 @@ entry is a separate MarkSpec entry that implements the scenario.
   Integration test exercising the cluster display module against the scenarios
   in SWE_0060.
 
-      Id: 01JEMXBHZXYZ0000000000000B
-      Type: test
-      Tests: SWE_0060
+      Verifies: SWE_0060
 ```
 
-The `Tests:` attribute on the test entry is the reverse link;
-`markspec report traceability` uses both to compute coverage.
+`markspec report traceability` and `markspec report coverage` use the generated
+inverse link to compute coverage. To verify one scenario only, add its name in
+brackets (see _Scenario locators_).
 
 ---
 
@@ -169,6 +167,8 @@ Verifies: SWE_0060 [Round half-up]
 - Only scenarios of a Requirement or Contract entry can be addressed. A name
   used twice in one entry (`MSL-B060`) or an empty name (`MSL-B061`) cannot be
   addressed, and a locator that names it gives `MSL-L007`.
+- Only top-level `gherkin`/`feature` blocks give scenarios to a locator; a block
+  nested in a list item gives none.
 - A `Verifies:` value with no locator verifies every scenario of the
   requirement.
 - `References:` and `Derived-from:` accept a free-text locator that is not
@@ -245,22 +245,23 @@ Scenario: Release
   Then the brake releases
 ```
 
-Run `markspec fmt` to stamp the `# Id:` line. Without a profile, a headed
-`Feature` or `Rule` is a Requirement and a headed `Scenario` is a Test. See the
+Run `markspec fmt` to stamp the `# Id:` line. When no `Type:` trailer, profile
+`display-id-pattern` or display-ID prefix types the entry, a headed `Feature` or
+`Rule` is a Requirement and a headed `Scenario` is a Test (step 6a). See the
 guide chapter _Entries in `.feature` files_.
 
 ---
 
 ## Common mistakes
 
-| Mistake                                 | Fix                                                     |
-| --------------------------------------- | ------------------------------------------------------- |
-| Multiple `When` steps                   | Split into separate scenarios — one action per scenario |
-| "it", "this", "the thing" in steps      | Name the subject explicitly in each step                |
-| Implementation detail in `Given`        | Describe observable state, not code internals           |
-| Missing `Verified-by:` on requirement   | Add the link so the traceability report shows coverage  |
-| Duplicate scenario name within an entry | Names must be unique — the validator flags duplicates   |
-| Steps written in unfenced prose         | Wrap them in a `gherkin` or `feature` fence (see below) |
+| Mistake                                      | Fix                                                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Multiple `When` steps in a criteria scenario | Split into separate scenarios (in a Test entry, several actions form numbered procedure steps) |
+| "it", "this", "the thing" in steps           | Name the subject explicitly in each step                                                       |
+| Implementation detail in `Given`             | Describe observable state, not code internals                                                  |
+| No test with `Verifies:` for a requirement   | Add a test entry that verifies it, so the coverage report shows it                             |
+| Duplicate scenario name within an entry      | Names must be unique — the validator flags duplicates                                          |
+| Steps written in unfenced prose              | Wrap them in a `gherkin` or `feature` fence (see below)                                        |
 
 ---
 
