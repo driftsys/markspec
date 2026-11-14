@@ -68,6 +68,9 @@ export class LspTestClient {
     reject: (reason: unknown) => void;
   }>();
   private notifications: JsonRpcMessage[] = [];
+  /** Arrival time (`performance.now()`) of every `publishDiagnostics`
+   * notification, by URI, in arrival order. */
+  private publishTimes = new Map<string, number[]>();
   /** See the `answerServerRequests` option of {@linkcode initialize}. */
   private answerServerRequests = false;
 
@@ -285,6 +288,12 @@ export class LspTestClient {
     ).length;
   }
 
+  /** Arrival times (ms, `performance.now()`) of the
+   * `publishDiagnostics` notifications received so far for `uri`. */
+  publishTimesFor(uri: string): readonly number[] {
+    return this.publishTimes.get(uri) ?? [];
+  }
+
   /** Poll `predicate` every 50ms until it returns `true`; throws after
    * `timeoutMs`. */
   async waitUntil(
@@ -395,6 +404,12 @@ export class LspTestClient {
       // Server-initiated notification, or a server-to-client request
       // (it carries an id). Both are recorded.
       this.notifications.push(message);
+      if (message.method === "textDocument/publishDiagnostics") {
+        const uri = (message.params as { uri: string }).uri;
+        const times = this.publishTimes.get(uri) ?? [];
+        times.push(performance.now());
+        this.publishTimes.set(uri, times);
+      }
       if (message.id !== undefined && this.answerServerRequests) {
         this.writer.write(
           encode({ jsonrpc: "2.0", id: message.id, result: null }),

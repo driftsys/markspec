@@ -15,18 +15,19 @@ type Diag = {
   range?: { start: { line: number } };
 };
 
-/** Minimum time after open before the debounced cross-file publish (1 s
- * debounce) can have arrived. */
-const CROSS_FILE_MIN_MS = 1000;
+/** The server publishes the cross-file result after a 1000 ms debounce that
+ * restarts on every parse, so it always arrives at least this long after the
+ * last parse publish. */
+const CROSS_FILE_MIN_GAP_MS = 1000;
 /** Short quiet period after the cross-file publish. */
 const SETTLE_MS = 200;
 
 /** Open `text` as `name` in a fresh project and return the diagnostics of
- * the latest publish for that file. Waits for the parse-stage publish, then
- * for a later publish (the debounced cross-file one) that arrives at least
- * {@linkcode CROSS_FILE_MIN_MS} after open, then a short settle, so the result
- * is the state after the cross-file publish (#939: that publish used to drop
- * parse diagnostics). */
+ * the latest publish for that file. Waits for the parse-stage publishes, then
+ * for a publish that arrives at least {@linkcode CROSS_FILE_MIN_GAP_MS} after
+ * the publish before it (the debounced cross-file one), then a short settle,
+ * so the result is the state after the cross-file publish (#939: that publish
+ * used to drop parse diagnostics). */
 async function openDocument(
   name: string,
   text: string,
@@ -38,7 +39,6 @@ async function openDocument(
   try {
     await client.initialize();
     const uri = toFileUrl(join(client.workDir, name)).href;
-    const openedAt = performance.now();
     await client.notify("textDocument/didOpen", {
       textDocument: { uri, languageId, version: 1, text },
     });
@@ -47,11 +47,13 @@ async function openDocument(
       `parse diagnostics for ${name}`,
       10000,
     );
-    const parsePublishes = client.publishCountFor(uri);
     await client.waitUntil(
-      () =>
-        client.publishCountFor(uri) > parsePublishes &&
-        performance.now() - openedAt >= CROSS_FILE_MIN_MS,
+      () => {
+        const times = client.publishTimesFor(uri);
+        return times.some((t, i) =>
+          i > 0 && t - times[i - 1] >= CROSS_FILE_MIN_GAP_MS
+        );
+      },
       `cross-file diagnostics for ${name}`,
       10000,
     );
@@ -367,10 +369,89 @@ Deno.test("lsp feature: formatting a file that does not parse returns no edits",
 });
 
 Deno.test("lsp feature: formatting a stamped file returns no edits", async () => {
-  const text =
-    `${HEADER}\n# Id: 01KABCDEFGHJKMNPQRSTVWXYZ0\nFeature: F\n  Scenario: S\n    Given a\n`;
-  const stamped = (await formatFeature("f4.feature", text)) as FormatEdit[];
-  // A hand-written Id may be invalid; format the first result again.
-  const once = stamped.length ? stamped[0].newText : text;
-  assertEquals(await formatFeature("f5.feature", once), []);
+  const text = `${HEADER}\nFeature: F\n  Scenario: S\n    Given a\n`;
+  const first = await formatFeature("f4.feature", text);
+  assertEquals(first.length, 1);
+  assertEquals(await formatFeature("f5.feature", first[0].newText), []);
+});
+
+const PLAIN_CUCUMBER = [
+  "Feature: Login REQ_0001",
+  "",
+  "  Background:",
+  "    Given a registered user",
+  "",
+  "  Scenario: Valid",
+  "    Given the user opens the page",
+  "    When the user logs in",
+  "    Then the dashboard shows",
+  "",
+].join("\n");
+
+Deno.test("lsp feature: every handler is empty for a plain Cucumber file", async () => {
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+  });
+  try {
+    await client.initialize();
+    const uri = toFileUrl(join(client.workDir, "plain.feature")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri,
+        languageId: "feature",
+        version: 1,
+        text: PLAIN_CUCUMBER,
+      },
+    });
+    await client.waitUntil(
+      () => client.latestDiagnosticsFor(uri) !== undefined,
+      "diagnostics",
+      10000,
+    );
+    const textDocument = { uri };
+    const onStep = { line: 6, character: 8 };
+    const onId = { line: 0, character: 20 };
+    const ask = (method: string, extra: Record<string, unknown> = {}) =>
+      client.request(`textDocument/${method}`, { textDocument, ...extra });
+    assertEquals(client.latestDiagnosticsFor(uri), []);
+    assertEquals(await ask("documentSymbol"), []);
+    assertEquals(await ask("foldingRange"), []);
+    assertEquals(await ask("semanticTokens/full"), { data: [] });
+    assertEquals(
+      await ask("inlayHint", {
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 10, character: 0 },
+        },
+      }),
+      [],
+    );
+    assertEquals(await ask("codeLens"), []);
+    assertEquals(
+      await ask("formatting", {
+        options: { tabSize: 2, insertSpaces: true },
+      }),
+      [],
+    );
+    assertEquals(await ask("hover", { position: onStep }), null);
+    assertEquals(await ask("hover", { position: onId }), null);
+    assertEquals(await ask("definition", { position: onId }), null);
+    assertEquals(
+      await ask("references", {
+        position: onId,
+        context: { includeDeclaration: true },
+      }),
+      [],
+    );
+    assertEquals(await ask("documentHighlight", { position: onId }), null);
+    assertEquals(
+      await ask("codeAction", {
+        range: { start: onStep, end: onStep },
+        context: { diagnostics: [] },
+      }),
+      [],
+    );
+  } finally {
+    await client.shutdown();
+  }
 });
