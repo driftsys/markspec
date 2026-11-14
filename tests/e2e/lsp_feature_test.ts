@@ -25,7 +25,8 @@ const SETTLE_MS = 200;
 /** Open `text` as `name` in a fresh project and return the diagnostics of
  * the latest publish for that file. Waits for the parse-stage publishes, then
  * for a publish that arrives at least {@linkcode CROSS_FILE_MIN_GAP_MS} after
- * the publish before it (the debounced cross-file one), then a short settle,
+ * the publish before it and is the latest publish (the debounced
+ * cross-file one), then a short settle,
  * so the result is the state after the cross-file publish (#939: that publish
  * used to drop parse diagnostics). */
 async function openDocument(
@@ -50,9 +51,9 @@ async function openDocument(
     await client.waitUntil(
       () => {
         const times = client.publishTimesFor(uri);
-        return times.some((t, i) =>
-          i > 0 && t - times[i - 1] >= CROSS_FILE_MIN_GAP_MS
-        );
+        const last = times.length - 1;
+        return last > 0 &&
+          times[last] - times[last - 1] >= CROSS_FILE_MIN_GAP_MS;
       },
       `cross-file diagnostics for ${name}`,
       10000,
@@ -444,6 +445,13 @@ Deno.test("lsp feature: every handler is empty for a plain Cucumber file", async
       [],
     );
     assertEquals(await ask("documentHighlight", { position: onId }), null);
+    assertEquals(await ask("prepareRename", { position: onId }), null);
+    assertEquals(await ask("documentLink"), []);
+    // A step line must not receive MarkSpec completions.
+    assertEquals(
+      await ask("completion", { position: { line: 3, character: 4 } }),
+      [],
+    );
     assertEquals(
       await ask("codeAction", {
         range: { start: onStep, end: onStep },
