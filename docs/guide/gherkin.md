@@ -11,13 +11,14 @@ block. To trace a scenario from another entry, see
 ## Write the scenarios
 
 Put each scenario in a fenced block of the language `feature` (or `gherkin`) in
-the body of a Requirement or Contract entry. Each scenario line starts with
-`Scenario:` (`Scenario Outline:`, `Scenario Template:` and `Example:` also
-work). MarkSpec reads each block with a Gherkin parser, so the keywords can be
-in any language that Gherkin supports. Start the block with a language line, for
-example `# language: fr`, and write `Scénario: Freinage à 20 m`. Free text
-between a scenario line and its first step is the description of the scenario,
-not an error.
+the body of an entry. In a Requirement or Contract entry each scenario is an
+acceptance criterion (see [Role of a Gherkin block](#role-of-a-gherkin-block)).
+Each scenario line starts with `Scenario:` (`Scenario Outline:`,
+`Scenario Template:` and `Example:` also work). MarkSpec reads each block with a
+Gherkin parser, so the keywords can be in any language that Gherkin supports.
+Start the block with a language line, for example `# language: fr`, and write
+`Scénario: Freinage à 20 m`. Free text between a scenario line and its first
+step is the description of the scenario, not an error.
 
 If a block does not parse, `markspec check` reports `MSL-B062` for it. The
 scenarios of that block are then read by a simple line scanner that knows only
@@ -215,7 +216,7 @@ To fix each diagnostic:
 ## Gherkin in `.feature` files
 
 A Gherkin `.feature` file can declare entries of its own, with a `# [ID] Title`
-comment above a `Feature`, `Rule` or `Scenario`. The rules for entries in
-Markdown files and doc comments, and the block roles above, also apply to those
-entries, which are typed without a profile. See
+comment above a `Feature`, `Rule` or `Scenario`. The role checks of
+[Role of a Gherkin block](#role-of-a-gherkin-block) and the procedure steps also
+apply to those entries, which are typed without a profile. See
 [Entries in `.feature` files](feature-files.md).
