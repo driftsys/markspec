@@ -54,7 +54,10 @@ import { resolveServerOptions } from "./serverOptions";
 import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
 import { DecorationManager } from "./decorations";
-
+import {
+  MARKSPEC_DOCUMENT_SELECTOR,
+  WATCHED_FILE_GLOB,
+} from "./documentSelector";
 let client: LanguageClient | undefined;
 let outputChannel: OutputChannel | undefined;
 
@@ -132,21 +135,9 @@ export function activate(context: ExtensionContext): void {
   });
 
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      { scheme: "file", language: "markdown" },
-      { scheme: "file", language: "rust" },
-      { scheme: "file", language: "kotlin" },
-      { scheme: "file", language: "java" },
-      { scheme: "file", language: "c" },
-      { scheme: "file", language: "cpp" },
-      { scheme: "file", language: "typescript" },
-      { scheme: "file", language: "typescriptreact" },
-      { scheme: "file", language: "javascript" },
-      { scheme: "file", language: "javascriptreact" },
-      { scheme: "file", language: "csharp" },
-    ],
+    documentSelector: [...MARKSPEC_DOCUMENT_SELECTOR],
     synchronize: {
-      fileEvents: workspace.createFileSystemWatcher("**/*.md"),
+      fileEvents: workspace.createFileSystemWatcher(WATCHED_FILE_GLOB),
     },
     outputChannel,
     traceOutputChannel: traceLevel !== "off"
