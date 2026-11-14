@@ -41,7 +41,9 @@ Markdown files.
 The server starts only in a workspace that contains a `.markspec.yaml`, or when
 one is created later. Opening a `.feature` file outside a MarkSpec project does
 not start it. The extension's language and grammar contributions below are
-declarative, so they apply even where the server does not run.
+declarative, so they apply even where the server does not run. Once started, the
+server keeps running for the session: deleting the `.markspec.yaml` does not
+stop it; reload the window to stop it.
 
 **Language and highlighting.** The extension contributes the language `feature`
 (alias `Gherkin`, extension `.feature`). Its language configuration sets only
@@ -127,12 +129,13 @@ editor as read-only citizens:
 <https://open-vsx.org/extension/driftsys/markspec-ide> — or
 `codium --install-extension driftsys.markspec-ide`.
 
-The extension activates only in a **MarkSpec project** — a workspace that
-contains a `.markspec.yaml` activator (per ADR-008). In a plain Markdown or
-source repository with no `.markspec.yaml` the extension stays dormant: it never
-spawns the language server, never indexes, and never writes a `.markspec/`
-directory. Run `markspec init` (or add a `.markspec.yaml`) to turn a workspace
-into a MarkSpec project.
+The extension starts the language server only in a **MarkSpec project** — a
+workspace that contains a `.markspec.yaml` activator (per ADR-008). In a plain
+Markdown or source repository with no `.markspec.yaml` it never spawns the
+language server, never indexes, and never writes a `.markspec/` directory. The
+grammars and the commands (**MarkSpec: Show Output**, **MarkSpec: Install CLI to
+PATH**) work in every workspace. Run `markspec init` (or add a `.markspec.yaml`)
+to turn a workspace into a MarkSpec project.
 
 ## Configuration
 
@@ -248,10 +251,11 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 
 ## Troubleshooting
 
-**Extension never activates**
+**Language server never starts**
 
-- The extension activates only when the workspace contains a `.markspec.yaml`.
-  Add one (or run `markspec init`) to mark the folder as a MarkSpec project.
+- The extension starts the server only when the workspace contains a
+  `.markspec.yaml`. Add one (or run `markspec init`) to mark the folder as a
+  MarkSpec project.
 
 **Extension activates but shows no diagnostics**
 

@@ -54,7 +54,7 @@ import { resolveServerOptions } from "./serverOptions";
 import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
 import { DecorationManager } from "./decorations";
-import { PROJECT_MARKER_GLOB, shouldStartServer } from "./projectGate";
+import { startServerWhenProject } from "./projectGate";
 import {
   MARKSPEC_DOCUMENT_SELECTOR,
   WATCHED_FILE_GLOB,
@@ -119,59 +119,27 @@ function stripTypePrefix(detail: string | undefined): string | undefined {
 }
 
 export async function activate(context: ExtensionContext): Promise<void> {
-  // The `feature` language contribution activates the extension for any
-  // `.feature` file, so start the server only in a MarkSpec project.
-  if (
-    await shouldStartServer((glob, max) => workspace.findFiles(glob, null, max))
-  ) {
-    startMarkspec(context);
-    return;
-  }
-  // Start once when a `.markspec.yaml` is created later.
-  const markerWatcher = workspace.createFileSystemWatcher(PROJECT_MARKER_GLOB);
-  context.subscriptions.push(markerWatcher);
-  markerWatcher.onDidCreate(() => {
-    if (client) return;
-    startMarkspec(context);
-  });
-}
-
-function startMarkspec(context: ExtensionContext): void {
-  const config = workspace.getConfiguration("markspec");
-  const traceLevel = config.get<string>("trace.server", "off");
-
   outputChannel = window.createOutputChannel("MarkSpec");
   context.subscriptions.push(outputChannel);
-
-  const workspaceFolder = workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-  const serverOptions = resolveServerOptions({
-    extensionPath: context.extensionPath,
-    workspaceFolder,
-    configuredServerPath: config.get<string>("server.path") || undefined,
-    configuredServerArgs: config.get<string[]>("server.args"),
-    logPath: config.get<string>("trace.logPath") || undefined,
-    platform: process.platform,
-  });
-
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [...MARKSPEC_DOCUMENT_SELECTOR],
-    synchronize: {
-      fileEvents: workspace.createFileSystemWatcher(WATCHED_FILE_GLOB),
+  // These commands need no server, so they work in any workspace.
+  registerServerlessCommands(context);
+  // The `feature` language contribution activates the extension for any
+  // `.feature` file, so start the server only in a MarkSpec project, or
+  // once a `.markspec.yaml` is created later.
+  const markerWatcher = await startServerWhenProject({
+    // `undefined` applies the default file excludes (`files.exclude`);
+    // `null` would apply none.
+    findFiles: (glob, max) => workspace.findFiles(glob, undefined, max),
+    createWatcher: (glob) => workspace.createFileSystemWatcher(glob),
+    start: () => {
+      if (!client) startMarkspec(context);
     },
-    outputChannel,
-    traceOutputChannel: traceLevel !== "off"
-      ? window.createOutputChannel("MarkSpec LSP")
-      : undefined,
-  };
+  });
+  if (markerWatcher) context.subscriptions.push(markerWatcher);
+}
 
-  client = new LanguageClient(
-    "markspec",
-    "MarkSpec",
-    serverOptions,
-    clientOptions,
-  );
-
+/** Register the commands that work without the language server. */
+function registerServerlessCommands(context: ExtensionContext): void {
   context.subscriptions.push(
     commands.registerCommand("markspec.showOutput", () => {
       outputChannel?.show();
@@ -206,6 +174,43 @@ function startMarkspec(context: ExtensionContext): void {
         window.showErrorMessage(`MarkSpec: install failed — ${reason}`);
       }
     }),
+  );
+}
+
+function startMarkspec(context: ExtensionContext): void {
+  const config = workspace.getConfiguration("markspec");
+  const traceLevel = config.get<string>("trace.server", "off");
+
+  const workspaceFolder = workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+  const serverOptions = resolveServerOptions({
+    extensionPath: context.extensionPath,
+    workspaceFolder,
+    configuredServerPath: config.get<string>("server.path") || undefined,
+    configuredServerArgs: config.get<string[]>("server.args"),
+    logPath: config.get<string>("trace.logPath") || undefined,
+    platform: process.platform,
+  });
+
+  const clientOptions: LanguageClientOptions = {
+    documentSelector: [...MARKSPEC_DOCUMENT_SELECTOR],
+    synchronize: {
+      fileEvents: workspace.createFileSystemWatcher(WATCHED_FILE_GLOB),
+    },
+    outputChannel,
+    traceOutputChannel: traceLevel !== "off"
+      ? window.createOutputChannel("MarkSpec LSP")
+      : undefined,
+  };
+
+  client = new LanguageClient(
+    "markspec",
+    "MarkSpec",
+    serverOptions,
+    clientOptions,
+  );
+
+  context.subscriptions.push(
     // CodeLens command handlers — the LSP emits these from
     // `packages/markspec/lsp/code_lens.ts`. The "↓ Satisfies: ID — Title"
     // lens dispatches `markspec.openDefinition`; the "↑ N dependents"

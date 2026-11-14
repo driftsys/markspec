@@ -89,10 +89,11 @@ the first workspace folder.
 
 ## Requirements
 
-The extension activates when your workspace contains a **`.markspec.yaml`** file
-(the project activator). In a MarkSpec project it indexes your entries on open
-and reports the entry count in the status bar; in a plain Markdown or source
-repository it stays inert and writes nothing to disk.
+The extension starts the language server when your workspace contains a
+**`.markspec.yaml`** file (the project activator). In a MarkSpec project it
+indexes your entries on open and reports the entry count in the status bar; in a
+plain Markdown or source repository it starts no server and writes nothing to
+disk. The grammars and the commands work in every workspace.
 
 New to MarkSpec? The [documentation](https://driftsys.github.io/markspec/) walks
 through setting up a project and choosing a profile.

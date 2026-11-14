@@ -266,3 +266,84 @@ test("doc string content gets no header or trailer scopes", () => {
     out[5].some((x) => x.startsWith("entity.name.tag.markspec.display-id")),
   );
 });
+
+test("header ID pattern equals core HEADER_ID_SOURCE", () => {
+  const core = readFileSync(
+    join(
+      ROOT,
+      "..",
+      "..",
+      "packages",
+      "markspec",
+      "core",
+      "parser",
+      "feature_file.ts",
+    ),
+    "utf8",
+  );
+  const m = /const HEADER_ID_SOURCE = "([^"]+)";/.exec(core);
+  assert.ok(m, "HEADER_ID_SOURCE not found in core");
+  const header = grammar.repository.header;
+  assert.ok(header.begin?.includes(`(${m[1]})`), header.begin);
+  assert.ok(header.end?.includes(`\\[${m[1]}\\]`), header.end);
+});
+
+test("a hyphen display ID is a header", () => {
+  const s = scopesOf("# [REQ-12] Hyphen ID");
+  assert.ok(
+    s.includes("entity.name.tag.markspec.display-id=REQ-12"),
+    s.join("|"),
+  );
+});
+
+test("keyword synonyms", () => {
+  for (
+    const [line, word] of [
+      ["  Scenario Template: S", "Scenario Template"],
+      ["  Example: E", "Example"],
+      ["    Scenarios:", "Scenarios"],
+    ]
+  ) {
+    const s = scopesOf(line);
+    assert.ok(
+      s.includes(`keyword.other.feature.feature=${word}`),
+      `${line} -> ${s.join("|")}`,
+    );
+  }
+});
+
+test("a backtick doc string is a doc string", () => {
+  const out = scopesPerLine([
+    "    ```",
+    "    # [SC_A_1] not a header",
+    "    ```",
+  ]);
+  assert.deepEqual(
+    out[1],
+    ["string.quoted.docstring.feature"],
+    out[1].join("|"),
+  );
+});
+
+test("table inner patterns compile and match separators and parameters", () => {
+  const inner = (grammar.repository.table.patterns ?? []).map(resolve);
+  const row = "| <a> | b |";
+  const names = inner.flatMap((rule) => {
+    const re = new RegExp(rule.match!, "g");
+    return [...row.matchAll(re)].map((m) => `${rule.name}=${m[0]}`);
+  });
+  assert.ok(names.includes("punctuation.separator.table.feature=|"));
+  assert.ok(names.includes("variable.parameter.feature=<a>"), names.join(","));
+});
+
+test("an @ inside a word is not a tag", () => {
+  const s = scopesOf("    Given mail to a@b");
+  assert.equal(s.some((x) => x.startsWith("entity.name.tag")), false);
+});
+
+test("empty or space-led angle brackets are not parameters", () => {
+  for (const line of ["    Given <> items", "    Given < x> items"]) {
+    const s = scopesOf(line);
+    assert.equal(s.includes("variable.parameter.feature"), false, line);
+  }
+});

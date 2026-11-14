@@ -185,10 +185,11 @@ The language server (`markspec lsp`) indexes `.feature` files that have a
 no edits. The language server loads the Gherkin parser when it parses a
 `.feature` file, with or without a header, and caches the loaded parser.
 
-The VS Code extension sends `.feature` buffers to the server and colours the
-Gherkin keywords and the MarkSpec headers (see
-[VS Code extension](editor-vscode.md#feature-files)), when the workspace has a
-`.markspec.yaml`. Other clients must send `.feature` buffers themselves.
+The VS Code extension colours the Gherkin keywords and the MarkSpec headers in
+every workspace. It sends `.feature` buffers to the server when the workspace
+has a `.markspec.yaml` (see
+[VS Code extension](editor-vscode.md#feature-files)). Other clients must send
+`.feature` buffers themselves.
 
 What works in a `.feature` file:
 
