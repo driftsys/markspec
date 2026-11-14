@@ -59,6 +59,13 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "feature",
+        "scopeName": "source.feature.markspec",
+        "path": "./syntaxes/feature.tmLanguage.json"
+      }
+    ],
     "commands": [
       {
         "command": "markspec.showOutput",
@@ -318,7 +325,7 @@
     "bundle": "deno run --config ../../deno.json --allow-read --allow-write scripts/bundleBinary.ts",
     "package": "npm run bundle && vsce package",
     "lint": "eslint src",
-    "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js out/mcpDefinition.test.js out/inlineCompletions.test.js out/codeLensCommands.test.js out/statusBar.test.js out/installToPath.test.js out/documentSelector.test.js out/contributes.test.js out/projectGate.test.js"
+    "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js out/mcpDefinition.test.js out/inlineCompletions.test.js out/codeLensCommands.test.js out/statusBar.test.js out/installToPath.test.js out/documentSelector.test.js out/contributes.test.js out/projectGate.test.js out/grammar.test.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
