@@ -220,3 +220,18 @@ comment above a `Feature`, `Rule` or `Scenario`. The role checks of
 [Role of a Gherkin block](#role-of-a-gherkin-block) and the procedure steps also
 apply to those entries, which are typed without a profile. See
 [Entries in `.feature` files](feature-files.md).
+
+## Known limitations
+
+- A block that does not parse is read by a line scanner that knows English
+  keywords only, so it gives no scenario names in another language until you fix
+  the syntax (see [Write the scenarios](#write-the-scenarios)).
+- The VS Code extension colours English Gherkin keywords only; a `# language:`
+  line does not change them (see [VS Code extension](editor-vscode.md)).
+- The language server does not publish `MSL-L006` and `MSL-T014` (issue
+  [#938](https://github.com/driftsys/markspec/issues/938)). Renaming a scenario
+  name does not update the locators that point at it, and there are no quick
+  fixes for `.feature` files (issue
+  [#943](https://github.com/driftsys/markspec/issues/943)).
+- Open gaps for `.feature` entries are listed in
+  [Known limitations](feature-files.md#known-limitations).
