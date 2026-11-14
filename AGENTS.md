@@ -115,7 +115,8 @@ markspec/
 │       │   │                          of the owning project
 │       │   ├── symbols.ts           ← document-symbol (outline) + workspace-
 │       │   │                          symbol (fuzzy entry search) builders
-│       │   ├── folding.ts           ← one foldable region per entry block
+│       │   ├── folding.ts           ← one foldable region per entry block;
+│       │   │                          `.feature` entries fold over their node
 │       │   ├── highlights.ts        ← document highlights (read / write) for
 │       │   │                          whole-token display-ID matches in file
 │       │   ├── code_actions.ts      ← quick-fix code actions for diagnostics
@@ -124,7 +125,10 @@ markspec/
 │       │   │                          MSL-A011 multi-line, MSL-A012 remove,
 │       │   │                          MSL-P021 empty `Key:` remove,
 │       │   │                          MSL-P023 indent git-style trailer)
-│       │   ├── context.ts           ← doc comment context guard (source files)
+│       │   ├── context.ts           ← doc comment context guard (source files);
+│       │   │                          `isFeatureFile`: `.feature` is MarkSpec on `#`
+│       │   │                          comment lines only (Id stamping on format
+│       │   │                          lives in server.ts)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       ├── mcp/
 │       │   ├── server.ts            ← MCP protocol adapter

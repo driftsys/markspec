@@ -8,9 +8,12 @@ import { assertEquals } from "@std/assert";
 import {
   fencedLinesForFile,
   isDocCommentContext,
+  isFeatureFile,
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
+import { findIdOccurrencesInFile } from "./rename.ts";
+import { findOccurrencesInFile } from "./highlights.ts";
 
 // --- File-level guard ---
 
@@ -147,4 +150,109 @@ Deno.test("fencedLinesForFile: source files retain legacy toggles independently 
     // Source classification must not pollute the Markdown cache for this text.
     assertEquals([...fencedLinesForFile(text, "example.md")], []);
   }
+});
+
+// --- .feature files (Gherkin Case B) ---
+
+Deno.test("isMarkspecFile: accepts .feature files", () => {
+  assertEquals(isMarkspecFile("a/b.feature"), true);
+});
+
+Deno.test("isFeatureFile: accepts .feature case-insensitively", () => {
+  assertEquals(isFeatureFile("a/b.FEATURE"), true);
+  assertEquals(isFeatureFile("a/b.md"), false);
+});
+
+Deno.test("isSourceFile: rejects .feature files", () => {
+  assertEquals(isSourceFile("a/b.feature"), false);
+});
+
+Deno.test("fencedLinesForFile: .feature excludes every non-comment line", () => {
+  const text = [
+    "# [TST_0001] Login",
+    "Feature: x",
+    "  Scenario: y",
+    "    Given TST_0001 step",
+    '      """',
+    "      TST_0001",
+    '      """',
+  ].join("\n");
+  assertEquals(
+    [...fencedLinesForFile(text, "x.feature")].sort(),
+    [1, 2, 3, 4, 5, 6],
+  );
+});
+
+Deno.test("rename and highlight scans see only the .feature header ID", () => {
+  const text = [
+    "# [TST_0001] Login",
+    "Feature: x",
+    "    Given TST_0001 step",
+    '      """',
+    "      TST_0001",
+    '      """',
+  ].join("\n");
+  const fenced = fencedLinesForFile(text, "x.feature");
+  assertEquals(
+    findIdOccurrencesInFile(text, "TST_0001", "TST_0002", fenced).length,
+    1,
+  );
+  assertEquals(findOccurrencesInFile(text, "TST_0001", fenced).length, 1);
+});
+
+Deno.test("fencedLinesForFile: .feature excludes # lines inside a doc string", () => {
+  for (const delimiter of ['"""', "```"]) {
+    const text = [
+      "# [TST_0001] Login",
+      "# Satisfies: REQ_0001",
+      "Feature: x",
+      "  Scenario: y",
+      "    Given a payload",
+      `      ${delimiter}markdown`,
+      "      # see REQ_0001 here",
+      `      ${delimiter}`,
+      "  # [TST_0002] After",
+      "  Scenario: z",
+    ].join("\n");
+    const fenced = fencedLinesForFile(text, "x.feature");
+    assertEquals(fenced.has(6), true, delimiter);
+    assertEquals(fenced.has(8), false, delimiter);
+    assertEquals(
+      findIdOccurrencesInFile(text, "REQ_0001", "REQ_0009", fenced, true)
+        .map((e) => e.range.start.line),
+      [1],
+      delimiter,
+    );
+    assertEquals(
+      findOccurrencesInFile(text, "REQ_0001", fenced).map((h) =>
+        h.range.start.line
+      ),
+      [1],
+      delimiter,
+    );
+  }
+});
+
+Deno.test("fencedLinesForFile: .feature keeps an indented # header line", () => {
+  const text = "Feature: F\n  # [TST_0002] Inner\n  Scenario: S\n";
+  const fenced = fencedLinesForFile(text, "x.feature");
+  assertEquals(fenced.has(1), false);
+  assertEquals(
+    findIdOccurrencesInFile(text, "TST_0002", "TST_0009", fenced).length,
+    1,
+  );
+});
+
+Deno.test("fencedLinesForFile: a doc string closes only on its own delimiter", () => {
+  const text = [
+    "Feature: x",
+    '  """',
+    "  ```",
+    "  # inside REQ_0001",
+    '  """',
+    "  # [TST_0001] After",
+  ].join("\n");
+  const fenced = fencedLinesForFile(text, "x.feature");
+  assertEquals(fenced.has(3), true);
+  assertEquals(fenced.has(5), false);
 });

@@ -28,6 +28,19 @@ use on the command line.
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
+### `.feature` files
+
+The language server supports Gherkin `.feature` files that have `# [ID]` headers
+(see [Entries in `.feature` files](feature-files.md#editor-support)). The VS
+Code extension does not list a `feature` language in its document selector, and
+the extension does not contribute that language, so VS Code does not send
+`.feature` buffers to the server. Without the buffers, the server still indexes
+`.feature` files from disk and publishes their diagnostics from the file on
+disk, and rename, definition and references started from a Markdown file reach
+`.feature` entries. Diagnostics of unsaved edits, hover, highlights, outline,
+folding, formatting and requests started inside a `.feature` file work only in a
+client that sends `.feature` buffers to the server.
+
 ### Nested projects
 
 Nested projects inherit `.gitignore` rules from the outermost enclosing project
@@ -197,7 +210,8 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 - Confirm the binary is on `PATH`: `markspec --version` in a terminal.
 - Check the MarkSpec output panel (**View → Output → MarkSpec**) for LSP errors.
 - Confirm the file extension is recognised — that's the only gate for whether a
-  file's diagnostics publish at all (`.md`, or a supported source extension).
+  file's diagnostics publish at all (`.md`, `.feature`, or a supported source
+  extension).
 - In source files, hover/completion/go-to-definition/rename additionally require
   the cursor to be within ~20 lines of an entry marker or trace attribute
   keyword — but this proximity rule doesn't apply to `.md` files, and it doesn't

@@ -11,6 +11,7 @@ import {
   toLspSeverity,
 } from "./diagnostics.ts";
 import type { Diagnostic as CoreDiagnostic } from "../core/mod.ts";
+import { mergeDiagnostics } from "./project_context.ts";
 
 Deno.test("toLspSeverity: maps error to 1", () => {
   assertEquals(toLspSeverity("error"), 1);
@@ -143,4 +144,31 @@ Deno.test("groupDiagnosticsByFile: groups diagnostics by file path", () => {
   assertEquals(grouped.get("b.md")?.length, 1);
   // Diagnostics with undefined location are not grouped
   assertEquals(grouped.size, 2);
+});
+
+Deno.test("mergeDiagnostics: drops a copy found in an earlier list, keeps copies within one list", () => {
+  const diag: CoreDiagnostic = {
+    code: "MSL-X001",
+    severity: "error",
+    message: "m",
+    location: { file: "/a.md", line: 1, column: 1 },
+  };
+  assertEquals(mergeDiagnostics([diag, { ...diag }], [{ ...diag }]).length, 2);
+  assertEquals(mergeDiagnostics([diag], [{ ...diag }]).length, 1);
+});
+
+Deno.test("mergeDiagnostics: keeps different diagnostics from different lists", () => {
+  const parse: CoreDiagnostic = {
+    code: "MSL-P001",
+    severity: "error",
+    message: "p",
+    location: { file: "/a.md", line: 1, column: 1 },
+  };
+  const crossFile: CoreDiagnostic = {
+    code: "MSL-R003",
+    severity: "error",
+    message: "r",
+    location: { file: "/a.md", line: 5, column: 7 },
+  };
+  assertEquals(mergeDiagnostics([parse], [crossFile]), [parse, crossFile]);
 });

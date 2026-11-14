@@ -1065,16 +1065,58 @@ Deno.test("ProjectContext: a disposed context sends no diagnostics or notificati
   assertEquals(sent, [`diagnostics ${pathToUri(abs("p/req.md"))}`]);
 });
 
-Deno.test("ProjectRegistry: a headed .feature file is not indexed until the LSP supports it", async () => {
+Deno.test("ProjectContext: the walk indexes a .feature file with a MarkSpec header", async () => {
   const fx = new Fixture({
-    ".markspec.yaml": "profiles: []\n",
-    "req.md": entry("REQ_0001", "A"),
-    "brake.feature":
-      "# [REQ_0002] Brake\n# Id: 01HGW2Q8MNP3RSTVWXYZABCDEB\nFeature: Brake\n  Scenario: Stop\n    Given a car\n    Then it stops\n",
+    "docs/a.md": entry("REQ_0001", "A"),
+    "tests/login.feature":
+      "Feature: Login\n\n  # [TST_0001] Login\n  Scenario: Log in\n    Given a user\n",
   });
   await fx.start("");
+
   const ctx = fx.registry.primary;
   assertExists(ctx);
-  assertEquals(ctx.index.getFilePaths(), [abs("req.md")]);
-  assertEquals(ctx.index.getAllEntries().map((e) => e.displayId), ["REQ_0001"]);
+  const found = ctx.index.getEntryByDisplayId("TST_0001" as never);
+  assertExists(found);
+  assertEquals(found.location.file, abs("tests/login.feature"));
+});
+
+Deno.test("ProjectContext: a headerless .feature file is indexed with no entries and no diagnostics", async () => {
+  const fx = new Fixture({
+    "docs/a.md": entry("REQ_0001", "A"),
+    "tests/plain.feature": "Feature: Plain\n  Scenario: S\n    Given a user\n",
+  });
+  await fx.start("");
+
+  const ctx = fx.registry.primary;
+  assertExists(ctx);
+  const path = abs("tests/plain.feature");
+  assert(ctx.index.getFilePaths().includes(path));
+  assertEquals(ctx.index.getEntriesForFile(path), []);
+  assertEquals(
+    ctx.index.validateAll(null).filter((d) => d.location?.file === path),
+    [],
+  );
+});
+
+Deno.test("ProjectContext: the cross-file publish keeps parse diagnostics (#939)", async () => {
+  const published = new Map<string, string[]>();
+  const host: ProjectContextHost = {
+    readFile: () => Promise.resolve(undefined),
+    realPath: (p) => Promise.resolve(p),
+    readDir: async function* () {},
+    sendDiagnostics: (uri, diags) =>
+      published.set(uri, diags.map((d) => d.code)),
+    sendNotification: () => {},
+    refreshLenses: () => {},
+    log: () => {},
+    warn: () => {},
+    logEvent: () => {},
+  };
+  const ctx = new ProjectContext(abs("p"), host);
+  await ctx.index.parseAndUpdateFile(abs("p/bad.md"), "- [] Title\n");
+  ctx.publishAllDiagnostics();
+  const codes = published.get(pathToUri(abs("p/bad.md"))) ?? [];
+  assertEquals(codes.filter((c) => c === "MSL-P001").length, 1);
+  // lastDiagnostics stays the cross-file validation result only.
+  assertEquals(ctx.lastDiagnostics.some((d) => d.code === "MSL-P001"), false);
 });

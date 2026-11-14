@@ -25,6 +25,7 @@ import {
   type DiscoveryDirEntry,
   type EffectiveProfile,
   type Entry,
+  FEATURE_EXTENSIONS,
   loadConfig,
   loadDeliveredCorpus,
   loadProfileForCommand,
@@ -68,10 +69,12 @@ import { time, timeAsync } from "./timing.ts";
  */
 const DIAGNOSTICS_HISTOGRAM_TOP_N = 20;
 
-/** Extensions the LSP walk indexes: the ones `isMarkspecFile` accepts. */
+/** Extensions the LSP walk indexes: the ones `isMarkspecFile` accepts
+ * (Markdown, doc-comment source files, and `.feature` files). */
 const LSP_EXTENSIONS: ReadonlySet<string> = new Set([
   ...MARKDOWN_EXTENSIONS,
   ...SOURCE_EXTENSIONS,
+  ...FEATURE_EXTENSIONS,
 ]);
 
 /** Number of files read and parsed at the same time during indexing. */
@@ -412,8 +415,6 @@ export class ProjectContext {
       const path of discoverFiles(this.root, io, {
         exclude: this.toolConfig.exclude,
         inheritGitignoreFrom,
-        // The LSP does not handle `.feature` files yet (no document sync,
-        // fence guard or diagnostics for them), so the walk skips them.
         extensions: LSP_EXTENSIONS,
       })
     ) {
@@ -484,7 +485,11 @@ export class ProjectContext {
       ...histogram,
     });
 
-    const grouped = groupDiagnosticsByFile(allDiags);
+    // Parse diagnostics are not part of validateAll; add them so this
+    // publish does not replace them with an empty list (#939).
+    const grouped = groupDiagnosticsByFile(
+      mergeDiagnostics(this.index.getAllParseDiagnostics(), allDiags),
+    );
 
     // Send diagnostics for files that have issues. Delivered corpus files
     // (ADR-030) are never published — they are read-only, sourced from a
@@ -822,6 +827,38 @@ export class ProjectContext {
       }
     }
   }
+}
+
+/**
+ * Concatenate diagnostic lists, dropping any diagnostic equal to one in an
+ * earlier list (same code, file, position and message). Equal diagnostics
+ * within one list are all kept. Used to publish a
+ * file's parse diagnostics together with its cross-file diagnostics.
+ */
+export function mergeDiagnostics(
+  ...lists: readonly (readonly CoreDiagnostic[])[]
+): CoreDiagnostic[] {
+  const seen = new Set<string>();
+  const out: CoreDiagnostic[] = [];
+  for (const list of lists) {
+    // Keys of this list join `seen` only after the list is done, so two
+    // equal diagnostics within one list are both kept.
+    const keys = new Set<string>();
+    for (const d of list) {
+      const key = [
+        d.code,
+        d.location?.file,
+        d.location?.line,
+        d.location?.column,
+        d.message,
+      ].join("\u0000");
+      if (seen.has(key)) continue;
+      keys.add(key);
+      out.push(d);
+    }
+    for (const key of keys) seen.add(key);
+  }
+  return out;
 }
 
 /** `true` when both lists hold the same strings in the same order. */

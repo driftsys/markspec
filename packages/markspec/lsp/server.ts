@@ -43,6 +43,7 @@ import {
   filterEntriesByTraceTargets,
   format,
   formatEntryOrigin,
+  formatFeatureText,
   isCorpusEntry,
   isLineFenced,
   isWithin,
@@ -52,7 +53,11 @@ import {
   VERSION,
 } from "../core/mod.ts";
 import { parseUxRef } from "../core/uxil/mod.ts";
-import { ProjectContext, type ProjectContextHost } from "./project_context.ts";
+import {
+  mergeDiagnostics,
+  ProjectContext,
+  type ProjectContextHost,
+} from "./project_context.ts";
 import { ProjectRegistry } from "./project_registry.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
@@ -113,6 +118,7 @@ import { mintReservedNumber } from "./id_reservations.ts";
 import {
   fencedLinesForFile,
   isDocCommentContext,
+  isFeatureFile,
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
@@ -371,7 +377,7 @@ async function reindexOpenDocuments(): Promise<void> {
     // The buffer was closed, or the context replaced, during the awaits.
     if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) continue;
     if (!stillOwnedBy(ctx, filePath)) continue;
-    publishFileDiagnostics(filePath, parseDiags);
+    publishFileDiagnostics(ctx, filePath, parseDiags);
     ctx.scheduleValidateAll();
   }
 }
@@ -392,13 +398,18 @@ async function readFile(path: string): Promise<string | undefined> {
 // Diagnostics
 // ---------------------------------------------------------------------------
 
-/** Publish diagnostics for a single file from its parsed entries. */
+/** Publish diagnostics for a single file: its parse diagnostics plus the
+ * cached cross-file diagnostics of `ctx` for that file, so this publish
+ * does not hide the cross-file ones until the next validation (#939). After
+ * an edit, the merged cross-file diagnostics can be up to one debounce
+ * (1 s) old, until the debounced validation republishes. */
 function publishFileDiagnostics(
+  ctx: ProjectContext,
   filePath: string,
   diagnostics: readonly CoreDiagnostic[],
 ): void {
   const uri = pathToUri(filePath);
-  const lspDiags = diagnostics
+  const lspDiags = mergeDiagnostics(diagnostics, ctx.lastDiagnostics)
     .filter((d) => d.location?.file === filePath)
     .map(toLspDiagnostic) as unknown as LspDiagnosticType[];
   connection.sendDiagnostics({ uri, diagnostics: lspDiags });
@@ -461,7 +472,7 @@ function scheduleParse(filePath: string, text: string): void {
       // The just-parsed entries now carry any display ID a scaffold accept
       // reserved — drop those reservations so the numbers aren't blocked.
       ctx.releaseObservedReservations(filePath);
-      publishFileDiagnostics(filePath, parseDiags);
+      publishFileDiagnostics(ctx, filePath, parseDiags);
       ctx.scheduleValidateAll();
     }, 50);
     debouncedFileParses.set(filePath, debouncedParse);
@@ -774,7 +785,7 @@ documents.onDidOpen(async (event) => {
   if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) return;
   if (!stillOwnedBy(ctx, filePath)) return;
   ctx.releaseObservedReservations(filePath);
-  publishFileDiagnostics(filePath, parseDiags);
+  publishFileDiagnostics(ctx, filePath, parseDiags);
   ctx.scheduleValidateAll();
 });
 // ---------------------------------------------------------------------------
@@ -796,6 +807,12 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
     if (!isDocCommentContext(lines, params.position.line)) {
       return [];
     }
+  }
+
+  // Only `#` comment lines outside doc strings are MarkSpec in a .feature
+  // file (D5): steps, doc strings and tables get no completions.
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return [];
   }
 
   const line = document.getText({
@@ -1131,6 +1148,21 @@ function isValidReplacementRange(
     typeof end?.character === "number";
 }
 
+/**
+ * `true` when the cursor line of a `.feature` file is not a `#` comment
+ * line. Only comment lines are MarkSpec there (D5), so a display ID in a
+ * step, doc string or table is not a reference.
+ */
+function isOutsideFeatureComments(
+  document: TextDocument,
+  filePath: string,
+  line: number,
+): boolean {
+  if (!isFeatureFile(filePath)) return false;
+  const text = document.getText();
+  return isLineFenced(text, line, fencedLinesForFile(text, filePath));
+}
+
 // ---------------------------------------------------------------------------
 // Hover
 // ---------------------------------------------------------------------------
@@ -1143,6 +1175,9 @@ connection.onHover((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   const ctx = projects.contextFor(filePath);
   if (!ctx) return null;
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return null;
+  }
 
   // Source-file position guard — only consider doc-comment context.
   if (isSourceFile(filePath)) {
@@ -1215,6 +1250,9 @@ connection.onDefinition((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   const ctx = projects.contextFor(filePath);
   if (!ctx) return null;
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return null;
+  }
 
   // Source-file position guard.
   if (isSourceFile(filePath)) {
@@ -1263,6 +1301,9 @@ connection.onReferences((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   const ctx = projects.contextFor(filePath);
   if (!ctx) return null;
+  if (isOutsideFeatureComments(document, filePath, params.position.line)) {
+    return null;
+  }
   if (isSourceFile(filePath)) {
     const lines = document.getText().split("\n");
     if (!isDocCommentContext(lines, params.position.line)) {
@@ -1430,6 +1471,7 @@ connection.onRenameRequest(async (params) => {
       oldId,
       newId,
       fencedLinesForFile(text, path),
+      isFeatureFile(path),
     );
     if (fileEdits.length > 0) {
       changes[uri] = fileEdits as unknown as LspTextEdit[];
@@ -1506,6 +1548,16 @@ connection.onDocumentFormatting(async (params) => {
   if (!isMarkspecFile(filePath)) return [];
   // Delivered corpus files are read-only (ADR-030) — never format them.
   if (ctx.isCorpusFile(filePath)) return [];
+
+  // Gherkin files are not Markdown: only missing header Ids are stamped, and
+  // the Markdown formatter is never loaded. A headerless, unparsable or fully
+  // stamped file yields no edits.
+  if (isFeatureFile(filePath)) {
+    const featureText = document.getText();
+    const stamped = await formatFeatureText(featureText, filePath);
+    // deno-lint-ignore no-explicit-any
+    return buildFormattingEdits(featureText, stamped.output) as any;
+  }
 
   // Source files are read-only for formatting (ADR-029: Markdown files
   // only) — doc-comment layout belongs to the host language's formatter.

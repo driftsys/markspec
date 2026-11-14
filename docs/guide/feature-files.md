@@ -174,13 +174,71 @@ name in its paths. The scope line of a bare `markspec check` or `markspec fmt`
 counts a `.feature` file, so a project that has such files shows a larger `N` in
 `checking N file(s)` than before, even if no file has a header.
 
-The language server does not index `.feature` files yet, so an editor shows no
-diagnostics, hover or completion for them. A rename of a display ID in the
-editor also does not update `.feature` files: a `Satisfies:` or `Verifies:`
-trailer in a `.feature` header keeps the old ID until you change it by hand, and
-the project-wide `markspec check` reports it as an unresolved reference. This
-gap closes when the language server reads `.feature` files. The MCP server
-tracks them, so `markspec_refresh` sees a changed `.feature` file.
+The MCP server tracks `.feature` files, so `markspec_refresh` sees a changed
+`.feature` file.
+
+## Editor support
+
+The language server (`markspec lsp`) indexes `.feature` files that have a
+`# [ID]` header, in the same project walk as Markdown and source files. A
+`.feature` file with no header gives no entries, no diagnostics, no symbols, and
+no edits. The language server loads the Gherkin parser when it parses a
+`.feature` file, with or without a header, and caches the loaded parser.
+
+What works in a `.feature` file:
+
+- **Diagnostics.** The parse diagnostics of the file (`MSL-B062`, `MSL-B069`)
+  and the cross-file diagnostics of its entries appear at the positions in the
+  `.feature` file. The language server keeps the parse diagnostics when it
+  publishes the cross-file diagnostics, so they no longer disappear a moment
+  after you open or edit a file.
+- **Navigation.** The outline lists every `# [ID]` header, a Feature and its
+  nested Scenarios. Go-to-definition from a display ID elsewhere lands on the
+  `#` of the header line. Find all references includes a `.feature` entry whose
+  trailer names the ID. Hover shows the entry. Highlights mark the display ID in
+  the header and trailer comment lines. Hover, definition, references,
+  highlights and rename act on `#` comment lines only: a display ID in a step, a
+  doc string or a table gives no result.
+- **Folding.** An entry folds from its header line to the last line of the
+  Gherkin node it owns, so a Feature entry stays folded over its Scenarios.
+- **Rename.** Renaming a display ID rewrites it in `#` comment lines of every
+  `.feature` file of the project: the `# [ID]` line and the trailer values. A
+  scenario locator such as `# Verifies: REQ_BRK_0011 [Brake at 20 m]` keeps its
+  locator text. An ID in a step, a doc string or a table is not a reference and
+  is not rewritten, and highlights and rename ignore it.
+- **Formatting.** Format document stamps a missing `# Id:` line, as
+  `markspec fmt` does, and changes nothing else. It returns no edits for a file
+  with no header, a file that does not parse, and a file whose headers all have
+  an Id. The Markdown formatter is not used.
+- **Completion.** Completion returns nothing on a step, a table line or any line
+  of a doc string, including a `#` line inside it. On a `#` comment line outside
+  a doc string, the `$Name` and `ux:` reference triggers work as in Markdown;
+  the trailer-key and display-ID triggers do not match (see Known limitations).
+
+### Known limitations
+
+- Completion of trailer keys and display IDs does not trigger on a header
+  comment line today. Their triggers expect the key at the start of the line,
+  and a `#` comment line starts with `#`. Block scaffolds (`- [`) are for
+  Markdown and do not apply either.
+- The language server does not publish the traceability diagnostics `MSL-L006`
+  and `MSL-T014`, for `.feature` files or for any other file. Only
+  `markspec
+  check` reports them (issue
+  [#938](https://github.com/driftsys/markspec/issues/938)).
+- Renaming a Scenario name does not update the scenario locators that point at
+  it. Rename of a display ID is supported; rename of a scenario name is not.
+- There are no quick fixes for `.feature` files. The existing quick fixes match
+  indented trailer lines, which a `#` header does not have. Fix the diagnostics
+  by hand or with `markspec fmt`.
+- The VS Code extension does not send `.feature` buffers to the language server,
+  because its document selector has no `feature` language. Without the buffers,
+  the server still indexes `.feature` files from disk in its project walk and
+  publishes their diagnostics from the file on disk, and rename, definition and
+  references started from a Markdown file reach `.feature` entries. Diagnostics
+  of unsaved edits, hover, highlights, outline, folding, formatting and requests
+  started inside a `.feature` file need a client that sends `.feature` buffers
+  to the server.
 
 ## Example
 
