@@ -54,7 +54,7 @@ import { resolveServerOptions } from "./serverOptions";
 import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
 import { DecorationManager } from "./decorations";
-import { startServerWhenProject } from "./projectGate";
+import { activateWith } from "./activation";
 import {
   MARKSPEC_DOCUMENT_SELECTOR,
   WATCHED_FILE_GLOB,
@@ -121,60 +121,60 @@ function stripTypePrefix(detail: string | undefined): string | undefined {
 export async function activate(context: ExtensionContext): Promise<void> {
   outputChannel = window.createOutputChannel("MarkSpec");
   context.subscriptions.push(outputChannel);
-  // These commands need no server, so they work in any workspace.
-  registerServerlessCommands(context);
   // The `feature` language contribution activates the extension for any
   // `.feature` file, so start the server only in a MarkSpec project, or
-  // once a `.markspec.yaml` is created later.
-  const markerWatcher = await startServerWhenProject({
-    // `undefined` applies the default file excludes (`files.exclude`);
-    // `null` would apply none.
-    findFiles: (glob, max) => workspace.findFiles(glob, undefined, max),
-    createWatcher: (glob) => workspace.createFileSystemWatcher(glob),
-    start: () => {
-      if (!client) startMarkspec(context);
+  // once a `.markspec.yaml` is created later. The serverless commands
+  // register first, so they work in every workspace.
+  await activateWith({
+    subscriptions: context.subscriptions,
+    registerCommand: (id, handler) => commands.registerCommand(id, handler),
+    commandHandlers: {
+      "markspec.showOutput": () => {
+        outputChannel?.show();
+      },
+      "markspec.installToPath": () => installToPath(context),
+    },
+    gate: {
+      findFiles: (glob, exclude, max) =>
+        workspace.findFiles(glob, exclude, max),
+      createWatcher: (glob) => workspace.createFileSystemWatcher(glob),
+      start: () => {
+        if (!client) startMarkspec(context);
+      },
     },
   });
-  if (markerWatcher) context.subscriptions.push(markerWatcher);
 }
 
-/** Register the commands that work without the language server. */
-function registerServerlessCommands(context: ExtensionContext): void {
-  context.subscriptions.push(
-    commands.registerCommand("markspec.showOutput", () => {
-      outputChannel?.show();
-    }),
-    commands.registerCommand("markspec.installToPath", async () => {
-      const plan = planForHost(context.extensionPath);
-      try {
-        await performCopy(plan);
-        const onPath = isDirOnPath(
-          plan.targetDir,
-          process.env.PATH ?? process.env.Path,
-          nodePath.delimiter,
-          process.platform,
-        );
-        if (onPath) {
-          window.showInformationMessage(
-            `MarkSpec CLI installed to ${plan.target}`,
-          );
-        } else {
-          const hint = pathHint(plan.targetDir, process.platform);
-          const pick = await window.showWarningMessage(
-            `MarkSpec CLI copied to ${plan.target}, but ${plan.targetDir} is not on your PATH.`,
-            "Copy PATH command",
-          );
-          if (pick === "Copy PATH command") {
-            await env.clipboard.writeText(hint);
-            window.showInformationMessage("PATH command copied to clipboard");
-          }
-        }
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        window.showErrorMessage(`MarkSpec: install failed — ${reason}`);
+/** Copy the bundled CLI to a folder on the user's PATH. */
+async function installToPath(context: ExtensionContext): Promise<void> {
+  const plan = planForHost(context.extensionPath);
+  try {
+    await performCopy(plan);
+    const onPath = isDirOnPath(
+      plan.targetDir,
+      process.env.PATH ?? process.env.Path,
+      nodePath.delimiter,
+      process.platform,
+    );
+    if (onPath) {
+      window.showInformationMessage(
+        `MarkSpec CLI installed to ${plan.target}`,
+      );
+    } else {
+      const hint = pathHint(plan.targetDir, process.platform);
+      const pick = await window.showWarningMessage(
+        `MarkSpec CLI copied to ${plan.target}, but ${plan.targetDir} is not on your PATH.`,
+        "Copy PATH command",
+      );
+      if (pick === "Copy PATH command") {
+        await env.clipboard.writeText(hint);
+        window.showInformationMessage("PATH command copied to clipboard");
       }
-    }),
-  );
+    }
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    window.showErrorMessage(`MarkSpec: install failed — ${reason}`);
+  }
 }
 
 function startMarkspec(context: ExtensionContext): void {

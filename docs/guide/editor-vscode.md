@@ -134,8 +134,10 @@ workspace that contains a `.markspec.yaml` activator (per ADR-008). In a plain
 Markdown or source repository with no `.markspec.yaml` it never spawns the
 language server, never indexes, and never writes a `.markspec/` directory. The
 grammars and the commands (**MarkSpec: Show Output**, **MarkSpec: Install CLI to
-PATH**) work in every workspace. Run `markspec init` (or add a `.markspec.yaml`)
-to turn a workspace into a MarkSpec project.
+PATH**) work in every workspace; outside a MarkSpec project, **Show Output**
+opens the MarkSpec output channel, which stays empty because no server runs. Run
+`markspec init` (or add a `.markspec.yaml`) to turn a workspace into a MarkSpec
+project.
 
 ## Configuration
 

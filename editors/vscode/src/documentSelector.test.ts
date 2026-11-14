@@ -24,15 +24,12 @@ test("selector selects .feature files by file pattern, not by language id", () =
     MARKSPEC_DOCUMENT_SELECTOR.filter((entry) => "pattern" in entry),
     [{ scheme: "file", pattern: "**/*.feature" }],
   );
-  for (const id of ["feature", "cucumber"]) {
-    assert.equal(
-      MARKSPEC_DOCUMENT_SELECTOR.some((entry) =>
-        "language" in entry && entry.language === id
-      ),
-      false,
-      `unexpected language entry ${id}`,
-    );
-  }
+  assert.deepEqual(
+    MARKSPEC_DOCUMENT_SELECTOR.flatMap((entry) =>
+      "language" in entry ? [entry.language] : []
+    ),
+    LANGUAGES,
+  );
 });
 
 test("selector keeps every existing language entry", () => {

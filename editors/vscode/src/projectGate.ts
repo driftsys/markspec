@@ -12,6 +12,7 @@ export const PROJECT_MARKER_GLOB = "**/.markspec.yaml";
 /** The part of `workspace.findFiles` that the gate uses. */
 export type FindFiles = (
   glob: string,
+  exclude: string | null | undefined,
   maxResults?: number,
 ) => PromiseLike<readonly unknown[]>;
 
@@ -19,14 +20,15 @@ export type FindFiles = (
 export async function shouldStartServer(
   findFiles: FindFiles,
 ): Promise<boolean> {
-  const found = await findFiles(PROJECT_MARKER_GLOB, 1);
+  // `undefined` excludes apply the default `files.exclude`; `null` would
+  // apply none and scan every folder.
+  const found = await findFiles(PROJECT_MARKER_GLOB, undefined, 1);
   return found.length > 0;
 }
 
 /** The part of a VS Code `FileSystemWatcher` that the gate uses. */
 export interface MarkerWatcher {
   onDidCreate(listener: () => void): unknown;
-  onDidChange(listener: () => void): unknown;
   dispose(): void;
 }
 

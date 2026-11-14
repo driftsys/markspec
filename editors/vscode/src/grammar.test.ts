@@ -347,3 +347,17 @@ test("empty or space-led angle brackets are not parameters", () => {
     assert.equal(s.includes("variable.parameter.feature"), false, line);
   }
 });
+
+test("a backtick fence inside a triple-quote doc string does not close it", () => {
+  const out = scopesPerLine([
+    '    """',
+    "    ```",
+    "    # [SC_A_1] still inside",
+    '    """',
+  ]);
+  assert.deepEqual(
+    out[2],
+    ["string.quoted.docstring.feature"],
+    out[2].join("|"),
+  );
+});

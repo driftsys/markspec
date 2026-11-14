@@ -8,13 +8,15 @@ import {
 } from "./projectGate";
 
 test("starts the server when a .markspec.yaml exists", async () => {
-  const calls: Array<[string, number | undefined]> = [];
-  const result = await shouldStartServer((glob, maxResults) => {
-    calls.push([glob, maxResults]);
+  const calls: unknown[][] = [];
+  const result = await shouldStartServer((...args) => {
+    calls.push(args);
     return Promise.resolve([{}]);
   });
   assert.equal(result, true);
-  assert.deepEqual(calls, [[PROJECT_MARKER_GLOB, 1]]);
+  // `undefined` excludes apply `files.exclude`; `null` would apply none.
+  assert.deepEqual(calls, [[PROJECT_MARKER_GLOB, undefined, 1]]);
+  assert.equal(calls[0].length, 3);
 });
 
 test("does not start the server without a .markspec.yaml", async () => {
@@ -31,7 +33,6 @@ function fakeHost(markers: number) {
     starts: 0,
     globs: [] as string[],
     created: [] as Array<() => void>,
-    changed: [] as Array<() => void>,
     disposed: 0,
   };
   const host: GateHost = {
@@ -41,9 +42,6 @@ function fakeHost(markers: number) {
       return {
         onDidCreate: (cb) => {
           log.created.push(cb);
-        },
-        onDidChange: (cb) => {
-          log.changed.push(cb);
         },
         dispose: () => {
           log.disposed++;
@@ -76,7 +74,6 @@ test("gate does not start the server without a marker", async () => {
 test("gate starts once when a marker is created later, on onDidCreate", async () => {
   const { host, log } = fakeHost(0);
   await startServerWhenProject(host);
-  assert.equal(log.changed.length, 0, "onDidChange is not used");
   assert.equal(log.created.length, 1);
   log.created[0]();
   assert.equal(log.starts, 1);

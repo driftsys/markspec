@@ -113,7 +113,8 @@ through setting up a project and choosing a profile.
 
 Both are available from the Command Palette (`Ctrl/Cmd+Shift+P`):
 
-- **MarkSpec: Show Output** — open the LSP output channel.
+- **MarkSpec: Show Output** — open the MarkSpec output channel (empty outside a
+  MarkSpec project, where no server runs).
 - **MarkSpec: Install CLI to PATH** — make the bundled `markspec` binary
   available in your terminal.
 
