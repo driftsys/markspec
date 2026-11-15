@@ -71,10 +71,17 @@ Deno.test("staticallyReached and hasDynamicImportOf: graph with no npm module en
     modules: [
       {
         specifier: mod,
-        dependencies: [{
-          specifier: "./gherkin/load.ts",
-          code: { specifier: load },
-        }],
+        dependencies: [
+          { specifier: "./gherkin/load.ts", code: { specifier: load } },
+          // Other dynamic imports, which must not count as the parser's.
+          {
+            specifier: "./other.ts",
+            code: { specifier: "file:///D:/other.ts" },
+            isDynamic: true,
+          },
+          // An unresolved dynamic import of the parser has no `code`.
+          { specifier: "@cucumber/gherkin", isDynamic: true },
+        ],
       },
       {
         specifier: load,
@@ -109,11 +116,16 @@ Deno.test({
     const graph = JSON.parse(
       new TextDecoder().decode(out.stdout),
     ) as ModuleGraph;
-    // Guard the graph itself: the entry must resolve to a local module, or
-    // the checks below would pass without reading any import.
+    // Guard the graph itself: the entry must resolve to a local module and
+    // its static imports must be followed, or the checks below would pass
+    // without reading any import.
     const root = graph.modules.find((m) => m.specifier === graph.roots[0]);
     assertEquals(root?.kind, "esm", "the entry resolves to a local module");
-    assert(graph.modules.length > 1, "the graph holds the entry's imports");
+    const loader = new URL("./load.ts", import.meta.url).href;
+    assert(
+      staticallyReached(graph).has(loader),
+      "the static walk reaches core/gherkin/load.ts",
+    );
     const staticParser = [...staticallyReached(graph)].filter((s) =>
       s.includes("@cucumber/")
     );
