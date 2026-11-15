@@ -123,7 +123,7 @@ alone — not part of a `Satisfies` chain.
 A hazard or FMEA entry. Profiles typically add safety-classification attributes.
 
 - **Typical relations:** `Mitigated-by` (→ `Specification`), authored on the
-  `Risk`; it generates the inverse `Mitigates` on the target.
+  `Risk`; its reserved inverse is `Mitigates`.
 - **Typical profile attributes:** `ASIL`, `Severity`, `Probability`
 
 ```markdown

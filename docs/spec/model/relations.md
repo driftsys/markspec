@@ -55,6 +55,10 @@ The following relations are the core relations (`CORE_RELATIONS` in the core
 model). Core recognizes them without a profile, except `Generated-from`, which
 core-only validation reports as an unknown attribute (`MSL-R010`).
 
+The Inverse column gives the inverse key that core reserves. The compiler
+generates the inverse only when the active profile declares `inverse:` for the
+relation.
+
 | Relation         | Inverse          | Typical source type | Typical target type             |
 | ---------------- | ---------------- | ------------------- | ------------------------------- |
 | `Satisfies`      | `Satisfied-by`   | `Requirement`       | `Specification`                 |

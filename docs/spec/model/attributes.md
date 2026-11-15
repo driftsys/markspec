@@ -193,7 +193,7 @@ core relation attributes declared on core types are available in core-only mode.
 | `SoftwareInterface` | (none typical)                                                        | `Provided-by`, `Required-by`, `Realized-by` (generated) |
 | `HardwareInterface` | `Bus-protocol`, `Voltage-level`, `Connector-type`, `Signal-direction` | `Provided-by`, `Required-by`, `Realized-by` (generated) |
 | `Record`            | (none typical)                                                        | `Affects`, `Caused-by`                                  |
-| `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Mitigated-by`                                          |
+| `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Caused-by`, `Mitigated-by`                             |
 
 ### Component types
 
