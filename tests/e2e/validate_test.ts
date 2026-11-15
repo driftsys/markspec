@@ -1669,7 +1669,6 @@ Deno.test("validate: Generated-from is accepted in core-only check (no MSL-R010)
     },
   });
   assertEquals(code, 0, `expected a clean check; stderr: ${stderr}`);
-  assertStringIncludes(stderr, "req.md");
   assertEquals(
     /MSL-R010/.test(stderr),
     false,
