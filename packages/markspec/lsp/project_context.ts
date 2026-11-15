@@ -162,9 +162,12 @@ export class ProjectContext {
   private readonly upstreamFilePaths = new Set<string>();
 
   /** Absolute paths of the project files the last {@linkcode indexProject}
-   * walk parsed from disk. A closed editor buffer of one of these files is
-   * parsed again from disk, because the buffer only overrode the disk content
-   * while it was open (#938). Corpus files are never in this set. */
+   * walk discovered and owns. The set is filled from the discovery list
+   * before parsing, and an open buffer is parsed instead of the disk text. A
+   * closed editor buffer of one of these files is parsed again from disk,
+   * because the buffer only overrode the disk content while it was open
+   * (#938). Corpus files are not in this set because `server.ts` returns
+   * early for them before it calls {@linkcode closeFile}. */
   private readonly walkedFiles = new Set<string>();
 
   /** `true` when a profile-affecting file (`.markspec.yaml`,
@@ -541,6 +544,9 @@ export class ProjectContext {
    * keep resolving; a file that no longer exists on disk, or that the walk
    * did not index, is removed from the index. Validation is scheduled
    * afterwards.
+   *
+   * Limitation: a file created after startup is not in the walked set, so
+   * closing its buffer removes it from the index until the next re-index.
    *
    * @param stillClosed Called after each await; when it returns `false` the
    *   buffer was opened again meanwhile, and the open buffer's own parse wins,

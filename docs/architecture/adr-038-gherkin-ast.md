@@ -408,7 +408,9 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
     post-pass, as the pipeline part of `markspec check` does. It publishes
     `MSL-L006`, `MSL-T014` and the other Stage 2 to Stage 4 diagnostics. A
     closed buffer of a file that the project walk indexed is parsed again from
-    disk, so links to its entries keep resolving.
+    disk, so links to its entries keep resolving. A file created after startup
+    is not in the walked set, so closing its buffer still removes it from the
+    index until the next re-index.
 
 ### Alternatives considered (LSP support for `.feature` files)
 

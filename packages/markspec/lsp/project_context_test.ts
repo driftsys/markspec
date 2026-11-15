@@ -290,3 +290,47 @@ Deno.test("ProjectContext.closeFile: a reopen during the read wins", async () =>
   f.ctx.dispose();
   assertEquals(ids, ["REQ-0002"]);
 });
+
+Deno.test("ProjectContext.closeFile: a reopen during the parse schedules no validation", async () => {
+  const f = await walkedProject();
+  const target = join(ROOT, "target.md");
+  let scheduled = 0;
+  f.ctx.scheduleValidateAll = () => {
+    scheduled++;
+  };
+  // Closed after the read, open again after the parse: the open buffer's own
+  // parse schedules the validation, so the close must not.
+  const answers = [true, false];
+  await f.ctx.closeFile(target, () => answers.shift() ?? false);
+  f.ctx.dispose();
+  assertEquals(scheduled, 0);
+});
+
+Deno.test("ProjectContext.closeFile: a reopen wins for a walked file deleted from disk", async () => {
+  const f = await walkedProject();
+  const target = join(ROOT, "target.md");
+  await f.ctx.index.parseAndUpdateFile(
+    target,
+    TARGET_MD.replace("REQ-0001", "REQ-0002"),
+  );
+  f.files.delete(key(target));
+  await f.ctx.closeFile(target, () => false);
+  const ids = f.ctx.index.getEntriesForFile(target).map((e) => e.displayId);
+  f.ctx.dispose();
+  assertEquals(ids, ["REQ-0002"]);
+});
+
+Deno.test("ProjectContext.closeFile: a file removed on close is not read again when it comes back on disk", async () => {
+  const f = await walkedProject();
+  const target = join(ROOT, "target.md");
+  f.files.delete(key(target));
+  await f.ctx.closeFile(target);
+  assertEquals(f.ctx.index.getEntriesForFile(target), []);
+  // The file is created again on disk; the walk no longer lists it for this
+  // context, so a second close removes it instead of reading it.
+  f.files.set(key(target), TARGET_MD);
+  await f.ctx.closeFile(target);
+  const entries = f.ctx.index.getEntriesForFile(target);
+  f.ctx.dispose();
+  assertEquals(entries, []);
+});

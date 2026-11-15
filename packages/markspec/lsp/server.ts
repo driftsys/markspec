@@ -427,7 +427,9 @@ const debouncedFileParses = new Map<string, DebouncedFunction<any>>();
  * (the registry gate, the parse itself) and discards its result when the
  * epoch moved — the buffer was closed, or closed and reopened, meanwhile.
  * Without it a parse that started before a close lands in the index
- * after the close removed the file, and a closed buffer comes back.
+ * after the close removed the file (a file outside the project walk, or
+ * deleted on disk), and a closed buffer comes back. A walked file is parsed
+ * again from disk on close instead of removed.
  */
 const bufferEpochs = new Map<string, number>();
 

@@ -99,24 +99,32 @@ Deno.test("lsp traceability: closing the buffer of a target file keeps links to 
       "first cross-file diagnostics for reqs.md",
       10000,
     );
-    const refreshesBefore =
-      client.receivedParams("workspace/codeLens/refresh").length;
+    const l006Count = (): number =>
+      (client.latestDiagnosticsFor(reqsUri) ?? []).filter((d) =>
+        d.code === "MSL-L006"
+      ).length;
+    // Edit the target buffer so its id disappears: the link breaks.
+    await client.notify("textDocument/didChange", {
+      textDocument: { uri: targetUri, version: 2 },
+      contentChanges: [{
+        text: Deno.readTextFileSync(join(client.workDir, "target.md"))
+          .replace("REQ-0001", "REQ-0002"),
+      }],
+    });
+    await client.waitUntil(
+      () => client.latestPublishIsCrossFile(reqsUri) && l006Count() === 1,
+      "MSL-L006 for reqs.md after the target buffer changed",
+      10000,
+    );
+    // The close parses the file from disk again and schedules a validation
+    // run: the link resolves again.
     await client.notify("textDocument/didClose", {
       textDocument: { uri: targetUri },
     });
-    // The close schedules a validation run that ends with a lens refresh.
     await client.waitUntil(
-      () =>
-        client.receivedParams("workspace/codeLens/refresh").length >
-          refreshesBefore && client.latestPublishIsCrossFile(reqsUri),
-      "cross-file diagnostics after the close",
+      () => client.latestPublishIsCrossFile(reqsUri) && l006Count() === 0,
+      "no MSL-L006 for reqs.md after the close",
       10000,
-    );
-    const diags = client.latestDiagnosticsFor(reqsUri) as Diag[];
-    assertEquals(
-      diags.filter((d) => d.code === "MSL-L006").length,
-      0,
-      `got: ${JSON.stringify(diags)}`,
     );
   } finally {
     await client.shutdown();

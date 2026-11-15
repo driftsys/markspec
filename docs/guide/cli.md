@@ -1549,7 +1549,9 @@ every LSP-capable editor supports.
 **Diagnostics** — broken references, missing IDs, duplicate display IDs, and
 malformed entries appear as inline errors and warnings as you type. File-local
 checks run immediately; cross-file validation runs on save. The traceability
-diagnostics (`MSL-L006`, `MSL-T014`) need a profile, as in `markspec check`.
+diagnostics (`MSL-L006`, `MSL-T014`) need a profile, as in `markspec check`: the
+bundled default profile applies unless `default-profile: false` is set.
+`MSL-T014` also needs `dependencies:` or `references:` in `project.yaml`.
 
 **Entry block completion** — type `- [` at the start of a line to get a
 pre-filled entry block scaffold with the next available display ID for each type
