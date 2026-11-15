@@ -72,7 +72,7 @@ Out of scope (and where each piece is owned):
 | `markspec/profile` (custom)                | **must-have**    | Active profile metadata — types, prefixes, colors. Drives client-side profile-aware coloring.   | `core/profile`        |
 | `textDocument/codeLens`                    | should-have      | Inline counts ("5 dependents") and chain links above entry titles.                              | `WorkspaceIndex`      |
 | `textDocument/inlayHint`                   | should-have      | Inline resolved type / dependent count without explicit screen real estate.                     | `WorkspaceIndex`      |
-| `textDocument/documentLink`                | deferred         | None defined: no authored attribute holds a file path (see §5.3).                               | parser-extracted      |
+| `textDocument/documentLink`                | should-have      | File-path values as clickable links. Shipped for `Verified-by:` lines only; see §5.3 and #947.  | parser-extracted      |
 | `textDocument/rangeFormatting`             | deferred (v1.1)  | Format a selected range only.                                                                   | `core/formatter`      |
 | `textDocument/onTypeFormatting`            | deferred (v1.1)  | Format as user types (e.g. on `:`, newline).                                                    | `core/formatter`      |
 | `textDocument/selectionRange`              | deferred (v1.1)  | Expand-selection (inline → line → trailer → entry → section).                                   | parser positions      |
@@ -317,11 +317,12 @@ no separate computation.
 
 ### 5.3 `textDocument/documentLink`
 
-`Verified-by` is a generated attribute (it is computed from `Verifies`), so it
-never appears in authored text, and no document link is defined for it. This
-section is reserved for links on authored file-path values, if the language
-defines any. The server still links `Verified-by:` file paths
-(`lsp/document_links.ts`); issue #947 tracks removing that provider.
+The shipped provider (`lsp/document_links.ts`) emits a document link for each
+file-path value on a trailer-indented `Verified-by:` line. `Verified-by` is a
+generated attribute (it is computed from `Verifies`), and a hand-written
+`Verified-by:` is MSL-A030, so this link only fires on input that already fails
+validation. Issue #947 tracks removing the provider or moving it to an authored
+attribute that can hold a file path, such as `Source:` (`path-or-id`).
 
 ### 5.4 Performance
 

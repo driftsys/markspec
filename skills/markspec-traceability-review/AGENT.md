@@ -42,10 +42,10 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
    links and the reverse `satisfiedBy` links only. It has no test links. For one
    entry, `markspec dependents <id> <paths>` lists every entry that links to it,
    including test entries with `Verifies:` or `Tests:`. For entries that carry
-   acceptance criteria, `markspec report coverage <paths> --format
-   json` also
-   has a `criteria` section that lists, per criterion, the test entries that
-   verify it (`verifiedBy`).
+   acceptance criteria, the coverage report
+   (`markspec report coverage <paths> --format json`) also has a `criteria`
+   section that lists, per criterion, the test entries that verify it
+   (`verifiedBy`).
 
 3. **Identify gaps.** Classify every entry into one of these states:
 
