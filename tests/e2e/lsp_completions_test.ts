@@ -112,6 +112,68 @@ Deno.test("lsp completions: ID reference on 'Satisfies:'", async () => {
   }
 });
 
+Deno.test("lsp completions: ID reference on 'Verifies:'", async () => {
+  const md = `- [STK_AEB_0001] First requirement
+
+  Body text.
+
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [SAD_AEB_0001] Architecture item
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Verifies:
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "reqs.md": md,
+  });
+  try {
+    await client.initialize();
+
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+
+    // Give server time to parse and index
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Request completion after "Verifies:" (line 11, char 15).
+    // Trace-attribute completion returns a CompletionList so the
+    // server can set isIncomplete when a partial prefix narrows
+    // the suggestion set (server-side prefix filter).
+    const result = await client.request("textDocument/completion", {
+      textDocument: { uri: fileUri },
+      position: { line: 11, character: 15 },
+    }) as { isIncomplete: boolean; items: Array<{ label: string }> };
+
+    assertExists(result);
+    assertExists(result.items);
+    assert(result.items.length > 0, "Expected at least one completion item");
+    assert(
+      result.items.some((item) => item.label === "STK_AEB_0001"),
+      `Expected STK_AEB_0001 in completions, got: ${
+        JSON.stringify(result.items.map((i) => i.label))
+      }`,
+    );
+    // No partial after the colon → list is not incomplete.
+    assert(
+      !result.isIncomplete,
+      "Empty partial should produce a complete list",
+    );
+  } finally {
+    await client.shutdown();
+  }
+});
+
 Deno.test("lsp completions: server-side prefix filter on 'Satisfies: STK_'", async () => {
   const md = `- [STK_AEB_0001] Stakeholder requirement
 

@@ -35,7 +35,7 @@ const MID_TYPED_SCAFFOLD_RE = /^\s*-\s*\[([A-Za-z0-9_-]+)$/;
 
 /** Pattern matching a trace attribute keyword at line start. */
 const TRACE_ATTR_RE =
-  /^\s*(Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Provides|Requires|Generated-from|Supersedes)\s*:/;
+  /^\s*(Satisfies|Derived-from|Verifies|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Provides|Requires|Generated-from|Supersedes)\s*:/;
 
 /** Pattern matching the `Type:` attribute keyword at line start. */
 const TYPE_ATTR_RE = /^\s*Type\s*:/;
@@ -47,13 +47,16 @@ const TYPE_ATTR_RE = /^\s*Type\s*:/;
  * `context.ts`), plus the cardinal `Labels:` and `Type:` keys. When
  * the trace-keyword set changes here, also update those two regexes.
  *
+ * The authored link is `Verifies`. `Verified-by` is generated and a
+ * hand-written one is MSL-A030, so it is not offered.
+ *
  * `Id:` is intentionally excluded — the formatter stamps it
  * automatically, and hand-written ULIDs fail validation.
  */
 export const TRAILER_KEYS: readonly string[] = [
   "Satisfies",
   "Derived-from",
-  "Verified-by",
+  "Verifies",
   "References",
   "Tests",
   "Depends-on",

@@ -1558,8 +1558,8 @@ pre-filled entry block scaffold with the next available display ID for each type
 defined in your profile.
 
 **ID reference completion** — after a trace attribute keyword (`Satisfies:`,
-`Derived-from:`, `Tests:`, etc.) the server suggests all known display IDs in
-the project.
+`Derived-from:`, `Verifies:`, `Tests:`, etc.) the server suggests all known
+display IDs in the project.
 
 **Source file context guard** — in source files (Rust, Kotlin, Java, C, C++,
 TypeScript, TSX, JavaScript, C#), completions only activate near entry markers

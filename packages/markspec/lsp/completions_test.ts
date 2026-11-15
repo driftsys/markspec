@@ -338,7 +338,8 @@ Deno.test("TRAILER_KEYS: includes the documented trace + label + type keys", () 
   // Trace attribute keys.
   assertEquals(TRAILER_KEYS.includes("Satisfies"), true);
   assertEquals(TRAILER_KEYS.includes("Derived-from"), true);
-  assertEquals(TRAILER_KEYS.includes("Verified-by"), true);
+  assertEquals(TRAILER_KEYS.includes("Verifies"), true);
+  assertEquals(TRAILER_KEYS.includes("Verified-by"), false);
   assertEquals(TRAILER_KEYS.includes("References"), true);
   assertEquals(TRAILER_KEYS.includes("Tests"), true);
   assertEquals(TRAILER_KEYS.includes("Depends-on"), true);
@@ -762,4 +763,10 @@ Deno.test("buildIdReferenceItems: corpus entries carry origin badge", () => {
   ]);
   assertEquals(items[0].detail, "Core — from p@1.0.0");
   assertEquals(items[1].detail, "Local");
+});
+
+Deno.test("isTraceAttributeTrigger: fires after Verifies, not after generated Verified-by", () => {
+  assertEquals(isTraceAttributeTrigger("      Verifies: "), true);
+  assertEquals(extractRelationName("      Verifies: TST"), "Verifies");
+  assertEquals(isTraceAttributeTrigger("      Verified-by: "), false);
 });

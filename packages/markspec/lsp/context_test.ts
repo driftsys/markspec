@@ -256,3 +256,8 @@ Deno.test("fencedLinesForFile: a doc string closes only on its own delimiter", (
   assertEquals(fenced.has(3), true);
   assertEquals(fenced.has(5), false);
 });
+
+Deno.test("isDocCommentContext: fires on a Verifies line, not a Verified-by line", () => {
+  assertEquals(isDocCommentContext(["// Verifies: STK_0001"], 0), true);
+  assertEquals(isDocCommentContext(["// Verified-by: STK_0001"], 0), false);
+});

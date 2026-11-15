@@ -477,7 +477,6 @@ Deno.test("lsp feature: every handler is empty for a plain Cucumber file", async
     );
     assertEquals(await ask("documentHighlight", { position: onId }), null);
     assertEquals(await ask("prepareRename", { position: onId }), null);
-    assertEquals(await ask("documentLink"), []);
     // A step line must not receive MarkSpec completions.
     assertEquals(
       await ask("completion", { position: { line: 3, character: 4 } }),

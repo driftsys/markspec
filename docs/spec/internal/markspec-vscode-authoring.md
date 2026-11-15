@@ -20,10 +20,10 @@ that can't be expressed inline, and surfacing project health via tree view and
 status bar.
 
 It does **not** specify LSP server capabilities (companion work — formatting,
-code lens, inlay hints, document links, type hierarchy are server-side and
-benefit all LSP clients, including Neovim and Helix; tracked separately as the
-"LSP feature additions" epic). It does not cover Neovim, Helix, Zed, or any
-other editor — those are served by the LSP server's capability set, by the
+code lens, inlay hints, type hierarchy are server-side and benefit all LSP
+clients, including Neovim and Helix; tracked separately as the "LSP feature
+additions" epic). It does not cover Neovim, Helix, Zed, or any other editor —
+those are served by the LSP server's capability set, by the
 `markspec lsp install` command (toolchain-distribution.md §4), or by their own
 extensions.
 
@@ -54,15 +54,15 @@ requirement-author cohort use the tool without ever opening a terminal.
 Out of scope (and where each piece is owned):
 
 - **LSP server capabilities.** Formatting (`textDocument/formatting`), code
-  lens, inlay hints, document links, type/call hierarchy, and the custom
-  `markspec/profile` request live in the LSP server and serve every LSP client.
-  Tracked as a separate **"LSP feature additions" epic — prioritized as a v1
-  prerequisite for this spec**: without `textDocument/formatting` the
-  format-on-save workflow does not exist for authors, and without
-  `markspec/profile` the web preview's profile-aware coloring (§4.4) degrades to
-  monochrome. This spec _consumes_ those capabilities (the Command Palette's
-  `Markspec: Format Document` is a thin wrapper over the LSP request) but does
-  not specify them — they ship in parallel.
+  lens, inlay hints, type/call hierarchy, and the custom `markspec/profile`
+  request live in the LSP server and serve every LSP client. Tracked as a
+  separate **"LSP feature additions" epic — prioritized as a v1 prerequisite for
+  this spec**: without `textDocument/formatting` the format-on-save workflow
+  does not exist for authors, and without `markspec/profile` the web preview's
+  profile-aware coloring (§4.4) degrades to monochrome. This spec _consumes_
+  those capabilities (the Command Palette's `Markspec: Format Document` is a
+  thin wrapper over the LSP request) but does not specify them — they ship in
+  parallel.
 - **`markspec lsp install` / `markspec mcp install`.** Owned by
   [markspec-toolchain-distribution.md](markspec-toolchain-distribution.md). The
   extension's bootstrap (§3 here) and those CLI install commands are
