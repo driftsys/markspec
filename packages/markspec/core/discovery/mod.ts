@@ -18,7 +18,14 @@
  * Node-compatible; entry points supply the Deno implementation.
  */
 
-import { extname, join, relative, resolve, SEPARATOR } from "@std/path";
+import {
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  SEPARATOR,
+} from "@std/path";
 import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 export { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
@@ -160,8 +167,8 @@ export async function* discoverFiles(
  * extension filter, hidden directories, the built-in build-output skips, the
  * `.gitignore` chain and `exclude`. It checks the directories from `root`
  * down to the file, so a file under an ignored directory is not included.
- * It does not check that the file exists. A path outside `root` is not
- * included.
+ * The file must exist as a regular file: a path that does not exist, a
+ * symbolic link, and a path outside `root` are not included.
  */
 export async function isDiscoverable(
   path: string,
@@ -172,7 +179,10 @@ export async function isDiscoverable(
   const extensions = options.extensions ?? RELEVANT_EXTENSIONS;
   if (!isRelevantFile(path, extensions)) return false;
   const rel = relative(resolve(root), resolve(path));
-  if (rel === "" || rel === ".." || rel.startsWith(`..${SEPARATOR}`)) {
+  if (
+    rel === "" || rel === ".." || rel.startsWith(`..${SEPARATOR}`) ||
+    isAbsolute(rel)
+  ) {
     return false;
   }
   const segments = rel.split(SEPARATOR);
@@ -185,13 +195,35 @@ export async function isDiscoverable(
     const active = [...gitignoreRules, ...start.excludeRules];
     const name = segments[i];
     const entryRel = relDir === "" ? name : `${relDir}/${name}`;
-    if (i === segments.length - 1) return !isIgnored(entryRel, false, active);
+    const isLast = i === segments.length - 1;
+    // The walk yields only entries that report isFile or isDirectory, so a
+    // symbolic link, or a path that does not exist, is not discoverable.
+    const kind = await entryKind(absDir, name, io);
+    if (isLast ? kind !== "file" : kind !== "directory") return false;
+    if (isLast) return !isIgnored(entryRel, false, active);
     if (isPrunedDirectory(name, entryRel, active)) return false;
     rules = gitignoreRules;
     absDir = join(absDir, name);
     relDir = entryRel;
   }
   return false;
+}
+
+/** The kind of the entry `name` in `absDir`, as the walk sees it. */
+async function entryKind(
+  absDir: string,
+  name: string,
+  io: DiscoveryIO,
+): Promise<"file" | "directory" | undefined> {
+  try {
+    for await (const e of io.readDir(absDir)) {
+      if (e.name !== name) continue;
+      return e.isDirectory ? "directory" : e.isFile ? "file" : undefined;
+    }
+  } catch {
+    // An unreadable directory is skipped by the walk.
+  }
+  return undefined;
 }
 
 /** The starting rule state of a walk of `root`, shared by the walk and

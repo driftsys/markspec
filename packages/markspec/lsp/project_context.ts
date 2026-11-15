@@ -596,9 +596,11 @@ export class ProjectContext {
     stillClosed: () => boolean = () => true,
   ): Promise<void> {
     if (this.disposed) return;
-    const walked = this.walkedFiles.has(filePath);
-    if (walked || await this.walkWouldInclude(filePath)) {
-      if (this.disposed || !stillClosed()) return;
+    const include = this.walkedFiles.has(filePath) ||
+      await this.walkWouldInclude(filePath);
+    // The discovery check awaited: a reopened buffer keeps its own entries.
+    if (this.disposed || !stillClosed()) return;
+    if (include) {
       const text = await this.host.readFile(filePath);
       if (this.disposed || !stillClosed()) return;
       if (text !== undefined) {

@@ -317,7 +317,7 @@ Deno.test("ProjectContext.closeFile: a file created after startup keeps links to
   await f.ctx.closeFile(created);
   f.files.set(
     key(join(ROOT, "doc.md")),
-    CITING_MD.replace("REQ-0001", "REQ-0003"),
+    TRACE_MD.replace("REQ-0099", "REQ-0003"),
   );
   await f.ctx.index.parseAndUpdateFile(
     join(ROOT, "doc.md"),
@@ -326,6 +326,23 @@ Deno.test("ProjectContext.closeFile: a file created after startup keeps links to
   f.ctx.publishAllDiagnostics();
   f.ctx.dispose();
   assertEquals(codesFor(f, "doc.md").includes("MSL-L006"), false);
+});
+
+Deno.test("ProjectContext.closeFile: a reopen during the discovery check keeps the reopened buffer's entries (#955)", async () => {
+  const f = await walkedProject();
+  f.ctx.toolConfig = { ...f.ctx.toolConfig, exclude: ["skipped/"] };
+  const created = join(ROOT, "skipped", "later.md");
+  await f.ctx.index.parseAndUpdateFile(
+    created,
+    TARGET_MD.replace("REQ-0001", "REQ-0003"),
+  );
+  let checks = 0;
+  // The first check runs before the discovery check settles; it flips to
+  // reopened by the time the check returns.
+  await f.ctx.closeFile(created, () => ++checks < 1);
+  const ids = f.ctx.index.getEntriesForFile(created).map((e) => e.displayId);
+  f.ctx.dispose();
+  assertEquals(ids, ["REQ-0003"]);
 });
 
 Deno.test("ProjectContext.closeFile: a file created after startup that the exclude list covers is removed", async () => {

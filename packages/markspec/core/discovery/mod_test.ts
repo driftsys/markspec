@@ -529,15 +529,61 @@ Deno.test("isDiscoverable: matches the walk for included, ignored, excluded, hid
   });
 });
 
-Deno.test("isDiscoverable: a file that does not exist yet is decided by the rules alone", async () => {
-  const dir = await makeTree({ ".gitignore": "later-ignored.md\n" });
+Deno.test("isDiscoverable: a file that does not exist is not discoverable", async () => {
+  const dir = await makeTree({ "a.md": "" });
   assertEquals(
     await isDiscoverable(join(dir, "later.md"), dir, realIO()),
-    true,
+    false,
   );
   assertEquals(
-    await isDiscoverable(join(dir, "later-ignored.md"), dir, realIO()),
+    await isDiscoverable(join(dir, "nodir", "x.md"), dir, realIO()),
     false,
+  );
+});
+
+Deno.test(
+  "isDiscoverable: a symbolic link is not discoverable, as in the walk",
+  {
+    ignore: Deno.build.os === "windows",
+  },
+  async () => {
+    const dir = await makeTree({ "real.md": "", "realdir/in.md": "" });
+    await Deno.symlink(join(dir, "real.md"), join(dir, "link.md"));
+    await Deno.symlink(join(dir, "realdir"), join(dir, "linkdir"));
+    const got = await predicateMatchesWalk(dir, dir, [
+      "real.md",
+      "link.md",
+      "realdir/in.md",
+      "linkdir/in.md",
+    ]);
+    assertEquals(got, {
+      "real.md": true,
+      "link.md": false,
+      "realdir/in.md": true,
+      "linkdir/in.md": false,
+    });
+  },
+);
+
+Deno.test("isDiscoverable: negations match the walk", async () => {
+  const dir = await makeTree({
+    ".gitignore": "ign/\nre/\n",
+    "ign/.gitignore": "!keep.md\n",
+    "ign/keep.md": "",
+    "re/a.md": "",
+    "plain.md": "",
+  });
+  const rels = ["ign/keep.md", "re/a.md", "plain.md"];
+  // A deeper `!` cannot re-include a file under an ignored directory.
+  assertEquals(await predicateMatchesWalk(dir, dir, rels), {
+    "ign/keep.md": false,
+    "re/a.md": false,
+    "plain.md": true,
+  });
+  // An `exclude:` negation re-includes the gitignored directory.
+  assertEquals(
+    await predicateMatchesWalk(dir, dir, rels, { exclude: ["!re/"] }),
+    { "ign/keep.md": false, "re/a.md": true, "plain.md": true },
   );
 });
 
