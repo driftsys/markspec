@@ -1632,3 +1632,115 @@ Deno.test("compile: projectWide false suppresses MSL-L006", async () => {
   });
   assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
 });
+
+// ---------------------------------------------------------------------------
+// Review pins (#950): corpus and upstream targets, uxil once, DSL scope
+// ---------------------------------------------------------------------------
+
+const SREQ_TO_PLATFORM = {
+  "/r/sreq.md": `- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: system-requirement
+      Satisfies: REQ-0500
+`,
+};
+
+/** A requirement-typed entry that stands in for corpus or upstream content. */
+async function readOnlyTarget(
+  origin: NonNullable<Entry["origin"]>,
+): Promise<Entry[]> {
+  const { entries } = await parseFile(
+    `- [REQ-0500] Platform requirement
+
+  The platform shall provide a vehicle state bus.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEJ
+      Type: requirement
+`,
+    { file: "/cache/platform.md" },
+  );
+  return entries.map((e) => ({ ...e, type: "requirement", origin }));
+}
+
+for (
+  const [label, origin] of [
+    [
+      "delivered-corpus",
+      { kind: "profile", profileId: "p", profileVersion: "1" },
+    ],
+    ["upstream", { kind: "upstream", upstreamId: "plat", version: "v1" }],
+  ] as const
+) {
+  Deno.test(`compile: a ${label} entry is a pipeline trace target when a profile is loaded (no MSL-L006)`, async () => {
+    const result = await compile(["/r/sreq.md"], {
+      readFile: reader(SREQ_TO_PLATFORM),
+      profile: traceProfile(),
+      corpusEntries: await readOnlyTarget(origin),
+    });
+    assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
+    // Without the target the same project does report MSL-L006.
+    const missing = await compile(["/r/sreq.md"], {
+      readFile: reader(SREQ_TO_PLATFORM),
+      profile: traceProfile(),
+    });
+    assertEquals(
+      missing.diagnostics.filter((d) => d.code === "MSL-L006").length,
+      1,
+    );
+  });
+}
+
+Deno.test("compile: a uxil diagnostic is reported exactly once", async () => {
+  const result = await compile(["/repo/contract.md"], {
+    readFile: reader({ "/repo/contract.md": UXIL_CONTRACT_BAD_KIND }),
+    profile: makeUxilProfile({
+      "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },
+    }),
+  });
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "UXIL-009").length,
+    1,
+  );
+});
+
+Deno.test("compile: projectWide false suppresses the cross-entry TYPL codes", async () => {
+  const files = {
+    "/r/a.md": `- [REQ_0001] First declaration
+
+  The system shall provide \`$brake.pedal : signal float\`.
+
+      Id: 01HZZZ0000000000000000001A
+`,
+    "/r/b.md": `- [REQ_0002] Duplicate declaration
+
+  The system shall provide \`$brake.pedal : signal float\`.
+
+      Id: 01HZZZ0000000000000000001B
+`,
+    "/r/c.md": `- [REQ_0003] Citations
+
+  The system shall read \`$.pedal\` and \`$brake.missing\`.
+
+      Id: 01HZZZ0000000000000000002A
+`,
+  };
+  const paths = Object.keys(files);
+  const whole = await compile(paths, { readFile: reader(files) });
+  assertEquals(
+    whole.diagnostics.filter((d) => d.code.startsWith("TYPL-009")).length > 0,
+    true,
+  );
+  const local = await compile(paths, {
+    readFile: reader(files),
+    projectWide: false,
+  });
+  assertEquals(
+    local.diagnostics.filter((d) =>
+      ["TYPL-009", "TYPL-010", "TYPL-011"].includes(d.code)
+    ),
+    [],
+  );
+});

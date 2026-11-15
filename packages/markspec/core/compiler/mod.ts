@@ -104,7 +104,9 @@ export interface CompileOptions {
    * `false` when the paths are one file or a subset (`insert <file>`,
    * `doc build <file>`, `lint <file>`): a target in a file outside the set
    * cannot be told from a typo, so the project-wide trace and DSL codes are
-   * suppressed, as in `check <file>` (ADR-027).
+   * suppressed, as in `check <file>` (ADR-027). `false` also suppresses the
+   * cross-entry DSL codes TYPL-009, TYPL-010, TYPL-011, UXIL-016, UXIL-017
+   * and UXIL-018 for the same reason.
    */
   readonly projectWide?: boolean;
 }

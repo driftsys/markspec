@@ -234,6 +234,47 @@ profile:
   assertEquals(codes.includes("MSL-L006"), false);
 });
 
+Deno.test("export json: project.yaml references make an unresolved target MSL-T014", async () => {
+  const files = {
+    "project.yaml":
+      `${PROJECT_YAML}references:\n  - url: https://example.invalid/icd\n    name: icd\n`,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-dep"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "req.md": `# Requirements
+
+- [REQ-0001] Response time
+
+  The system shall respond within 200 ms.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+      Satisfies: ICD-0001
+`,
+  };
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "req.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  const codes = (JSON.parse(stdout).diagnostics as { code: string }[]).map((
+    d,
+  ) => d.code);
+  assertEquals(codes.filter((c) => c === "MSL-T014").length, 1, stderr);
+  assertEquals(codes.includes("MSL-L006"), false);
+});
+
 Deno.test("export json: .markspec.yaml caption conventions reach compile (MSL-C072)", async () => {
   const files = {
     "project.yaml": PROJECT_YAML,

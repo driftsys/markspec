@@ -646,9 +646,17 @@ from the same validator pipeline that bare `markspec check` runs on the whole
 project. They include the traceability diagnostics `MSL-L006` and `MSL-T014`.
 They do not include the `check`-only gates: format drift, lockfile drift, the
 `MSL-L215` unreleased-pin advisory, listing-document checks, and prose lint.
+With explicit paths that are only part of the project, the pipeline checks only
+those files and reports `MSL-L006` for a target in a file outside them.
+
 Diagnostics never change the exit code of `compile`, `export`, `show`,
-`context`, `dependents`, or `report`. Input errors and `--frozen` lockfile drift
-exit `1`.
+`context`, `dependents`, or `report`. These commands exit `1` for input errors,
+for `--frozen` lockfile drift, and for an error-severity diagnostic from a
+profile-delivered document (for example `PROFILE-DELIVERS-001`).
+
+The hash that `markspec lock` stores for an upstream snapshot covers these
+diagnostics. After upgrading markspec, re-pin upstreams with
+`markspec lock --update`.
 
 **Examples:**
 

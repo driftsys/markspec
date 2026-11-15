@@ -124,3 +124,45 @@ Deno.test("doc build: --output flag writes to custom path", async () => {
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("doc build <file>: a Satisfies target in another file reports no MSL-L006 (#950)", async () => {
+  const { code, stderr } = await markspec(["doc", "build", "doc.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+      "profiles/p/markspec.yaml": `id: "@acme/doc-trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+      "doc.md": `# Doc
+
+- [REQ-0001] First
+
+  The system shall respond.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+      Satisfies: REQ-0900
+`,
+      "other.md": `- [REQ-0900] Elsewhere
+
+  The system shall exist.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: requirement
+`,
+    },
+    permissions: ["--allow-env", "--allow-ffi"],
+  });
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("MSL-L006"), false, stderr);
+});

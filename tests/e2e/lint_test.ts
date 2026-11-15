@@ -253,3 +253,34 @@ profile:
   });
   assertEquals(stderr.includes("MSL-L006"), false, stderr);
 });
+
+Deno.test("lint (bare): a dangling Satisfies target still reports MSL-L006 (#950)", async () => {
+  const { stderr } = await markspec(["lint"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+      "profiles/p/markspec.yaml": `id: "@acme/lint-trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:03d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+      "req.md": `- [REQ-001] Sensor latency
+
+  The system shall process sensor readings within 100 milliseconds.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+      Satisfies: REQ-900
+`,
+    },
+  });
+  assertStringIncludes(stderr, "MSL-L006");
+});
