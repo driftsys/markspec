@@ -38,9 +38,11 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
    markspec report traceability <paths> --format json
    ```
 
-   Parse the JSON output. The report contains entries with their upstream
-   (`Satisfies:`) and downstream (generated `Verified-by:` / `Tested-by:`)
-   links.
+   Parse the JSON output. The traceability report lists each entry's `Satisfies`
+   links and the reverse `Satisfied-by` links only. For test links, also run
+   `markspec report coverage <paths> --format json`: each criterion lists the
+   test entries that verify it (`verifiedBy`), computed from their `Verifies:`
+   links. `markspec dependents <id>` lists every entry that links to one entry.
 
 3. **Identify gaps.** Classify every entry into one of these states:
 
@@ -48,7 +50,7 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
    | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
    | **Fully traced**       | Has at least one upstream link AND at least one downstream link (or is a leaf type with no downstream expectation) |
    | **Missing upstream**   | No `Satisfies:` / `Derived-from:` link — orphaned from the requirement chain                                       |
-   | **Missing downstream** | No `Verified-by:` / `Tested-by:` link — untested requirement                                                       |
+   | **Missing downstream** | No test entry links to it with `Verifies:` or `Tests:` — untested requirement                                      |
    | **Isolated**           | Neither upstream nor downstream links — completely unconnected                                                     |
 
    Leaf types (STK entries at the top of the chain) are expected to have no
@@ -59,7 +61,8 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
    For each STK entry, walk downward through the `Satisfies:` reverse chain
    (entries that satisfy the STK). Report:
    - STK entries with no downward trace (no SYS/SWE entry satisfies them).
-   - SWE/SRS entries with no test entry (no generated `Verified-by:` link).
+   - SWE/SRS entries with no test entry (no test entry with a `Verifies:` link
+     to them).
 
 5. **Check for cross-file consistency.**
 

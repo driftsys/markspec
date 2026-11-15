@@ -9,7 +9,7 @@ Markdown entry blocks; MarkSpec stamps each with a stable ID, links them with
 trace relations (`Satisfies:`, `Verifies:`, `Derived-from:`, …), and validates
 the whole graph. It targets ISO 26262 and ASPICE compliance workflows — but
 works for any project that needs requirements that stay connected to their tests
-and don't rot.
+and do not go out of date.
 
 This extension brings the MarkSpec language server into VS Code, so the
 traceability graph is live as you type.

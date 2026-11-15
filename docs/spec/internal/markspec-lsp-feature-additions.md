@@ -72,7 +72,7 @@ Out of scope (and where each piece is owned):
 | `markspec/profile` (custom)                | **must-have**    | Active profile metadata — types, prefixes, colors. Drives client-side profile-aware coloring.   | `core/profile`        |
 | `textDocument/codeLens`                    | should-have      | Inline counts ("5 dependents") and chain links above entry titles.                              | `WorkspaceIndex`      |
 | `textDocument/inlayHint`                   | should-have      | Inline resolved type / dependent count without explicit screen real estate.                     | `WorkspaceIndex`      |
-| `textDocument/documentLink`                | should-have      | File-path values of authored attributes as clickable links (see §5.3).                          | parser-extracted      |
+| `textDocument/documentLink`                | deferred         | None defined: no authored attribute holds a file path (see §5.3).                               | parser-extracted      |
 | `textDocument/rangeFormatting`             | deferred (v1.1)  | Format a selected range only.                                                                   | `core/formatter`      |
 | `textDocument/onTypeFormatting`            | deferred (v1.1)  | Format as user types (e.g. on `:`, newline).                                                    | `core/formatter`      |
 | `textDocument/selectionRange`              | deferred (v1.1)  | Expand-selection (inline → line → trailer → entry → section).                                   | parser positions      |
@@ -320,7 +320,8 @@ no separate computation.
 `Verified-by` is a generated attribute (it is computed from `Verifies`), so it
 never appears in authored text, and no document link is defined for it. This
 section is reserved for links on authored file-path values, if the language
-defines any.
+defines any. The server still links `Verified-by:` file paths
+(`lsp/document_links.ts`); issue #947 tracks removing that provider.
 
 ### 5.4 Performance
 
