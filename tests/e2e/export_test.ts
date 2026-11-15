@@ -302,3 +302,49 @@ Deno.test("export json: .markspec.yaml caption conventions reach compile (MSL-C0
   ) => d.code);
   assertEquals(codes.includes("MSL-C072"), true, stderr);
 });
+
+Deno.test("export json <subset>: a target in a file outside the explicit paths is MSL-L006 (#950)", async () => {
+  const files = {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-subset"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "a.md": `- [REQ-0001] First
+
+  The system shall respond.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+      Satisfies: REQ-0002
+`,
+    "b.md": `- [REQ-0002] Second
+
+  The system shall exist.
+
+      Id: 01REQ000000000000000000002
+      Type: requirement
+`,
+  };
+  const subset = await markspec(["export", "json", "a.md"], files);
+  assertEquals(subset.code, 0, subset.stderr);
+  const subsetCodes = (JSON.parse(subset.stdout).diagnostics as {
+    code: string;
+  }[]).map((d) => d.code);
+  assertEquals(subsetCodes.includes("MSL-L006"), true);
+  const whole = await markspec(["export", "json", "a.md", "b.md"], files);
+  const wholeCodes = (JSON.parse(whole.stdout).diagnostics as {
+    code: string;
+  }[]).map((d) => d.code);
+  assertEquals(wholeCodes.includes("MSL-L006"), false);
+});

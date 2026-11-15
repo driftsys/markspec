@@ -1707,7 +1707,7 @@ Deno.test("compile: a uxil diagnostic is reported exactly once", async () => {
 });
 
 Deno.test("compile: projectWide false suppresses the cross-entry TYPL codes", async () => {
-  const files = {
+  const files: Record<string, string> = {
     "/r/a.md": `- [REQ_0001] First declaration
 
   The system shall provide \`$brake.pedal : signal float\`.
@@ -1727,11 +1727,19 @@ Deno.test("compile: projectWide false suppresses the cross-entry TYPL codes", as
       Id: 01HZZZ0000000000000000002A
 `,
   };
+  // A code the file-local scope keeps: an unknown attribute (MSL-R010).
+  files["/r/d.md"] = `- [REQ_0004] Unknown attribute
+
+  The system shall exist.
+
+      Id: 01HZZZ0000000000000000003A
+      Frobnicate: yes
+`;
   const paths = Object.keys(files);
   const whole = await compile(paths, { readFile: reader(files) });
   assertEquals(
-    whole.diagnostics.filter((d) => d.code.startsWith("TYPL-009")).length > 0,
-    true,
+    whole.diagnostics.filter((d) => d.code === "TYPL-009").length,
+    1,
   );
   const local = await compile(paths, {
     readFile: reader(files),
@@ -1742,5 +1750,10 @@ Deno.test("compile: projectWide false suppresses the cross-entry TYPL codes", as
       ["TYPL-009", "TYPL-010", "TYPL-011"].includes(d.code)
     ),
     [],
+  );
+  // A file-local code survives.
+  assertEquals(
+    local.diagnostics.filter((d) => d.code === "MSL-R010").length,
+    1,
   );
 });

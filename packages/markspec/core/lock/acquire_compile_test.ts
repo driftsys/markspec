@@ -184,3 +184,37 @@ profile:
   assertStringIncludes(text, "MSL-T014");
   assertEquals(text.includes("MSL-L006"), false);
 });
+
+Deno.test("compileAcquiredTree: a references: upstream makes an unresolved target MSL-T014 (#950)", async () => {
+  const files: Record<string, string> = {
+    "/dep/project.yaml":
+      "name: dep\nversion: 1.0.0\nreferences:\n  - url: https://example.invalid/icd\n    name: icd\n",
+    "/dep/.markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "/dep/profiles/p/markspec.yaml": `id: "@acme/dep"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "/dep/req.md": `- [REQ-0001] Linked
+
+  The system shall exist.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+      Satisfies: ICD-0001
+`,
+  };
+  const out = await compileAcquiredTree("/dep", fixtureIO(files), "v1");
+  if ("error" in out) throw new Error(out.error);
+  const text = new TextDecoder().decode(out.compiledBytes);
+  assertStringIncludes(text, "MSL-T014");
+  assertEquals(text.includes("MSL-L006"), false);
+});

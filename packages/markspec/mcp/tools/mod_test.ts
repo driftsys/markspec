@@ -571,6 +571,9 @@ const DANGLING_REQ = entryDoc(
 const DEPENDENCIES_YAML =
   `${PROJECT_YAML}dependencies:\n  - url: https://example.invalid/icd.git\n    name: icd\n    version: v1.0.0\n`;
 
+const REFERENCES_YAML =
+  `${PROJECT_YAML}references:\n  - url: https://example.invalid/icd\n    name: icd\n`;
+
 function traceFiles(projectYaml: string, markspecYaml: string) {
   const root = join(MEMORY_PARENT, "p");
   return {
@@ -587,6 +590,17 @@ function traceFiles(projectYaml: string, markspecYaml: string) {
 Deno.test("dispatchTool: validate reports MSL-T014 for a target when project.yaml declares dependencies (#950)", async () => {
   const { files } = traceFiles(
     DEPENDENCIES_YAML,
+    "profiles:\n  - ./profiles/p\n",
+  );
+  const ws = await createWorkspace(memoryEnv(files));
+  const text = await dispatchTool("validate", {}, ws);
+  assertStringIncludes(text, "MSL-T014");
+  assertEquals(text.includes("MSL-L006"), false);
+});
+
+Deno.test("dispatchTool: validate reports MSL-T014 for a target when project.yaml declares references (#950)", async () => {
+  const { files } = traceFiles(
+    REFERENCES_YAML,
     "profiles:\n  - ./profiles/p\n",
   );
   const ws = await createWorkspace(memoryEnv(files));

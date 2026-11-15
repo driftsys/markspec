@@ -978,4 +978,46 @@ profile:
   );
   const second = await proj.getCompiled();
   assertEquals(second.diagnostics.some((d) => d.code === "MSL-T014"), true);
+  assertEquals(second.diagnostics.some((d) => d.code === "MSL-L006"), false);
+});
+
+Deno.test("getCompiled: a .markspec.yaml caption-conventions edit invalidates the cache (#950)", async () => {
+  const markspecYaml = join(PROJ, ".markspec.yaml");
+  const { env, bumpMtime } = makeEnv({
+    [PROJECT_YAML_PATH]: { content: PROJECT_YAML, mtime: 1 },
+    [markspecYaml]: { content: "profiles: []\n", mtime: 1 },
+    [REQ_MD_PATH]: {
+      content: `- [REQ-001] Diagram requirement
+
+  See below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+      mtime: 1,
+    },
+  });
+  const proj = await createProject(env);
+  const first = await proj.getCompiled();
+  assertEquals(first.diagnostics.some((d) => d.code === "MSL-C072"), false);
+  bumpMtime(
+    markspecYaml,
+    "profiles: []\ncaption-conventions:\n  Figure: above\n",
+    2,
+  );
+  const second = await proj.getCompiled();
+  assertEquals(second.diagnostics.some((d) => d.code === "MSL-C072"), true);
+});
+
+Deno.test("getCompiled: a malformed project.yaml does not stop the compile (#950)", async () => {
+  const { env } = makeEnv({
+    [PROJECT_YAML_PATH]: { content: "name: [unclosed\n", mtime: 1 },
+    [REQ_MD_PATH]: { content: REQ_DOC, mtime: 1 },
+  });
+  const proj = await createProject(env);
+  const compiled = await proj.getCompiled();
+  assertEquals(compiled.entries.size, 1);
 });

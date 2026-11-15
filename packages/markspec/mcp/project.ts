@@ -3,8 +3,9 @@
  *
  * Project context for the MCP server. Discovers the project root from a
  * starting CWD, loads the active profile, caches a `CompileResult`, and
- * refreshes the cache when tracked files change (mtime check) or when a
- * caller invokes `forceRefresh()`.
+ * refreshes the cache when a tracked file changes (mtime check), when
+ * `markspec.lock`, `project.yaml` or `.markspec.yaml` changes (mtime check),
+ * or when a caller invokes `forceRefresh()`.
  *
  * All I/O is injected via {@linkcode ProjectEnv} so this module is testable
  * without filesystem access.
