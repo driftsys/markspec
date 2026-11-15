@@ -162,14 +162,17 @@ export class ProjectContext {
    * the existing read-only guards cover upstream files for free. */
   private readonly upstreamFilePaths = new Set<string>();
 
-  /** Absolute paths of the project files the last {@linkcode indexProject}
-   * walk discovered and owns. The set is filled from the discovery list
-   * before parsing, and an open buffer is parsed instead of the disk text. A
-   * closed editor buffer of one of these files is parsed again from disk,
-   * because the buffer only overrode the disk content while it was open
-   * (#938). Corpus files are normally not in this set, because discovery
-   * skips the cache directory; `server.ts` also returns early for corpus
-   * files before it calls {@linkcode closeFile}. */
+  /** Absolute paths of the project files that the last
+   * {@linkcode indexProject} walk discovered and owns, plus the files that
+   * {@linkcode closeFile} kept because the walk would include them. The set
+   * is filled from the discovery list before parsing, and an open buffer is
+   * parsed instead of the disk text. A closed editor buffer of one of these
+   * files is parsed again from disk, because the buffer only overrode the
+   * disk content while it was open (#938). A file in the set stays there
+   * even if the discovery rules later exclude it. Corpus files are normally
+   * not in this set, because discovery skips the cache directory;
+   * `server.ts` also returns early for corpus files before it calls
+   * {@linkcode closeFile}. */
   private readonly walkedFiles = new Set<string>();
 
   /** The ownership test and `.gitignore` inheritance that

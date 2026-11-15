@@ -65,11 +65,18 @@ interface Fixture {
   readonly files: Map<string, string>;
   /** The latest diagnostics sent per URI. */
   readonly published: Map<string, { code: string; message: string }[]>;
+  /** Called on every directory listing, so a test can act while the
+   * project walk or the discovery check lists directories. */
+  readonly hooks: { onReadDir?: (dir: string) => void };
 }
 
 /** Build a loaded context. `readDir` lists the in-memory files, so
  * {@linkcode ProjectContext.indexProject} walks them. */
-async function fixture(files: Record<string, string>): Promise<Fixture> {
+async function fixture(
+  files: Record<string, string>,
+  root: string = ROOT,
+): Promise<Fixture> {
+  const hooks: Fixture["hooks"] = {};
   const published = new Map<string, { code: string; message: string }[]>();
   const byKey = new Map(
     Object.entries(files).map(([path, text]) => [key(path), text]),
@@ -78,6 +85,7 @@ async function fixture(files: Record<string, string>): Promise<Fixture> {
     readFile: (path) => Promise.resolve(byKey.get(key(path))),
     realPath: (path) => Promise.resolve(path),
     readDir: async function* (dir) {
+      hooks.onReadDir?.(dir);
       const prefix = key(dir).replace(/\/+$/, "") + "/";
       const seen = new Map<string, boolean>();
       for (const file of byKey.keys()) {
@@ -100,9 +108,9 @@ async function fixture(files: Record<string, string>): Promise<Fixture> {
     warn: () => {},
     logEvent: () => {},
   };
-  const ctx = new ProjectContext(ROOT, host);
+  const ctx = new ProjectContext(root, host);
   await ctx.load();
-  return { ctx, files: byKey, published };
+  return { ctx, files: byKey, published, hooks };
 }
 
 /** Load a context over in-memory files, index `md`, publish, and return the
@@ -336,13 +344,62 @@ Deno.test("ProjectContext.closeFile: a reopen during the discovery check keeps t
     created,
     TARGET_MD.replace("REQ-0001", "REQ-0003"),
   );
-  let checks = 0;
-  // The buffer is reopened while the discovery check awaits: the first
-  // stillClosed call, made after that check, returns false.
-  await f.ctx.closeFile(created, () => ++checks < 1);
+  // The buffer is reopened while the discovery check lists directories, so
+  // stillClosed is true before that check and false after it.
+  let reopened = false;
+  f.hooks.onReadDir = () => reopened = true;
+  await f.ctx.closeFile(created, () => !reopened);
+  const ids = f.ctx.index.getEntriesForFile(created).map((e) => e.displayId);
+  f.ctx.dispose();
+  assertEquals(reopened, true);
+  assertEquals(ids, ["REQ-0003"]);
+});
+
+Deno.test("ProjectContext.closeFile: a file kept on close joins the walked set, so a later close keeps it even when the rules now exclude it (#955)", async () => {
+  const f = await walkedProject();
+  const created = join(ROOT, "later.md");
+  f.files.set(key(created), TARGET_MD.replace("REQ-0001", "REQ-0003"));
+  await f.ctx.index.parseAndUpdateFile(created, f.files.get(key(created))!);
+  await f.ctx.closeFile(created);
+  f.ctx.toolConfig = { ...f.ctx.toolConfig, exclude: ["later.md"] };
+  await f.ctx.closeFile(created);
   const ids = f.ctx.index.getEntriesForFile(created).map((e) => e.displayId);
   f.ctx.dispose();
   assertEquals(ids, ["REQ-0003"]);
+});
+
+Deno.test("ProjectContext.closeFile: a nested project applies the enclosing project's .gitignore to a file created after startup (#955)", async () => {
+  const nested = join(ROOT, "nested");
+  const f = await fixture({
+    [`${ROOT}/.gitignore`]: "secret.md\n",
+    [`${nested}/project.yaml`]: "name: n\nversion: 0.1.0\n",
+    [`${nested}/old.md`]: TARGET_MD,
+  }, nested);
+  await f.ctx.indexProject(() => true, () => undefined, ROOT);
+  const hidden = join(nested, "secret.md");
+  const open = join(nested, "open.md");
+  for (const [path, id] of [[hidden, "REQ-0003"], [open, "REQ-0004"]]) {
+    f.files.set(key(path), TARGET_MD.replace("REQ-0001", id));
+    await f.ctx.index.parseAndUpdateFile(path, f.files.get(key(path))!);
+    await f.ctx.closeFile(path);
+  }
+  const hiddenEntries = f.ctx.index.getEntriesForFile(hidden);
+  const openIds = f.ctx.index.getEntriesForFile(open).map((e) => e.displayId);
+  f.ctx.dispose();
+  assertEquals(hiddenEntries, []);
+  assertEquals(openIds, ["REQ-0004"]);
+});
+
+Deno.test("ProjectContext.closeFile: a context that never ran a walk removes the closed file", async () => {
+  const f = await fixture({
+    [`${ROOT}/project.yaml`]: "name: p\nversion: 0.1.0\n",
+  });
+  const created = join(ROOT, "later.md");
+  f.files.set(key(created), TARGET_MD);
+  await f.ctx.index.parseAndUpdateFile(created, TARGET_MD);
+  await f.ctx.closeFile(created);
+  assertEquals(f.ctx.index.getEntriesForFile(created), []);
+  f.ctx.dispose();
 });
 
 Deno.test("ProjectContext.closeFile: a file created after startup that the exclude list covers is removed", async () => {

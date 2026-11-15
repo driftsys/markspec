@@ -613,3 +613,32 @@ Deno.test("isDiscoverable: inheritGitignoreFrom applies the enclosing .gitignore
     true,
   );
 });
+
+Deno.test("isDiscoverable: .gitignore rules apply at depth 2 and deeper, as in the walk", async () => {
+  const dir = await makeTree({
+    ".gitignore": "*.draft.md\n",
+    "sub/.gitignore": "deeper/\n*.tmp.md\n",
+    "sub/x.draft.md": "",
+    "sub/ok.md": "",
+    "sub/deeper/y.md": "",
+    "sub/other/z.tmp.md": "",
+    "sub/other/w.draft.md": "",
+    "sub/other/fine.md": "",
+  });
+  const got = await predicateMatchesWalk(dir, dir, [
+    "sub/x.draft.md",
+    "sub/ok.md",
+    "sub/deeper/y.md",
+    "sub/other/z.tmp.md",
+    "sub/other/w.draft.md",
+    "sub/other/fine.md",
+  ]);
+  assertEquals(got, {
+    "sub/x.draft.md": false,
+    "sub/ok.md": true,
+    "sub/deeper/y.md": false,
+    "sub/other/z.tmp.md": false,
+    "sub/other/w.draft.md": false,
+    "sub/other/fine.md": true,
+  });
+});

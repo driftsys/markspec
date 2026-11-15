@@ -170,7 +170,8 @@ export async function* discoverFiles(
  * The file must exist as a regular file: a path that does not exist, a
  * symbolic link, and a path outside `root` are not included. It lists every
  * ancestor directory of the file, so it is meant for per-file checks, not
- * bulk use.
+ * bulk use. It compares paths as given: case and symbolic links in the
+ * directories above the file are not resolved.
  */
 export async function isDiscoverable(
   path: string,
