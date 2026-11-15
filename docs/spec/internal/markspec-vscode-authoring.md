@@ -320,7 +320,7 @@ indented body and trailer block). For each match:
   `<div class="markspec-entry-trailer">`.
 - Labels (from `Labels:`) render as `<span class="markspec-label">…</span>`
   pills.
-- Trace-link attributes (`Satisfies:`, `Verified-by:`, etc.) render with
+- Trace-link attributes (`Satisfies:`, `Verifies:`, etc.) render with
   dashed-underline cross-reference styling and link to the target entry (anchor
   scroll within the preview, or definition jump if the target is in a different
   file — relies on VS Code's `command:` URI scheme).

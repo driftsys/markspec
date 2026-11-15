@@ -174,9 +174,9 @@ dropdown.
 **CUJ-6 · Sam · Code · L1.** Sam types `Der` on a new trailer line in his
 doc-comment; it completes to `Derived-from:` and lists only **STK_\*** IDs.
 
-**CUJ-7 · either · L2.** "Point SWE_BRK_0107's Verified-by at the new
-median-filter test, and rename STK_AEB_0001 to STK_AEB_0100 everywhere." The
-agent edits the attribute (validating target type against the plan) and uses the
+**CUJ-7 · either · L2.** "Point the new median-filter test's Verifies at
+SWE_BRK_0107, and rename STK_AEB_0001 to STK_AEB_0100 everywhere." The agent
+edits the attribute (validating target type against the plan) and uses the
 existing **workspace rename** for the ID change, then re-validates.
 
 ### 4.3 Fix

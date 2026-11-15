@@ -59,8 +59,9 @@ When <action>
 Then <expected outcome>
 ```
 
-Each scenario maps to a MarkSpec entry. The `Verified-by:` trailer links the
-requirement entry to the test entry that implements the scenario.
+Each scenario maps to a MarkSpec entry. The test entry's `Verifies:` trailer
+links it to the requirement. MarkSpec generates the inverse `Verified-by:` link;
+do not write it.
 
 See `markspec-gherkin` for do/don't examples, Scenario Outline, and Background.
 

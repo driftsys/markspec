@@ -18,7 +18,7 @@ This chapter will explain:
 - **Types** — the vocabulary layer declared by profiles; each type carries a
   display-ID pattern, allowed attributes, and traceability rules.
 - **Traceability links** — directed edges in the requirement graph, created by
-  trace attributes (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.).
+  trace attributes (`Satisfies:`, `Derived-from:`, `Verifies:`, etc.).
 - **Profiles** — layered manifests that declare type vocabulary, attribute
   rules, and display-ID patterns for a project or compliance standard.
 - **Listing directives** — `glossary`, `components`, and `references` directives

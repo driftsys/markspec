@@ -53,7 +53,7 @@ const TITLE_SLOT_RE = /^\s*-\s+\[([A-Z][A-Z0-9_-]+)\]\s*$/;
 
 /** Trace attribute keyword followed by the colon and any leading value. */
 const TRACE_ATTR_RE =
-  /^\s{4,}(Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes)\s*:\s*/;
+  /^\s{4,}(Satisfies|Derived-from|Verifies|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes)\s*:\s*/;
 
 /** `Id:` trailer line — completions are suppressed here. */
 const ID_TRAILER_RE = /^\s{4,}Id\s*:/;

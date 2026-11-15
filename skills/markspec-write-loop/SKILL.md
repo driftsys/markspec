@@ -68,7 +68,7 @@ markspec check <file>
 
 Runs file-local and cross-file checks:
 
-- broken `Satisfies:` / `Verified-by:` references,
+- broken `Satisfies:` / `Verifies:` references,
 - duplicate display IDs or ULIDs,
 - missing `Id:` on Authored entries,
 - MSL- diagnostic codes (see `markspec-diagnostics`).

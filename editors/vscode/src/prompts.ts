@@ -50,7 +50,7 @@ Authoring conventions:
 - Bodies must be measurable: include units, thresholds, tolerances. Avoid "fast" / "reliable" / "user-friendly".
 - Use EARS patterns when possible: ubiquitous, event-driven, state-driven, optional, unwanted.
 - Use Gherkin (Given/When/Then) inside fenced \`gherkin\` blocks when scenarios are clearer than EARS.
-- Trace attributes (Satisfies, Derived-from, Verified-by, etc.) reference other entries by their display ID.
+- Trace attributes (Satisfies, Derived-from, Verifies, etc.) reference other entries by their display ID. Never write Verified-by or Tested-by: they are generated.
 
 Inline completion guidance:
 - When suggesting a title, produce a short noun phrase (≤8 words). No trailing period.

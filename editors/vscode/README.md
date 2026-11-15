@@ -6,10 +6,10 @@ validation, traceability navigation, and AI assistance built in.
 MarkSpec is a Markdown flavor and toolchain for **traceable industrial
 documentation**. You write requirements, architecture, and tests as ordinary
 Markdown entry blocks; MarkSpec stamps each with a stable ID, links them with
-trace relations (`Satisfies:`, `Verified-by:`, `Derived-from:`, …), and
-validates the whole graph. It targets ISO 26262 and ASPICE compliance workflows
-— but works for any project that needs requirements that stay connected to their
-tests and don't rot.
+trace relations (`Satisfies:`, `Verifies:`, `Derived-from:`, …), and validates
+the whole graph. It targets ISO 26262 and ASPICE compliance workflows — but
+works for any project that needs requirements that stay connected to their tests
+and do not go out of date.
 
 This extension brings the MarkSpec language server into VS Code, so the
 traceability graph is live as you type.
@@ -26,13 +26,13 @@ traceability graph is live as you type.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Satisfies: SYS_BRK_0012
-      Verified-by: SWT_BRK_0001
       Labels: ASIL-B
 ```
 
 The display ID `SRS_BRK_0001` is the human-readable handle; the `Id:` ULID is
-stamped automatically. `Satisfies:` and `Verified-by:` are trace links — the
-extension validates, navigates, and renames across all of them.
+stamped automatically. `Satisfies:` is a trace link — the extension validates,
+navigates, and renames across all trace links. MarkSpec generates the inverse
+`Verified-by:` link from a test's `Verifies:`; do not write it.
 
 ## What you get
 

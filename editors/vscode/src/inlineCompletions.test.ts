@@ -83,6 +83,35 @@ test("classifyContext: trace-attribute after `Satisfies: `", () => {
   }
 });
 
+test("classifyContext: trace-attribute after `Verifies: `", () => {
+  const doc = makeDoc([
+    "- [TST_AEB_0001] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "      Verifies: ",
+  ]);
+  const ctx = classifyContext(doc as never, pos(5, 16) as never);
+  assert.equal(ctx.kind, "trace-attribute");
+  if (ctx.kind === "trace-attribute") {
+    assert.equal(ctx.attribute, "Verifies");
+  }
+});
+
+test("classifyContext: generated `Verified-by: ` is not a trace-attribute context", () => {
+  const doc = makeDoc([
+    "- [STK_AEB_0001] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "      Verified-by: ",
+  ]);
+  const ctx = classifyContext(doc as never, pos(5, 19) as never);
+  assert.equal(ctx.kind, "skip");
+});
+
 test("classifyContext: doc-prose when cursor is on plain markdown outside any entry", () => {
   const doc = makeDoc([
     "# Some heading",
