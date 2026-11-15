@@ -261,6 +261,23 @@ Deno.test("ProjectContext.closeFile: a walked file is parsed again from disk, so
   assertEquals(codesFor(f, "doc.md").includes("MSL-L006"), false);
 });
 
+Deno.test("ProjectContext.closeFile: the disk text's parse diagnostics are kept", async () => {
+  const f = await walkedProject();
+  const target = join(ROOT, "target.md");
+  // The saved file now has an empty trailer key, which is MSL-P021.
+  f.files.set(
+    key(target),
+    TARGET_MD.replace(
+      "      Type: requirement\n",
+      "      Type: requirement\n      Satisfies:\n",
+    ),
+  );
+  await f.ctx.closeFile(target);
+  const codes = f.ctx.index.getParseDiagnostics(target).map((d) => d.code);
+  f.ctx.dispose();
+  assertEquals(codes.includes("MSL-P021"), true);
+});
+
 Deno.test("ProjectContext.closeFile: a walked file deleted from disk is removed", async () => {
   const f = await walkedProject();
   f.files.delete(key(join(ROOT, "target.md")));

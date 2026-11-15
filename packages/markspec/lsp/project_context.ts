@@ -166,8 +166,9 @@ export class ProjectContext {
    * before parsing, and an open buffer is parsed instead of the disk text. A
    * closed editor buffer of one of these files is parsed again from disk,
    * because the buffer only overrode the disk content while it was open
-   * (#938). Corpus files are not in this set because `server.ts` returns
-   * early for them before it calls {@linkcode closeFile}. */
+   * (#938). Corpus files are normally not in this set, because discovery
+   * skips the cache directory; `server.ts` also returns early for corpus
+   * files before it calls {@linkcode closeFile}. */
   private readonly walkedFiles = new Set<string>();
 
   /** `true` when a profile-affecting file (`.markspec.yaml`,
