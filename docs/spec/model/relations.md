@@ -127,7 +127,7 @@ entries elsewhere in the project (or in a federated upstream).
 The following diagram illustrates a typical V-model traceability chain:
 
 ```text
-STK_BRK_0003          (Objective)
+STK_BRK_0003          (Requirement)
      |
      |  Satisfies ↑  Satisfied-by ↓ (generated)
      ▼
@@ -146,7 +146,7 @@ SWT_BRK_0030          (Test)                               BRK_DEB_001
 ```
 
 Walking the graph upward (via `Satisfied-by`) traces requirements to their
-stakeholder objectives. Walking downward (via `Verifies` and `Tests`) traces
+stakeholder requirements. Walking downward (via `Verifies` and `Tests`) traces
 requirements to their test coverage.
 
 The `markspec context` command walks the `Satisfies` chain upward from any
@@ -296,8 +296,8 @@ counts resolved `Verifies` locators per scenario; see
 The validator checks relations in two passes:
 
 1. **Parse pass** — each `RelationName: VALUE` line is parsed. Unknown relation
-   keys raise `MSL-A020` (unknown attribute) unless the key is declared by the
-   active profile.
+   keys raise `MSL-R010` (unknown attribute) unless the key is a core relation
+   key, a universal attribute, or is declared by the active profile.
 
 2. **Cross-file pass** — after all files are parsed, unresolved references
    (display IDs that do not correspond to any entry in the project or federated

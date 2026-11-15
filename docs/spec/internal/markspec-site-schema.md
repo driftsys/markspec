@@ -98,8 +98,8 @@ links:
 ```text
 Product (depends: Features)
   Feature (depends: Components, references: RefHub)
-    SYS → Allocates: CMP_ABS (dependency → full chain expected)
-    SYS → Allocates: CMP_SENSOR (reference → leaf, no deeper chain)
+    SYS → Allocated-to: CMP_ABS (dependency → full chain expected)
+    SYS → Allocated-to: CMP_SENSOR (reference → leaf, no deeper chain)
   Component (depends: Libraries)
     SRS → Satisfies: SYS (traces back to feature)
 ```
@@ -785,9 +785,9 @@ Progressive context flow:
 
 - **BOM = product architecture, not requirement tree.** BOM components (`CMP_*`)
   are separate entries with typed elements (HWC, SWC, MEC). `Part-of` builds the
-  product tree; `Allocates` links requirements to components. Builtin component
-  types mirror the requirement model -- custom subtypes (ECU to HWC, RTC to SWC)
-  defined via process projects.
+  product tree; `Allocated-to` links requirements to components. Builtin
+  component types mirror the requirement model -- custom subtypes (ECU to HWC,
+  RTC to SWC) defined via process projects.
 
 - **Diagnostics in site.** Makes the site a complete build report for CI and
   auditor consumption without needing the CLI.

@@ -92,14 +92,13 @@ profile:
       display-id-pattern: "SRS_{n:4d}"
       description: "Software-level normative statement"
       discipline: software
-    hazard:
-      extends: Risk
-      display-id-pattern: "HAZ_{n:3d}"
+    change-request:
+      extends: Item
+      display-id-pattern: "CHG_{n:3d}"
       display-id-pattern-enforcement: error
-      required: [Mitigated-by]
-      color: hazard-red
+      required: [Addresses]
       traceability:
-        Mitigated-by:
+        Addresses:
           target: [software-requirement]
           cardinality: "1..N"
           required: true
@@ -203,11 +202,11 @@ profile:
       values: [QM, ASIL-A, ASIL-B, ASIL-C, ASIL-D]
       required: false
       description: "Automotive Safety Integrity Level"
-    - name: Mitigated-by
+    - name: Addresses
       type: id-list
       cardinality: "1..N"
       inverse:
-        name: Mitigates
+        name: Addressed-by
         category: relation
 ```
 
@@ -215,7 +214,7 @@ profile:
 
 | Field         | Required | Notes                                                                        |
 | ------------- | -------- | ---------------------------------------------------------------------------- |
-| `name`        | Yes      | Trailer key name (e.g. `ASIL`, `Mitigated-by`)                               |
+| `name`        | Yes      | Trailer key name (e.g. `ASIL`, `Addresses`)                                  |
 | `type`        | Yes      | A value type from the table below                                            |
 | `required`    | No       | Boolean; `true` makes the attribute mandatory (default `false`)              |
 | `cardinality` | No       | `"lower..upper"`, e.g. `"0..1"`, `"1..1"`, `"1..N"`. Defaults per value type |
@@ -249,7 +248,7 @@ value names.
 ### Per-type `traceability`
 
 A type's `traceability:` field maps a trace-link key (e.g. `Satisfies`,
-`Mitigated-by`) to a rule constraining its targets:
+`Addresses`) to a rule constraining its targets:
 
 ```yaml
 profile:
@@ -282,7 +281,7 @@ the resolved relations.
 
 An `id` / `id-list` attribute may declare an `inverse:` (`{name, category}`).
 MarkSpec materialises the reverse edge in compiled output, so a forward
-`Mitigated-by` produces an inverse `Mitigates` on the target. `inverse` on a
+`Addresses` produces an inverse `Addressed-by` on the target. `inverse` on a
 non-id attribute is a `PROFILE-LOAD-003` error.
 
 ## B.6 Labels (`profile.labels`)

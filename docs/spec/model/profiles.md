@@ -11,7 +11,7 @@ tooling.
 | ------------------ | ---------------------------------------------------------------------------------------- |
 | **Subtypes**       | Domain-specific entry types with display-ID patterns (`requirement extends Requirement`) |
 | **Attributes**     | Extra trailer keys beyond the core universal set (`ASIL`, `Priority`, `License`)         |
-| **Relations**      | Trace edges with cardinality and inverse rules (`Mitigated-by`, `Addresses`)             |
+| **Relations**      | Trace edges with cardinality and inverse rules (`Addresses`)                             |
 | **Label concerns** | Structured label vocabulary (`DRAFT`, `RELEASED`, `ASIL-B`)                              |
 | **Conventions**    | Document-level formatting rules (caption position, prose wrap)                           |
 
@@ -44,9 +44,9 @@ profile:
       values: [ASIL-A, ASIL-B, ASIL-C, ASIL-D, QM]
 
   relations:
-    - key: Mitigated-by
-      inverse: Mitigates
-      source-types: [hazard]
+    - key: Addresses
+      inverse: Addressed-by
+      source-types: [change]
       target-types: [requirement]
 
   labels:
@@ -110,7 +110,7 @@ Attributes (1):
   - ASIL: ASIL classification (ASIL-A | ASIL-B | ASIL-C | ASIL-D | QM)
 
 Relations (1):
-  - Mitigated-by: inverse Mitigates; hazard → requirement
+  - Addresses: inverse Addressed-by; change → requirement
 ```
 
 Use `markspec profile describe type requirement` for full detail on any profile
@@ -123,7 +123,7 @@ A project with no `.markspec.yaml` (or an empty profiles list) runs in
 
 - Only the 4 abstract and 15 core concrete types are recognised.
 - Unknown `Type:` values produce `MSL-T020`.
-- Unknown trailer keys produce `MSL-A020`.
+- Unknown trailer keys produce `MSL-R010`.
 - No display-ID patterns, no domain relations, no domain attributes.
 - The type-resolution chain uses only steps 1, 5, 6, 7, and 8 (profile steps 2–4
   do not apply).

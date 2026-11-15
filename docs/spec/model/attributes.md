@@ -152,14 +152,13 @@ not in MarkSpec.
 
 ## Reference-only attributes
 
-The following attributes are declared by the `@markspec/default` profile and
-apply specifically to Reference-shape entries:
+The following attributes are core universal attributes and apply specifically to
+Reference-shape entries:
 
-| Attribute            | Value                                                   |
-| -------------------- | ------------------------------------------------------- |
-| `Reference-url`      | Canonical URL for the standard or package               |
-| `Reference-document` | Human-readable citation string                          |
-| `License`            | SPDX identifier (e.g., `Apache-2.0`, `ISO-proprietary`) |
+| Attribute            | Value                                     |
+| -------------------- | ----------------------------------------- |
+| `Reference-url`      | Canonical URL for the standard or package |
+| `Reference-document` | Human-readable citation string            |
 
 Example:
 
@@ -169,39 +168,44 @@ Example:
       Id: urn:iso:std:iso:26262:-6:ed-2
       Reference-document: ISO 26262-6:2018
       Reference-url: https://www.iso.org/standard/68388.html
-      License: ISO-proprietary
 ```
 
-These attributes are not part of core — they require `@markspec/default` (or any
-profile that extends it) to be active. In core-only mode, using `Reference-url`
-raises `MSL-A020` (unknown attribute key).
+Both attributes are available in core-only mode. In core-only mode, a
+`Reference-url` value that is not an http(s) URL raises `MSL-A050`.
+
+`License` is not a universal attribute. Core declares it on `SoftwareComponent`
+(see
+[Typical attributes by concrete type](#typical-attributes-by-concrete-type)).
 
 ## Typical attributes by concrete type
 
 The tables below summarize typical attribute usage by type group. Attributes
 under "Typical profile attributes" are **not** defined by core — they require
-the relevant profile to be active. In core-only mode, `MSL-R010` is not reported
-for the universal attributes above, the core relation keys, or the attributes
-declared on core types. The type checks (`MSL-T022`, `MSL-R083`) still apply.
+the relevant profile to be active. Core declares `Bus-protocol`,
+`Connector-type`, `Voltage-level` and `Signal-direction` on `HardwareInterface`,
+and `License` on `SoftwareComponent`; the tables list them as core attributes.
+In core-only mode, `MSL-R010` is not reported for the universal attributes
+above, the core relation keys, or the attributes declared on core types. The
+type checks (`MSL-T022`, `MSL-R083`) still apply.
 
 ### Specification types
 
-| Type                | Typical profile attributes                                            | Typical relation attributes                             |
-| ------------------- | --------------------------------------------------------------------- | ------------------------------------------------------- |
-| `Requirement`       | `ASIL`, `Priority`, `Safety-goal`                                     | `Satisfies`, `Derived-from`                             |
-| `Test`              | `Test-level`, `Test-type`, `Test-result`                              | `Verifies`, `Tests`                                     |
-| `Contract`          | (none typical)                                                        | `Satisfies`, `Realized-by` (generated)                  |
-| `SoftwareInterface` | (none typical)                                                        | `Provided-by`, `Required-by`, `Realized-by` (generated) |
-| `HardwareInterface` | `Bus-protocol`, `Voltage-level`, `Connector-type`, `Signal-direction` | `Provided-by`, `Required-by`, `Realized-by` (generated) |
-| `Record`            | (none typical)                                                        | `Affects`, `Caused-by`                                  |
-| `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Caused-by`, `Mitigated-by`                             |
+| Type                | Typical profile attributes               | Typical relation attributes                             |
+| ------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| `Requirement`       | `ASIL`, `Priority`, `Safety-goal`        | `Satisfies`, `Derived-from`                             |
+| `Test`              | `Test-level`, `Test-type`, `Test-result` | `Verifies`, `Tests`                                     |
+| `Contract`          | (none typical)                           | `Satisfies`, `Realized-by` (generated)                  |
+| `SoftwareInterface` | (none typical)                           | `Provided-by`, `Required-by`, `Realized-by` (generated) |
+| `HardwareInterface` | (none typical)                           | `Provided-by`, `Required-by`, `Realized-by` (generated) |
+| `Record`            | (none typical)                           | `Affects`, `Caused-by`                                  |
+| `Risk`              | `ASIL`, `Severity`, `Probability`        | `Caused-by`, `Mitigated-by`                             |
 
 ### Component types
 
-| Type                | Typical profile attributes       | Typical relation attributes |
-| ------------------- | -------------------------------- | --------------------------- |
-| `SoftwareComponent` | `Version`, `License`, `Supplier` | `Part-of`, `Depends-on`     |
-| `HardwareComponent` | `Version`, `Supplier`            | `Part-of`                   |
+| Type                | Typical profile attributes | Typical relation attributes |
+| ------------------- | -------------------------- | --------------------------- |
+| `SoftwareComponent` | `Version`, `Supplier`      | `Part-of`, `Depends-on`     |
+| `HardwareComponent` | `Version`, `Supplier`      | `Part-of`                   |
 
 ### Unit types
 
@@ -212,12 +216,12 @@ declared on core types. The type checks (`MSL-T022`, `MSL-R083`) still apply.
 
 ### Item types
 
-| Type         | Typical profile attributes                       | Notes                                                |
-| ------------ | ------------------------------------------------ | ---------------------------------------------------- |
-| `Definition` | (none typical)                                   | Used in glossary cross-check lint rule               |
-| `Objective`  | `Priority`                                       | Upstream anchor for `Requirement` `Satisfies` chains |
-| `Standard`   | `Reference-url`, `Reference-document`, `License` | Always Reference shape                               |
-| `Change`     | `Priority`, `Status`                             | Links to Requirements via `Addresses`                |
+| Type         | Typical profile attributes | Notes                                              |
+| ------------ | -------------------------- | -------------------------------------------------- |
+| `Definition` | (none typical)             | Used in glossary cross-check lint rule             |
+| `Objective`  | `Priority`                 | Not a `Satisfies` or `Derived-from` target in core |
+| `Standard`   | (none typical)             | Always Reference shape                             |
+| `Change`     | `Priority`, `Status`       | No core relation to Requirements                   |
 
 ## Profile-declared attributes
 
