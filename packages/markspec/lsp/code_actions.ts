@@ -17,12 +17,16 @@
  *     "Did you mean …" rather than exhaustive suggestions.
  *   - **MSL-A013** — single-cardinality attribute appears more than
  *     once. Action: delete every duplicate trailer line, keeping the
- *     first occurrence.
+ *     first occurrence. Only lines in the diagnosed entry's trailer
+ *     block are considered.
  *   - **MSL-A011** — citation attribute in CSV form. Action: rewrite
  *     the single CSV line as one trailer line per value (the
- *     canonical multi-line form), splitting on top-level commas.
+ *     canonical multi-line form), splitting on top-level commas. The
+ *     fix uses the first line of the diagnosed entry's trailer block
+ *     that has the key and two or more values.
  *   - **MSL-A012** — repeatable attribute with an empty value list.
- *     Action: remove the empty trailer line.
+ *     Action: remove the empty trailer line (the first line of the
+ *     diagnosed entry's trailer block that has the key and no values).
  *   - **MSL-P021** — malformed trailer line, only when the line the
  *     diagnostic points at is an empty-valued `Key:` trailer (e.g.
  *     `Satisfies:`). Action: remove the empty trailer line(s) in that
@@ -165,7 +169,13 @@ function buildA012Fix(
   const match = ATTRIBUTE_KEY_RE.exec(diag.message);
   if (!match) return undefined;
   const attrKey = match[1];
-  const i = findTrailerLine(documentText, diag.range.start.line, attrKey);
+  const block = markdownTrailerBlock(documentText, diag.range.start.line);
+  if (!block) return undefined;
+  const i = findBlockKeyLine(
+    block,
+    attrKey,
+    (value) => splitCitationValues(value).length === 0,
+  );
   if (i === undefined) return undefined;
   return quickFix(uri, diag, `Remove empty '${attrKey}' line`, [
     deleteLines(i, i + 1),
@@ -227,35 +237,16 @@ function buildP023Fix(
   diag: LspDiagnosticLike,
   documentText: string,
 ): CodeAction | undefined {
-  // The diagnostic points at the first trailer line. Find the entry that
-  // holds it, then let the formatter's trailer detection (shared with the
-  // parser) bound the block, so a following list item or heading is never
-  // touched. Each trailer line gets the list-item indent plus 4 columns,
-  // the canonical layout `markspec fmt` writes.
-  const lines = documentText.split("\n");
+  // The diagnostic points at the first trailer line. The shared block
+  // lookup finds the entry that holds it and bounds the block with the
+  // formatter's trailer detection (shared with the parser), so a following
+  // list item or heading is never touched. Each trailer line gets the
+  // list-item indent plus 4 columns, the canonical layout `markspec fmt`
+  // writes.
   const target = diag.range.start.line;
-  let entryLine: number | undefined;
-  let itemEndFloor = 0;
-  for (const entry of parse(documentText)) {
-    if (entry.location.line - 1 <= target) {
-      if (entryLine === undefined || entry.location.line > entryLine) {
-        entryLine = entry.location.line;
-        // The same floor `markspec fmt` passes, so a lazy-continuation or
-        // tab-led trailer gets the same block as fmt finds.
-        itemEndFloor = entry.endLine ?? 0;
-      }
-    }
-  }
-  if (entryLine === undefined) return undefined;
-  const indent = lines[entryLine - 1].indexOf("[");
-  if (indent < 0) return undefined;
-  const range = findAttributeBlockRange(
-    lines,
-    entryLine,
-    indent,
-    itemEndFloor,
-  );
-  if (!range || target < range.start || target >= range.end) return undefined;
+  const block = markdownTrailerBlock(documentText, target);
+  if (!block || target < block.range.start) return undefined;
+  const { lines, range, indent } = block;
   // A continuation line cannot be re-indented without changing its
   // meaning, and fmt leaves such a trailer as it is (MSL-P021).
   for (let i = range.start; i < range.end; i++) {
@@ -316,37 +307,36 @@ function buildA011Fix(
   const match = ATTRIBUTE_KEY_RE.exec(diag.message);
   if (!match) return undefined;
   const attrKey = match[1];
-  const lines = documentText.split("\n");
-  const lineRe = new RegExp(`^(\\s{4,})${attrKey}\\s*:\\s*(.*)$`);
-  for (let i = diag.range.start.line; i < lines.length; i++) {
-    const m = lineRe.exec(lines[i]);
-    if (!m) continue;
-    const indent = m[1];
-    const rawValue = m[2];
-    const nonEmpty = splitCitationValues(rawValue);
-    if (nonEmpty.length < 2) return undefined;
-    const newText = nonEmpty
-      .map((v) => `${indent}${attrKey}: ${v}\n`)
-      .join("");
-    return {
-      title: `Rewrite '${attrKey}' as multi-line`,
-      kind: "quickfix",
-      diagnostics: [diag],
-      isPreferred: true,
-      edit: {
-        changes: {
-          [uri]: [{
-            range: {
-              start: { line: i, character: 0 },
-              end: { line: i + 1, character: 0 },
-            },
-            newText,
-          }],
-        },
+  const block = markdownTrailerBlock(documentText, diag.range.start.line);
+  if (!block) return undefined;
+  const i = findBlockKeyLine(
+    block,
+    attrKey,
+    (value) => splitCitationValues(value).length >= 2,
+  );
+  if (i === undefined) return undefined;
+  const m = BLOCK_LINE_RE.exec(block.lines[i])!;
+  const indent = m[1];
+  const newText = splitCitationValues(m[3])
+    .map((v) => `${indent}${attrKey}: ${v}\n`)
+    .join("");
+  return {
+    title: `Rewrite '${attrKey}' as multi-line`,
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: true,
+    edit: {
+      changes: {
+        [uri]: [{
+          range: {
+            start: { line: i, character: 0 },
+            end: { line: i + 1, character: 0 },
+          },
+          newText,
+        }],
       },
-    };
-  }
-  return undefined;
+    },
+  };
 }
 
 /** Quick fix for MSL-M060: lowercase the modal keyword at the diagnostic range. */
@@ -440,26 +430,16 @@ function buildA013Fix(
   const match = ATTRIBUTE_KEY_RE.exec(diag.message);
   if (!match) return undefined;
   const attrKey = match[1];
-  // Collect every trailer line that defines this attribute, from the
-  // diagnostic's line forward. Keep the first; emit a delete edit
-  // for each subsequent one. Stop scanning once a non-trailer,
-  // non-blank line is hit (end of the trailer block).
-  const lines = documentText.split("\n");
-  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
-  const trailerRe = /^\s{4,}[A-Z][A-Za-z-]*\s*:/;
+  // Collect every trailer line of the diagnosed entry's block that
+  // defines this attribute. Keep the first; delete the rest.
+  const block = markdownTrailerBlock(documentText, diag.range.start.line);
+  if (!block) return undefined;
   const dupLines: number[] = [];
-  let seenFirst = false;
-  let inBlock = false;
-  for (let i = diag.range.start.line; i < lines.length; i++) {
-    const line = lines[i];
-    if (lineRe.test(line)) {
-      inBlock = true;
-      if (seenFirst) dupLines.push(i);
-      else seenFirst = true;
-    } else if (inBlock && line.trim() !== "" && !trailerRe.test(line)) {
-      break;
-    }
+  for (let i = block.range.start; i < block.range.end; i++) {
+    const m = BLOCK_LINE_RE.exec(block.lines[i]);
+    if (m?.[2] === attrKey) dupLines.push(i);
   }
+  dupLines.shift();
   if (dupLines.length === 0) return undefined;
   return quickFix(
     uri,
@@ -484,6 +464,69 @@ function findTrailerLine(
   const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
   for (let i = fromLine; i < lines.length; i++) {
     if (lineRe.test(lines[i])) return i;
+  }
+  return undefined;
+}
+
+/** A trailer line in a Markdown entry block: indent, key, value. */
+const BLOCK_LINE_RE = /^(\s{4,})([A-Z][A-Za-z-]*)\s*:\s*(.*)$/;
+
+/** The trailer block of one Markdown entry. */
+interface MarkdownTrailerBlock {
+  /** Lines of the whole document. */
+  readonly lines: string[];
+  /** 0-based, half-open line range of the trailer block. */
+  readonly range: { readonly start: number; readonly end: number };
+  /** 0-based column of the `[` that opens the entry's display ID. */
+  readonly indent: number;
+}
+
+/**
+ * Locate the trailer block of the entry that the diagnostic at the 0-based
+ * `line` belongs to: the entry with the last title line at or before `line`.
+ * The block is the one the formatter and the parser agree on
+ * (`findAttributeBlockRange`), so it never reaches the next entry's title
+ * line. Returns `undefined` when no entry holds the line, the entry has no
+ * trailer, or the trailer ends before `line`.
+ */
+function markdownTrailerBlock(
+  documentText: string,
+  line: number,
+): MarkdownTrailerBlock | undefined {
+  const lines = documentText.split("\n");
+  let owner: ReturnType<typeof parse>[number] | undefined;
+  for (const entry of parse(documentText)) {
+    if (entry.location.line - 1 <= line) {
+      if (!owner || entry.location.line > owner.location.line) owner = entry;
+    }
+  }
+  if (!owner) return undefined;
+  const indent = lines[owner.location.line - 1].indexOf("[");
+  if (indent < 0) return undefined;
+  // The same floor `markspec fmt` passes, so a lazy-continuation or
+  // tab-led trailer gets the same block as fmt finds.
+  const range = findAttributeBlockRange(
+    lines,
+    owner.location.line,
+    indent,
+    owner.endLine ?? 0,
+  );
+  if (!range || line >= range.end) return undefined;
+  return { lines, range, indent };
+}
+
+/**
+ * Index of the first line in `block` whose key is `key` and whose value
+ * satisfies `accept`, or `undefined`. Never looks outside the block.
+ */
+function findBlockKeyLine(
+  block: MarkdownTrailerBlock,
+  key: string,
+  accept: (value: string) => boolean,
+): number | undefined {
+  for (let i = block.range.start; i < block.range.end; i++) {
+    const m = BLOCK_LINE_RE.exec(block.lines[i]);
+    if (m && m[2] === key && accept(m[3])) return i;
   }
   return undefined;
 }

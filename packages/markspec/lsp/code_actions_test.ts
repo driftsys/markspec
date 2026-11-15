@@ -7,7 +7,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { format, parseFile } from "../core/mod.ts";
+import { format, parse, parseFile, validate } from "../core/mod.ts";
 import { buildCodeActions, type LspDiagnosticLike } from "./code_actions.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
 
@@ -863,5 +863,152 @@ Deno.test("buildCodeActions: MSL-A011 splits at a backslash comma outside a loca
   assertEquals(
     actions[0].edit!.changes!["file:///x.md"][0].newText,
     "      References: x\\\n      References: y\n",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Quick fixes stay inside the diagnosed entry's trailer block (#952)
+// ---------------------------------------------------------------------------
+
+const BLOCK_ID_A = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF";
+const BLOCK_ID_B = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG";
+
+/** Two entries; `a` and `b` are the trailer lines of each (without Id). */
+function twoEntries(a: string[], b: string[]): string {
+  return [
+    "# Test",
+    "",
+    "- [REQ-001] First",
+    "",
+    "  Body.",
+    "",
+    BLOCK_ID_A,
+    ...a,
+    "",
+    "- [REQ-002] Second",
+    "",
+    "  Body.",
+    "",
+    BLOCK_ID_B,
+    ...b,
+    "",
+  ].join("\n");
+}
+
+/** Lines [0, 9+a.length) belong to the first entry (title is line 2). */
+function firstEntryEnd(a: string[]): number {
+  return 7 + a.length;
+}
+
+function titleDiag(code: string, key: string): LspDiagnosticLike {
+  return diag({
+    code,
+    message: `REQ-001: '${key}' is wrong`,
+    line: 2,
+    character: 0,
+  });
+}
+
+Deno.test("buildCodeActions: MSL-A012 picks the empty line, not an earlier same-key line (#952)", () => {
+  const a = ["      Labels: ASIL-B", "      Labels: , ,"];
+  const doc = twoEntries(a, ["      Labels: , ,"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 8);
+});
+
+Deno.test("buildCodeActions: MSL-A012 never edits the following entry (#952)", () => {
+  const doc = twoEntries(["      Labels: ASIL-B"], ["      Labels: , ,"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A011 picks the CSV line, not an earlier same-key line (#952)", () => {
+  const a = ["      References: ISO-1", "      References: ISO-2, ISO-3"];
+  const doc = twoEntries(a, ["      References: ISO-4, ISO-5"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A011", "References"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 8);
+  assertEquals(
+    edits[0].newText,
+    "      References: ISO-2\n      References: ISO-3\n",
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A011 never edits the following entry (#952)", () => {
+  const doc = twoEntries(["      References: ISO-1"], [
+    "      References: ISO-4, ISO-5",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A011", "References"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A013 removes duplicates only in the diagnosed entry (#952)", () => {
+  const a = ["      Type: Requirement", "      Type: Specification"];
+  const doc = twoEntries(a, a);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 8);
+  assertEquals(edits[0].range.start.line < firstEntryEnd(a), true);
+});
+
+Deno.test("buildCodeActions: MSL-A013 never edits the following entry (#952)", () => {
+  const doc = twoEntries(["      Type: Requirement"], [
+    "      Type: Requirement",
+    "      Type: Specification",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-P021 never edits the following entry (#952)", () => {
+  const doc = twoEntries(["      Satisfies:"], ["      Satisfies:"]);
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: "malformed trailer line",
+      line: 7,
+      character: 6,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: real MSL-A012 diagnostic fixes the right line (#952)", async () => {
+  const doc = twoEntries(
+    ["      Labels: ASIL-B", "      Labels: , ,"],
+    ["      Labels: , ,"],
+  );
+  const { diagnostics } = await parseFile(doc, { file: "/x.md" });
+  const all = [...diagnostics, ...validate(parse(doc)).diagnostics];
+  const a012 = all.filter((d) => d.code === "MSL-A012").map(toLspDiagnostic);
+  // The first diagnostic belongs to REQ-001.
+  assertEquals(a012.length >= 1, true);
+  const actions = buildCodeActions("file:///x.md", [a012[0]], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
   );
 });
