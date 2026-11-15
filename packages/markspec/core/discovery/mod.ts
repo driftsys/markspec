@@ -18,7 +18,14 @@
  * Node-compatible; entry points supply the Deno implementation.
  */
 
-import { extname, join, relative, resolve, SEPARATOR } from "@std/path";
+import {
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  SEPARATOR,
+} from "@std/path";
 import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 export { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
@@ -141,26 +148,145 @@ export async function* discoverFiles(
   options: DiscoverOptions = {},
 ): AsyncGenerator<string> {
   const extensions = options.extensions ?? RELEVANT_EXTENSIONS;
+  const start = await walkStart(root, io, options);
+  // Carry excludes separately: they must stay after every `.gitignore`,
+  // including ones loaded deeper in the walk.
+  yield* walk(
+    root,
+    start.prefix,
+    start.rules,
+    start.excludeRules,
+    io,
+    extensions,
+  );
+}
+
+/**
+ * Report whether {@linkcode discoverFiles} with the same `root`, `io` and
+ * `options` would yield `path`. It applies the same rules as the walk: the
+ * extension filter, hidden directories, the built-in build-output skips, the
+ * `.gitignore` chain and `exclude`. It checks the directories from `root`
+ * down to the file, so a file under an ignored directory is not included.
+ * The file must exist as a regular file: a path that does not exist, a
+ * symbolic link, and a path outside `root` are not included. It lists every
+ * ancestor directory of the file, so it is meant for per-file checks, not
+ * bulk use. It compares paths as given: case and symbolic links in the
+ * directories above the file are not resolved.
+ */
+export async function isDiscoverable(
+  path: string,
+  root: string,
+  io: DiscoveryIO,
+  options: DiscoverOptions = {},
+): Promise<boolean> {
+  const extensions = options.extensions ?? RELEVANT_EXTENSIONS;
+  if (!isRelevantFile(path, extensions)) return false;
+  const rel = relative(resolve(root), resolve(path));
+  if (
+    rel === "" || rel === ".." || rel.startsWith(`..${SEPARATOR}`) ||
+    isAbsolute(rel)
+  ) {
+    return false;
+  }
+  const segments = rel.split(SEPARATOR);
+  const start = await walkStart(root, io, options);
+  let rules = start.rules;
+  let absDir = root;
+  let relDir = start.prefix;
+  for (let i = 0; i < segments.length; i++) {
+    const gitignoreRules = await rulesForDirectory(absDir, relDir, rules, io);
+    const active = [...gitignoreRules, ...start.excludeRules];
+    const name = segments[i];
+    const entryRel = relDir === "" ? name : `${relDir}/${name}`;
+    const isLast = i === segments.length - 1;
+    // The walk yields only entries that report isFile or isDirectory, so a
+    // symbolic link, or a path that does not exist, is not discoverable.
+    const kind = await entryKind(absDir, name, io);
+    if (isLast ? kind !== "file" : kind !== "directory") return false;
+    if (isLast) return !isIgnored(entryRel, false, active);
+    if (isPrunedDirectory(name, entryRel, active)) return false;
+    rules = gitignoreRules;
+    absDir = join(absDir, name);
+    relDir = entryRel;
+  }
+  return false;
+}
+
+/** The kind of the entry `name` in `absDir`, as the walk sees it. */
+async function entryKind(
+  absDir: string,
+  name: string,
+  io: DiscoveryIO,
+): Promise<"file" | "directory" | undefined> {
+  try {
+    for await (const e of io.readDir(absDir)) {
+      if (e.name !== name) continue;
+      return e.isDirectory ? "directory" : e.isFile ? "file" : undefined;
+    }
+  } catch {
+    // An unreadable directory is skipped by the walk.
+  }
+  return undefined;
+}
+
+/** The starting rule state of a walk of `root`, shared by the walk and
+ * {@linkcode isDiscoverable}. `prefix` is the path of `root` below the
+ * folder the rules are anchored at. */
+async function walkStart(
+  root: string,
+  io: DiscoveryIO,
+  options: DiscoverOptions,
+): Promise<{
+  prefix: string;
+  rules: readonly GitignoreRule[];
+  excludeRules: readonly GitignoreRule[];
+}> {
   const inherited = options.inheritGitignoreFrom === undefined
     ? { rules: [], prefix: "" }
     : await inheritedGitignoreRules(options.inheritGitignoreFrom, root, io);
   // With inherited rules, every rule is matched against paths relative to
   // the enclosing folder, so `prefix` is the path from it down to `root`.
-  const prefix = inherited.prefix;
-  const excludeRules = parseGitignore(
-    (options.exclude ?? []).join("\n"),
-    prefix,
-  );
-  // Carry excludes separately: they must stay after every `.gitignore`,
-  // including ones loaded deeper in the walk.
-  yield* walk(
-    root,
-    prefix,
-    [...BUILTIN_SKIP_RULES, ...inherited.rules],
-    excludeRules,
-    io,
-    extensions,
-  );
+  return {
+    prefix: inherited.prefix,
+    rules: [...BUILTIN_SKIP_RULES, ...inherited.rules],
+    excludeRules: parseGitignore(
+      (options.exclude ?? []).join("\n"),
+      inherited.prefix,
+    ),
+  };
+}
+
+/** `true` when a file has one of the `extensions`. */
+function isRelevantFile(
+  path: string,
+  extensions: ReadonlySet<string>,
+): boolean {
+  return extensions.has(extname(path).toLowerCase());
+}
+
+/** `true` when the walk does not enter a directory: hidden, or ignored.
+ * Git semantics: paths under an ignored directory cannot be re-included, so
+ * pruning is correct. */
+function isPrunedDirectory(
+  name: string,
+  rel: string,
+  active: readonly GitignoreRule[],
+): boolean {
+  return name.startsWith(".") || isIgnored(rel, true, active);
+}
+
+/** The `.gitignore` rules in force inside `absDir`: the inherited `rules`
+ * followed by the directory's own `.gitignore`, so deeper rules win. */
+async function rulesForDirectory(
+  absDir: string,
+  relDir: string,
+  rules: readonly GitignoreRule[],
+  io: DiscoveryIO,
+): Promise<readonly GitignoreRule[]> {
+  const raw = await io.readFile(join(absDir, ".gitignore"));
+  return raw !== undefined && raw.length > 0
+    ? [...rules, ...parseGitignore(raw, relDir)]
+    : rules;
 }
 
 /**
@@ -205,10 +331,7 @@ async function* walk(
 ): AsyncGenerator<string> {
   // Deeper `.gitignore` rules win over inherited ones. Excludes stay last
   // for this directory's decisions, but are not inherited as gitignore rules.
-  const raw = await io.readFile(join(absDir, ".gitignore"));
-  const gitignoreRules = raw !== undefined && raw.length > 0
-    ? [...rules, ...parseGitignore(raw, relDir)]
-    : rules;
+  const gitignoreRules = await rulesForDirectory(absDir, relDir, rules, io);
   const active = [...gitignoreRules, ...excludeRules];
 
   const entries: DiscoveryDirEntry[] = [];
@@ -222,10 +345,7 @@ async function* walk(
   for (const entry of entries) {
     const rel = relDir === "" ? entry.name : `${relDir}/${entry.name}`;
     if (entry.isDirectory) {
-      if (entry.name.startsWith(".")) continue; // built-in: hidden dirs
-      // Git semantics: paths under an ignored directory cannot be
-      // re-included, so pruning here is correct (and fast).
-      if (isIgnored(rel, true, active)) continue;
+      if (isPrunedDirectory(entry.name, rel, active)) continue;
       yield* walk(
         join(absDir, entry.name),
         rel,
@@ -235,7 +355,7 @@ async function* walk(
         extensions,
       );
     } else if (entry.isFile) {
-      if (!extensions.has(extname(entry.name).toLowerCase())) continue;
+      if (!isRelevantFile(entry.name, extensions)) continue;
       if (isIgnored(rel, false, active)) continue;
       yield join(absDir, entry.name);
     }

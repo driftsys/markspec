@@ -130,3 +130,66 @@ Deno.test("lsp traceability: closing the buffer of a target file keeps links to 
     await client.shutdown();
   }
 });
+
+Deno.test("lsp traceability: closing the buffer of a file created after startup keeps links to it resolved (#955)", async () => {
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\nversion: 0.1.0\n",
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": PROFILE_YAML,
+    "reqs.md": MD.replace("REQ-0099", "REQ-0001"),
+  });
+  try {
+    await client.initialize();
+    const reqsUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    const newPath = join(client.workDir, "created.md");
+    const newUri = toFileUrl(newPath).href;
+    const text = `- [REQ-0001] A requirement
+
+  Body text.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+`;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: reqsUri,
+        languageId: "markdown",
+        version: 1,
+        text: Deno.readTextFileSync(join(client.workDir, "reqs.md")),
+      },
+    });
+    // The new file is created in the editor after startup: it is not on disk
+    // yet, so the startup walk did not index it.
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: newUri,
+        languageId: "markdown",
+        version: 1,
+        text,
+      },
+    });
+    const l006Count = (): number =>
+      (client.latestDiagnosticsFor(reqsUri) ?? []).filter((d) =>
+        d.code === "MSL-L006"
+      ).length;
+    await client.waitUntil(
+      () => client.latestPublishIsCrossFile(reqsUri) && l006Count() === 0,
+      "no MSL-L006 for reqs.md while the new buffer is open",
+      10000,
+    );
+    // Save, then close.
+    Deno.writeTextFileSync(newPath, text);
+    const before = client.publishCountFor(reqsUri);
+    await client.notify("textDocument/didClose", {
+      textDocument: { uri: newUri },
+    });
+    await client.waitUntil(
+      () => client.publishCountFor(reqsUri) > before,
+      "a validation run for reqs.md after the close",
+      10000,
+    );
+    assertEquals(l006Count(), 0);
+  } finally {
+    await client.shutdown();
+  }
+});

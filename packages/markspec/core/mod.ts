@@ -526,6 +526,7 @@ export {
 export {
   discoverFiles,
   FEATURE_EXTENSIONS,
+  isDiscoverable,
   isIgnored,
   MARKDOWN_EXTENSIONS,
   parseGitignore,

@@ -3,6 +3,7 @@ import { join } from "@std/path";
 import {
   discoverFiles,
   FEATURE_EXTENSIONS,
+  isDiscoverable,
   MARKDOWN_EXTENSIONS,
   RELEVANT_EXTENSIONS,
   SOURCE_EXTENSIONS,
@@ -469,4 +470,179 @@ Deno.test("discovery: FEATURE_EXTENSIONS is relevant but not a source extension"
   assertEquals([...FEATURE_EXTENSIONS], [".feature"]);
   assertEquals(RELEVANT_EXTENSIONS.has(".feature"), true);
   assertEquals(SOURCE_EXTENSIONS.has(".feature"), false);
+});
+
+/** Every file of `rels` under `dir`: does the predicate agree with the walk? */
+async function predicateMatchesWalk(
+  dir: string,
+  root: string,
+  rels: string[],
+  opts: Parameters<typeof discoverFiles>[2] = {},
+): Promise<Record<string, boolean>> {
+  const walked = new Set(await collect(root, opts));
+  const out: Record<string, boolean> = {};
+  for (const rel of rels) {
+    const abs = join(dir, ...rel.split("/"));
+    const decided = await isDiscoverable(abs, root, realIO(), opts);
+    const base = root.length > dir.length ? root.slice(dir.length + 1) : "";
+    const walkRel = base === "" ? rel : rel.slice(base.length + 1);
+    assertEquals(decided, walked.has(walkRel), `${rel}: predicate vs walk`);
+    out[rel] = decided;
+  }
+  return out;
+}
+
+Deno.test("isDiscoverable: matches the walk for included, ignored, excluded, hidden and wrong-extension files", async () => {
+  const dir = await makeTree({
+    "ok.md": "",
+    "sub/deep.md": "",
+    "ignored.md": "",
+    "gen/out.md": "",
+    "skipped/x.md": "",
+    ".hidden/h.md": "",
+    "node_modules/m.md": "",
+    "notes.txt": "",
+    ".gitignore": "ignored.md\ngen/\n",
+  });
+  const rels = [
+    "ok.md",
+    "sub/deep.md",
+    "ignored.md",
+    "gen/out.md",
+    "skipped/x.md",
+    ".hidden/h.md",
+    "node_modules/m.md",
+    "notes.txt",
+  ];
+  const got = await predicateMatchesWalk(dir, dir, rels, {
+    exclude: ["skipped/"],
+  });
+  assertEquals(got, {
+    "ok.md": true,
+    "sub/deep.md": true,
+    "ignored.md": false,
+    "gen/out.md": false,
+    "skipped/x.md": false,
+    ".hidden/h.md": false,
+    "node_modules/m.md": false,
+    "notes.txt": false,
+  });
+});
+
+Deno.test("isDiscoverable: a file that does not exist is not discoverable", async () => {
+  const dir = await makeTree({ "a.md": "" });
+  assertEquals(
+    await isDiscoverable(join(dir, "later.md"), dir, realIO()),
+    false,
+  );
+  assertEquals(
+    await isDiscoverable(join(dir, "nodir", "x.md"), dir, realIO()),
+    false,
+  );
+});
+
+Deno.test(
+  "isDiscoverable: a symbolic link is not discoverable, as in the walk",
+  {
+    ignore: Deno.build.os === "windows",
+  },
+  async () => {
+    const dir = await makeTree({ "real.md": "", "realdir/in.md": "" });
+    await Deno.symlink(join(dir, "real.md"), join(dir, "link.md"));
+    await Deno.symlink(join(dir, "realdir"), join(dir, "linkdir"));
+    const got = await predicateMatchesWalk(dir, dir, [
+      "real.md",
+      "link.md",
+      "realdir/in.md",
+      "linkdir/in.md",
+    ]);
+    assertEquals(got, {
+      "real.md": true,
+      "link.md": false,
+      "realdir/in.md": true,
+      "linkdir/in.md": false,
+    });
+  },
+);
+
+Deno.test("isDiscoverable: negations match the walk", async () => {
+  const dir = await makeTree({
+    ".gitignore": "ign/\nre/\n",
+    "ign/.gitignore": "!keep.md\n",
+    "ign/keep.md": "",
+    "re/a.md": "",
+    "plain.md": "",
+  });
+  const rels = ["ign/keep.md", "re/a.md", "plain.md"];
+  // A deeper `!` cannot re-include a file under an ignored directory.
+  assertEquals(await predicateMatchesWalk(dir, dir, rels), {
+    "ign/keep.md": false,
+    "re/a.md": false,
+    "plain.md": true,
+  });
+  // An `exclude:` negation re-includes the gitignored directory.
+  assertEquals(
+    await predicateMatchesWalk(dir, dir, rels, { exclude: ["!re/"] }),
+    { "ign/keep.md": false, "re/a.md": true, "plain.md": true },
+  );
+});
+
+Deno.test("isDiscoverable: a path outside the root is not discoverable", async () => {
+  const dir = await makeTree({ "a.md": "" });
+  const other = await makeTree({ "b.md": "" });
+  assertEquals(await isDiscoverable(join(other, "b.md"), dir, realIO()), false);
+});
+
+Deno.test("isDiscoverable: inheritGitignoreFrom applies the enclosing .gitignore", async () => {
+  const dir = await makeTree({
+    ".gitignore": "secret.md\n",
+    "mid/sub/secret.md": "",
+    "mid/sub/open.md": "",
+  });
+  const root = join(dir, "mid", "sub");
+  const got = await predicateMatchesWalk(
+    dir,
+    root,
+    ["mid/sub/secret.md", "mid/sub/open.md"],
+    { inheritGitignoreFrom: dir },
+  );
+  assertEquals(got, { "mid/sub/secret.md": false, "mid/sub/open.md": true });
+  // Without the inheritance the enclosing rule does not apply.
+  assertEquals(
+    await isDiscoverable(join(root, "secret.md"), root, realIO()),
+    true,
+  );
+});
+
+Deno.test("isDiscoverable: .gitignore rules apply at depth 2 and deeper, as in the walk", async () => {
+  const dir = await makeTree({
+    ".gitignore": "*.draft.md\n",
+    "sub/.gitignore": "/deeper/\n*.tmp.md\n",
+    "sub/x.draft.md": "",
+    "sub/ok.md": "",
+    "sub/deeper/y.md": "",
+    "sub/other/z.tmp.md": "",
+    "sub/other/w.draft.md": "",
+    "sub/other/fine.md": "",
+    "sub/other/deeper/q.md": "",
+  });
+  const got = await predicateMatchesWalk(dir, dir, [
+    "sub/x.draft.md",
+    "sub/ok.md",
+    "sub/deeper/y.md",
+    "sub/other/z.tmp.md",
+    "sub/other/w.draft.md",
+    "sub/other/fine.md",
+    "sub/other/deeper/q.md",
+  ]);
+  assertEquals(got, {
+    "sub/x.draft.md": false,
+    "sub/ok.md": true,
+    "sub/deeper/y.md": false,
+    "sub/other/z.tmp.md": false,
+    "sub/other/w.draft.md": false,
+    "sub/other/fine.md": true,
+    // `/deeper/` in sub/.gitignore is anchored at sub, not at the root.
+    "sub/other/deeper/q.md": true,
+  });
 });
