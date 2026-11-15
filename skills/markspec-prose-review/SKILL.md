@@ -99,8 +99,8 @@ and define both referents explicitly.
 - [ ] `Then` assertions are independently verifiable outcomes, not internal
       state.
 - [ ] No pronoun references across steps ("it", "the result").
-- [ ] `Verified-by:` trailer on the requirement entry links to the test entry
-      that implements these scenarios.
+- [ ] `Verifies:` trailer on the test entry links to the requirement these
+      scenarios verify. A hand-written `Verified-by:` is an error (MSL-A030).
 
 ---
 

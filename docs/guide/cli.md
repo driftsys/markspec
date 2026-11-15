@@ -401,8 +401,8 @@ canonicalises and heals trace reference values (a `.feature` file only gets its
 missing `# Id:` lines):
 
 - **Canonicalise** — any ULID written directly in a trace attribute
-  (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.) is rewritten to the
-  target entry's current display ID, except inside a refused entry.
+  (`Satisfies:`, `Derived-from:`, `Verifies:`, etc.) is rewritten to the target
+  entry's current display ID, except inside a refused entry.
 - **Heal** — if a target's display ID was renamed, the edge ledger in
   `markspec.lock` records the stable `target-ulid`; `fmt` uses it to rewrite the
   stale display ID to the target's new name, except inside a refused entry.
@@ -1555,8 +1555,8 @@ pre-filled entry block scaffold with the next available display ID for each type
 defined in your profile.
 
 **ID reference completion** — after a trace attribute keyword (`Satisfies:`,
-`Derived-from:`, `Verified-by:`, etc.) the server suggests all known display IDs
-in the project.
+`Derived-from:`, `Verifies:`, etc.) the server suggests all known display IDs in
+the project.
 
 **Source file context guard** — in source files (Rust, Kotlin, Java, C, C++,
 TypeScript, TSX, JavaScript, C#), completions only activate near entry markers

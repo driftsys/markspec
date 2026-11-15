@@ -72,7 +72,7 @@ Out of scope (and where each piece is owned):
 | `markspec/profile` (custom)                | **must-have**    | Active profile metadata — types, prefixes, colors. Drives client-side profile-aware coloring.   | `core/profile`        |
 | `textDocument/codeLens`                    | should-have      | Inline counts ("5 dependents") and chain links above entry titles.                              | `WorkspaceIndex`      |
 | `textDocument/inlayHint`                   | should-have      | Inline resolved type / dependent count without explicit screen real estate.                     | `WorkspaceIndex`      |
-| `textDocument/documentLink`                | should-have      | `Verified-by:` paths and file-references as clickable links to test files / source.             | parser-extracted      |
+| `textDocument/documentLink`                | should-have      | File-path values of authored attributes as clickable links (see §5.3).                          | parser-extracted      |
 | `textDocument/rangeFormatting`             | deferred (v1.1)  | Format a selected range only.                                                                   | `core/formatter`      |
 | `textDocument/onTypeFormatting`            | deferred (v1.1)  | Format as user types (e.g. on `:`, newline).                                                    | `core/formatter`      |
 | `textDocument/selectionRange`              | deferred (v1.1)  | Expand-selection (inline → line → trailer → entry → section).                                   | parser positions      |
@@ -317,15 +317,10 @@ no separate computation.
 
 ### 5.3 `textDocument/documentLink`
 
-For each `Verified-by:` attribute value that looks like a file path
-(`src/foo.rs:test_name`, `tests/sit_bar.rs`), the server emits a document link
-covering the path portion. Clicking jumps to the file (and line, when present).
-
-Backing: parser already extracts `Verified-by:` values as `rawAttributes`. The
-link resolver does a simple path-shape match — paths with a `.rs`, `.kt`, `.c`,
-`.cpp`, etc. extension and optional `:line` or `:line:col` suffix. Non-path
-values (display IDs) are not linkified (those are handled by the existing
-`textDocument/definition`).
+`Verified-by` is a generated attribute (it is computed from `Verifies`), so it
+never appears in authored text, and no document link is defined for it. This
+section is reserved for links on authored file-path values, if the language
+defines any.
 
 ### 5.4 Performance
 

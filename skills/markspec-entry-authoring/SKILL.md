@@ -2,7 +2,7 @@
 schema: 1
 name: markspec-entry-authoring
 description: |
-  Use when writing, editing, or reviewing a MarkSpec entry block — the `- [TYPE_NNNN] Title` list-item format, body prose, and trailer attributes (Id, Type, Satisfies, Labels, Verified-by, and other trace keys).
+  Use when writing, editing, or reviewing a MarkSpec entry block — the `- [TYPE_NNNN] Title` list-item format, body prose, and trailer attributes (Id, Type, Satisfies, Labels, Verifies, and other trace keys).
 ---
 
 ## Overview
@@ -70,16 +70,16 @@ project". `kind` is one of `type`, `attribute`, `relation`, `label`,
 
 ## Core trailer attributes
 
-| Attribute       | Cardinality | Purpose                                                            |
-| --------------- | ----------- | ------------------------------------------------------------------ |
-| `Id:`           | 0–1         | ULID. Stamped by `markspec fmt`. Present on Authored entries only. |
-| `Type:`         | 0–1         | Declared type name from the active profile.                        |
-| `Satisfies:`    | 0–N         | Upstream display IDs this entry satisfies (one per line).          |
-| `Derived-from:` | 0–N         | Source entries for derived requirements.                           |
-| `Verified-by:`  | 0–N         | Test or acceptance-criteria entries that verify this one.          |
-| `Tests:`        | 0–N         | Reverse of Verified-by — the entry being tested.                   |
-| `Labels:`       | 0–N         | Free-form tags: ASIL level, domain, review state.                  |
-| `References:`   | 0–N         | Informational links — does not create a traceability link.         |
+| Attribute       | Cardinality | Purpose                                                             |
+| --------------- | ----------- | ------------------------------------------------------------------- |
+| `Id:`           | 0–1         | ULID. Stamped by `markspec fmt`. Present on Authored entries only.  |
+| `Type:`         | 0–1         | Declared type name from the active profile.                         |
+| `Satisfies:`    | 0–N         | Upstream display IDs this entry satisfies (one per line).           |
+| `Derived-from:` | 0–N         | Source entries for derived requirements.                            |
+| `Verifies:`     | 0–N         | On a test entry: the requirement it verifies. Never `Verified-by:`. |
+| `Tests:`        | 0–N         | On a test entry: the Component, Unit, or Contract it tests.         |
+| `Labels:`       | 0–N         | Free-form tags: ASIL level, domain, review state.                   |
+| `References:`   | 0–N         | Informational links — does not create a traceability link.          |
 
 This is the core baseline. A child profile may declare additional attributes and
 trace relations — discover them via `markspec://profile` (see _Discover the
