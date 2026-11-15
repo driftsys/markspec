@@ -549,8 +549,9 @@ export class ProjectContext {
    * closing its buffer removes it from the index until the next re-index.
    *
    * @param stillClosed Called after each await; when it returns `false` the
-   *   buffer was opened again meanwhile, and the open buffer's own parse wins,
-   *   so this method leaves the index unchanged.
+   *   buffer was opened again meanwhile, and the open buffer's own parse wins.
+   *   The disk parse is stored only after the last check, with no await in
+   *   between, so this method then leaves the index unchanged.
    */
   async closeFile(
     filePath: string,
@@ -561,8 +562,11 @@ export class ProjectContext {
       const text = await this.host.readFile(filePath);
       if (this.disposed || !stillClosed()) return;
       if (text !== undefined) {
-        await this.index.parseAndUpdateFile(filePath, text);
+        const parsed = await this.index.parseOnly(filePath, text);
         if (this.disposed || !stillClosed()) return;
+        // No await between the check and the store: a reopened buffer's own
+        // parse is never overwritten by the disk text.
+        this.index.applyParsed(filePath, parsed);
         this.scheduleValidateAll();
         return;
       }

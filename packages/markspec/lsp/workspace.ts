@@ -303,10 +303,28 @@ export class WorkspaceIndex {
     filePath: string,
     content: string,
   ): Promise<readonly Diagnostic[]> {
+    const result = await this.parseOnly(filePath, content);
+    this.applyParsed(filePath, result);
+    return result.diagnostics;
+  }
+
+  /** Parse `content` for `filePath` without touching the index. Pair with
+   * {@linkcode applyParsed} when the store must be conditional. */
+  async parseOnly(
+    filePath: string,
+    content: string,
+  ): Promise<{ entries: Entry[]; diagnostics: readonly Diagnostic[] }> {
     const result = await parseFile(content, { file: filePath });
+    return { entries: result.entries, diagnostics: result.diagnostics };
+  }
+
+  /** Store the result of {@linkcode parseOnly} in the index (synchronous). */
+  applyParsed(
+    filePath: string,
+    result: { entries: Entry[]; diagnostics: readonly Diagnostic[] },
+  ): void {
     this.updateFile(filePath, result.entries);
     this.fileParseDiagnostics.set(filePath, result.diagnostics);
-    return result.diagnostics;
   }
 
   /**

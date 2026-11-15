@@ -291,18 +291,28 @@ Deno.test("ProjectContext.closeFile: a reopen during the read wins", async () =>
   assertEquals(ids, ["REQ-0002"]);
 });
 
-Deno.test("ProjectContext.closeFile: a reopen during the parse schedules no validation", async () => {
+Deno.test("ProjectContext.closeFile: a reopen during the parse keeps the reopened buffer's entries", async () => {
   const f = await walkedProject();
   const target = join(ROOT, "target.md");
   let scheduled = 0;
   f.ctx.scheduleValidateAll = () => {
     scheduled++;
   };
-  // Closed after the read, open again after the parse: the open buffer's own
-  // parse schedules the validation, so the close must not.
-  const answers = [true, false];
-  await f.ctx.closeFile(target, () => answers.shift() ?? false);
+  // Closed after the read; the reopened buffer's parse lands while the
+  // close's disk parse is still pending, so the second check sees a reopen.
+  const answers = [true];
+  const closing = f.ctx.closeFile(target, () => {
+    const answer = answers.shift() ?? false;
+    return answer;
+  });
+  await f.ctx.index.parseAndUpdateFile(
+    target,
+    TARGET_MD.replace("REQ-0001", "REQ-0002"),
+  );
+  await closing;
+  const ids = f.ctx.index.getEntriesForFile(target).map((e) => e.displayId);
   f.ctx.dispose();
+  assertEquals(ids, ["REQ-0002"]);
   assertEquals(scheduled, 0);
 });
 
