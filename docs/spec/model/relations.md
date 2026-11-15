@@ -55,20 +55,22 @@ The following relations are declared by the `@markspec/default` profile and are
 available in any project that uses it. In core-only mode (no profile
 configured), these relation keys are treated as unknown attributes (`MSL-A020`).
 
-| Relation         | Inverse          | Typical source type | Typical target type         |
-| ---------------- | ---------------- | ------------------- | --------------------------- |
-| `Satisfies`      | `Satisfied-by`   | `Requirement`       | `Requirement`, `Objective`  |
-| `Derived-from`   | `Derived-by`     | `Requirement`       | `Requirement`               |
-| `Verifies`       | `Verified-by`    | `Test`              | `Requirement`, `Contract`   |
-| `Tests`          | `Tested-by`      | `Test`              | `SoftwareUnit`, `Component` |
-| `Depends-on`     | `Depended-on-by` | `Component`, `Unit` | `Component`                 |
-| `Part-of`        | `Has-part`       | `Component`, `Unit` | `Component`                 |
-| `Provides`       | `Provided-by`    | `Component`         | `Contract`                  |
-| `Requires`       | `Required-by`    | `Component`         | `Contract`                  |
-| `Allocated-to`   | `Allocates`      | `Requirement`       | `Component`                 |
-| `Realizes`       | `Realized-by`    | `Component`, `Unit` | `Contract`, `Requirement`   |
-| `Generated-from` | (none)           | any                 | any                         |
-| `Addresses`      | `Addressed-by`   | `Requirement`       | `Change`                    |
+| Relation         | Inverse          | Typical source type | Typical target type             |
+| ---------------- | ---------------- | ------------------- | ------------------------------- |
+| `Satisfies`      | `Satisfied-by`   | `Requirement`       | `Specification`                 |
+| `Derived-from`   | `Derives`        | `Requirement`       | `Specification`                 |
+| `Verifies`       | `Verified-by`    | `Test`              | `Requirement`, `Contract`       |
+| `Tests`          | `Tested-by`      | `Test`              | `Component`, `Unit`, `Contract` |
+| `Depends-on`     | `Depended-on-by` | `Component`, `Unit` | `Component`, `Unit`             |
+| `Part-of`        | `Contains`       | `Component`, `Unit` | `Component`                     |
+| `Provides`       | `Provided-by`    | `Component`         | `Contract`                      |
+| `Requires`       | `Required-by`    | `Component`         | `Contract`                      |
+| `Allocated-to`   | `Allocated`      | `Requirement`       | `Component`                     |
+| `Realizes`       | `Realized-by`    | `Component`, `Unit` | `Specification`                 |
+| `Generated-from` | (none)           | any                 | any                             |
+| `Mitigated-by`   | `Mitigates`      | `Risk`              | `Specification`                 |
+| `Affects`        | `Affected-by`    | any                 | `Component`, `Unit`, `Contract` |
+| `Addresses`      | `Addressed-by`   | `Requirement`       | `Change`                        |
 
 `Provides` / `Requires` are the symmetric provider/consumer relations between a
 component and a `Contract` (including `SoftwareInterface` /
@@ -131,7 +133,7 @@ SYS_BRK_0042          (Requirement)
 SRS_BRK_0107          (Requirement)  ──── Allocated-to ──► BRK_SW_001
      |                                                          (SoftwareComponent)
      |  Verified-by ↑  Verifies ↓                                   |
-     ▼   (generated)                                                 |  Has-part ↓
+     ▼   (generated)                                                 |  Contains ↓
 SWT_BRK_0030          (Test)                               BRK_DEB_001
                                                                 (SoftwareUnit)
                                                                      |

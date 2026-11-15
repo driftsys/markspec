@@ -69,8 +69,8 @@ traceable documentation projects.
 
 A test case, test procedure, or test result. Records what was checked and how.
 
-- **Typical relations:** `Verifies` (→ `Requirement`), `Tests` (→ `SoftwareUnit`
-  or `Component`).
+- **Typical relations:** `Verifies` (→ `Requirement`), `Tests` (→ `Component`,
+  `Unit`, or `Contract`).
 - **Typical profile attributes:** `Test-level`, `Test-type`, `Test-result`
 
 ```markdown
@@ -144,7 +144,7 @@ A hazard or FMEA entry. Profiles typically add safety-classification attributes.
 A software module, service, or subsystem.
 
 - **Typical relations:** `Part-of` (→ `SoftwareComponent`), `Depends-on` (→
-  `SoftwareComponent`), `Allocates` (generated inverse when a `Requirement` uses
+  `SoftwareComponent`), `Allocated` (generated inverse when a `Requirement` uses
   `Allocated-to`).
 
 ### HardwareComponent
