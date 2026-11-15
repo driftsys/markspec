@@ -432,9 +432,9 @@ function checkStructural(
       // MSL-R010: Unknown attributes are warnings in the core. A
       // profile-aware validator widens this check to include profile-declared
       // attributes; until then, anything outside the universal set and the
-      // core relation keys is unrecognized. Core-typed attributes (per ADR-003 §Part 2) are
-      // suppressed here — the per-type validator emits a more specific
-      // MSL-T022 when they appear on the "wrong" type.
+      // core relation keys is unrecognized. Core-typed attributes (per
+      // ADR-003 §Part 2) are suppressed here — the per-type validator emits
+      // a more specific MSL-T022 when they appear on the "wrong" type.
       if (
         !UNIVERSAL_KEYS.has(attr.key) &&
         !CORE_RELATION_KEYS.has(attr.key) &&

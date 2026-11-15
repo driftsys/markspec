@@ -188,6 +188,12 @@ Deno.test("validate: unknown attribute → MSL-R010 warning", () => {
   const r010 = result.diagnostics.filter((d) => d.code === "MSL-R010");
   assertEquals(r010.length, 1);
   assertEquals(r010[0].severity, "warning");
+  assertEquals(
+    r010[0].message,
+    "REQ-001: unknown attribute 'Custom-attr' (not in core universal set or " +
+      "core relation keys; profile-declared attributes are permitted when a " +
+      "profile is loaded)",
+  );
 });
 
 Deno.test("validate: every core relation key is not flagged MSL-R010", () => {

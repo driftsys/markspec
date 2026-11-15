@@ -180,8 +180,9 @@ raises `MSL-A020` (unknown attribute key).
 
 The tables below summarize typical attribute usage by type group. Attributes
 under "Typical profile attributes" are **not** defined by core — they require
-the relevant profile to be active. Only the universal attributes above and the
-core relation attributes declared on core types are available in core-only mode.
+the relevant profile to be active. In core-only mode, the universal attributes
+above, every core relation key, and the attributes declared on core types are
+accepted.
 
 ### Specification types
 

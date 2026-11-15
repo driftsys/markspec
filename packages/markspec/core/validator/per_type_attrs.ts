@@ -6,9 +6,9 @@
  * `Type:`, profile classification, or URI-scheme inference for
  * Reference-shape entries — any attribute that's known to the core
  * hierarchy but not allowed on that type fires MSL-T022 as a warning.
- * Unknown attributes (neither universal nor core-typed) fall through
- * to the existing MSL-R010 unknown-attribute warning in
- * `validator/mod.ts`.
+ * Unknown attributes (neither universal, core relation keys, nor
+ * core-typed) fall through to the existing MSL-R010 unknown-attribute
+ * warning in `validator/mod.ts`.
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
