@@ -2,7 +2,8 @@
 
 A **relation** is a typed, directed edge between two entries in the trace graph.
 Relations are written as trailer attributes in the source entry; the toolchain
-generates the inverse edge automatically in the compiled output.
+generates the inverse edge in the compiled output when the active profile
+declares the inverse.
 
 ## Writing a relation
 
@@ -37,8 +38,8 @@ Satisfies: SYS_BRK_0042 Satisfies: SYS_BRK_0043
 ## Generated inverses
 
 When MarkSpec compiles the graph it writes the reverse edge for every forward
-relation. The author **never** writes the inverse — it appears only in the
-compiled output:
+relation whose `inverse:` the active profile declares. The author **never**
+writes the inverse — it appears only in the compiled output:
 
 ```text
 SRS_BRK_0107  --[Satisfies]-->    SYS_BRK_0042
@@ -51,24 +52,30 @@ from toolchain bookkeeping.
 
 ## Core relations
 
-The following relations are declared by the `@markspec/default` profile and are
-available in any project that uses it. In core-only mode (no profile
-configured), these relation keys are treated as unknown attributes (`MSL-A020`).
+The following relations are the core relations (`CORE_RELATIONS` in the core
+model). Core recognizes them without a profile, except `Generated-from`, which
+core-only validation reports as an unknown attribute (`MSL-R010`).
 
-| Relation         | Inverse          | Typical source type | Typical target type         |
-| ---------------- | ---------------- | ------------------- | --------------------------- |
-| `Satisfies`      | `Satisfied-by`   | `Requirement`       | `Requirement`, `Objective`  |
-| `Derived-from`   | `Derived-by`     | `Requirement`       | `Requirement`               |
-| `Verifies`       | `Verified-by`    | `Test`              | `Requirement`, `Contract`   |
-| `Tests`          | `Tested-by`      | `Test`              | `SoftwareUnit`, `Component` |
-| `Depends-on`     | `Depended-on-by` | `Component`, `Unit` | `Component`                 |
-| `Part-of`        | `Has-part`       | `Component`, `Unit` | `Component`                 |
-| `Provides`       | `Provided-by`    | `Component`         | `Contract`                  |
-| `Requires`       | `Required-by`    | `Component`         | `Contract`                  |
-| `Allocated-to`   | `Allocates`      | `Requirement`       | `Component`                 |
-| `Realizes`       | `Realized-by`    | `Component`, `Unit` | `Contract`, `Requirement`   |
-| `Generated-from` | (none)           | any                 | any                         |
-| `Addresses`      | `Addressed-by`   | `Requirement`       | `Change`                    |
+The Inverse column gives the inverse key that core reserves. The compiler
+generates the inverse only when the active profile declares `inverse:` for the
+relation.
+
+| Relation         | Inverse          | Typical source type | Typical target type             |
+| ---------------- | ---------------- | ------------------- | ------------------------------- |
+| `Satisfies`      | `Satisfied-by`   | `Requirement`       | `Specification`                 |
+| `Derived-from`   | `Derives`        | `Requirement`       | `Specification`                 |
+| `Verifies`       | `Verified-by`    | `Test`              | `Requirement`, `Contract`       |
+| `Tests`          | `Tested-by`      | `Test`              | `Component`, `Unit`, `Contract` |
+| `Depends-on`     | `Depended-on-by` | `Component`, `Unit` | `Component`, `Unit`             |
+| `Part-of`        | `Contains`       | `Component`, `Unit` | `Component`                     |
+| `Provides`       | `Provided-by`    | `Component`         | `Contract`                      |
+| `Requires`       | `Required-by`    | `Component`         | `Contract`                      |
+| `Allocated-to`   | `Allocated`      | `Requirement`       | `Component`                     |
+| `Realizes`       | `Realized-by`    | `Component`, `Unit` | `Specification`                 |
+| `Generated-from` | (none)           | any                 | any                             |
+| `References`     | `Cited-by`       | any                 | any                             |
+| `Mitigated-by`   | `Mitigates`      | `Risk`              | `Specification`                 |
+| `Affects`        | `Affected-by`    | `Record`            | `Component`, `Unit`, `Contract` |
 
 `Provides` / `Requires` are the symmetric provider/consumer relations between a
 component and a `Contract` (including `SoftwareInterface` /
@@ -76,9 +83,9 @@ component and a `Contract` (including `SoftwareInterface` /
 it. `Allocated-to` is **not** reused for provider-hosting — it keeps its single
 requirement-allocation meaning.
 
-Note: `Supersedes` / `Superseded-by` are **universal attributes** (not relation
-attributes) — they are part of core and are available without any profile. See
-the [Attributes](attributes.md) chapter.
+Note: `Supersedes` / `Superseded-by` are universal attributes. `Supersedes` is
+also a core relation (it produces a graph edge) and is available without any
+profile. See the [Attributes](attributes.md) chapter.
 
 **`Allocated-to` drives discipline classification.** Per
 [ADR-017](../../architecture/adr-017-discipline-classification.md) the toolchain
@@ -131,7 +138,7 @@ SYS_BRK_0042          (Requirement)
 SRS_BRK_0107          (Requirement)  ──── Allocated-to ──► BRK_SW_001
      |                                                          (SoftwareComponent)
      |  Verified-by ↑  Verifies ↓                                   |
-     ▼   (generated)                                                 |  Has-part ↓
+     ▼   (generated)                                                 |  Contains ↓
 SWT_BRK_0030          (Test)                               BRK_DEB_001
                                                                 (SoftwareUnit)
                                                                      |
@@ -166,12 +173,6 @@ Profiles can add new relations beyond the core set:
 ```yaml
 profile:
   relations:
-    - key: Mitigated-by
-      inverse: Mitigates
-      source-types: [hazard]
-      target-types: [requirement]
-      cardinality: many-to-many
-
     - key: Addresses
       inverse: Addressed-by
       source-types: [requirement]

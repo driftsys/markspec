@@ -69,8 +69,8 @@ traceable documentation projects.
 
 A test case, test procedure, or test result. Records what was checked and how.
 
-- **Typical relations:** `Verifies` (→ `Requirement`), `Tests` (→ `SoftwareUnit`
-  or `Component`).
+- **Typical relations:** `Verifies` (→ `Requirement`), `Tests` (→ `Component`,
+  `Unit`, or `Contract`).
 - **Typical profile attributes:** `Test-level`, `Test-type`, `Test-result`
 
 ```markdown
@@ -122,8 +122,8 @@ alone — not part of a `Satisfies` chain.
 
 A hazard or FMEA entry. Profiles typically add safety-classification attributes.
 
-- **Typical relations:** `Mitigated-by` (generated inverse of `Mitigates` from a
-  `Requirement`).
+- **Typical relations:** `Caused-by`, and `Mitigated-by` (→ `Specification`),
+  authored on the `Risk`; its reserved inverse is `Mitigates`.
 - **Typical profile attributes:** `ASIL`, `Severity`, `Probability`
 
 ```markdown
@@ -144,7 +144,7 @@ A hazard or FMEA entry. Profiles typically add safety-classification attributes.
 A software module, service, or subsystem.
 
 - **Typical relations:** `Part-of` (→ `SoftwareComponent`), `Depends-on` (→
-  `SoftwareComponent`), `Allocates` (generated inverse when a `Requirement` uses
+  `SoftwareComponent`), `Allocated` (generated inverse when a `Requirement` uses
   `Allocated-to`).
 
 ### HardwareComponent
