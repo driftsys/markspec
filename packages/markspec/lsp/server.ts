@@ -48,6 +48,7 @@ import {
   isWithin,
   loadMarkdownFormatter,
   makeDisplayId,
+  parseFile,
   targetsForRelation,
   VERSION,
 } from "../core/mod.ts";
@@ -1506,7 +1507,15 @@ connection.onCodeAction(async (params) => {
       diagnostics,
       documentText ?? "",
     )
-    : buildCodeActions(params.textDocument.uri, diagnostics, documentText);
+    : buildCodeActions(
+      params.textDocument.uri,
+      diagnostics,
+      documentText,
+      // A030 and T020 locate their line from the source parser's entries.
+      isSourceFile(filePath) && documentText !== undefined
+        ? (await parseFile(documentText, { file: filePath })).entries
+        : undefined,
+    );
   // deno-lint-ignore no-explicit-any
   return actions as any;
 });

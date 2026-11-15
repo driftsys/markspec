@@ -1054,7 +1054,7 @@ Deno.test("buildCodeActions: MSL-A013 works on a CRLF document (#952)", () => {
   assertEquals(editsOf(actions)[0].range.start.line, 8);
 });
 
-Deno.test("buildCodeActions: MSL-A030 removes the first forward match (#952)", () => {
+Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#952)", () => {
   const doc = twoEntries(["      Superseded-by: REQ-009"], [
     "      Superseded-by: REQ-009",
   ]);
@@ -1065,7 +1065,7 @@ Deno.test("buildCodeActions: MSL-A030 removes the first forward match (#952)", (
   assertEquals(editsOf(actions)[0].range.start.line, 7);
 });
 
-Deno.test("buildCodeActions: MSL-T020 replaces the first forward match (#952)", () => {
+Deno.test("buildCodeActions: MSL-T020 replaces the value of the diagnosed entry (#952)", () => {
   const doc = twoEntries(["      Type: Requirment"], [
     "      Type: Requirment",
   ]);
@@ -1130,54 +1130,168 @@ Deno.test("buildCodeActions: MSL-A013 ignores empty-value lines (#952)", () => {
   assertEquals(edits[0].range.start.line, 9);
 });
 
-/** A Rust block doc comment holding an unprefixed, 4-space-indented entry. */
-const RS_BLOCK_DOC = (trailer: string) =>
-  [
-    "/**",
-    "- [REQ-001] Title",
-    "",
-    "    Body.",
-    "",
-    "    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
-    trailer,
-    "*/",
-    "fn f() {}",
-    "",
-  ].join("\n");
-
-Deno.test("buildCodeActions: MSL-A030 offers a fix in a source doc comment block (#952)", () => {
-  const doc = RS_BLOCK_DOC("    Superseded-by: REQ-009");
-  const actions = buildCodeActions("file:///x.rs", [
-    diag({
-      code: "MSL-A030",
-      message: "REQ-001: 'Superseded-by' has generated origin",
-      line: 1,
-      character: 0,
-    }),
+Deno.test("buildCodeActions: MSL-A030 never removes a same-key line of the following entry (#965)", () => {
+  const doc = twoEntries([], ["      Superseded-by: REQ-009"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A030", "Superseded-by"),
   ], doc);
-  assertEquals(actions.length, 1);
-  assertEquals(
-    actions[0].edit!.changes!["file:///x.rs"][0].range.start.line,
-    6,
-  );
+  assertEquals(actions, []);
 });
 
-Deno.test("buildCodeActions: MSL-T020 offers a fix in a source doc comment block (#952)", () => {
-  const doc = RS_BLOCK_DOC("    Type: Requirment");
-  const actions = buildCodeActions("file:///x.rs", [
+Deno.test("buildCodeActions: MSL-T020 never edits a same-value line of the following entry (#965)", () => {
+  const doc = twoEntries([], ["      Type: Requirment"]);
+  const actions = buildCodeActions("file:///x.md", [
     diag({
       code: "MSL-T020",
       message: "REQ-001: Type: 'Requirment' is not a core type",
-      line: 1,
+      line: 2,
       character: 0,
     }),
   ], doc);
-  assertEquals(actions.length, 1);
-  assertEquals(
-    actions[0].edit!.changes!["file:///x.rs"][0].newText,
-    "Requirement",
-  );
+  assertEquals(actions, []);
 });
+
+/** Source files in three comment layouts; each holds two entries. */
+const SOURCE_LAYOUTS: Record<string, (a: string[], b: string[]) => string> = {
+  "x.rs (/// comments)": (a, b) =>
+    [
+      "/// [REQ-001] First",
+      "///",
+      "///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      ...a.map((l) => `///     ${l}`),
+      "fn a() {}",
+      "",
+      "/// [REQ-002] Second",
+      "///",
+      "///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      ...b.map((l) => `///     ${l}`),
+      "fn b() {}",
+      "",
+    ].join("\n"),
+  "x.rs (* block comment)": (a, b) =>
+    [
+      "/**",
+      " * [REQ-001] First",
+      " *",
+      " *     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      ...a.map((l) => ` *     ${l}`),
+      " */",
+      "fn a() {}",
+      "",
+      "/**",
+      " * [REQ-002] Second",
+      " *",
+      " *     Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      ...b.map((l) => ` *     ${l}`),
+      " */",
+      "fn b() {}",
+      "",
+    ].join("\n"),
+  "x.rs (block comment, no * prefix)": (a, b) =>
+    [
+      "/**",
+      "    [REQ-001] First",
+      "",
+      "        Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      ...a.map((l) => `        ${l}`),
+      "*/",
+      "fn a() {}",
+      "",
+      "/**",
+      "    [REQ-002] Second",
+      "",
+      "        Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      ...b.map((l) => `        ${l}`),
+      "*/",
+      "fn b() {}",
+      "",
+    ].join("\n"),
+};
+
+/** The 0-based line of the first line that holds `needle`. */
+function lineOf(text: string, needle: string): number {
+  return text.split("\n").findIndex((l) => l.includes(needle));
+}
+
+async function sourceActions(
+  text: string,
+  diagnostic: LspDiagnosticLike,
+) {
+  const parsed = await parseFile(text, { file: "/x.rs" });
+  return buildCodeActions("file:///x.rs", [diagnostic], text, parsed.entries);
+}
+
+for (const [name, layout] of Object.entries(SOURCE_LAYOUTS)) {
+  const titleLine = (text: string) => lineOf(text, "[REQ-001]");
+
+  Deno.test(`buildCodeActions: MSL-A030 removes the right line in ${name} (#965)`, async () => {
+    const text = layout(["Superseded-by: REQ-009"], []);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-A030",
+        message: "REQ-001: 'Superseded-by' has generated origin",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions.length, 1);
+    const edit = actions[0].edit!.changes!["file:///x.rs"];
+    assertEquals(edit.length, 1);
+    assertEquals(edit[0].range.start.line, lineOf(text, "Superseded-by"));
+    assertEquals(edit[0].range.end.line, lineOf(text, "Superseded-by") + 1);
+  });
+
+  Deno.test(`buildCodeActions: MSL-A030 skips a same-key line of the following entry in ${name} (#965)`, async () => {
+    const text = layout([], ["Superseded-by: REQ-009"]);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-A030",
+        message: "REQ-001: 'Superseded-by' has generated origin",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions, []);
+  });
+
+  Deno.test(`buildCodeActions: MSL-T020 replaces the right value in ${name} (#965)`, async () => {
+    const text = layout(["Type: Requirment"], []);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-T020",
+        message: "REQ-001: Type: 'Requirment' is not a core type",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions.length, 1);
+    const edit = actions[0].edit!.changes!["file:///x.rs"][0];
+    const line = lineOf(text, "Type: Requirment");
+    assertEquals(edit.newText, "Requirement");
+    assertEquals(edit.range.start.line, line);
+    assertEquals(
+      edit.range.start.character,
+      text.split("\n")[line].indexOf("Requirment"),
+    );
+  });
+
+  Deno.test(`buildCodeActions: MSL-T020 skips a same-value line of the following entry in ${name} (#965)`, async () => {
+    const text = layout([], ["Type: Requirment"]);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-T020",
+        message: "REQ-001: Type: 'Requirment' is not a core type",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions, []);
+  });
+}
 
 Deno.test("buildCodeActions: MSL-A012 strips a continuation backslash before trailing spaces (#952)", () => {
   for (const tail of ["\\  ", "\\\t"]) {
