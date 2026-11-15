@@ -231,7 +231,8 @@ What works in a `.feature` file:
     above when the whole trailer is empty. This can remove an empty `# Id:`
     line; Format Document then stamps a new one.
   - `MSL-B069`: remove the blank lines between the header and its node. The fix
-    is offered only when the edited text gives an entry at that header.
+    is offered only when a re-parse of the edited text attaches the header to
+    its node as an entry and no longer reports `MSL-B069` for it.
   - `MSL-M060` (lowercase a modal verb) and `MSL-S010` use the same fixes as in
     Markdown.
 

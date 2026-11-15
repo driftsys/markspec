@@ -519,7 +519,8 @@ Facts about the Cucumber extensions, verified on 2026-11-14 from their published
 
 ## Amendment 2026-11-15 — code actions for `.feature` files (#943)
 
-Case B slice 3 (epic #915). It resolves item 7 (D6) of the LSP amendment.
+Case B slice 3 follow-up, issue #943 (epic #915). It resolves item 7 (D6) of the
+LSP amendment.
 
 Before this change, `onCodeAction` ran the Markdown quick fixes on `.feature`
 files. The `MSL-A030`, `MSL-A013`, `MSL-A012`, `MSL-T020` and `MSL-A011`
@@ -537,18 +538,21 @@ indented doc-string line.
 3. **Locating lines (D3).** The fix scans only the trailer block of the header
    that the diagnostic points at. The header run and the trailer block come from
    `headerRun` and `trailerBlock`. The `MSL-P021` range is the line itself. When
-   several diagnostics of one code name the same key on one header, the nth
-   diagnostic fixes the nth matching line.
+   several diagnostics of `MSL-A030`, `MSL-A012` or `MSL-A011` name the same key
+   on one header, the nth diagnostic fixes the nth matching line. `MSL-A013`
+   keeps the first line of the key and removes the rest. `MSL-T020` uses the
+   first `# Type:` line that contains the bad value.
 4. **Shared run rule (D4).** `featureHeaderRunEnd` in
    `core/parser/feature_file.ts`, exported from `core/mod.ts`, holds the rule
    for where a header run ends. The formatter and the language server both use
    it.
-5. **Format parity (D5).** Fixes delete whole lines, or insert lines that copy
-   the `#` prefix and the line ending of the line they replace. No fix removes a
-   value-bearing `# Id:` line. When every header had an Id, the fixed text gives
-   `formatFeatureText(fixed).changed === false`. The `MSL-P021` fix can remove
-   an empty `# Id:` line, because that line carries no value; Format Document
-   then stamps a new Id.
+5. **Format parity (D5).** Fixes delete whole lines, replace a value inside one
+   line (`MSL-T020`), or replace one line with several (`MSL-A011`). Every fix
+   keeps the `#` prefix and the line ending of the line it edits. No fix removes
+   a value-bearing `# Id:` line. When every header had an Id, the fixed text
+   gives `formatFeatureText(fixed).changed === false`. The `MSL-P021` fix can
+   remove an empty `# Id:` line, because that line carries no value; Format
+   Document then stamps a new Id.
 6. **`MSL-P021` (D6).** Only an empty `# Key:` line gets a fix. The fix removes
    every empty key line of the trailer block, and the `#`-only line above the
    block when the whole block is empty. This restores a trailer that the empty

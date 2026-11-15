@@ -45,6 +45,8 @@ export interface LineRange {
 /**
  * The comment prefix of `line` (indent, `#`, and the spaces after it), or
  * `undefined` when the line is not a comment line.
+ *
+ * Precondition: `line` carries no trailing `\r` (see {@linkcode splitLines}).
  */
 export function commentPrefix(line: string): string | undefined {
   return COMMENT_PREFIX_RE.exec(line)?.[0];
@@ -53,6 +55,8 @@ export function commentPrefix(line: string): string | undefined {
 /**
  * The trailer key of a comment line, when the comment text matches
  * `^[A-Z][A-Za-z-]*\s*:`. `undefined` for any other line.
+ *
+ * Precondition: `line` carries no trailing `\r` (see {@linkcode splitLines}).
  */
 export function trailerKey(line: string): string | undefined {
   const prefix = commentPrefix(line);
@@ -127,10 +131,17 @@ export function splitLines(
   return { lines, crlf };
 }
 
-/** The raw value of a trailer line (text after `Key:`), or `undefined`. */
-function lineValue(line: string): string | undefined {
+/**
+ * The value of a trailer line (text after `Key:`), or `undefined`. One
+ * trailing continuation backslash is dropped, as the attribute parser does.
+ *
+ * Precondition: `line` carries no trailing `\r` (see
+ * {@linkcode splitLines}).
+ */
+export function lineValue(line: string): string | undefined {
   const prefix = commentPrefix(line) ?? "";
-  return TRAILER_LINE_RE.exec(line.slice(prefix.length))?.[2];
+  const raw = TRAILER_LINE_RE.exec(line.slice(prefix.length))?.[2];
+  return raw === undefined ? undefined : raw.replace(/\\$/, "");
 }
 
 /**
@@ -155,15 +166,19 @@ function findKeyLine(
 
 /**
  * Build quick fixes for the diagnostics of a `.feature` file (#943). The
- * attribute fixes (A030, A012, A013, T020, A011, P021) edit only lines inside
- * the trailer block of the header that the diagnostic points at, and never a
- * `# Id:` line. B069 deletes the blank lines between a header and its node,
- * only when a re-parse of the edited text yields the entry. M060 and S010
- * use the shared builders, which work from the diagnostic range alone. Codes
- * without a fix return nothing. A builder that throws or rejects for one
- * diagnostic loses only that diagnostic's action. When several
- * diagnostics of one code name the same key on one header, the nth
- * diagnostic fixes the nth matching line, so each action has its own line.
+ * attribute fixes (A030, A012, A013, T020, A011) edit only lines inside the
+ * trailer block of the header that the diagnostic points at, and never a
+ * `# Id:` line. P021 removes empty `# Key:` lines of that block, which can
+ * include an empty `# Id:` line; no fix removes a value-bearing one. B069
+ * deletes the blank lines between a header and its node, only when a
+ * re-parse of the edited text yields the entry. M060 and S010 use the shared
+ * builders, which work from the diagnostic range alone. Codes without a fix
+ * return nothing. A builder that throws or rejects for one
+ * diagnostic loses only that diagnostic's action. When several diagnostics
+ * of A030, A012 or A011 name the same key on one header, the nth diagnostic
+ * fixes the nth matching line, so each action has its own line. A013 keeps
+ * the first line of the key and removes the rest. T020 uses the first
+ * `# Type:` line that contains the bad value.
  *
  * @param uri - Document URI.
  * @param filePath - Document path, used to re-parse the edited text.
@@ -369,9 +384,9 @@ function citationFix(
 ): CodeAction | undefined {
   const line = lines[at];
   const prefix = commentPrefix(line) ?? "";
-  const match = TRAILER_LINE_RE.exec(line.slice(prefix.length));
-  if (!match) return undefined;
-  const values = splitCitationValues(match[2]);
+  const value = lineValue(line);
+  if (value === undefined) return undefined;
+  const values = splitCitationValues(value);
   if (values.length < 2) return undefined;
   const eol = crlf[at] ? "\r\n" : "\n";
   const newText = values.map((v) => `${prefix}${key}: ${v}`).join(eol);
@@ -389,7 +404,10 @@ function citationFix(
  * Walks from the end of the header run over blank lines, tag lines and plain
  * comment lines, and offers to delete the blank lines. The fix is offered
  * only when a re-parse of the edited text gives an entry at the header start
- * line and no B069 for that header; this rules out a header above a
+ * line and no B069 for that header. Both checks stay: the entry check guards
+ * against a header that the edit leaves unattached, and the B069 check
+ * guards against a header that still has text between it and its node. This
+ * rules out a header above a
  * Background, Examples or a step, a stacked header, and any other text in
  * the gap.
  */
