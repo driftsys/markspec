@@ -13,7 +13,7 @@
  * a path that does not exist) gets no link.
  */
 
-import type { Entry } from "../core/mod.ts";
+import { type Entry, isCorpusEntry } from "../core/mod.ts";
 
 /** A subset of the LSP `DocumentLink` interface. */
 export interface DocumentLink {
@@ -51,7 +51,8 @@ const PATH_TOKEN_RE = /^([^\s,:]+)(?::(\d+)(?::\d+)?)?$/;
  * Build the `DocumentLink[]` for a document.
  *
  * @param entries — entries declared in the document the client requested
- *   links for. Each entry's `location.line` (1-based) anchors the search;
+ *   links for. Entries that carry an `origin` (delivered corpus, upstream)
+ *   are skipped. Each entry's `location.line` (1-based) anchors the search;
  *   the helper scans lines from that entry's start up to either the next
  *   entry's start − 1 or the end of `text`.
  * @param text — the full text of the document. Used to locate the value's
@@ -81,6 +82,10 @@ export function buildDocumentLinks(
 
   for (let i = 0; i < sorted.length; i++) {
     const entry = sorted[i];
+    // Delivered-corpus and upstream entries are read-only and their paths
+    // are not local (ADR-030), so they get no links. They still bound the
+    // line range of the entry before them.
+    if (isCorpusEntry(entry)) continue;
     // 1-based inclusive start; 1-based inclusive end.
     const startLine = entry.location.line;
     const endLine = i + 1 < sorted.length

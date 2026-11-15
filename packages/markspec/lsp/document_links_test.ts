@@ -154,9 +154,22 @@ Deno.test("buildDocumentLinks: Verified-by is not linked", () => {
   );
 });
 
-Deno.test("buildDocumentLinks: no entries means no links (corpus entries are filtered by the caller)", () => {
-  assertEquals(
-    buildDocumentLinks([], doc("Source: src/foo.rs"), idResolver),
-    [],
-  );
+Deno.test("buildDocumentLinks: entries with an origin are not linked", () => {
+  const text = `- [STK_0001] T
+
+      Id: 01HABC
+      Source: own.rs
+
+- [STK_0002] Delivered
+
+      Id: 01HABD
+      Source: delivered.rs
+`;
+  const delivered = {
+    ...fakeEntry(6),
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  } as unknown as Entry;
+  const links = buildDocumentLinks([fakeEntry(1), delivered], text, idResolver);
+  assertEquals(links.length, 1);
+  assertEquals(links[0].target, "file:///proj/own.rs");
 });

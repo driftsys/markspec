@@ -1586,7 +1586,9 @@ display IDs in the project.
 against the project root (an absolute path is used as is), and a `:<line>`
 suffix opens the file at that line. An `http://` or `https://` value opens as
 is. A path gets a link only when the file exists, and a value such as a display
-ID gets none. Entries delivered by a profile or an upstream have no links.
+ID gets none. Windows drive paths (`C:\...`) and values that contain spaces or
+commas are not linked. Entries delivered by a profile or an upstream have no
+links.
 
 **Source file context guard** — in source files (Rust, Kotlin, Java, C, C++,
 TypeScript, TSX, JavaScript, C#), completions only activate near entry markers

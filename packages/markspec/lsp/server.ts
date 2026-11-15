@@ -1550,11 +1550,7 @@ connection.onDocumentLinks((params) => {
   if (!ctx) return [];
   if (!isMarkspecFile(filePath)) return [];
 
-  // Delivered-corpus and upstream entries are read-only and their paths
-  // are not local (ADR-030), so they get no links.
-  const entries = ctx.index.getEntriesForFile(filePath).filter(
-    (entry) => !isCorpusEntry(entry),
-  );
+  const entries = ctx.index.getEntriesForFile(filePath);
   const root = ctx.root;
   // A relative path resolves against the project root. A link is emitted
   // only when the file exists.
