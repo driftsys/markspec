@@ -1536,6 +1536,15 @@ const TRACE_FILES: Record<string, string> = {
       Satisfies: REQ-9999
       Frobnicate: yes
 `,
+  // An unknown `Type:` raises a classification diagnostic (MSL-T001). A
+  // second Stage-2 push in compile() would report it twice.
+  "/r/bad.md": `- [REQ-0002] Unclassifiable
+
+  The system shall do something.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+      Type: no-such-type
+`,
 };
 
 Deno.test("compile: a missing Satisfies target with a profile yields MSL-L006", async () => {
@@ -1563,7 +1572,7 @@ Deno.test("compile: declaredUpstreamIds turns the unresolved target into MSL-T01
 
 Deno.test("compile: diagnostics equal the pipeline part of bare check, and none is reported twice", async () => {
   const profile = traceProfile();
-  const paths = ["/r/req.md", "/r/sreq.md"];
+  const paths = ["/r/req.md", "/r/sreq.md", "/r/bad.md"];
   const result = await compile(paths, {
     readFile: reader(TRACE_FILES),
     profile,
@@ -1608,4 +1617,18 @@ Deno.test("compile: diagnostics equal the pipeline part of bare check, and none 
     result.diagnostics.filter((d) => d.code === "MSL-R010").length,
     1,
   );
+  // The classification diagnostic is present exactly once.
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-T001").length,
+    1,
+  );
+});
+
+Deno.test("compile: projectWide false suppresses MSL-L006", async () => {
+  const result = await compile(["/r/sreq.md"], {
+    readFile: reader(TRACE_FILES),
+    profile: traceProfile(),
+    projectWide: false,
+  });
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
 });

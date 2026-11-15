@@ -375,6 +375,12 @@ export async function compileProject(
      * config (#845).
      */
     projectRoot?: string | null;
+    /**
+     * Pipeline scope, forwarded to `compile()`. Default `true`. Pass `false`
+     * when `paths` is one file or a subset, so MSL-L006 and MSL-T014 are not
+     * reported for targets outside it (D8, #950).
+     */
+    projectWide?: boolean;
   } = {},
 ): Promise<{
   result: CompileResult;
@@ -445,6 +451,7 @@ export async function compileProject(
   const result = await compile(paths, {
     captionConventions,
     declaredUpstreamIds,
+    projectWide: opts.projectWide,
     readFile: (p) => Deno.readTextFile(p),
     profile: chain?.effective ?? undefined,
     statFile: (p) =>

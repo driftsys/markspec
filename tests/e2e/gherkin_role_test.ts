@@ -71,7 +71,9 @@ const PLAIN = `# Requirements
 
 // Regression guard: a project without a feature fence must give the same
 // output as before the block-role checks existed. The snapshots were
-// generated with the CLI of origin/main.
+// generated with the CLI of origin/main. #950 changed the compile
+// `diagnostics` snapshot on purpose (compile now runs the validator
+// pipeline); the compiled graph is still the one from origin/main.
 Deno.test("check --format json: unchanged output without a feature fence", async (t) => {
   const { code, stdout, stderr } = await markspec(
     ["check", "--format", "json", "req.md"],

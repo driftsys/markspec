@@ -215,3 +215,41 @@ Deno.test("lint: JSON score.perEntry has correct shape", async () => {
   assertEquals(typeof entry.score, "number");
   assertEquals(Array.isArray(entry.contributions), true);
 });
+
+Deno.test("lint <file>: a Satisfies target in another file reports no MSL-L006 (#950)", async () => {
+  const { stderr } = await markspec(["lint", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+      "profiles/p/markspec.yaml": `id: "@acme/lint-trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:03d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+      "req.md": `- [REQ-001] Sensor latency
+
+  The system shall process sensor readings within 100 milliseconds.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+      Satisfies: REQ-900
+`,
+      "other.md": `- [REQ-900] Elsewhere
+
+  The system shall exist.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: requirement
+`,
+    },
+  });
+  assertEquals(stderr.includes("MSL-L006"), false, stderr);
+});

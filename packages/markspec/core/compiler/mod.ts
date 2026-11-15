@@ -98,6 +98,15 @@ export interface CompileOptions {
    * MSL-L006 is unchanged.
    */
   readonly declaredUpstreamIds?: readonly string[];
+  /**
+   * Scope of the validator pipeline. Defaults to `true`: the compiled path
+   * set is the whole project, so MSL-L006 and MSL-T014 are reported. Pass
+   * `false` when the paths are one file or a subset (`insert <file>`,
+   * `doc build <file>`, `lint <file>`): a target in a file outside the set
+   * cannot be told from a typo, so the project-wide trace and DSL codes are
+   * suppressed, as in `check <file>` (ADR-027).
+   */
+  readonly projectWide?: boolean;
 }
 
 /**
@@ -316,7 +325,7 @@ export async function compile(
 
   // Phase 2: Validate all entries with the same validator pipeline that
   // bare `markspec check` and the LSP run (`runPipeline`, project-wide
-  // scope): core hygiene, classification, typed attributes, traceability
+  // scope unless `options.projectWide` is false): core hygiene, classification, typed attributes, traceability
   // (MSL-L006, MSL-T014), Gherkin checks and the uxil family. The requested
   // path set is the corpus being compiled, so project-wide scope applies.
   // Only the pipeline's diagnostics are used. The graph below is built from
@@ -328,7 +337,7 @@ export async function compile(
     options.profile ?? null,
     options.captionConventions ?? {},
     {
-      projectWide: true,
+      projectWide: options.projectWide ?? true,
       declaredUpstreamIds: options.declaredUpstreamIds ?? [],
     },
   ).diagnostics;

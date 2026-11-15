@@ -298,11 +298,9 @@ export function runPipeline(
  * core-only check would be noise. Returns `diagnostics` unchanged when no
  * profile is loaded.
  *
- * Exported so callers that run only Stage 1 (e.g. the compiler's diagnostic
- * pass) suppress the same false positives the full {@linkcode runPipeline}
- * does, keeping LSP/MCP diagnostics consistent with the `validate` command.
+ * Used by {@linkcode runPipeline} Stage 1 only.
  */
-export function suppressDeclaredAttrR010(
+function suppressDeclaredAttrR010(
   diagnostics: readonly Diagnostic[],
   entries: readonly Entry[],
   profile: EffectiveProfile | null,

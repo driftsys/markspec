@@ -644,10 +644,11 @@ The diagnostics that `compile` prints to stderr, and that `compile` and
 [`export`](#export) put in the `diagnostics` array of their JSON output, come
 from the same validator pipeline that bare `markspec check` runs on the whole
 project. They include the traceability diagnostics `MSL-L006` and `MSL-T014`.
-They do not include the `check`-only gates: format drift, lockfile drift, and
-prose lint. Diagnostics never change the exit code of `compile`, `export`,
-`show`, `context`, `dependents`, or `report`. Input errors and `--frozen`
-lockfile drift exit `1`.
+They do not include the `check`-only gates: format drift, lockfile drift, the
+`MSL-L215` unreleased-pin advisory, listing-document checks, and prose lint.
+Diagnostics never change the exit code of `compile`, `export`, `show`,
+`context`, `dependents`, or `report`. Input errors and `--frozen` lockfile drift
+exit `1`.
 
 **Examples:**
 
@@ -1403,7 +1404,8 @@ markspec mcp --root /path/to/your/markspec-project
 - `validate { files? }` — run the validator, return a Markdown diagnostics
   report. The report holds the same pipeline diagnostics as bare
   `markspec check`, including `MSL-L006` and `MSL-T014`, but not its format
-  drift, lockfile drift, or prose lint gates.
+  drift, lockfile drift, `MSL-L215` pin advisory, listing-document, or prose
+  lint gates.
 - `markspec_refresh` — force-invalidate the compile cache and search for
   projects again (call after agent edits to guarantee freshness).
 - `project_list` — list each discovered project with its label, root, profile,

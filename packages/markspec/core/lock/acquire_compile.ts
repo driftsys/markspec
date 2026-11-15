@@ -36,6 +36,12 @@ export interface CompiledSnapshot {
   readonly snapshot: string; // sha256(compiledBytes)
 }
 
+/**
+ * Compile a fetched dependency tree into its upstream snapshot. The
+ * snapshot hash covers the compile diagnostics, so a change to the
+ * validator changes the hash of an upstream tree that has findings
+ * (#963).
+ */
 export async function compileAcquiredTree(
   treeRoot: string,
   io: AcquireCompileIO,

@@ -28,7 +28,9 @@ export const insertCmd = new Command()
         Deno.exit(1);
       }
 
-      const { result, chain } = await compileProject([filePath]);
+      const { result, chain } = await compileProject([filePath], {
+        projectWide: false,
+      });
       if (!chain) {
         console.error(`error: insert requires a profile; none configured`);
         Deno.exit(1);

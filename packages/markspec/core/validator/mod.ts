@@ -547,7 +547,7 @@ export function findAttr(
   return attrs.find((a) => a.key === key);
 }
 
-export { runPipeline, suppressDeclaredAttrR010 } from "./pipeline.ts";
+export { runPipeline } from "./pipeline.ts";
 export type { PipelineOptions, PipelineResult } from "./pipeline.ts";
 
 export { validateListingDocuments } from "./listing.ts";
