@@ -146,7 +146,7 @@ Deno.test("lsp completions: ID reference on 'Verifies:'", async () => {
     // Give server time to parse and index
     await new Promise((r) => setTimeout(r, 500));
 
-    // Request completion after "Verifies:" (line 11, char 16).
+    // Request completion after "Verifies:" (line 11, char 15).
     // Trace-attribute completion returns a CompletionList so the
     // server can set isIncomplete when a partial prefix narrows
     // the suggestion set (server-side prefix filter).

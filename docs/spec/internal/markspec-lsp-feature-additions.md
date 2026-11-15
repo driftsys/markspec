@@ -32,6 +32,7 @@ Zed) consume the same capabilities through their standard LSP client plumbing.
 | **inline surface**     | Any LSP capability that renders extra information attached to a position or range in the document text — code lens, inlay hints. Distinct from diagnostics (which are problem reports) or completions (which are inputs). |
 | **must-have for v1**   | A capability whose absence blocks a load-bearing workflow specified by another v1 spec (currently markspec-vscode-authoring.md).                                                                                          |
 | **should-have for v1** | A capability that significantly improves the v1 experience but is not load-bearing — its absence degrades UX but does not block any specified workflow.                                                                   |
+| **removed**            | A capability that was shipped and later taken out; the row records why.                                                                                                                                                   |
 | **deferred**           | A capability identified as valuable but explicitly out of v1 scope.                                                                                                                                                       |
 
 ---
@@ -72,7 +73,7 @@ Out of scope (and where each piece is owned):
 | `markspec/profile` (custom)                | **must-have**    | Active profile metadata — types, prefixes, colors. Drives client-side profile-aware coloring.   | `core/profile`        |
 | `textDocument/codeLens`                    | should-have      | Inline counts ("5 dependents") and chain links above entry titles.                              | `WorkspaceIndex`      |
 | `textDocument/inlayHint`                   | should-have      | Inline resolved type / dependent count without explicit screen real estate.                     | `WorkspaceIndex`      |
-| `textDocument/documentLink`                | removed          | Removed (#947): no authored attribute holds a file path; see §5.3.                              | n/a                   |
+| `textDocument/documentLink`                | removed          | Removed (#947): it only targeted the generated `Verified-by`; see §5.3.                         | n/a                   |
 | `textDocument/rangeFormatting`             | deferred (v1.1)  | Format a selected range only.                                                                   | `core/formatter`      |
 | `textDocument/onTypeFormatting`            | deferred (v1.1)  | Format as user types (e.g. on `:`, newline).                                                    | `core/formatter`      |
 | `textDocument/selectionRange`              | deferred (v1.1)  | Expand-selection (inline → line → trailer → entry → section).                                   | parser positions      |
@@ -322,16 +323,17 @@ The server does not provide document links. An earlier provider
 (`lsp/document_links.ts`) made file-path values of `Verified-by:` lines
 clickable. `Verified-by` is a generated attribute (it is computed from
 `Verifies`), and a hand-written `Verified-by:` trailer is MSL-A030, so the
-provider had no use on valid input. No authored attribute holds a file path, so
-the provider was removed (#947). Authors write the link as `Verifies:`, which
-holds an entry ID.
+provider had no use on valid input, so it was removed (#947). Authors write the
+link as `Verifies:`, which holds an entry ID. Document links for the authored
+`Source:` attribute, which holds a file path or an ID, are a separate feature
+(#961).
 
 ### 5.4 Performance
 
-All three capabilities share the same in-memory data the validator already
-walks. No new full-graph computations. Per-document cost is O(entries in
-document) — sub-millisecond for typical files. The server SHOULD compute them
-lazily on first request, then cache until the document changes.
+Both capabilities share the same in-memory data the validator already walks. No
+new full-graph computations. Per-document cost is O(entries in document) —
+sub-millisecond for typical files. The server SHOULD compute them lazily on
+first request, then cache until the document changes.
 
 ### 5.5 Lazy-loading constraint
 
