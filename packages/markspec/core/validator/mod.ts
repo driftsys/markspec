@@ -17,6 +17,7 @@
 import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
 import {
   attributeSpec,
+  CORE_RELATIONS,
   CORE_TYPE_SCOPED_ATTRS,
   CSV_SPLITTABLE_TYPES,
   emittableEntries,
@@ -31,6 +32,12 @@ import { validateTypl } from "../typl/mod.ts";
 
 /** Universal attribute keys the core recognizes. */
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
+
+/** Trailer keys of the core relations. Core recognizes them without a
+ * profile, so MSL-R010 never applies to them. */
+const CORE_RELATION_KEYS: ReadonlySet<string> = new Set(
+  CORE_RELATIONS.map((r) => r.attr),
+);
 
 /**
  * Value-type set that's repeatable per spec §1.8 — these attributes
@@ -424,12 +431,13 @@ function checkStructural(
       }
       // MSL-R010: Unknown attributes are warnings in the core. A
       // profile-aware validator widens this check to include profile-declared
-      // attributes; until then, anything outside the universal set is
-      // unrecognized. Core-typed attributes (per ADR-003 §Part 2) are
-      // suppressed here — the per-type validator emits a more specific
-      // MSL-T022 when they appear on the "wrong" type.
+      // attributes; until then, anything outside the universal set and the
+      // core relation keys is unrecognized. Core-typed attributes (per
+      // ADR-003 §Part 2) are suppressed here — the per-type validator emits
+      // a more specific MSL-T022 when they appear on the "wrong" type.
       if (
         !UNIVERSAL_KEYS.has(attr.key) &&
+        !CORE_RELATION_KEYS.has(attr.key) &&
         attr.key !== "Type" &&
         !CORE_TYPE_SCOPED_ATTRS.has(attr.key)
       ) {
@@ -437,7 +445,7 @@ function checkStructural(
           code: "MSL-R010",
           severity: "warning",
           message:
-            `${entry.displayId}: unknown attribute '${attr.key}' (not in core universal set; profile-declared attributes are permitted when a profile is loaded)`,
+            `${entry.displayId}: unknown attribute '${attr.key}' (not in core universal set or core relation keys; profile-declared attributes are permitted when a profile is loaded)`,
           location: entry.location,
         });
       }

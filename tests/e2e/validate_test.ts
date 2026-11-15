@@ -1654,6 +1654,46 @@ Deno.test("validate: unresolved References citation exits 1 (MSL-T005)", async (
 // Warnings
 // ---------------------------------------------------------------------------
 
+Deno.test("validate: Generated-from is accepted in core-only check (no MSL-R010)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Generated-from: REQ-001
+`,
+    },
+  });
+  assertEquals(code, 0, `expected a clean check; stderr: ${stderr}`);
+  assertEquals(
+    /MSL-R010/.test(stderr),
+    false,
+    `Generated-from must not report MSL-R010; stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: unknown attribute still reports MSL-R010 in core-only check", async () => {
+  const { stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Custom-attr: value
+`,
+    },
+  });
+  assertStringIncludes(stderr, "MSL-R010");
+  assertStringIncludes(stderr, "Custom-attr");
+});
+
 Deno.test("validate: Origin: synthesized recognised as universal (no MSL-R010)", async () => {
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
