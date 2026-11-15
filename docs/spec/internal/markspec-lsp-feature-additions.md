@@ -280,8 +280,9 @@ under `markspec/` is the standard LSP convention for domain-specific extensions
 
 ## 5. Inline information surfaces (should-have)
 
-Three capabilities that surface traceability information inline in the editor
-without consuming dedicated screen real estate.
+Two capabilities (code lens and inlay hints) surface traceability information
+inline in the editor without consuming dedicated screen real estate. §5.3
+records the document-link provider that was removed.
 
 ### 5.1 `textDocument/codeLens`
 
@@ -441,20 +442,20 @@ mechanism for graceful degradation.
 The LSP server is not a CLI surface, so clig.dev applies indirectly. The
 relevant disciplines:
 
-| Discipline             | How the new capabilities comply                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Deterministic output   | Formatter is already deterministic; LSP wrapper preserves that property.                                     |
-| Same code path as CLI  | Both `markspec fmt` (CLI) and `textDocument/formatting` (LSP) call `core/formatter`. Single source of truth. |
-| No interactive prompts | LSP is a structured protocol; no prompts on the server side.                                                 |
-| Stream conventions     | LSP uses JSON-RPC over stdio; server writes to stdout (protocol), debug log to stderr. Already enforced.     |
-| `NO_COLOR`             | Server doesn't write color output; N/A. Clients honor `NO_COLOR` in their own rendering.                     |
-| Stable contract        | Capability set is additive — capabilities are added, never removed without a version-major change.           |
+| Discipline             | How the new capabilities comply                                                                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deterministic output   | Formatter is already deterministic; LSP wrapper preserves that property.                                                                                                                    |
+| Same code path as CLI  | Both `markspec fmt` (CLI) and `textDocument/formatting` (LSP) call `core/formatter`. Single source of truth.                                                                                |
+| No interactive prompts | LSP is a structured protocol; no prompts on the server side.                                                                                                                                |
+| Stream conventions     | LSP uses JSON-RPC over stdio; server writes to stdout (protocol), debug log to stderr. Already enforced.                                                                                    |
+| `NO_COLOR`             | Server doesn't write color output; N/A. Clients honor `NO_COLOR` in their own rendering.                                                                                                    |
+| Stable contract        | Capability set is additive — after 1.0, capabilities are added and never removed without a major version change. Before 1.0 a capability may be removed (for example `documentLink`, #947). |
 
 ---
 
 ## 10. Open questions
 
-Capped at five; four remain open after v1 implementation. None blocks v1.
+Capped at five; three remain open after v1 implementation. None blocks v1.
 
 1. **`markspec/profileChanged` notification cadence.** §4.4 fires on every
    profile reload. If a future workspace watcher fires on _every_
