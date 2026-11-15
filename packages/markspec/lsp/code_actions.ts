@@ -9,7 +9,10 @@
  *
  * The attribute fixes (A030, T020, A013, A011, A012) edit only lines of the
  * trailer block of the entry the diagnostic belongs to, and offer no action
- * when no line of that block qualifies. Lines may end in LF or CRLF, a
+ * when no line of that block qualifies. They apply to Markdown entry blocks.
+ * In a source file the buffer parses to no Markdown entries, so they offer
+ * no action there; a block doc comment with 4-space indents and no star
+ * prefix, which an earlier unbounded scan matched, is no longer covered. Lines may end in LF or CRLF, a
  * trailer line may be tab-led, and a trailing continuation backslash is
  * ignored when the value is read. When several diagnostics of A030, A012 or
  * A011 name the same key on one entry, the nth diagnostic fixes the nth

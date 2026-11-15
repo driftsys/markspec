@@ -1073,6 +1073,26 @@ Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#
   assertEquals(editsOf(actions)[0].range.start.line, 7);
 });
 
+Deno.test("buildCodeActions: MSL-T020 replaces the value in the diagnosed entry (#952)", () => {
+  const doc = twoEntries(["      Type: Requirment"], [
+    "      Type: Requirment",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-T020",
+      message: "REQ-001: Type: 'Requirment' is not a core type",
+      line: 2,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions).length, 1);
+  const edit = editsOf(actions)[0];
+  assertEquals(edit.newText, "Requirement");
+  assertEquals(edit.range.start, { line: 7, character: 12 });
+  assertEquals(edit.range.end, { line: 7, character: 22 });
+});
+
 Deno.test("buildCodeActions: MSL-T020 never edits the following entry (#952)", () => {
   const doc = twoEntries([], ["      Type: Requirment"]);
   const actions = buildCodeActions("file:///x.md", [
