@@ -292,7 +292,8 @@ The validator checks relations in two passes:
 
 1. **Parse pass** — each `RelationName: VALUE` line is parsed. Unknown relation
    keys raise `MSL-R010` (unknown attribute) unless the key is a core relation
-   key, a universal attribute, or is declared by the active profile.
+   key, a universal attribute, `Type`, an attribute declared on a core type, or
+   is declared by the active profile.
 
 2. **Cross-file pass** — after all files are parsed, unresolved references
    (display IDs that do not correspond to any entry in the project or federated

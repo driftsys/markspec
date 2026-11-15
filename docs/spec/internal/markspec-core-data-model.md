@@ -757,7 +757,8 @@ character after a `-` uppercase, all others lowercase. Examples: `Id`,
 The formatter does not delete any trailer it does not understand. Unknown
 trailer keys are preserved verbatim and placed in the “profile-declared” group
 at the bottom of the trailers block in source order. The validator reports
-`MSL-R010` (unknown key) but does not let `fmt` remove it.
+`MSL-R010` (unknown key; core exempts universal attributes, core relation keys,
+`Type` and core type-scoped attributes) but does not let `fmt` remove it.
 
 ### 3.4 Body canonical form
 
@@ -913,7 +914,6 @@ invariants).
 | `MSL-A011` | error    | `citation`-typed attribute (`References:`) used CSV form. Always rejected per §2.3.2.                                                                            |
 | `MSL-A012` | error    | Repeatable attribute value list is empty.                                                                                                                        |
 | `MSL-A013` | error    | Single-cardinality attribute appears more than once.                                                                                                             |
-| `MSL-R010` | warning  | Trailer key is not a core attribute or relation key and is not declared by the active profile. Preserved by `fmt`.                                               |
 | `MSL-A030` | error    | Generated-origin attribute present in source (`Superseded-by`, `Derives`, every inverse from ADR-003 §Part 3).                                                   |
 | `MSL-A040` | error    | `Id:`, `Type:`, or any core-defined key has been redefined / shadowed by a profile. (ADR-009 §6 reserves `Id:`; this spec also reserves the 15-type vocabulary.) |
 | `MSL-A050` | error    | Value does not parse against the declared value type (§1.8) — e.g., a `date` field whose value is not ISO-8601.                                                  |
@@ -968,6 +968,7 @@ invariants).
 
 | Code       | Severity | Meaning                                                                                                                                                                       |
 | ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-R010` | warning  | Trailer key is not a universal attribute, core relation key, `Type` or core type-scoped attribute and is not declared by the active profile. Preserved by `fmt`.              |
 | `MSL-R080` | error    | `Satisfies:` / `Derived-from:` / `Verifies:` / `Tests:` / `Realizes:` / `Mitigated-by:` / etc. points to an unknown `Id:`. (ADR-002 §Link-resolution severity, “Unresolved”.) |
 | `MSL-R081` | warning  | Link target is retired (`Superseded-by` set OR `Deprecated` set). (ADR-002 §Link-resolution severity, “Retired”.)                                                             |
 | `MSL-R082` | info     | Link target carries `Labels: DRAFT`. (ADR-002 §Link-resolution severity, “Labels: DRAFT”.)                                                                                    |
@@ -1183,7 +1184,8 @@ The toolchain operates correctly without any profile loaded. In core-only mode:
 
 - Only the 4 abstract and 15 concrete core types are recognised.
 - Any unrecognised `Type:` value is `MSL-T020` (error).
-- Any unrecognised trailer key is `MSL-R010` (warning, preserved verbatim by
+- Any trailer key that is not a universal attribute, a core relation key, `Type`
+  or a core type-scoped attribute is `MSL-R010` (warning, preserved verbatim by
   `fmt`).
 - Label-concern and convention rules are inactive.
 

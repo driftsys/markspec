@@ -158,10 +158,17 @@
           "enum": [
             "satisfies",
             "derived-from",
-            "allocates",
-            "constrains",
+            "references",
+            "allocated-to",
+            "realizes",
             "verifies",
-            "implements"
+            "tests",
+            "depends-on",
+            "part-of",
+            "generated-from",
+            "supersedes",
+            "provides",
+            "requires"
           ],
           "description": "Kind of directional link."
         },

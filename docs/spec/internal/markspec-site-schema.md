@@ -268,7 +268,7 @@ and `$id` URLs following the pattern
 | **Reference**           | `markspec-reference/v1`           | Reference entry for external standards, documents, or norms. Adds `document`, `externalUrl`, `status`, `supersededBy`, and `referencedBy` links.                                 | `api/entries/refs/{id}.json`                                                                               |
 | **Index**               | `markspec-index/v1`               | Entry listing with scope, count, project metadata, and summary records.                                                                                                          | `api/index.json`, `api/entries/index.json`, `api/entries/{type}/index.json`, `api/entries/refs/index.json` |
 | **Search**              | `markspec-search/v1`              | Flat array optimized for client-side MiniSearch indexing.                                                                                                                        | `api/search.json`                                                                                          |
-| **Traceability Matrix** | `markspec-traceability-matrix/v1` | One row per entry with all ten link directions (satisfies/satisfiedBy, derivedFrom/derivedTo, allocates/allocatedBy, verifies/verifiedBy, implements/implementedBy).             | `api/traceability/matrix.json`                                                                             |
+| **Traceability Matrix** | `markspec-traceability-matrix/v1` | One row per entry with the link directions of the core link kinds (for example satisfies/satisfiedBy, derivedFrom/derivedTo, allocatedTo/allocated, verifies/verifiedBy).        | `api/traceability/matrix.json`                                                                             |
 | **Traceability Graph**  | `markspec-traceability-graph/v1`  | Nodes and edges for D3 force-directed graph visualization.                                                                                                                       | `api/traceability/graph.json`                                                                              |
 | **Coverage**            | `markspec-coverage/v1`            | Coverage statistics (requirements, tests, traceability percentages) and gap lists (orphans, unsatisfied, unverified).                                                            | `api/coverage/index.json`                                                                                  |
 | **BOM**                 | `markspec-bom/v1`                 | Product architecture as a recursive tree of typed components (HWC, SWC, MEC). Captures `Part-of`, `Deployable-on`, allocated requirements, variants, and per-node coverage.      | `api/entries/bom/index.json`                                                                               |
@@ -338,8 +338,8 @@ Full entry view:
 
 - Body text rendered from Markdown.
 - Attributes table.
-- Traceability panel showing all six link kinds (satisfies, derived-from,
-  allocates, verifies, implements, and their inverses), bidirectional, with
+- Traceability panel showing the core link kinds (for example satisfies,
+  derived-from, allocated-to, verifies, and their inverses), bidirectional, with
   clickable links to target entries.
 - Source location (file, line).
 - Coverage badges (satisfied, verified).
@@ -361,9 +361,9 @@ links for CSV and JSON formats.
 
 D3 force-directed graph visualization. Nodes are colored by type category
 (requirement, architecture, verification, custom, reference). Edges are styled
-by link kind (satisfies, derived-from, allocates, verifies, implements).
-Click-to-navigate to entry detail pages. Filter controls to show/hide types and
-link kinds.
+by link kind (satisfies, derived-from, allocated-to, verifies, and the other
+core link kinds). Click-to-navigate to entry detail pages. Filter controls to
+show/hide types and link kinds.
 
 ### 4.8 Coverage Dashboard (`/coverage/`)
 

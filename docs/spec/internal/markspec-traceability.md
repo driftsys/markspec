@@ -22,8 +22,7 @@ Markdown or doc comments:
 
 - `Id:` for ULID identity
 - display ID in the heading (`[SRS_BRK_0001]`, `ISO-26262-6`, etc.)
-- link attributes (`Satisfies:`, `Derived-from:`, `Allocated-to:`, `Verifies:`,
-  `Implements:`)
+- link attributes (`Satisfies:`, `Derived-from:`, `Allocated-to:`, `Verifies:`)
 
 These fields are normative for graph construction and validation.
 

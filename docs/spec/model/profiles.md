@@ -10,7 +10,7 @@ tooling.
 | Element            | Purpose                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------- |
 | **Subtypes**       | Domain-specific entry types with display-ID patterns (`requirement extends Requirement`) |
-| **Attributes**     | Extra trailer keys beyond the core universal set (`ASIL`, `Priority`, `License`)         |
+| **Attributes**     | Extra trailer keys beyond the core universal set (`ASIL`, `Priority`)                    |
 | **Relations**      | Trace edges with cardinality and inverse rules (`Addresses`)                             |
 | **Label concerns** | Structured label vocabulary (`DRAFT`, `RELEASED`, `ASIL-B`)                              |
 | **Conventions**    | Document-level formatting rules (caption position, prose wrap)                           |
@@ -264,9 +264,9 @@ Profiles extend core — they cannot weaken or redefine it:
 
 MarkSpec ships one bundled profile:
 
-| Profile                     | Purpose                        |
-| --------------------------- | ------------------------------ |
-| `@markspec/profile-default` | RFC 2119 modal-keyword hygiene |
+| Profile                     | Purpose                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `@markspec/profile-default` | Empty baseline: declares no types, attributes, labels or rules, only default colour roles (modal-keyword checks are in core) |
 
 There is no bundled ISO 26262 or ASPICE profile. A compliance profile (`ASIL`
 labels, functional-safety relations, ASPICE process attributes, …) is something
