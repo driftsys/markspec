@@ -24,7 +24,7 @@
  * Upstream entries are uxil-inert (the #771 `emittableEntries` partition,
  * mirroring validateTypl). Entries are gated by `entry.type` when the
  * pipeline's Stage 2 already classified them, else by `classifyEntry` —
- * so the LSP path (which never runs Stage 2) gates identically; the
+ * so a caller that passes unclassified entries gates identically; the
  * classification diagnostics are deliberately dropped here (the pipeline
  * owns emitting those).
  */

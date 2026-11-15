@@ -275,8 +275,8 @@ export class WorkspaceIndex {
    * declaration (S10 #728). Mirrors `uxil_family.ts`'s own gating:
    * upstream entries excluded via `emittableEntries`, then filtered to
    * declaring-type entries via `entry.type ?? classifyEntry(...).type`
-   * (the LSP path never runs pipeline Stage 2, so entries typically
-   * arrive unclassified). Rebuilt on every call — no caching, matching
+   * (the index holds unclassified entries, because `validateAll`
+   * classifies a copy and never writes it back). Rebuilt on every call — no caching, matching
    * `getTypeRegistry()`'s precedent.
    */
   getUxRegistry(profile: EffectiveProfile | null): UxRegistry | undefined {
@@ -328,13 +328,13 @@ export class WorkspaceIndex {
    * publish time by the server's `corpusFilePaths` guard.
    *
    * Delegates to the core pipeline with `projectWide: true`, the same call
-   * bare `markspec check` makes: Stage 1 hygiene, classification, typed
-   * attributes (MSL-A0xx, MSL-R083), traceability (MSL-L006, MSL-T014 and the
+   * the pipeline part of bare `markspec check` makes: Stage 1 hygiene and
+   * the trace target-type check (MSL-R083, Stage 1.6), classification,
+   * typed attributes (MSL-A0xx), traceability (MSL-L006, MSL-T014 and the
    * other Stage 4 rules), Gherkin and locator checks, and the uxil family.
    * Without a profile, classification, typed attributes and traceability
-   * (Stages 2 to 4) do not run. The classified entries
-   * the pipeline returns are used for diagnostics only; the index keeps the
-   * parsed entries.
+   * (Stages 2 to 4) do not run. The classified entries the pipeline returns
+   * are used for diagnostics only; the index keeps the parsed entries.
    *
    * @param profile - The project's effective profile, or `null`.
    * @param opts - `captionConventions` from `.markspec.yaml` (MSL-C072) and

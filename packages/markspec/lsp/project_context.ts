@@ -161,6 +161,12 @@ export class ProjectContext {
    * the existing read-only guards cover upstream files for free. */
   private readonly upstreamFilePaths = new Set<string>();
 
+  /** Absolute paths of the project files the last {@linkcode indexProject}
+   * walk parsed from disk. A closed editor buffer of one of these files is
+   * parsed again from disk, because the buffer only overrode the disk content
+   * while it was open (#938). Corpus files are never in this set. */
+  private readonly walkedFiles = new Set<string>();
+
   /** `true` when a profile-affecting file (`.markspec.yaml`,
    * `project.yaml`) changed since the last watched-files reload ran.
    * Accumulates across the debounce window so a lock-only change
@@ -421,6 +427,8 @@ export class ProjectContext {
     ) {
       if (owns(path)) files.push(path);
     }
+    this.walkedFiles.clear();
+    for (const path of files) this.walkedFiles.add(path);
 
     // Parse all files with bounded concurrency. The serial loop spent
     // most of its wall time waiting on file I/O while CPU was idle —
@@ -525,6 +533,37 @@ export class ProjectContext {
     return [...this.config.dependencies, ...this.config.references]
       .map((ref) => deriveUpstreamId(ref))
       .filter((id): id is string => id !== undefined);
+  }
+
+  /**
+   * Handle the close of the editor buffer at `filePath`. A file the project
+   * walk indexed from disk is parsed again from disk, so links to its entries
+   * keep resolving; a file that no longer exists on disk, or that the walk
+   * did not index, is removed from the index. Validation is scheduled
+   * afterwards.
+   *
+   * @param stillClosed Called after each await; when it returns `false` the
+   *   buffer was opened again meanwhile, and the open buffer's own parse wins,
+   *   so this method leaves the index unchanged.
+   */
+  async closeFile(
+    filePath: string,
+    stillClosed: () => boolean = () => true,
+  ): Promise<void> {
+    if (this.disposed) return;
+    if (this.walkedFiles.has(filePath)) {
+      const text = await this.host.readFile(filePath);
+      if (this.disposed || !stillClosed()) return;
+      if (text !== undefined) {
+        await this.index.parseAndUpdateFile(filePath, text);
+        if (this.disposed || !stillClosed()) return;
+        this.scheduleValidateAll();
+        return;
+      }
+      this.walkedFiles.delete(filePath);
+    }
+    this.index.removeFile(filePath);
+    this.scheduleValidateAll();
   }
 
   /** Schedule {@linkcode publishAllDiagnostics} after 1000ms of quiet. */

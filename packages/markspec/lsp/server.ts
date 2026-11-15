@@ -753,10 +753,14 @@ documents.onDidClose((event) => {
   debouncedFileParses.delete(filePath);
   connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
   if (!ctx) return;
-  // Remove the file from the index and clear its diagnostics so stale
-  // entries don't affect cross-file validation after the buffer closes.
-  ctx.index.removeFile(filePath);
-  ctx.scheduleValidateAll();
+  // A file the project walk indexed is parsed again from disk; any other
+  // file is removed, so stale entries don't affect cross-file validation
+  // after the buffer closes (#938). A reopen during the read wins.
+  const epoch = bufferEpoch(filePath);
+  void ctx.closeFile(filePath, () => bufferEpoch(filePath) === epoch)
+    .catch((err) => {
+      logEvent("error", "close", { err: String(err) });
+    });
 });
 
 documents.onDidOpen(async (event) => {
