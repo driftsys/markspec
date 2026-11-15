@@ -317,12 +317,13 @@ no separate computation.
 
 ### 5.3 `textDocument/documentLink`
 
-The shipped provider (`lsp/document_links.ts`) emits a document link for each
-file-path value on a trailer-indented `Verified-by:` line. `Verified-by` is a
+The shipped provider (`lsp/document_links.ts`) scans the indented lines of each
+entry for `Verified-by:` and emits a document link for each value that has one
+of its source-file extensions (`DOCUMENT_LINK_EXTENSIONS`). `Verified-by` is a
 generated attribute (it is computed from `Verifies`), and a hand-written
-`Verified-by:` is MSL-A030, so this link only fires on input that already fails
-validation. Issue #947 tracks removing the provider or moving it to an authored
-attribute that can hold a file path, such as `Source:` (`path-or-id`).
+`Verified-by:` trailer is MSL-A030, so the link has no use on valid input. Issue
+#947 tracks removing the provider or moving it to an authored attribute that can
+hold a file path, such as `Source:` (`path-or-id`).
 
 ### 5.4 Performance
 

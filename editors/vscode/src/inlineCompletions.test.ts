@@ -109,7 +109,7 @@ test("classifyContext: generated `Verified-by: ` is not a trace-attribute contex
     "      Verified-by: ",
   ]);
   const ctx = classifyContext(doc as never, pos(5, 19) as never);
-  assert.notEqual(ctx.kind, "trace-attribute");
+  assert.equal(ctx.kind, "skip");
 });
 
 test("classifyContext: doc-prose when cursor is on plain markdown outside any entry", () => {
