@@ -7,11 +7,19 @@
  * diagnostics the editor has on a range and emits LSP `CodeAction[]` quick
  * fixes for the ones MarkSpec knows how to mechanically repair.
  *
+ * The attribute fixes (A030, T020, A013, A011, A012) edit only lines of the
+ * trailer block of the entry the diagnostic belongs to, and offer no action
+ * when no line of that block qualifies. Lines may end in LF or CRLF, a
+ * trailer line may be tab-led, and a trailing continuation backslash is
+ * ignored when the value is read. When several diagnostics of A030, A012 or
+ * A011 name the same key on one entry, the nth diagnostic fixes the nth
+ * matching line.
+ *
  * Currently handles:
  *
  *   - **MSL-M060** — uppercase modal keyword. Action: lowercase it.
  *   - **MSL-A030** — generated attribute in source. Action: remove
- *     the offending trailer line.
+ *     the offending trailer line of the entry's block.
  *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
  *     closest core type, when one is within Levenshtein distance 3.
  *     "Did you mean …" rather than exhaustive suggestions.
@@ -47,7 +55,11 @@
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
-import { findAttributeBlockRange, parse } from "../core/mod.ts";
+import {
+  findAttributeBlockRange,
+  parse,
+  repeatableAttributeValues,
+} from "../core/mod.ts";
 
 /** A subset of the LSP `Diagnostic` interface — just what the
  * code-action walker needs. */
@@ -119,44 +131,67 @@ export function buildCodeActions(
   documentText?: string,
 ): CodeAction[] {
   const out: CodeAction[] = [];
+  // Parsed once, and only when a Markdown fix needs the entries.
+  let document: MarkdownDocument | undefined;
+  const markdown = (): MarkdownDocument => {
+    if (documentText === undefined) throw new Error("no document text");
+    let entries: ReturnType<typeof parse> | undefined;
+    return document ??= {
+      ...splitLines(documentText),
+      entries: () => entries ??= parse(documentText),
+    };
+  };
+  // When several diagnostics name the same key on one entry, the nth
+  // diagnostic fixes the nth matching line, so each action has its own line.
+  const seenCounts = new Map<string, number>();
+  const nextIndex = (diag: LspDiagnosticLike): number => {
+    const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+    const slot = `${diag.code}|${diag.range.start.line}|${key}`;
+    const nth = seenCounts.get(slot) ?? 0;
+    seenCounts.set(slot, nth + 1);
+    return nth;
+  };
   for (const diag of diagnostics) {
+    let action: CodeAction | undefined;
     if (diag.code === "MSL-M060") {
-      const action = buildM060Fix(uri, diag);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-A030" && documentText !== undefined) {
-      const action = buildA030Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-T020" && documentText !== undefined) {
-      const action = buildT020Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-A013" && documentText !== undefined) {
-      const action = buildA013Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-A011" && documentText !== undefined) {
-      const action = buildA011Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-A012" && documentText !== undefined) {
-      const action = buildA012Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-P021" && documentText !== undefined) {
-      const action = buildP021Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-P023" && documentText !== undefined) {
-      const action = buildP023Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-L010" && documentText !== undefined) {
-      const action = buildL010Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-S002" && documentText !== undefined) {
-      const action = buildS002Fix(uri, diag, documentText);
-      if (action) out.push(action);
-    } else if (diag.code === "MSL-S003" && documentText !== undefined) {
-      const action = buildS003Fix(uri, diag, documentText);
-      if (action) out.push(action);
+      action = buildM060Fix(uri, diag);
     } else if (diag.code === "MSL-S010") {
-      const action = buildS010Fix(uri, diag);
-      if (action) out.push(action);
+      action = buildS010Fix(uri, diag);
+    } else if (documentText !== undefined) {
+      switch (diag.code) {
+        case "MSL-A030":
+          action = buildA030Fix(uri, diag, markdown(), nextIndex(diag));
+          break;
+        case "MSL-T020":
+          action = buildT020Fix(uri, diag, markdown());
+          break;
+        case "MSL-A013":
+          action = buildA013Fix(uri, diag, markdown());
+          break;
+        case "MSL-A011":
+          action = buildA011Fix(uri, diag, markdown(), nextIndex(diag));
+          break;
+        case "MSL-A012":
+          action = buildA012Fix(uri, diag, markdown(), nextIndex(diag));
+          break;
+        case "MSL-P021":
+          action = buildP021Fix(uri, diag, markdown());
+          break;
+        case "MSL-P023":
+          action = buildP023Fix(uri, diag, markdown());
+          break;
+        case "MSL-L010":
+          action = buildL010Fix(uri, diag, documentText);
+          break;
+        case "MSL-S002":
+          action = buildS002Fix(uri, diag, documentText);
+          break;
+        case "MSL-S003":
+          action = buildS003Fix(uri, diag, documentText);
+          break;
+      }
     }
+    if (action) out.push(action);
   }
   return out;
 }
@@ -164,19 +199,24 @@ export function buildCodeActions(
 function buildA012Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
+  nth: number,
 ): CodeAction | undefined {
-  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
-  if (!match) return undefined;
-  const attrKey = match[1];
-  const block = markdownTrailerBlock(documentText, diag.range.start.line);
+  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+  if (attrKey === undefined) return undefined;
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
   if (!block) return undefined;
-  const i = findBlockKeyLine(
-    block,
+  // Empty by the validator's rule for the attribute's value type.
+  const i = findKeyLine(
+    doc.lines,
+    block.range,
     attrKey,
-    (value) => splitCitationValues(value).length === 0,
+    markdownKey,
+    markdownValue,
+    (value) => repeatableAttributeValues(attrKey, value)?.length === 0,
+    nth,
   );
-  if (i === undefined) return undefined;
+  if (i < 0) return undefined;
   return quickFix(uri, diag, `Remove empty '${attrKey}' line`, [
     deleteLines(i, i + 1),
   ]);
@@ -185,12 +225,14 @@ function buildA012Fix(
 function buildP021Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
 ): CodeAction | undefined {
   // The diagnostic points at the offending trailer line. Only the
   // empty-valued `Key:` shape is mechanically fixable — the parser never
-  // admits it as a trailer, so MSL-A012 cannot fire for it.
-  const lines = documentText.split("\n");
+  // admits it as a trailer, so MSL-A012 cannot fire for it. For the same
+  // reason `markdownTrailerBlock` does not cover that line, so this fix
+  // bounds itself to the contiguous indented run around the line.
+  const { lines } = doc;
   const target = diag.range.start.line;
   const targetLine = lines[target];
   if (targetLine === undefined || !TRAILER_INDENT_RE.test(targetLine)) {
@@ -235,7 +277,7 @@ function buildP021Fix(
 function buildP023Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
 ): CodeAction | undefined {
   // The diagnostic points at the first trailer line. The shared block
   // lookup finds the entry that holds it and bounds the block with the
@@ -244,9 +286,10 @@ function buildP023Fix(
   // list-item indent plus 4 columns, the canonical layout `markspec fmt`
   // writes.
   const target = diag.range.start.line;
-  const block = markdownTrailerBlock(documentText, target);
+  const block = markdownTrailerBlock(doc, target);
   if (!block || target < block.range.start) return undefined;
-  const { lines, range, indent } = block;
+  const { range, indent } = block;
+  const { lines } = doc;
   // A continuation line cannot be re-indented without changing its
   // meaning, and fmt leaves such a trailer as it is (MSL-P021).
   for (let i = range.start; i < range.end; i++) {
@@ -302,23 +345,28 @@ export function splitCitationValues(raw: string): string[] {
 function buildA011Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
+  nth: number,
 ): CodeAction | undefined {
-  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
-  if (!match) return undefined;
-  const attrKey = match[1];
-  const block = markdownTrailerBlock(documentText, diag.range.start.line);
+  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+  if (attrKey === undefined) return undefined;
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
   if (!block) return undefined;
-  const i = findBlockKeyLine(
-    block,
+  const i = findKeyLine(
+    doc.lines,
+    block.range,
     attrKey,
+    markdownKey,
+    markdownValue,
     (value) => splitCitationValues(value).length >= 2,
+    nth,
   );
-  if (i === undefined) return undefined;
-  const m = BLOCK_LINE_RE.exec(block.lines[i])!;
-  const indent = m[1];
-  const newText = splitCitationValues(m[3])
-    .map((v) => `${indent}${attrKey}: ${v}\n`)
+  if (i < 0) return undefined;
+  const line = doc.lines[i];
+  const indent = line.slice(0, line.length - line.trimStart().length);
+  const eol = doc.crlf[i] ? "\r\n" : "\n";
+  const newText = splitCitationValues(markdownValue(line) ?? "")
+    .map((v) => `${indent}${attrKey}: ${v}${eol}`)
     .join("");
   return {
     title: `Rewrite '${attrKey}' as multi-line`,
@@ -369,13 +417,23 @@ export function buildM060Fix(
 function buildA030Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
+  nth: number,
 ): CodeAction | undefined {
-  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
-  if (!match) return undefined;
-  const attrKey = match[1];
-  const i = findTrailerLine(documentText, diag.range.start.line, attrKey);
-  if (i === undefined) return undefined;
+  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+  if (attrKey === undefined) return undefined;
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
+  if (!block) return undefined;
+  const i = findKeyLine(
+    doc.lines,
+    block.range,
+    attrKey,
+    markdownKey,
+    markdownValue,
+    () => true,
+    nth,
+  );
+  if (i < 0) return undefined;
   return quickFix(uri, diag, `Remove '${attrKey}' line`, [
     deleteLines(i, i + 1),
   ]);
@@ -384,60 +442,60 @@ function buildA030Fix(
 function buildT020Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
 ): CodeAction | undefined {
-  const match = T020_VALUE_RE.exec(diag.message);
-  if (!match) return undefined;
-  const badValue = match[1];
+  const badValue = T020_VALUE_RE.exec(diag.message)?.[1];
+  if (badValue === undefined) return undefined;
   const suggestion = closestCoreType(badValue);
   if (!suggestion) return undefined;
-  // Scan forward from the diagnostic line for the matching Type:
-  // trailer line, then locate the bad value's column within it.
-  const lines = documentText.split("\n");
-  for (let i = diag.range.start.line; i < lines.length; i++) {
-    const line = lines[i];
-    const idx = line.indexOf(badValue);
-    if (idx < 0) continue;
-    // Confirm this line is a `Type:` trailer (defensive against an
-    // accidental occurrence of the bad value in body prose).
-    if (!/^\s{4,}Type\s*:/.test(line)) continue;
-    return {
-      title: `Replace with '${suggestion}'`,
-      kind: "quickfix",
-      diagnostics: [diag],
-      isPreferred: true,
-      edit: {
-        changes: {
-          [uri]: [{
-            range: {
-              start: { line: i, character: idx },
-              end: { line: i, character: idx + badValue.length },
-            },
-            newText: suggestion,
-          }],
-        },
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
+  if (!block) return undefined;
+  // The first `Type:` line of the block that contains the bad value.
+  const i = findKeyLine(
+    doc.lines,
+    block.range,
+    "Type",
+    markdownKey,
+    markdownValue,
+    (value) => value.includes(badValue),
+  );
+  if (i < 0) return undefined;
+  const line = doc.lines[i];
+  const idx = line.indexOf(badValue, line.indexOf(":") + 1);
+  if (idx < 0) return undefined;
+  return {
+    title: `Replace with '${suggestion}'`,
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: true,
+    edit: {
+      changes: {
+        [uri]: [{
+          range: {
+            start: { line: i, character: idx },
+            end: { line: i, character: idx + badValue.length },
+          },
+          newText: suggestion,
+        }],
       },
-    };
-  }
-  return undefined;
+    },
+  };
 }
 
 function buildA013Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
 ): CodeAction | undefined {
-  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
-  if (!match) return undefined;
-  const attrKey = match[1];
+  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+  if (attrKey === undefined) return undefined;
   // Collect every trailer line of the diagnosed entry's block that
   // defines this attribute. Keep the first; delete the rest.
-  const block = markdownTrailerBlock(documentText, diag.range.start.line);
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
   if (!block) return undefined;
   const dupLines: number[] = [];
   for (let i = block.range.start; i < block.range.end; i++) {
-    const m = BLOCK_LINE_RE.exec(block.lines[i]);
-    if (m?.[2] === attrKey) dupLines.push(i);
+    if (markdownKey(doc.lines[i]) === attrKey) dupLines.push(i);
   }
   dupLines.shift();
   if (dupLines.length === 0) return undefined;
@@ -449,34 +507,85 @@ function buildA013Fix(
   );
 }
 
-/**
- * Find the first trailer line defining `attrKey` — `<indent><Key>:` —
- * at or after the 0-based `fromLine`. The parser canonicalises trailer
- * indent to 6 spaces but accepts any indent ≥4 (one tab), so the match
- * is lenient. Returns the 0-based line index, or `undefined`.
- */
-function findTrailerLine(
-  documentText: string,
-  fromLine: number,
-  attrKey: string,
-): number | undefined {
-  const lines = documentText.split("\n");
-  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
-  for (let i = fromLine; i < lines.length; i++) {
-    if (lineRe.test(lines[i])) return i;
-  }
-  return undefined;
+/** A half-open range of line indexes: `start` inclusive, `end` exclusive. */
+export interface LineRange {
+  readonly start: number;
+  readonly end: number;
 }
 
-/** A trailer line in a Markdown entry block: indent, key, value. */
-const BLOCK_LINE_RE = /^(\s{4,})([A-Z][A-Za-z-]*)\s*:\s*(.*)$/;
+/**
+ * Split `text` into lines without line endings. `crlf[i]` is `true` when
+ * line `i` ended with `\r\n`, so a fix can reuse the original ending.
+ * The line helpers in this module and in `feature_code_actions.ts` require
+ * lines without a trailing `\r`.
+ */
+export function splitLines(
+  text: string,
+): { lines: string[]; crlf: boolean[] } {
+  const lines: string[] = [];
+  const crlf: boolean[] = [];
+  for (const raw of text.split("\n")) {
+    const hasCr = raw.endsWith("\r");
+    lines.push(hasCr ? raw.slice(0, -1) : raw);
+    crlf.push(hasCr);
+  }
+  return { lines, crlf };
+}
+
+/**
+ * Index of the `nth` (zero-based) line inside `block` whose trailer key is
+ * `key` (as read by `keyOf`) and whose value (as read by `valueOf`) satisfies
+ * `accept`, or -1. Never looks outside `block`. Shared by the Markdown and
+ * the `.feature` fixes, which differ only in how a line is read.
+ */
+export function findKeyLine(
+  lines: readonly string[],
+  block: LineRange,
+  key: string,
+  keyOf: (line: string) => string | undefined,
+  valueOf: (line: string) => string | undefined,
+  accept: (value: string) => boolean = () => true,
+  nth = 0,
+): number {
+  let seen = 0;
+  for (let i = block.start; i < block.end; i++) {
+    if (keyOf(lines[i]) !== key) continue;
+    if (!accept(valueOf(lines[i]) ?? "")) continue;
+    if (seen++ === nth) return i;
+  }
+  return -1;
+}
+
+/** A trailer line of a Markdown entry: indent (spaces or a tab), key, value. */
+const MARKDOWN_TRAILER_LINE_RE = /^\s*([A-Z][A-Za-z-]*)[ \t]*:[ \t]*(.*)$/;
+
+/** The trailer key of a Markdown line, or `undefined`. */
+function markdownKey(line: string): string | undefined {
+  return MARKDOWN_TRAILER_LINE_RE.exec(line)?.[1];
+}
+
+/**
+ * The value of a Markdown trailer line. One trailing continuation backslash
+ * is dropped, as the attribute parser does.
+ */
+function markdownValue(line: string): string | undefined {
+  const raw = MARKDOWN_TRAILER_LINE_RE.exec(line)?.[2];
+  return raw === undefined ? undefined : raw.replace(/\\$/, "");
+}
+
+/** A Markdown document, split into lines and parsed once. */
+interface MarkdownDocument {
+  /** Lines without line endings. */
+  readonly lines: string[];
+  /** `true` for each line that ended with `\r\n`. */
+  readonly crlf: boolean[];
+  /** The parsed entries; the document is parsed on the first call. */
+  readonly entries: () => ReturnType<typeof parse>;
+}
 
 /** The trailer block of one Markdown entry. */
 interface MarkdownTrailerBlock {
-  /** Lines of the whole document. */
-  readonly lines: string[];
-  /** 0-based, half-open line range of the trailer block. */
-  readonly range: { readonly start: number; readonly end: number };
+  readonly range: LineRange;
   /** 0-based column of the `[` that opens the entry's display ID. */
   readonly indent: number;
 }
@@ -490,45 +599,28 @@ interface MarkdownTrailerBlock {
  * trailer, or the trailer ends before `line`.
  */
 function markdownTrailerBlock(
-  documentText: string,
+  doc: MarkdownDocument,
   line: number,
 ): MarkdownTrailerBlock | undefined {
-  const lines = documentText.split("\n");
   let owner: ReturnType<typeof parse>[number] | undefined;
-  for (const entry of parse(documentText)) {
+  for (const entry of doc.entries()) {
     if (entry.location.line - 1 <= line) {
       if (!owner || entry.location.line > owner.location.line) owner = entry;
     }
   }
   if (!owner) return undefined;
-  const indent = lines[owner.location.line - 1].indexOf("[");
+  const indent = doc.lines[owner.location.line - 1].indexOf("[");
   if (indent < 0) return undefined;
   // The same floor `markspec fmt` passes, so a lazy-continuation or
   // tab-led trailer gets the same block as fmt finds.
   const range = findAttributeBlockRange(
-    lines,
+    doc.lines,
     owner.location.line,
     indent,
     owner.endLine ?? 0,
   );
   if (!range || line >= range.end) return undefined;
-  return { lines, range, indent };
-}
-
-/**
- * Index of the first line in `block` whose key is `key` and whose value
- * satisfies `accept`, or `undefined`. Never looks outside the block.
- */
-function findBlockKeyLine(
-  block: MarkdownTrailerBlock,
-  key: string,
-  accept: (value: string) => boolean,
-): number | undefined {
-  for (let i = block.range.start; i < block.range.end; i++) {
-    const m = BLOCK_LINE_RE.exec(block.lines[i]);
-    if (m && m[2] === key && accept(m[3])) return i;
-  }
-  return undefined;
+  return { range, indent };
 }
 
 /** A TextEdit deleting whole lines `[startLine, endLine)` (0-based),

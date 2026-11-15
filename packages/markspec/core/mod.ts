@@ -292,6 +292,7 @@ export {
   effectiveTraceRules,
   matchesAnyTarget,
   normalizeListValues,
+  repeatableAttributeValues,
   runPipeline,
   suppressDeclaredAttrR010,
   validate,

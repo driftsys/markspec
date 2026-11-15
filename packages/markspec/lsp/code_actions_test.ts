@@ -873,8 +873,8 @@ Deno.test("buildCodeActions: MSL-A011 splits at a backslash comma outside a loca
 const BLOCK_ID_A = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF";
 const BLOCK_ID_B = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG";
 
-/** Two entries; `a` and `b` are the trailer lines of each (without Id). */
-function twoEntries(a: string[], b: string[]): string {
+/** Two entries; `a` and `b` are the trailer lines of each (after the Id). */
+function twoEntries(a: string[], b: string[], eol = "\n"): string {
   return [
     "# Test",
     "",
@@ -892,14 +892,10 @@ function twoEntries(a: string[], b: string[]): string {
     BLOCK_ID_B,
     ...b,
     "",
-  ].join("\n");
+  ].join(eol);
 }
 
-/** Lines [0, 9+a.length) belong to the first entry (title is line 2). */
-function firstEntryEnd(a: string[]): number {
-  return 7 + a.length;
-}
-
+/** A diagnostic located, like the validator's, at REQ-001's title line. */
 function titleDiag(code: string, key: string): LspDiagnosticLike {
   return diag({
     code,
@@ -909,6 +905,10 @@ function titleDiag(code: string, key: string): LspDiagnosticLike {
   });
 }
 
+function editsOf(actions: ReturnType<typeof buildCodeActions>) {
+  return actions[0].edit!.changes!["file:///x.md"];
+}
+
 Deno.test("buildCodeActions: MSL-A012 picks the empty line, not an earlier same-key line (#952)", () => {
   const a = ["      Labels: ASIL-B", "      Labels: , ,"];
   const doc = twoEntries(a, ["      Labels: , ,"]);
@@ -916,17 +916,55 @@ Deno.test("buildCodeActions: MSL-A012 picks the empty line, not an earlier same-
     titleDiag("MSL-A012", "Labels"),
   ], doc);
   assertEquals(actions.length, 1);
-  const edits = actions[0].edit!.changes!["file:///x.md"];
-  assertEquals(edits.length, 1);
-  assertEquals(edits[0].range.start.line, 8);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
 });
 
 Deno.test("buildCodeActions: MSL-A012 never edits the following entry (#952)", () => {
-  const doc = twoEntries(["      Labels: ASIL-B"], ["      Labels: , ,"]);
+  // The empty `Labels:` exists only in REQ-002.
+  const doc = twoEntries([], ["      Labels: , ,"]);
   const actions = buildCodeActions("file:///x.md", [
     titleDiag("MSL-A012", "Labels"),
   ], doc);
   assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A012 gives repeated diagnostics their own lines (#952)", () => {
+  const doc = twoEntries(["      Labels: , ,", "      Labels: ,"], []);
+  const d = titleDiag("MSL-A012", "Labels");
+  const actions = buildCodeActions("file:///x.md", [d, d], doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A012 follows the citation rule, `,` is not empty (#952)", () => {
+  const doc = twoEntries(["      References: ,"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "References"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A012 reads a tab-led line and a trailing backslash (#952)", () => {
+  const doc = twoEntries(["\tLabels: , ,\\"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-A012 works on a CRLF document (#952)", () => {
+  const doc = twoEntries(["      Labels: , ,"], [], "\r\n");
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
 });
 
 Deno.test("buildCodeActions: MSL-A011 picks the CSV line, not an earlier same-key line (#952)", () => {
@@ -936,23 +974,48 @@ Deno.test("buildCodeActions: MSL-A011 picks the CSV line, not an earlier same-ke
     titleDiag("MSL-A011", "References"),
   ], doc);
   assertEquals(actions.length, 1);
-  const edits = actions[0].edit!.changes!["file:///x.md"];
-  assertEquals(edits.length, 1);
-  assertEquals(edits[0].range.start.line, 8);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
   assertEquals(
-    edits[0].newText,
+    editsOf(actions)[0].newText,
     "      References: ISO-2\n      References: ISO-3\n",
   );
 });
 
 Deno.test("buildCodeActions: MSL-A011 never edits the following entry (#952)", () => {
-  const doc = twoEntries(["      References: ISO-1"], [
-    "      References: ISO-4, ISO-5",
-  ]);
+  // REQ-001 has no `References:`; REQ-002 has a CSV one.
+  const doc = twoEntries([], ["      References: ISO-4, ISO-5"]);
   const actions = buildCodeActions("file:///x.md", [
     titleDiag("MSL-A011", "References"),
   ], doc);
   assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A011 gives repeated diagnostics their own lines (#952)", () => {
+  const doc = twoEntries([
+    "      References: ISO-1, ISO-2",
+    "      References: ISO-3, ISO-4",
+  ], []);
+  const d = titleDiag("MSL-A011", "References");
+  const actions = buildCodeActions("file:///x.md", [d, d], doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A011 keeps CRLF line endings (#952)", () => {
+  const doc = twoEntries(["      References: ISO-1, ISO-2"], [], "\r\n");
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A011", "References"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    editsOf(actions)[0].newText,
+    "      References: ISO-1\r\n      References: ISO-2\r\n",
+  );
 });
 
 Deno.test("buildCodeActions: MSL-A013 removes duplicates only in the diagnosed entry (#952)", () => {
@@ -962,14 +1025,13 @@ Deno.test("buildCodeActions: MSL-A013 removes duplicates only in the diagnosed e
     titleDiag("MSL-A013", "Type"),
   ], doc);
   assertEquals(actions.length, 1);
-  const edits = actions[0].edit!.changes!["file:///x.md"];
-  assertEquals(edits.length, 1);
-  assertEquals(edits[0].range.start.line, 8);
-  assertEquals(edits[0].range.start.line < firstEntryEnd(a), true);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
 });
 
 Deno.test("buildCodeActions: MSL-A013 never edits the following entry (#952)", () => {
-  const doc = twoEntries(["      Type: Requirement"], [
+  // REQ-001 has no `Type:`; REQ-002 has two.
+  const doc = twoEntries([], [
     "      Type: Requirement",
     "      Type: Specification",
   ]);
@@ -979,7 +1041,54 @@ Deno.test("buildCodeActions: MSL-A013 never edits the following entry (#952)", (
   assertEquals(actions, []);
 });
 
-Deno.test("buildCodeActions: MSL-P021 never edits the following entry (#952)", () => {
+Deno.test("buildCodeActions: MSL-A013 works on a CRLF document (#952)", () => {
+  const doc = twoEntries(
+    ["      Type: Requirement", "      Type: Specification"],
+    [],
+    "\r\n",
+  );
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+});
+
+Deno.test("buildCodeActions: MSL-A030 never removes a line of the following entry (#952)", () => {
+  const doc = twoEntries([], ["      Superseded-by: REQ-009"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A030", "Superseded-by"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#952)", () => {
+  const doc = twoEntries(["      Superseded-by: REQ-009"], [
+    "      Superseded-by: REQ-009",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A030", "Superseded-by"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-T020 never edits the following entry (#952)", () => {
+  const doc = twoEntries([], ["      Type: Requirment"]);
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-T020",
+      message: "REQ-001: Type: 'Requirment' is not a core type",
+      line: 2,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-P021 regression guard, edits stay in the diagnosed entry (#952)", () => {
+  // The parser does not count an empty `Key:` line as trailer, so this fix
+  // keeps its own contiguous-run bound. The old code passed this test too.
   const doc = twoEntries(["      Satisfies:"], ["      Satisfies:"]);
   const actions = buildCodeActions("file:///x.md", [
     diag({
@@ -990,12 +1099,11 @@ Deno.test("buildCodeActions: MSL-P021 never edits the following entry (#952)", (
     }),
   ], doc);
   assertEquals(actions.length, 1);
-  const edits = actions[0].edit!.changes!["file:///x.md"];
-  assertEquals(edits.length, 1);
-  assertEquals(edits[0].range.start.line, 7);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
 });
 
-Deno.test("buildCodeActions: real MSL-A012 diagnostic fixes the right line (#952)", async () => {
+Deno.test("buildCodeActions: real MSL-A012 diagnostics fix the right lines (#952)", async () => {
   const doc = twoEntries(
     ["      Labels: ASIL-B", "      Labels: , ,"],
     ["      Labels: , ,"],
@@ -1003,12 +1111,12 @@ Deno.test("buildCodeActions: real MSL-A012 diagnostic fixes the right line (#952
   const { diagnostics } = await parseFile(doc, { file: "/x.md" });
   const all = [...diagnostics, ...validate(parse(doc)).diagnostics];
   const a012 = all.filter((d) => d.code === "MSL-A012").map(toLspDiagnostic);
-  // The first diagnostic belongs to REQ-001.
-  assertEquals(a012.length >= 1, true);
-  const actions = buildCodeActions("file:///x.md", [a012[0]], doc);
-  assertEquals(actions.length, 1);
+  assertEquals(a012.length, 2);
+  const actions = buildCodeActions("file:///x.md", a012, doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
   assertEquals(
-    actions[0].edit!.changes!["file:///x.md"][0].range.start.line,
-    8,
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    15,
   );
 });

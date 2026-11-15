@@ -46,6 +46,25 @@ const REPEATABLE_VALUE_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The values of a repeatable attribute (id-list, tag-list, citation or
+ * external-id) after trimming and splitting, by the value type's rule: a
+ * citation is not split, an id-list uses `splitTraceValues`, the other types
+ * split on commas. Empty values are dropped. `undefined` when `key` is not a
+ * repeatable attribute. MSL-A012 fires when the list is empty; the LSP quick
+ * fix for it uses the same function.
+ */
+export function repeatableAttributeValues(
+  key: string,
+  raw: string,
+): string[] | undefined {
+  const spec = attributeSpec(key);
+  if (!spec || !REPEATABLE_VALUE_TYPES.has(spec.type)) return undefined;
+  if (spec.type === "citation") return [raw.trim()].filter((v) => v.length > 0);
+  if (spec.type === "id-list") return splitTraceValues(raw);
+  return raw.split(",").map((v) => v.trim()).filter((v) => v.length > 0);
+}
+
+/**
  * Slug pattern for Reference-shape display IDs (spec §1.7, ADR-002 §Part 3).
  * Pandoc/BibTeX cite-key convention, restricted to a portable character
  * set: starts with a letter, body alphanumeric + `.` / `/` / `-` / `_`,
@@ -317,13 +336,7 @@ function checkStructural(
       const spec = attributeSpec(attr.key);
       if (!spec) continue;
       if (!REPEATABLE_VALUE_TYPES.has(spec.type)) continue;
-      const raw = attr.value;
-      const isCitation = spec.type === "citation";
-      const values = isCitation
-        ? [raw.trim()].filter((s) => s.length > 0)
-        : spec.type === "id-list"
-        ? splitTraceValues(raw)
-        : raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+      const values = repeatableAttributeValues(attr.key, attr.value) ?? [];
       if (values.length === 0) {
         diagnostics.push({
           code: "MSL-A012",
