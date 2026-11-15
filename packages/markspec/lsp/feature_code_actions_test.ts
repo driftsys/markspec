@@ -450,3 +450,96 @@ Feature: F
   assertEquals(fixed, without(text, "Type: Constraint"));
   assert(fixed.includes("  # Type: Requirement"));
 });
+
+// ---------------------------------------------------------------------------
+// MSL-P021 — empty `# Key:` trailer line
+// ---------------------------------------------------------------------------
+
+async function assertNoWarnings(text: string) {
+  for (const code of ["MSL-P021", "MSL-P020", "MSL-R003", "MSL-I003"]) {
+    assertEquals((await diagnosticsOf(text, code)).length, 0, code);
+  }
+}
+
+Deno.test("P021: removes only the empty line, keeps the Id", async () => {
+  for (const [name, text] of Object.entries(variants(["Satisfies:"]))) {
+    const diags = await diagnosticsOf(text, "MSL-P021");
+    assertEquals(diags.length, 1, name);
+    const { fixed, actions } = await fix(text, "MSL-P021");
+    assertEquals(actions[0].title, "Remove empty 'Satisfies' line", name);
+    assertEquals(fixed, without(text, "Satisfies:"), name);
+    await assertNoWarnings(fixed);
+    assertEquals((await formatFeatureText(fixed, "a.feature")).changed, false);
+    const parsed = await parseFile(fixed, { file: "a.feature" });
+    assertEquals(parsed.entries.length, 1, name);
+    assert(parsed.entries[0].id, name);
+  }
+});
+
+Deno.test("P021: several empty lines are all removed", async () => {
+  for (const text of Object.values(variants(["Satisfies:", "Labels:"]))) {
+    const { fixed, actions } = await fix(text, "MSL-P021");
+    assertEquals(actions[0].title, "Remove empty trailer lines");
+    assertEquals(fixed, without(without(text, "Satisfies:"), "Labels:"));
+  }
+});
+
+Deno.test("P021: a non-empty line of the block stays", async () => {
+  for (const text of Object.values(variants(["Labels: a", "Satisfies:"]))) {
+    const { fixed } = await fix(text, "MSL-P021");
+    assertEquals(fixed, without(text, "Satisfies:"));
+  }
+});
+
+Deno.test("P021: an all-empty block also removes the # line above", async () => {
+  const git = "# [SC_A_0001] Title\n#\n# Satisfies:\n# Labels:\nFeature: F\n";
+  const { fixed } = await fix(git, "MSL-P021");
+  assertEquals(fixed, "# [SC_A_0001] Title\nFeature: F\n");
+  const indented =
+    "Feature: F\n\n  # [SC_A_0002] Title\n  #\n  # Satisfies:\n  Scenario: S\n    Given x\n";
+  assertEquals(
+    (await fix(indented, "MSL-P021")).fixed,
+    "Feature: F\n\n  # [SC_A_0002] Title\n  Scenario: S\n    Given x\n",
+  );
+});
+
+Deno.test("P021: CRLF file", async () => {
+  const { git } = variants(["Satisfies:"]);
+  const crlf = git.replaceAll("\n", "\r\n");
+  const { fixed } = await fix(crlf, "MSL-P021");
+  assertEquals(fixed, without(crlf, "Satisfies:"));
+  assertEquals(fixed.replaceAll("\r\n", "").includes("\n"), false);
+});
+
+Deno.test("P021: a non-empty malformed line gives no fix", async () => {
+  const text =
+    `# [SC_A_0001] T\n#\n# Id: ${ulid()}\n# Satisfies STK\nFeature: F\n`;
+  const diagnostics = await diagnosticsOf(text, "MSL-P021");
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    diagnostics,
+    text,
+  );
+  assertEquals(actions, []);
+});
+
+Deno.test("P021: a diagnostic on a non-comment line gives no fix", async () => {
+  const diag = {
+    code: "MSL-P021",
+    message: "x",
+    range: {
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: 5 },
+    },
+  };
+  assertEquals(
+    await buildFeatureCodeActions(
+      URI,
+      "a.feature",
+      [diag],
+      "# [SC_A_0001] T\nFeature: F\n",
+    ),
+    [],
+  );
+});

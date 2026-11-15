@@ -16,6 +16,7 @@ import {
   closestCoreType,
   type CodeAction,
   deleteLines,
+  EMPTY_TRAILER_RE,
   type LspDiagnosticLike,
   quickFix,
   splitCitationValues,
@@ -148,7 +149,7 @@ function findKeyLine(
 
 /**
  * Build quick fixes for the diagnostics of a `.feature` file (#943). The
- * attribute fixes (A030, A012, A013, T020, A011) edit only lines inside the
+ * attribute fixes (A030, A012, A013, T020, A011, P021) edit only lines inside the
  * trailer block of the header that the diagnostic points at, and never a
  * `# Id:` line. M060 and S010 use the shared builders, which work from the
  * diagnostic range alone. Codes without a fix return nothing. When several
@@ -179,6 +180,9 @@ export async function buildFeatureCodeActions(
       case "MSL-S010":
         action = buildS010Fix(uri, diag);
         break;
+      case "MSL-P021":
+        action = emptyTrailerFix(uri, diag, lines);
+        break;
       case "MSL-A030":
       case "MSL-A012":
       case "MSL-A013":
@@ -196,6 +200,61 @@ export async function buildFeatureCodeActions(
     if (action) out.push(action);
   }
   return out;
+}
+
+/**
+ * MSL-P021: the diagnostic points at the offending trailer line. Fixes only
+ * an empty-valued `# Key:` comment line. Deletes every empty `# Key:` line
+ * of the trailer block, and the `#`-only line above the block when every
+ * line of the block is empty (as the Markdown fix does).
+ */
+function emptyTrailerFix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  lines: readonly string[],
+): CodeAction | undefined {
+  const target = diag.range.start.line;
+  const targetLine = lines[target];
+  if (targetLine === undefined) return undefined;
+  const prefix = commentPrefix(targetLine);
+  if (prefix === undefined) return undefined;
+  if (!EMPTY_TRAILER_RE.test(targetLine.slice(prefix.length).trim())) {
+    return undefined;
+  }
+  // Find the header start above the target, inside the comment run.
+  let titleIdx = target;
+  while (titleIdx >= 0 && headerRun(lines, titleIdx) === undefined) {
+    if (commentPrefix(lines[titleIdx]) === undefined) return undefined;
+    titleIdx--;
+  }
+  if (titleIdx < 0) return undefined;
+  const block = trailerBlock(lines, titleIdx);
+  if (!block || target < block.start || target >= block.end) return undefined;
+  const emptyLines: number[] = [];
+  for (let i = block.start; i < block.end; i++) {
+    const p = commentPrefix(lines[i]) ?? "";
+    if (EMPTY_TRAILER_RE.test(lines[i].slice(p.length).trim())) {
+      emptyLines.push(i);
+    }
+  }
+  const wholeBlock = emptyLines.length === block.end - block.start;
+  const edits: TextEdit[] = wholeBlock
+    ? [deleteLines(
+      block.start - 1 > titleIdx && lines[block.start - 1].trim() === "#"
+        ? block.start - 1
+        : block.start,
+      block.end,
+    )]
+    : emptyLines.map((i) => deleteLines(i, i + 1));
+  const key = trailerKey(targetLine);
+  return quickFix(
+    uri,
+    diag,
+    emptyLines.length > 1
+      ? "Remove empty trailer lines"
+      : `Remove empty '${key}' line`,
+    edits,
+  );
 }
 
 /** Dispatch for the fixes that edit the header trailer block. */
