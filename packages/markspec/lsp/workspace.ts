@@ -7,6 +7,7 @@
  */
 
 import type {
+  CaptionConventions,
   Diagnostic,
   DisplayId,
   EffectiveProfile,
@@ -14,19 +15,13 @@ import type {
 } from "../core/mod.ts";
 import {
   applyCorpusPostPass,
-  checkBlockRoles,
-  checkFeatureParse,
-  checkProcedureSteps,
   classifyEntry,
   emittableEntries,
   formatEntryOrigin,
   isCorpusEntry,
   parseFile,
-  suppressDeclaredAttrR010,
+  runPipeline,
   uxilDeclaringTypes,
-  validate,
-  validateLocators,
-  validateUxilFamily,
 } from "../core/mod.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
 import { buildUxRegistry, type UxRegistry } from "../core/uxil/mod.ts";
@@ -37,6 +32,14 @@ export interface DisplayIdEntry {
   readonly title: string;
   /** `"<profileId>@<version>"` when the entry is delivered corpus (ADR-030). */
   readonly origin?: string;
+}
+
+/** Inputs to {@linkcode WorkspaceIndex.validateAll} besides the profile. */
+export interface ValidateAllOptions {
+  /** Caption conventions from `.markspec.yaml`. */
+  readonly captionConventions?: CaptionConventions;
+  /** Upstream ids declared in `project.yaml`. */
+  readonly declaredUpstreamIds?: readonly string[];
 }
 
 /** Shared empty reserved-number set — the default for callers that do
@@ -324,38 +327,35 @@ export class WorkspaceIndex {
    * the corpus↔corpus branch of MSL-R014) are still filtered out at
    * publish time by the server's `corpusFilePaths` guard.
    *
-   * Also runs the uxil diagnostics family (S9 #727) — inert unless the
-   * profile designates a declaring type (`declares: ux-surface`) — and
-   * the scenario-locator diagnostics (MSL-L007/L008/L009, MSL-B060/B061),
-   * the Gherkin parse error (MSL-B062), and the procedure-step warning
-   * (MSL-B063), and the block-role diagnostics (MSL-B064 to MSL-B068).
+   * Delegates to the core pipeline with `projectWide: true`, the same call
+   * bare `markspec check` makes: Stage 1 hygiene, classification, typed
+   * attributes (MSL-A0xx, MSL-R083), traceability (MSL-L006, MSL-T014 and the
+   * other Stage 4 rules), Gherkin and locator checks, and the uxil family.
+   * Without a profile the pipeline runs Stage 1 only. The classified entries
+   * the pipeline returns are used for diagnostics only; the index keeps the
+   * parsed entries.
+   *
+   * @param profile - The project's effective profile, or `null`.
+   * @param opts - `captionConventions` from `.markspec.yaml` (MSL-C072) and
+   *   `declaredUpstreamIds` derived from `project.yaml` `dependencies:` and
+   *   `references:`. A trace target that stays unresolved while upstreams are
+   *   declared is reported as MSL-T014 instead of MSL-L006.
    */
-  validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
+  validateAll(
+    profile: EffectiveProfile | null = null,
+    opts: ValidateAllOptions = {},
+  ): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();
-    const result = validate(allEntries);
-    const suppressed = suppressDeclaredAttrR010(
-      result.diagnostics,
+    const result = runPipeline(
       allEntries,
       profile,
+      opts.captionConventions ?? {},
+      {
+        projectWide: true,
+        declaredUpstreamIds: opts.declaredUpstreamIds ?? [],
+      },
     );
-    return [
-      ...applyCorpusPostPass(suppressed, allEntries),
-      // uxil diagnostics family (S9 #727) — profile-gated; inert without a
-      // `declares: ux-surface` designation, so non-uxil projects pay only
-      // a Map scan per validateAll.
-      ...validateUxilFamily(allEntries, profile),
-      // Scenario locators and scenario names (epic #915): the same pass
-      // `check` runs in its pipeline.
-      ...validateLocators(allEntries, profile),
-      // Gherkin blocks that do not parse (MSL-B062).
-      ...checkFeatureParse(allEntries),
-      // Procedure steps with no expected result (MSL-B063). The check
-      // classifies unclassified entries itself.
-      ...checkProcedureSteps(allEntries, profile),
-      // Gherkin block roles (MSL-B064..B068). The check classifies
-      // unclassified entries itself.
-      ...checkBlockRoles(allEntries, profile),
-    ];
+    return applyCorpusPostPass(result.diagnostics, allEntries);
   }
 
   // -----------------------------------------------------------------------

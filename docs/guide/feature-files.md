@@ -228,10 +228,6 @@ What works in a `.feature` file:
   comment line today. Their triggers expect the key at the start of the line,
   and a `#` comment line starts with `#`. Block scaffolds (`- [`) are for
   Markdown and do not apply either.
-- The language server does not publish the traceability diagnostics `MSL-L006`
-  and `MSL-T014`, for `.feature` files or for any other file. Only
-  `markspec check` reports them (issue
-  [#938](https://github.com/driftsys/markspec/issues/938)).
 - Renaming a Scenario name does not update the scenario locators that point at
   it. Rename of a display ID is supported; rename of a scenario name is not.
 - There are no quick fixes for `.feature` files. The existing quick fixes match

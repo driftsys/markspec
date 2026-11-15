@@ -20,6 +20,7 @@
 import {
   DEFAULT_PROJECT_CONFIG,
   DEFAULT_TOOL_CONFIG,
+  deriveUpstreamId,
   type Diagnostic as CoreDiagnostic,
   discoverFiles,
   type DiscoveryDirEntry,
@@ -468,7 +469,11 @@ export class ProjectContext {
     const entryCount = this.index.getAllEntries().length;
     const allDiags = time(
       `validateAll/${entryCount}`,
-      () => this.index.validateAll(this.profile ?? null),
+      () =>
+        this.index.validateAll(this.profile ?? null, {
+          captionConventions: this.toolConfig.captionConventions,
+          declaredUpstreamIds: this.declaredUpstreamIds(),
+        }),
     );
     this.lastDiagnostics = allDiags;
 
@@ -511,6 +516,15 @@ export class ProjectContext {
     // on its own document changing, never on a change to a *different*
     // file.
     this.host.refreshLenses();
+  }
+
+  /** Upstream ids declared in `project.yaml` `dependencies:` and
+   * `references:`. Read from the current config on each call, so a
+   * `project.yaml` reload is picked up by the next validation. */
+  private declaredUpstreamIds(): string[] {
+    return [...this.config.dependencies, ...this.config.references]
+      .map((ref) => deriveUpstreamId(ref))
+      .filter((id): id is string => id !== undefined);
   }
 
   /** Schedule {@linkcode publishAllDiagnostics} after 1000ms of quiet. */
