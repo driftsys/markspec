@@ -6,8 +6,8 @@ Scope: New LSP server capabilities that build on the existing `markspec lsp`
 surface (diagnostics, completions, hover, definition, references, symbols,
 rename, folding, highlights, code actions, semantic tokens) — covering
 formatting, the custom `markspec/profile` request, and inline information
-surfaces (code lens, inlay hints, document links). All capabilities are
-editor-agnostic: they serve every LSP client (VS Code, Neovim, Helix, …).\
+surfaces (code lens, inlay hints). All capabilities are editor-agnostic: they
+serve every LSP client (VS Code, Neovim, Helix, …).\
 Builds on: [markspec-vscode-authoring.md](markspec-vscode-authoring.md)
 (consumes `textDocument/formatting` and `markspec/profile` as v1 prerequisites),
 [markspec-toolchain-distribution.md](markspec-toolchain-distribution.md) (single
@@ -24,15 +24,15 @@ Zed) consume the same capabilities through their standard LSP client plumbing.
 
 ## 0. Terminology
 
-| Term                   | Meaning in this spec                                                                                                                                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **the LSP server**     | The `markspec lsp` subcommand, dispatched from `main.ts` and implemented in `packages/markspec/lsp/`.                                                                                                                                     |
-| **capability**         | An LSP feature the server advertises in its `initialize` response — e.g. `documentFormattingProvider`, `codeLensProvider`. Clients use these to decide which requests to send.                                                            |
-| **custom request**     | A non-standard LSP method the server handles, namespaced under `markspec/…`. Clients that don't recognize it are unaffected.                                                                                                              |
-| **inline surface**     | Any LSP capability that renders extra information attached to a position or range in the document text — code lens, inlay hints, document links. Distinct from diagnostics (which are problem reports) or completions (which are inputs). |
-| **must-have for v1**   | A capability whose absence blocks a load-bearing workflow specified by another v1 spec (currently markspec-vscode-authoring.md).                                                                                                          |
-| **should-have for v1** | A capability that significantly improves the v1 experience but is not load-bearing — its absence degrades UX but does not block any specified workflow.                                                                                   |
-| **deferred**           | A capability identified as valuable but explicitly out of v1 scope.                                                                                                                                                                       |
+| Term                   | Meaning in this spec                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **the LSP server**     | The `markspec lsp` subcommand, dispatched from `main.ts` and implemented in `packages/markspec/lsp/`.                                                                                                                     |
+| **capability**         | An LSP feature the server advertises in its `initialize` response — e.g. `documentFormattingProvider`, `codeLensProvider`. Clients use these to decide which requests to send.                                            |
+| **custom request**     | A non-standard LSP method the server handles, namespaced under `markspec/…`. Clients that don't recognize it are unaffected.                                                                                              |
+| **inline surface**     | Any LSP capability that renders extra information attached to a position or range in the document text — code lens, inlay hints. Distinct from diagnostics (which are problem reports) or completions (which are inputs). |
+| **must-have for v1**   | A capability whose absence blocks a load-bearing workflow specified by another v1 spec (currently markspec-vscode-authoring.md).                                                                                          |
+| **should-have for v1** | A capability that significantly improves the v1 experience but is not load-bearing — its absence degrades UX but does not block any specified workflow.                                                                   |
+| **deferred**           | A capability identified as valuable but explicitly out of v1 scope.                                                                                                                                                       |
 
 ---
 
@@ -72,7 +72,7 @@ Out of scope (and where each piece is owned):
 | `markspec/profile` (custom)                | **must-have**    | Active profile metadata — types, prefixes, colors. Drives client-side profile-aware coloring.   | `core/profile`        |
 | `textDocument/codeLens`                    | should-have      | Inline counts ("5 dependents") and chain links above entry titles.                              | `WorkspaceIndex`      |
 | `textDocument/inlayHint`                   | should-have      | Inline resolved type / dependent count without explicit screen real estate.                     | `WorkspaceIndex`      |
-| `textDocument/documentLink`                | should-have      | File-path values as clickable links. Shipped for `Verified-by:` lines only; see §5.3 and #947.  | parser-extracted      |
+| `textDocument/documentLink`                | removed          | Removed (#947): no authored attribute holds a file path; see §5.3.                              | n/a                   |
 | `textDocument/rangeFormatting`             | deferred (v1.1)  | Format a selected range only.                                                                   | `core/formatter`      |
 | `textDocument/onTypeFormatting`            | deferred (v1.1)  | Format as user types (e.g. on `:`, newline).                                                    | `core/formatter`      |
 | `textDocument/selectionRange`              | deferred (v1.1)  | Expand-selection (inline → line → trailer → entry → section).                                   | parser positions      |
@@ -315,15 +315,15 @@ For each entry, the server emits inline hints positioned after the title:
 Hints are tooltip-clickable to drill into details. Same backing as code lens —
 no separate computation.
 
-### 5.3 `textDocument/documentLink`
+### 5.3 `textDocument/documentLink` (removed)
 
-The shipped provider (`lsp/document_links.ts`) scans the indented lines of each
-entry for `Verified-by:` and emits a document link for each value that has one
-of its source-file extensions (`DOCUMENT_LINK_EXTENSIONS`). `Verified-by` is a
-generated attribute (it is computed from `Verifies`), and a hand-written
-`Verified-by:` trailer is MSL-A030, so the link has no use on valid input. Issue
-#947 tracks removing the provider or moving it to an authored attribute that can
-hold a file path, such as `Source:` (`path-or-id`).
+The server does not provide document links. An earlier provider
+(`lsp/document_links.ts`) made file-path values of `Verified-by:` lines
+clickable. `Verified-by` is a generated attribute (it is computed from
+`Verifies`), and a hand-written `Verified-by:` trailer is MSL-A030, so the
+provider had no use on valid input. No authored attribute holds a file path, so
+the provider was removed (#947). Authors write the link as `Verifies:`, which
+holds an entry ID.
 
 ### 5.4 Performance
 
@@ -361,7 +361,6 @@ The `initialize` capabilities object grows by:
   documentFormattingProvider: true,
   codeLensProvider: { resolveProvider: false },
   inlayHintProvider: { resolveProvider: false },
-  documentLinkProvider: { resolveProvider: false },
 }
 ```
 
@@ -410,13 +409,12 @@ under 250ms — the new modules are small (<10KB each).
 
 ### 7.3 Per-request latency budgets
 
-| Capability                  | Budget | Rationale                                                                         |
-| --------------------------- | ------ | --------------------------------------------------------------------------------- |
-| `textDocument/formatting`   | < 50ms | Format-on-save must feel instant. Existing CLI formatter benchmarks support this. |
-| `markspec/profile`          | < 10ms | Cached response; serialization only.                                              |
-| `textDocument/codeLens`     | < 20ms | Per-document; reuses already-indexed data.                                        |
-| `textDocument/inlayHint`    | < 20ms | Same.                                                                             |
-| `textDocument/documentLink` | < 10ms | Per-document; regex match on already-parsed attribute values.                     |
+| Capability                | Budget | Rationale                                                                         |
+| ------------------------- | ------ | --------------------------------------------------------------------------------- |
+| `textDocument/formatting` | < 50ms | Format-on-save must feel instant. Existing CLI formatter benchmarks support this. |
+| `markspec/profile`        | < 10ms | Cached response; serialization only.                                              |
+| `textDocument/codeLens`   | < 20ms | Per-document; reuses already-indexed data.                                        |
+| `textDocument/inlayHint`  | < 20ms | Same.                                                                             |
 
 These are warm-cache budgets. Cold cache (immediately after
 `workspace/didChangeContent`) may be 2-3× higher; that's acceptable because
@@ -471,9 +469,8 @@ Capped at five; four remain open after v1 implementation. None blocks v1.
    suppression — would have been simpler but less flexible, and would have
    coupled the server to a per-client preference it has no way to discover.
 
-3. **Document-link line-number heuristic.** §5.3 matches `path:line:col`
-   patterns. Some languages use other separators (`.rs#L42`). Is the pattern
-   recognizer profile-configurable, or fixed to the common `:line:col` form?
+3. **Document-link line-number heuristic.** Resolved by removal: the document
+   link provider was removed (#947), so no path pattern needs recognizing.
 
 4. **Formatter idempotence under partial edits.** §3.1 returns a minimal-diff
    `TextEdit[]`. If the user is mid-edit on a partial entry block (missing
@@ -498,6 +495,6 @@ Capped at five; four remain open after v1 implementation. None blocks v1.
 | §2 Capability set   | LSP 3.17 spec; `packages/markspec/lsp/server.ts` existing capabilities; [markspec-vscode-authoring.md §1, §4.4, §6.1](markspec-vscode-authoring.md) |
 | §3 Formatting       | `core/formatter/`; `markspec fmt` CLI; CLAUDE.md "Deterministic output"                                                                             |
 | §4 markspec/profile | `core/profile/`; [markspec-profile-schema.md](markspec-profile-schema.md); rust-analyzer / typescript-language-server custom-request conventions    |
-| §5 Inline surfaces  | LSP `textDocument/codeLens` / `inlayHint` / `documentLink`; existing `WorkspaceIndex` (`lsp/workspace.ts`)                                          |
+| §5 Inline surfaces  | LSP `textDocument/codeLens` / `inlayHint`; existing `WorkspaceIndex` (`lsp/workspace.ts`)                                                           |
 | §7 Performance      | CLAUDE.md "Single binary, lazy loading"; existing cold-start measurements                                                                           |
 | §8 Skew detection   | [markspec-toolchain-distribution.md §3.3](markspec-toolchain-distribution.md); existing `markspec/version` notification                             |
