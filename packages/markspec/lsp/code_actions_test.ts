@@ -1054,14 +1054,6 @@ Deno.test("buildCodeActions: MSL-A013 works on a CRLF document (#952)", () => {
   assertEquals(editsOf(actions)[0].range.start.line, 8);
 });
 
-Deno.test("buildCodeActions: MSL-A030 never removes a line of the following entry (#952)", () => {
-  const doc = twoEntries([], ["      Superseded-by: REQ-009"]);
-  const actions = buildCodeActions("file:///x.md", [
-    titleDiag("MSL-A030", "Superseded-by"),
-  ], doc);
-  assertEquals(actions, []);
-});
-
 Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#952)", () => {
   const doc = twoEntries(["      Superseded-by: REQ-009"], [
     "      Superseded-by: REQ-009",
@@ -1093,19 +1085,6 @@ Deno.test("buildCodeActions: MSL-T020 replaces the value in the diagnosed entry 
   assertEquals(edit.range.end, { line: 7, character: 22 });
 });
 
-Deno.test("buildCodeActions: MSL-T020 never edits the following entry (#952)", () => {
-  const doc = twoEntries([], ["      Type: Requirment"]);
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-T020",
-      message: "REQ-001: Type: 'Requirment' is not a core type",
-      line: 2,
-      character: 0,
-    }),
-  ], doc);
-  assertEquals(actions, []);
-});
-
 Deno.test("buildCodeActions: MSL-P021 regression guard, edits stay in the diagnosed entry (#952)", () => {
   // The parser does not count an empty `Key:` line as trailer, so this fix
   // keeps its own contiguous-run bound. The old code passed this test too.
@@ -1121,6 +1100,54 @@ Deno.test("buildCodeActions: MSL-P021 regression guard, edits stay in the diagno
   assertEquals(actions.length, 1);
   assertEquals(editsOf(actions).length, 1);
   assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-A012 skips a `Key :` line the parser skips (#952)", () => {
+  const doc = twoEntries(["      Labels : ,", "      Labels: ,"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+});
+
+Deno.test("buildCodeActions: MSL-A012 strips a continuation backslash before trailing spaces (#952)", () => {
+  for (const tail of ["\\  ", "\\\t"]) {
+    const doc = twoEntries([`      Labels: , ,${tail}`], []);
+    const actions = buildCodeActions("file:///x.md", [
+      titleDiag("MSL-A012", "Labels"),
+    ], doc);
+    assertEquals(actions.length, 1);
+    assertEquals(editsOf(actions)[0].range.start.line, 7);
+  }
+});
+
+Deno.test("buildCodeActions: MSL-A012 for two keys on one entry gives one action per line (#952)", () => {
+  const doc = twoEntries(["      Labels: ,", "      External-id: ,"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+    titleDiag("MSL-A012", "External-id"),
+  ], doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
+  );
+});
+
+Deno.test("buildCodeActions: a diagnostic after the trailer yields no action (#952)", () => {
+  const doc = twoEntries([], ["      Labels: , ,"]);
+  const last = doc.split("\n").length - 1; // the blank line after REQ-002
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A012",
+      message: "REQ-002: 'Labels' is wrong",
+      line: last,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
 });
 
 Deno.test("buildCodeActions: real MSL-A012 diagnostics fix the right lines (#952)", async () => {

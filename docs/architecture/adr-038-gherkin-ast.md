@@ -529,7 +529,9 @@ indented doc-string line.
 
 1. **Module (D1).** `lsp/feature_code_actions.ts` exports
    `buildFeatureCodeActions`. It reuses pure helpers that `lsp/code_actions.ts`
-   now exports. The Markdown builders are unchanged.
+   now exports. #952 later bounded the Markdown `MSL-A011`, `MSL-A012` and
+   `MSL-A013` builders to the trailer block of the entry that holds the
+   diagnostic.
 2. **Routing (D2).** `server.ts` calls `buildFeatureCodeActions` when
    `isFeatureFile(path)` is true and `buildCodeActions` otherwise, so no
    `.feature` diagnostic reaches a Markdown line-scanning builder. `MSL-M060`

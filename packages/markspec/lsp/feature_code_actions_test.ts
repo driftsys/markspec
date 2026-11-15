@@ -201,6 +201,19 @@ Deno.test("A012: removes the empty-list line", async () => {
   }
 });
 
+Deno.test("A012: a citation value `,` is not empty, so no action", async () => {
+  const text = variants(["References: ,"]).git;
+  const actions = await buildFeatureCodeActions(URI, "a.feature", [{
+    code: "MSL-A012",
+    message: "SC_A_0001: 'References' is a repeatable attribute but empty",
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 5 },
+    },
+  }], text);
+  assertEquals(actions, []);
+});
+
 Deno.test("A013: keeps the first duplicate, removes later ones", async () => {
   for (
     const [name, text] of Object.entries(

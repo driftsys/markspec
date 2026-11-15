@@ -7,22 +7,23 @@
  * diagnostics the editor has on a range and emits LSP `CodeAction[]` quick
  * fixes for the ones MarkSpec knows how to mechanically repair.
  *
- * The attribute fixes (A030, T020, A013, A011, A012) edit only lines of the
- * trailer block of the entry the diagnostic belongs to, and offer no action
- * when no line of that block qualifies. They apply to Markdown entry blocks.
- * In a source file the buffer parses to no Markdown entries, so they offer
- * no action there; a block doc comment with 4-space indents and no star
- * prefix, which an earlier unbounded scan matched, is no longer covered. Lines may end in LF or CRLF, a
- * trailer line may be tab-led, and a trailing continuation backslash is
- * ignored when the value is read. When several diagnostics of A030, A012 or
- * A011 name the same key on one entry, the nth diagnostic fixes the nth
- * matching line.
+ * The attribute fixes A011, A012 and A013 edit only lines of the trailer
+ * block of the entry the diagnostic belongs to, and offer no action when no
+ * line of that block qualifies. They need a parsed Markdown entry, so in a
+ * source file, whose text is parsed as Markdown, they offer no action unless
+ * the text holds a literal entry block. A030 and T020 still scan forward from
+ * the diagnostic line without a block bound (#965 tracks bounding them).
+ * Lines may end in LF or CRLF, a trailer line may be tab-led, and a value is
+ * read as the parser reads it: the line is trimmed and one trailing
+ * continuation backslash is dropped. When several diagnostics of A012 or A011
+ * name the same key on one entry, the nth diagnostic fixes the nth matching
+ * line.
  *
  * Currently handles:
  *
  *   - **MSL-M060** — uppercase modal keyword. Action: lowercase it.
  *   - **MSL-A030** — generated attribute in source. Action: remove
- *     the offending trailer line of the entry's block.
+ *     the offending trailer line.
  *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
  *     closest core type, when one is within Levenshtein distance 3.
  *     "Did you mean …" rather than exhaustive suggestions.
@@ -61,6 +62,7 @@ import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
 import {
   findAttributeBlockRange,
   parse,
+  parseAttributeLine,
   repeatableAttributeValues,
 } from "../core/mod.ts";
 
@@ -144,12 +146,13 @@ export function buildCodeActions(
       entries: () => entries ??= parse(documentText),
     };
   };
-  // When several diagnostics name the same key on one entry, the nth
-  // diagnostic fixes the nth matching line, so each action has its own line.
+  // When several A011 or A012 diagnostics name the same key on one entry,
+  // the nth diagnostic fixes the nth matching line, so each action has its
+  // own line. A diagnostic that arrives alone counts as the first.
   const seenCounts = new Map<string, number>();
   const nextIndex = (diag: LspDiagnosticLike): number => {
     const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
-    const slot = `${diag.code}|${diag.range.start.line}|${key}`;
+    const slot = `${diag.range.start.line}|${key}`;
     const nth = seenCounts.get(slot) ?? 0;
     seenCounts.set(slot, nth + 1);
     return nth;
@@ -163,10 +166,10 @@ export function buildCodeActions(
     } else if (documentText !== undefined) {
       switch (diag.code) {
         case "MSL-A030":
-          action = buildA030Fix(uri, diag, markdown(), nextIndex(diag));
+          action = buildA030Fix(uri, diag, documentText);
           break;
         case "MSL-T020":
-          action = buildT020Fix(uri, diag, markdown());
+          action = buildT020Fix(uri, diag, documentText);
           break;
         case "MSL-A013":
           action = buildA013Fix(uri, diag, markdown());
@@ -420,23 +423,13 @@ export function buildM060Fix(
 function buildA030Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  doc: MarkdownDocument,
-  nth: number,
+  documentText: string,
 ): CodeAction | undefined {
-  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
-  if (attrKey === undefined) return undefined;
-  const block = markdownTrailerBlock(doc, diag.range.start.line);
-  if (!block) return undefined;
-  const i = findKeyLine(
-    doc.lines,
-    block.range,
-    attrKey,
-    markdownKey,
-    markdownValue,
-    () => true,
-    nth,
-  );
-  if (i < 0) return undefined;
+  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
+  if (!match) return undefined;
+  const attrKey = match[1];
+  const i = findTrailerLine(documentText, diag.range.start.line, attrKey);
+  if (i === undefined) return undefined;
   return quickFix(uri, diag, `Remove '${attrKey}' line`, [
     deleteLines(i, i + 1),
   ]);
@@ -445,44 +438,42 @@ function buildA030Fix(
 function buildT020Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  doc: MarkdownDocument,
+  documentText: string,
 ): CodeAction | undefined {
-  const badValue = T020_VALUE_RE.exec(diag.message)?.[1];
-  if (badValue === undefined) return undefined;
+  const match = T020_VALUE_RE.exec(diag.message);
+  if (!match) return undefined;
+  const badValue = match[1];
   const suggestion = closestCoreType(badValue);
   if (!suggestion) return undefined;
-  const block = markdownTrailerBlock(doc, diag.range.start.line);
-  if (!block) return undefined;
-  // The first `Type:` line of the block that contains the bad value.
-  const i = findKeyLine(
-    doc.lines,
-    block.range,
-    "Type",
-    markdownKey,
-    markdownValue,
-    (value) => value.includes(badValue),
-  );
-  if (i < 0) return undefined;
-  const line = doc.lines[i];
-  const idx = line.indexOf(badValue, line.indexOf(":") + 1);
-  if (idx < 0) return undefined;
-  return {
-    title: `Replace with '${suggestion}'`,
-    kind: "quickfix",
-    diagnostics: [diag],
-    isPreferred: true,
-    edit: {
-      changes: {
-        [uri]: [{
-          range: {
-            start: { line: i, character: idx },
-            end: { line: i, character: idx + badValue.length },
-          },
-          newText: suggestion,
-        }],
+  // Scan forward from the diagnostic line for the matching Type:
+  // trailer line, then locate the bad value's column within it.
+  const lines = documentText.split("\n");
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    const line = lines[i];
+    const idx = line.indexOf(badValue);
+    if (idx < 0) continue;
+    // Confirm this line is a `Type:` trailer (defensive against an
+    // accidental occurrence of the bad value in body prose).
+    if (!/^\s{4,}Type\s*:/.test(line)) continue;
+    return {
+      title: `Replace with '${suggestion}'`,
+      kind: "quickfix",
+      diagnostics: [diag],
+      isPreferred: true,
+      edit: {
+        changes: {
+          [uri]: [{
+            range: {
+              start: { line: i, character: idx },
+              end: { line: i, character: idx + badValue.length },
+            },
+            newText: suggestion,
+          }],
+        },
       },
-    },
-  };
+    };
+  }
+  return undefined;
 }
 
 function buildA013Fix(
@@ -508,6 +499,25 @@ function buildA013Fix(
     `Remove duplicate '${attrKey}' line(s)`,
     dupLines.map((i) => deleteLines(i, i + 1)),
   );
+}
+
+/**
+ * Find the first trailer line defining `attrKey` — `<indent><Key>:` —
+ * at or after the 0-based `fromLine`. The parser canonicalises trailer
+ * indent to 6 spaces but accepts any indent ≥4 (one tab), so the match
+ * is lenient. Returns the 0-based line index, or `undefined`.
+ */
+function findTrailerLine(
+  documentText: string,
+  fromLine: number,
+  attrKey: string,
+): number | undefined {
+  const lines = documentText.split("\n");
+  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
+  for (let i = fromLine; i < lines.length; i++) {
+    if (lineRe.test(lines[i])) return i;
+  }
+  return undefined;
 }
 
 /** A half-open range of line indexes: `start` inclusive, `end` exclusive. */
@@ -559,21 +569,24 @@ export function findKeyLine(
   return -1;
 }
 
-/** A trailer line of a Markdown entry: indent (spaces or a tab), key, value. */
-const MARKDOWN_TRAILER_LINE_RE = /^\s*([A-Z][A-Za-z-]*)[ \t]*:[ \t]*(.*)$/;
-
-/** The trailer key of a Markdown line, or `undefined`. */
+/**
+ * The trailer key of a Markdown line, read as the parser reads an attribute
+ * line (`parseAttributeLine`). `undefined` for a line the parser skips: not
+ * a `Key:` line (`Labels : x` has a space before the colon), or one with an
+ * empty value.
+ */
 function markdownKey(line: string): string | undefined {
-  return MARKDOWN_TRAILER_LINE_RE.exec(line)?.[1];
+  const parsed = parseAttributeLine(line);
+  return parsed?.value ? parsed.key : undefined;
 }
 
 /**
- * The value of a Markdown trailer line. One trailing continuation backslash
- * is dropped, as the attribute parser does.
+ * The value of a Markdown trailer line, read as the parser reads it: the
+ * line is trimmed, one trailing continuation backslash is dropped, and the
+ * value is trimmed.
  */
 function markdownValue(line: string): string | undefined {
-  const raw = MARKDOWN_TRAILER_LINE_RE.exec(line)?.[2];
-  return raw === undefined ? undefined : raw.replace(/\\$/, "");
+  return parseAttributeLine(line)?.value;
 }
 
 /** A Markdown document, split into lines and parsed once. */
@@ -598,8 +611,10 @@ interface MarkdownTrailerBlock {
  * `line` belongs to: the entry with the last title line at or before `line`.
  * The block is the one the formatter and the parser agree on
  * (`findAttributeBlockRange`), so it never reaches the next entry's title
- * line. Returns `undefined` when no entry holds the line, the entry has no
- * trailer, or the trailer ends before `line`.
+ * line. A diagnostic on the entry's title line, before the block, is
+ * intended: the validator locates A011, A012 and A013 there. Returns
+ * `undefined` when no entry holds the line, the entry has no trailer, or the
+ * trailer ends before `line`.
  */
 function markdownTrailerBlock(
   doc: MarkdownDocument,

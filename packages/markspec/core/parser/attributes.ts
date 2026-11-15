@@ -50,6 +50,21 @@ export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
 const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
 
 /**
+ * Parse one attribute line: the line is trimmed, one trailing continuation
+ * backslash is dropped, and the value is trimmed. The value is empty for
+ * `Key:` and `Key: \`. Returns `undefined` when the line is not a
+ * `Key:` line. {@linkcode parseAttributes} and the LSP quick fixes read
+ * lines through this function, so they agree with the parser.
+ */
+export function parseAttributeLine(
+  line: string,
+): { key: string; value: string } | undefined {
+  const match = ATTRIBUTE_RE.exec(line.trim());
+  if (!match) return undefined;
+  return { key: match[1], value: (match[2] ?? "").trim() };
+}
+
+/**
  * Parse an array of attribute lines into Attribute objects.
  *
  * Each line is expected to be in `Key: Value` format, with optional
@@ -63,15 +78,10 @@ export function parseAttributes(lines: readonly string[]): Attribute[] {
   const attributes: Attribute[] = [];
 
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    const match = ATTRIBUTE_RE.exec(trimmed);
-    if (match) {
-      const value = (match[2] ?? "").trim();
-      if (!value) continue; // skip empty-value lines — `Key:` or `Key: \`
-      attributes.push({ key: match[1], value });
-    }
+    const parsed = parseAttributeLine(line);
+    if (!parsed) continue;
+    if (!parsed.value) continue; // skip empty-value lines — `Key:` or `Key: \`
+    attributes.push(parsed);
   }
 
   return attributes;
