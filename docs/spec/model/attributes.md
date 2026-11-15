@@ -180,8 +180,8 @@ raises `MSL-A020` (unknown attribute key).
 
 The tables below summarize typical attribute usage by type group. Attributes
 under "Typical profile attributes" are **not** defined by core — they require
-the relevant profile to be active. Only the universal attributes in the section
-above are available in core-only mode.
+the relevant profile to be active. Only the universal attributes above and the
+core relation attributes declared on core types are available in core-only mode.
 
 ### Specification types
 
@@ -192,7 +192,7 @@ above are available in core-only mode.
 | `Contract`          | (none typical)                                                        | `Satisfies`, `Realized-by` (generated)                  |
 | `SoftwareInterface` | (none typical)                                                        | `Provided-by`, `Required-by`, `Realized-by` (generated) |
 | `HardwareInterface` | `Bus-protocol`, `Voltage-level`, `Connector-type`, `Signal-direction` | `Provided-by`, `Required-by`, `Realized-by` (generated) |
-| `Record`            | (none typical)                                                        | (standalone)                                            |
+| `Record`            | (none typical)                                                        | `Affects`, `Caused-by`                                  |
 | `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Mitigated-by`                                          |
 
 ### Component types

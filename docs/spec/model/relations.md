@@ -52,7 +52,8 @@ from toolchain bookkeeping.
 ## Core relations
 
 The following relations are the core relations (`CORE_RELATIONS` in the core
-model). They are available without a profile.
+model). Core recognizes them without a profile, except `Generated-from`, which
+core-only validation reports as an unknown attribute (`MSL-R010`).
 
 | Relation         | Inverse          | Typical source type | Typical target type             |
 | ---------------- | ---------------- | ------------------- | ------------------------------- |
@@ -70,7 +71,6 @@ model). They are available without a profile.
 | `References`     | `Cited-by`       | any                 | any                             |
 | `Mitigated-by`   | `Mitigates`      | `Risk`              | `Specification`                 |
 | `Affects`        | `Affected-by`    | `Record`            | `Component`, `Unit`, `Contract` |
-| `Addresses`      | `Addressed-by`   | `Requirement`       | `Change`                        |
 
 `Provides` / `Requires` are the symmetric provider/consumer relations between a
 component and a `Contract` (including `SoftwareInterface` /
