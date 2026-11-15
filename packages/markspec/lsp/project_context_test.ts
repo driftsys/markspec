@@ -362,6 +362,26 @@ Deno.test("ProjectContext.closeFile: a file kept on close joins the walked set, 
   await f.ctx.index.parseAndUpdateFile(created, f.files.get(key(created))!);
   await f.ctx.closeFile(created);
   f.ctx.toolConfig = { ...f.ctx.toolConfig, exclude: ["later.md"] };
+  // The saved text changes between the closes: the second close must read
+  // the disk again, not return early.
+  f.files.set(key(created), TARGET_MD.replace("REQ-0001", "REQ-0005"));
+  await f.ctx.closeFile(created);
+  const ids = f.ctx.index.getEntriesForFile(created).map((e) => e.displayId);
+  f.ctx.dispose();
+  assertEquals(ids, ["REQ-0005"]);
+});
+
+Deno.test("ProjectContext.closeFile: a context indexed without inheritance keeps a file that only an enclosing .gitignore names (#955)", async () => {
+  const nested = join(ROOT, "nested");
+  const f = await fixture({
+    [`${ROOT}/.gitignore`]: "secret.md\n",
+    [`${nested}/project.yaml`]: "name: n\nversion: 0.1.0\n",
+    [`${nested}/old.md`]: TARGET_MD,
+  }, nested);
+  await f.ctx.indexProject(() => true);
+  const created = join(nested, "secret.md");
+  f.files.set(key(created), TARGET_MD.replace("REQ-0001", "REQ-0003"));
+  await f.ctx.index.parseAndUpdateFile(created, f.files.get(key(created))!);
   await f.ctx.closeFile(created);
   const ids = f.ctx.index.getEntriesForFile(created).map((e) => e.displayId);
   f.ctx.dispose();

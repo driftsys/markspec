@@ -411,11 +411,11 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
     closed buffer of a file that exists on disk, and that the project walk
     indexed or would index now, is parsed again from disk, so links to its
     entries keep resolving. This includes a file created after startup (#955). A
-    file that the walk indexed stays indexed on close even if the discovery
-    rules exclude it later. Any other file is removed from the index on close: a
-    file that this project does not own, that is outside the project root, that
-    is reached through a symbolic link, that does not exist on disk, or that the
-    discovery rules exclude.
+    file that the walk indexed stays indexed on close, if it is still on disk,
+    even if the discovery rules exclude it later. Any other file is removed from
+    the index on close: a file that this project does not own, that is outside
+    the project root, that is reached through a symbolic link, that does not
+    exist on disk, or that the discovery rules exclude.
 
 ### Alternatives considered (LSP support for `.feature` files)
 

@@ -617,13 +617,14 @@ Deno.test("isDiscoverable: inheritGitignoreFrom applies the enclosing .gitignore
 Deno.test("isDiscoverable: .gitignore rules apply at depth 2 and deeper, as in the walk", async () => {
   const dir = await makeTree({
     ".gitignore": "*.draft.md\n",
-    "sub/.gitignore": "deeper/\n*.tmp.md\n",
+    "sub/.gitignore": "/deeper/\n*.tmp.md\n",
     "sub/x.draft.md": "",
     "sub/ok.md": "",
     "sub/deeper/y.md": "",
     "sub/other/z.tmp.md": "",
     "sub/other/w.draft.md": "",
     "sub/other/fine.md": "",
+    "sub/other/deeper/q.md": "",
   });
   const got = await predicateMatchesWalk(dir, dir, [
     "sub/x.draft.md",
@@ -632,6 +633,7 @@ Deno.test("isDiscoverable: .gitignore rules apply at depth 2 and deeper, as in t
     "sub/other/z.tmp.md",
     "sub/other/w.draft.md",
     "sub/other/fine.md",
+    "sub/other/deeper/q.md",
   ]);
   assertEquals(got, {
     "sub/x.draft.md": false,
@@ -640,5 +642,7 @@ Deno.test("isDiscoverable: .gitignore rules apply at depth 2 and deeper, as in t
     "sub/other/z.tmp.md": false,
     "sub/other/w.draft.md": false,
     "sub/other/fine.md": true,
+    // `/deeper/` in sub/.gitignore is anchored at sub, not at the root.
+    "sub/other/deeper/q.md": true,
   });
 });
