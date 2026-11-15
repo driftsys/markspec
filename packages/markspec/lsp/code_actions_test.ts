@@ -1656,3 +1656,74 @@ Deno.test("sourceEntriesForCodeActions: a Markdown file gives undefined without 
   assertEquals(entries, undefined);
   assertEquals(parses, 0);
 });
+
+Deno.test("buildCodeActions: MSL-A030 keeps the text after the comment close (#965)", async () => {
+  const text = [
+    "/**",
+    " * [REQ-001] First",
+    " *",
+    ` *     Id: ${ID_LINE}`,
+    " *     Superseded-by: REQ-009 */ fn a() {}",
+    "",
+  ].join("\n");
+  const actions = await sourceActions(text, A030_DIAG(1));
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.rs"][0].newText,
+    " */ fn a() {}",
+  );
+});
+
+Deno.test("buildCodeActions: source fixes give no action for a diagnostic before the first entry (#965)", async () => {
+  const text = "// header\n\n" +
+    SOURCE_LAYOUTS["x.rs (/// comments)"](
+      ["Superseded-by: REQ-009", "Type: Requirment"],
+      [],
+    );
+  assertEquals(await sourceActions(text, A030_DIAG(0)), []);
+  assertEquals(await sourceActions(text, T020_DIAG(0)), []);
+});
+
+/**
+ * Entries parsed from a clean source file whose only attribute is
+ * `Superseded-by` on the 4th line (0-based 3), and that text with that line
+ * replaced by `line`. Models an entry list that is out of date with the text.
+ */
+async function withReplacedAttributeLine(line: string) {
+  const clean = [
+    "/// [REQ-001] First",
+    "///",
+    `///     Id: ${ID_LINE}`,
+    "///     Superseded-by: REQ-009",
+    "fn a() {}",
+    "",
+  ];
+  const parsed = await parseFile(clean.join("\n"), { file: "/x.rs" });
+  const text = clean.map((l, n) => n === 3 ? line : l).join("\n");
+  return { text, entries: parsed.entries };
+}
+
+Deno.test("buildCodeActions: MSL-A030 does not match a key that is the tail of a longer key (#965)", async () => {
+  const { text, entries } = await withReplacedAttributeLine(
+    "///     Not-Superseded-by: REQ-009",
+  );
+  assertEquals(
+    buildCodeActions("file:///x.rs", [A030_DIAG(0)], text, entries),
+    [],
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A030 looks for the comment close after the key (#965)", async () => {
+  // A close-like text before the key is not the comment close.
+  const { text, entries } = await withReplacedAttributeLine(
+    "///     a */ Superseded-by: REQ-009",
+  );
+  const actions = buildCodeActions(
+    "file:///x.rs",
+    [A030_DIAG(0)],
+    text,
+    entries,
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].edit!.changes!["file:///x.rs"][0].newText, "");
+});

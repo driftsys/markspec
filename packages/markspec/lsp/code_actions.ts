@@ -31,8 +31,8 @@
  *   - **MSL-A030** — generated attribute in source. Action: remove
  *     the offending trailer line, found in the diagnosed entry's trailer
  *     block only. When that line also holds the closing delimiter of a
- *     block comment, only the attribute text is removed and the
- *     delimiter stays.
+ *     block comment, the line is rewritten to its comment prefix plus
+ *     the delimiter, and the text after the delimiter is kept.
  *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
  *     closest core type, when one is within Levenshtein distance 3.
  *     "Did you mean …" rather than exhaustive suggestions. The `Type:`
@@ -532,7 +532,9 @@ function replaceTypeValue(
  * value that `accept` allows) in the source entry that the diagnostic at the
  * 0-based `line` belongs to: the entry with the last title line at or before
  * `line`. Reads `Entry.attributeLines`, so it never reaches another entry.
- * Returns -1 when no entry holds the line or no attribute qualifies.
+ * Returns -1 when no entry holds the line (the diagnostic is before the
+ * first entry), the owner has no attribute lines, the diagnostic lies below
+ * the entry's last trailer line, or no attribute qualifies.
  */
 function findSourceTrailerLine(
   entries: readonly Entry[],
@@ -546,7 +548,7 @@ function findSourceTrailerLine(
     if (!owner || entry.location.line > owner.location.line) owner = entry;
   }
   const lines = owner?.attributeLines;
-  if (!owner || !lines || lines.length === 0) return -1;
+  if (!owner || !lines) return -1;
   // The diagnostic must not lie below the entry's last trailer line.
   if (line > Math.max(...lines) - 1) return -1;
   const at = owner.rawAttributes.findIndex((attr, n) =>
@@ -566,7 +568,7 @@ function buildSourceA030Fix(
   const i = findSourceTrailerLine(entries, diag.range.start.line, attrKey);
   const line = splitLines(documentText).lines[i];
   if (i < 0 || line === undefined) return undefined;
-  // The target must be the attribute line; a stale line number gives no fix.
+  // The target line must hold `Key:`; a line without it gives no fix.
   const keyAt = line.search(new RegExp(`(?<![A-Za-z-])${attrKey}\\s*:`));
   if (keyAt < 0) return undefined;
   const title = `Remove '${attrKey}' line`;
@@ -574,17 +576,13 @@ function buildSourceA030Fix(
   if (closeAt < 0) return quickFix(uri, diag, title, [deleteLines(i, i + 1)]);
   // The line also closes a block comment. Deleting it would leave the
   // comment unterminated, so keep the closing `*/` and drop the attribute.
-  const before = line.slice(0, keyAt).trimEnd();
   const leading = line.slice(0, line.length - line.trimStart().length);
-  const kept = before.trim() === "" || before.trim() === "*"
-    ? `${leading}*/`
-    : `${before} */`;
   return quickFix(uri, diag, title, [{
     range: {
       start: { line: i, character: 0 },
       end: { line: i, character: line.length },
     },
-    newText: kept + line.slice(closeAt + 2),
+    newText: `${leading}*/${line.slice(closeAt + 2)}`,
   }]);
 }
 
