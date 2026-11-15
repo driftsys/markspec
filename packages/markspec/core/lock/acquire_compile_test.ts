@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { compileAcquiredTree } from "./acquire_compile.ts";
+import { sha256Bytes } from "./hash.ts";
 
 // Build an in-memory tree fixture: project.yaml + one or more requirements
 // files. `enumOrder` picks the order the fake `readDir` yields the entries of
@@ -176,6 +177,7 @@ Deno.test("compileAcquiredTree: the snapshot excludes validator diagnostics (#96
   }
   assertEquals(withFinding.snapshot, clean.snapshot);
   assertEquals(withFinding.compiledBytes, clean.compiledBytes);
+  assertEquals(clean.snapshot, await sha256Bytes(clean.compiledBytes));
   const json = JSON.parse(new TextDecoder().decode(clean.compiledBytes));
   assertEquals(Object.keys(json).sort(), [
     "entries",
@@ -206,24 +208,28 @@ Deno.test("compileAcquiredTree: a changed entry changes the snapshot (#963)", as
   assertEquals(before.snapshot === after.snapshot, false);
 });
 
-Deno.test("compileAcquiredTree: a changed trailer attribute value changes the snapshot (#963)", async () => {
-  const withSatisfies = (target: string) => ({
+Deno.test("compileAcquiredTree: a changed non-relation attribute value changes the snapshot (#963)", async () => {
+  // `Labels:` is not a trace relation, so it is absent from links, forward and
+  // reverse. Only the hashed entries carry its value.
+  const withLabels = (label: string) => ({
     ...PROJECT,
     "/dep/docs/reqs.md": PROJECT["/dep/docs/reqs.md"].replace(
       "01HGW2Q8MNP3RSTVWXYZABCDEF\n",
-      `01HGW2Q8MNP3RSTVWXYZABCDEF\n      Satisfies: ${target}\n`,
+      `01HGW2Q8MNP3RSTVWXYZABCDEF\n      Labels: ${label}\n`,
     ),
   });
   const a = await compileAcquiredTree(
     "/dep",
-    fixtureIO(withSatisfies("STK_ICD_0100")),
+    fixtureIO(withLabels("ASIL-A")),
     "0.0.0-test",
   );
   const b = await compileAcquiredTree(
     "/dep",
-    fixtureIO(withSatisfies("STK_ICD_0200")),
+    fixtureIO(withLabels("ASIL-B")),
     "0.0.0-test",
   );
   if ("error" in a || "error" in b) throw new Error("unexpected error");
   assertEquals(a.snapshot === b.snapshot, false);
+  const json = JSON.parse(new TextDecoder().decode(a.compiledBytes));
+  assertEquals(json.links, []);
 });

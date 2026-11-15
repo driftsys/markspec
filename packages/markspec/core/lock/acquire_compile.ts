@@ -4,9 +4,10 @@
  * Deterministic in-process compile of an acquired dependency tree
  * (design §4.3). Produces the same `manifest.json` + `compiled.json` layout
  * a published `references:` site serves, except that `compiled.json` omits
- * `diagnostics` (#963), so `loadUpstreamCorpus` / `probeCacheSnapshot` read a
- * dependency snapshot identically to a reference snapshot. The output is byte-reproducible from (tree, markspec version):
- * files are compiled in sorted, tree-relative order with no stat/git IO, so
+ * `diagnostics` (#963). `loadUpstreamCorpus` / `probeCacheSnapshot` read a
+ * dependency snapshot identically to a reference snapshot, because they read
+ * only the entries. The output is byte-reproducible from (tree, markspec
+ * version): files are compiled in sorted, tree-relative order with no stat/git IO, so
  * `entry.location.file`, `properties.file.path`, and entry ordering are all
  * stable. Pure — every file touch flows through {@linkcode AcquireCompileIO}.
  */

@@ -75,11 +75,11 @@ is acquired and compiled in-process (`core/lock/upstream_deps.ts`); a
 `references:` published site is fetched as ready compile-output JSON
 (`core/lock/upstream_refs.ts`). Both write the same `manifest.json` +
 `compiled.json` cache layout, so the consumer reads either identically. The one
-difference is that the `compiled.json` of a git dependency omits `diagnostics`,
-which a published site keeps. A `kind: git|registry` discriminator on
-`projectRef` was considered and dropped — explicit-but-redundant today;
-recoverable as a non-breaking org-schema addition if a closed-source dependency
-with a published API becomes real.
+difference is that the `compiled.json` of a git dependency omits `diagnostics`;
+markspec does not alter what a published site contains. A `kind: git|registry`
+discriminator on `projectRef` was considered and dropped —
+explicit-but-redundant today; recoverable as a non-breaking org-schema addition
+if a closed-source dependency with a published API becomes real.
 
 ### D3 — Touch the network only in `markspec lock`
 
@@ -144,7 +144,7 @@ The compiled-JSON output `markspec compile --output` already emits — a
 entries/edges pair (Tier 2) — is the canonical interchange. The git fetcher
 produces the same JSON, except that it omits `diagnostics`, by compiling the
 acquired checkout in-process (`compileAcquiredTree`); a published `references:`
-site serves the full output directly, diagnostics included. Type classification
+site serves its output directly, exactly as published. Type classification
 happens upstream with the upstream's _own_ profile — the consumer never
 re-classifies a foreign vocabulary, so a resolved upstream target is exempt from
 the consumer's `MSL-L004` target-type check. Hydration is guarded by a
