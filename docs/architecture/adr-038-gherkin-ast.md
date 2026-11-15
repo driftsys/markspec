@@ -529,7 +529,9 @@ indented doc-string line.
 
 1. **Module (D1).** `lsp/feature_code_actions.ts` exports
    `buildFeatureCodeActions`. It reuses pure helpers that `lsp/code_actions.ts`
-   now exports. The Markdown builders are unchanged.
+   now exports. #952 later bounded the Markdown `MSL-A011`, `MSL-A012` and
+   `MSL-A013` builders to the trailer block of the entry that holds the
+   diagnostic.
 2. **Routing (D2).** `server.ts` calls `buildFeatureCodeActions` when
    `isFeatureFile(path)` is true and `buildCodeActions` otherwise, so no
    `.feature` diagnostic reaches a Markdown line-scanning builder. `MSL-M060`
@@ -586,6 +588,8 @@ Out of scope: `MSL-B062`, `MSL-P030`, `MSL-B060` to `MSL-B068`, `MSL-R003` with
 1. **One locator for both syntaxes.** A file-kind switch inside
    `buildCodeActions`, or one locator for Markdown and `.feature`. Rejected: it
    changes the Markdown builders and does not fit the async `MSL-B069` check.
+   (#952 later bounded the Markdown A011, A012 and A013 builders to the trailer
+   block of the diagnosed entry; the rationale above was written for #943.)
 2. **Locating lines.** Using the indexed `attributeLines` was rejected: it can
    lag the buffer and omits empty-valued lines.
 3. **Re-parse for every code.** Rejected: only `MSL-B069` needs the node kind.

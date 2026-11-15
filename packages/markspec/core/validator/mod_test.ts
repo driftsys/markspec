@@ -9,7 +9,7 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
-import { runPipeline, validate } from "./mod.ts";
+import { repeatableAttributeValues, runPipeline, validate } from "./mod.ts";
 import type { TyplBlock } from "../typl/mod.ts";
 
 function entry(
@@ -594,4 +594,25 @@ Deno.test("validate: a backslash outside a locator is no escape for MSL-A011 (#9
     }),
   ]).diagnostics.filter((d) => d.code === "MSL-A011");
   assertEquals(diags.length, 1);
+});
+
+Deno.test("repeatableAttributeValues: splits by the attribute's value type", () => {
+  // id-list: bracketed locators keep their commas.
+  assertEquals(
+    repeatableAttributeValues("Verified-by", "A [x, y], B"),
+    ["A [x, y]", "B"],
+  );
+  assertEquals(repeatableAttributeValues("Verified-by", ", ,"), []);
+  // external-id: comma split, empty values dropped.
+  assertEquals(repeatableAttributeValues("External-id", "a, , b"), ["a", "b"]);
+  assertEquals(repeatableAttributeValues("External-id", ", ,"), []);
+  // citation: not split; a lone comma is a value.
+  assertEquals(repeatableAttributeValues("References", ","), [","]);
+  assertEquals(repeatableAttributeValues("References", "  "), []);
+  // tag-list: comma split, empty values dropped.
+  assertEquals(repeatableAttributeValues("Labels", " a, , b "), ["a", "b"]);
+  assertEquals(repeatableAttributeValues("Labels", ", ,"), []);
+  // not a repeatable attribute.
+  assertEquals(repeatableAttributeValues("Type", "x"), undefined);
+  assertEquals(repeatableAttributeValues("Unknown-key", "x"), undefined);
 });

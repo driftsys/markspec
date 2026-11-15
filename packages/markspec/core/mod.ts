@@ -241,6 +241,7 @@ export {
   parseFile,
   parseSource,
 } from "./parser/mod.ts";
+export { parseAttributeLine } from "./parser/attributes.ts";
 export type {
   DetectCaptionsOptions,
   DetectDirectivesOptions,
@@ -292,6 +293,7 @@ export {
   effectiveTraceRules,
   matchesAnyTarget,
   normalizeListValues,
+  repeatableAttributeValues,
   runPipeline,
   suppressDeclaredAttrR010,
   validate,

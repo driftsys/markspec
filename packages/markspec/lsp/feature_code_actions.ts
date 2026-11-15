@@ -15,6 +15,7 @@ import {
   FEATURE_HEADER_START_RE,
   featureHeaderRunEnd,
   parseFile,
+  repeatableAttributeValues,
 } from "../core/mod.ts";
 import {
   ATTRIBUTE_KEY_RE,
@@ -24,9 +25,12 @@ import {
   type CodeAction,
   deleteLines,
   EMPTY_TRAILER_RE,
+  findKeyLine as findSharedKeyLine,
+  type LineRange,
   type LspDiagnosticLike,
   quickFix,
   splitCitationValues,
+  splitLines,
   T020_VALUE_RE,
   type TextEdit,
 } from "./code_actions.ts";
@@ -36,12 +40,6 @@ const COMMENT_PREFIX_RE = /^\s*#[ \t]*/;
 
 /** A trailer key at the start of the comment text. */
 const TRAILER_KEY_RE = /^([A-Z][A-Za-z-]*)\s*:/;
-
-/** A half-open range of line indexes: `start` inclusive, `end` exclusive. */
-export interface LineRange {
-  readonly start: number;
-  readonly end: number;
-}
 
 /**
  * The comment prefix of `line` (indent, `#`, and the spaces after it), or
@@ -116,23 +114,6 @@ export function trailerBlock(
 const TRAILER_LINE_RE = /^([A-Z][A-Za-z-]*)\s*:\s*(.*)$/;
 
 /**
- * Split `text` into lines without line endings. `crlf[i]` is `true` when
- * line `i` ended with `\r\n`, so a fix can reuse the original ending.
- */
-export function splitLines(
-  text: string,
-): { lines: string[]; crlf: boolean[] } {
-  const lines: string[] = [];
-  const crlf: boolean[] = [];
-  for (const raw of text.split("\n")) {
-    const hasCr = raw.endsWith("\r");
-    lines.push(hasCr ? raw.slice(0, -1) : raw);
-    crlf.push(hasCr);
-  }
-  return { lines, crlf };
-}
-
-/**
  * The value of a trailer line (text after `Key:`), or `undefined`. One
  * trailing continuation backslash is dropped, as the attribute parser does.
  *
@@ -156,13 +137,15 @@ function findKeyLine(
   accept: (value: string) => boolean = () => true,
   nth = 0,
 ): number {
-  let seen = 0;
-  for (let i = block.start; i < block.end; i++) {
-    if (trailerKey(lines[i]) !== key) continue;
-    if (!accept(lineValue(lines[i]) ?? "")) continue;
-    if (seen++ === nth) return i;
-  }
-  return -1;
+  return findSharedKeyLine(
+    lines,
+    block,
+    key,
+    trailerKey,
+    lineValue,
+    accept,
+    nth,
+  );
 }
 
 /**
@@ -303,7 +286,7 @@ function headerFix(
   const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
   if (key === undefined || key === "Id") return undefined;
   const accept = diag.code === "MSL-A012"
-    ? (value: string) => splitCitationValues(value).length === 0
+    ? (value: string) => repeatableAttributeValues(key, value)?.length === 0
     : diag.code === "MSL-A011"
     ? (value: string) => splitCitationValues(value).length >= 2
     : () => true;

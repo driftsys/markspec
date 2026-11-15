@@ -5,7 +5,11 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
-import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
+import {
+  parseAttributeLine,
+  parseAttributes,
+  splitBodyAndAttributes,
+} from "./attributes.ts";
 import { parseFile } from "./mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -598,4 +602,27 @@ Deno.test("collateAttributes: id-list CSV keeps a locator with commas whole (#91
   ]);
   assertEquals(collated.get("Verified-by"), ["TST_A [x, y]", "TST_B"]);
   assertEquals(collated.get("Labels"), ["a [b", "c]"]);
+});
+
+Deno.test("parseAttributeLine: reads a Key: value line like the parser", () => {
+  assertEquals(parseAttributeLine("      Labels: a, b"), {
+    key: "Labels",
+    value: "a, b",
+  });
+  // One trailing backslash goes, also before trailing whitespace.
+  assertEquals(parseAttributeLine("\tLabels: a, b \\ "), {
+    key: "Labels",
+    value: "a, b",
+  });
+});
+
+Deno.test("parseAttributeLine: empty values are returned empty", () => {
+  assertEquals(parseAttributeLine("Key:"), { key: "Key", value: "" });
+  assertEquals(parseAttributeLine("Key: \\"), { key: "Key", value: "" });
+});
+
+Deno.test("parseAttributeLine: lines that are not Key: lines are rejected", () => {
+  assertEquals(parseAttributeLine("Key : x"), undefined);
+  assertEquals(parseAttributeLine("key: x"), undefined);
+  assertEquals(parseAttributeLine("plain prose"), undefined);
 });

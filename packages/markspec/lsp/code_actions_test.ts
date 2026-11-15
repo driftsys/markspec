@@ -7,7 +7,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { format, parseFile } from "../core/mod.ts";
+import { format, parse, parseFile, validate } from "../core/mod.ts";
 import { buildCodeActions, type LspDiagnosticLike } from "./code_actions.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
 
@@ -863,5 +863,375 @@ Deno.test("buildCodeActions: MSL-A011 splits at a backslash comma outside a loca
   assertEquals(
     actions[0].edit!.changes!["file:///x.md"][0].newText,
     "      References: x\\\n      References: y\n",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Quick fixes stay inside the diagnosed entry's trailer block (#952)
+// ---------------------------------------------------------------------------
+
+const BLOCK_ID_A = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF";
+const BLOCK_ID_B = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG";
+
+/** Two entries; `a` and `b` are the trailer lines of each (after the Id). */
+function twoEntries(a: string[], b: string[], eol = "\n"): string {
+  return [
+    "# Test",
+    "",
+    "- [REQ-001] First",
+    "",
+    "  Body.",
+    "",
+    BLOCK_ID_A,
+    ...a,
+    "",
+    "- [REQ-002] Second",
+    "",
+    "  Body.",
+    "",
+    BLOCK_ID_B,
+    ...b,
+    "",
+  ].join(eol);
+}
+
+/** A diagnostic located, like the validator's, at REQ-001's title line. */
+function titleDiag(code: string, key: string): LspDiagnosticLike {
+  return diag({
+    code,
+    message: `REQ-001: '${key}' is wrong`,
+    line: 2,
+    character: 0,
+  });
+}
+
+function editsOf(actions: ReturnType<typeof buildCodeActions>) {
+  return actions[0].edit!.changes!["file:///x.md"];
+}
+
+Deno.test("buildCodeActions: MSL-A012 picks the empty line, not an earlier same-key line (#952)", () => {
+  const a = ["      Labels: ASIL-B", "      Labels: , ,"];
+  const doc = twoEntries(a, ["      Labels: , ,"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+});
+
+Deno.test("buildCodeActions: MSL-A012 never edits the following entry (#952)", () => {
+  // The empty `Labels:` exists only in REQ-002.
+  const doc = twoEntries([], ["      Labels: , ,"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A012 gives repeated diagnostics their own lines (#952)", () => {
+  const doc = twoEntries(["      Labels: , ,", "      Labels: ,"], []);
+  const d = titleDiag("MSL-A012", "Labels");
+  const actions = buildCodeActions("file:///x.md", [d, d], doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A012 follows the citation rule, `,` is not empty (#952)", () => {
+  const doc = twoEntries(["      References: ,"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "References"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A012 reads a tab-led line and a trailing backslash (#952)", () => {
+  const doc = twoEntries(["\tLabels: , ,\\"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-A012 works on a CRLF document (#952)", () => {
+  const doc = twoEntries(["      Labels: , ,"], [], "\r\n");
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-A011 picks the CSV line, not an earlier same-key line (#952)", () => {
+  const a = ["      References: ISO-1", "      References: ISO-2, ISO-3"];
+  const doc = twoEntries(a, ["      References: ISO-4, ISO-5"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A011", "References"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+  assertEquals(
+    editsOf(actions)[0].newText,
+    "      References: ISO-2\n      References: ISO-3\n",
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A011 never edits the following entry (#952)", () => {
+  // REQ-001 has no `References:`; REQ-002 has a CSV one.
+  const doc = twoEntries([], ["      References: ISO-4, ISO-5"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A011", "References"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A011 gives repeated diagnostics their own lines (#952)", () => {
+  const doc = twoEntries([
+    "      References: ISO-1, ISO-2",
+    "      References: ISO-3, ISO-4",
+  ], []);
+  const d = titleDiag("MSL-A011", "References");
+  const actions = buildCodeActions("file:///x.md", [d, d], doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A011 keeps CRLF line endings (#952)", () => {
+  const doc = twoEntries(["      References: ISO-1, ISO-2"], [], "\r\n");
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A011", "References"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    editsOf(actions)[0].newText,
+    "      References: ISO-1\r\n      References: ISO-2\r\n",
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A013 removes duplicates only in the diagnosed entry (#952)", () => {
+  const a = ["      Type: Requirement", "      Type: Specification"];
+  const doc = twoEntries(a, a);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+});
+
+Deno.test("buildCodeActions: MSL-A013 never edits the following entry (#952)", () => {
+  // REQ-001 has no `Type:`; REQ-002 has two.
+  const doc = twoEntries([], [
+    "      Type: Requirement",
+    "      Type: Specification",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-A013 works on a CRLF document (#952)", () => {
+  const doc = twoEntries(
+    ["      Type: Requirement", "      Type: Specification"],
+    [],
+    "\r\n",
+  );
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+});
+
+Deno.test("buildCodeActions: MSL-A030 removes the first forward match (#952)", () => {
+  const doc = twoEntries(["      Superseded-by: REQ-009"], [
+    "      Superseded-by: REQ-009",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A030", "Superseded-by"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-T020 replaces the first forward match (#952)", () => {
+  const doc = twoEntries(["      Type: Requirment"], [
+    "      Type: Requirment",
+  ]);
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-T020",
+      message: "REQ-001: Type: 'Requirment' is not a core type",
+      line: 2,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions).length, 1);
+  const edit = editsOf(actions)[0];
+  assertEquals(edit.newText, "Requirement");
+  assertEquals(edit.range.start, { line: 7, character: 12 });
+  assertEquals(edit.range.end, { line: 7, character: 22 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 regression guard, edits stay in the diagnosed entry (#952)", () => {
+  // The parser does not count an empty `Key:` line as trailer, so this fix
+  // keeps its own contiguous-run bound. The old code passed this test too.
+  const doc = twoEntries(["      Satisfies:"], ["      Satisfies:"]);
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: "malformed trailer line",
+      line: 7,
+      character: 6,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions).length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+});
+
+Deno.test("buildCodeActions: MSL-A012 skips a `Key :` line the parser skips (#952)", () => {
+  // `Labels : ,` is inside the trailer block but is not an attribute line.
+  const doc = twoEntries(
+    ["      Labels: a \\", "      Labels : ,", "      Labels: ,"],
+    [],
+  );
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.line, 9);
+});
+
+Deno.test("buildCodeActions: MSL-A013 ignores empty-value lines (#952)", () => {
+  const doc = twoEntries([
+    "      Type: Requirement",
+    "      Type: \\",
+    "      Type: Specification",
+  ], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = editsOf(actions);
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 9);
+});
+
+/** A Rust block doc comment holding an unprefixed, 4-space-indented entry. */
+const RS_BLOCK_DOC = (trailer: string) =>
+  [
+    "/**",
+    "- [REQ-001] Title",
+    "",
+    "    Body.",
+    "",
+    "    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    trailer,
+    "*/",
+    "fn f() {}",
+    "",
+  ].join("\n");
+
+Deno.test("buildCodeActions: MSL-A030 offers a fix in a source doc comment block (#952)", () => {
+  const doc = RS_BLOCK_DOC("    Superseded-by: REQ-009");
+  const actions = buildCodeActions("file:///x.rs", [
+    diag({
+      code: "MSL-A030",
+      message: "REQ-001: 'Superseded-by' has generated origin",
+      line: 1,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    6,
+  );
+});
+
+Deno.test("buildCodeActions: MSL-T020 offers a fix in a source doc comment block (#952)", () => {
+  const doc = RS_BLOCK_DOC("    Type: Requirment");
+  const actions = buildCodeActions("file:///x.rs", [
+    diag({
+      code: "MSL-T020",
+      message: "REQ-001: Type: 'Requirment' is not a core type",
+      line: 1,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.rs"][0].newText,
+    "Requirement",
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A012 strips a continuation backslash before trailing spaces (#952)", () => {
+  for (const tail of ["\\  ", "\\\t"]) {
+    const doc = twoEntries([`      Labels: , ,${tail}`], []);
+    const actions = buildCodeActions("file:///x.md", [
+      titleDiag("MSL-A012", "Labels"),
+    ], doc);
+    assertEquals(actions.length, 1);
+    assertEquals(editsOf(actions)[0].range.start.line, 7);
+  }
+});
+
+Deno.test("buildCodeActions: MSL-A012 for two keys on one entry gives one action per line (#952)", () => {
+  const doc = twoEntries(["      Labels: ,", "      External-id: ,"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A012", "Labels"),
+    titleDiag("MSL-A012", "External-id"),
+  ], doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 7);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    8,
+  );
+});
+
+Deno.test("buildCodeActions: a diagnostic after the trailer yields no action (#952)", () => {
+  const doc = twoEntries([], ["      Labels: , ,"]);
+  const last = doc.split("\n").length - 1; // the blank line after REQ-002
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A012",
+      message: "REQ-002: 'Labels' is wrong",
+      line: last,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: real MSL-A012 diagnostics fix the right lines (#952)", async () => {
+  const doc = twoEntries(
+    ["      Labels: ASIL-B", "      Labels: , ,"],
+    ["      Labels: , ,"],
+  );
+  const { diagnostics } = await parseFile(doc, { file: "/x.md" });
+  const all = [...diagnostics, ...validate(parse(doc)).diagnostics];
+  const a012 = all.filter((d) => d.code === "MSL-A012").map(toLspDiagnostic);
+  assertEquals(a012.length, 2);
+  const actions = buildCodeActions("file:///x.md", a012, doc);
+  assertEquals(actions.length, 2);
+  assertEquals(editsOf(actions)[0].range.start.line, 8);
+  assertEquals(
+    actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
+    15,
   );
 });
