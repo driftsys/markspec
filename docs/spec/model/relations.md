@@ -2,7 +2,8 @@
 
 A **relation** is a typed, directed edge between two entries in the trace graph.
 Relations are written as trailer attributes in the source entry; the toolchain
-generates the inverse edge automatically in the compiled output.
+generates the inverse edge in the compiled output when the active profile
+declares the inverse.
 
 ## Writing a relation
 
@@ -37,8 +38,8 @@ Satisfies: SYS_BRK_0042 Satisfies: SYS_BRK_0043
 ## Generated inverses
 
 When MarkSpec compiles the graph it writes the reverse edge for every forward
-relation. The author **never** writes the inverse — it appears only in the
-compiled output:
+relation whose `inverse:` the active profile declares. The author **never**
+writes the inverse — it appears only in the compiled output:
 
 ```text
 SRS_BRK_0107  --[Satisfies]-->    SYS_BRK_0042
