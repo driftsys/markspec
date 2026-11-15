@@ -147,7 +147,10 @@ also processes each nested project as its own group, with its own profile. MCP
 `validate` and bare `check` therefore agree for nested projects: a display ID
 declared once in each of two nested projects is not a duplicate for either, and
 a `Satisfies:` that points from one nested project into another is unresolved
-for either.
+for either. This holds for nested projects that are not listed under `exclude:`.
+A nested folder that is listed there is not a separate project for the MCP
+server, and its entries stay in the MCP graph of the enclosing project, but
+`markspec check` skips its files (see below).
 
 To stop the MCP server from treating a nested folder that has its own config
 (for example a test fixture) as a separate project, list it under `exclude:` in
