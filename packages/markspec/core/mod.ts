@@ -255,6 +255,11 @@ export type {
   SupportedLanguage,
 } from "./parser/mod.ts";
 
+export {
+  FEATURE_HEADER_START_RE,
+  featureHeaderRunEnd,
+} from "./parser/feature_file.ts";
+
 // Formatter
 export { findAttributeBlockRange, format } from "./formatter/mod.ts";
 export {

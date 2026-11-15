@@ -77,14 +77,14 @@ export interface CodeAction {
 const KEYWORD_RE = /modal keyword '([^']+)'/;
 
 /** Capture the attribute key inside `'…'` in an MSL-A030 message. */
-const ATTRIBUTE_KEY_RE = /'([A-Z][A-Za-z-]*)'/;
+export const ATTRIBUTE_KEY_RE = /'([A-Z][A-Za-z-]*)'/;
 
 /** Capture the bad type value inside `'…'` in an MSL-T020 message. */
-const T020_VALUE_RE = /Type: '([^']+)'/;
+export const T020_VALUE_RE = /Type: '([^']+)'/;
 
 /** An empty-valued trailer line: `Key:` with nothing after the colon.
  * Same key grammar as the formatter's `removeEmptyTrailerLines`. */
-const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
+export const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
 
 /** Trailer indentation: ≥4 spaces or a tab (a canonical indented code
  * block line). */
@@ -276,6 +276,36 @@ function buildP023Fix(
   return quickFix(uri, diag, "Indent trailer block", edits);
 }
 
+/**
+ * Split a citation attribute value on top-level commas. Commas inside
+ * `[…]` are citation locators and do not split; inside a locator, `\]` and
+ * `\\` are escapes. Values are trimmed and empty values are dropped.
+ */
+export function splitCitationValues(raw: string): string[] {
+  const values: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (let k = 0; k < raw.length; k++) {
+    const ch = raw[k];
+    // Inside a locator, `\]` and `\\` are escapes (#915): keep both
+    // characters and do not close the locator.
+    if (ch === "\\" && depth > 0 && k + 1 < raw.length) {
+      current += ch + raw[++k];
+      continue;
+    }
+    if (ch === "[") depth++;
+    else if (ch === "]" && depth > 0) depth--;
+    if (ch === "," && depth === 0) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  values.push(current.trim());
+  return values.filter((v) => v.length > 0);
+}
+
 function buildA011Fix(
   uri: string,
   diag: LspDiagnosticLike,
@@ -291,31 +321,7 @@ function buildA011Fix(
     if (!m) continue;
     const indent = m[1];
     const rawValue = m[2];
-    // Split on top-level commas (depth-0). Commas inside `[…]` are
-    // citation locators and must not split — same rule the
-    // MSL-A011 validator uses.
-    const values: string[] = [];
-    let depth = 0;
-    let current = "";
-    for (let k = 0; k < rawValue.length; k++) {
-      const ch = rawValue[k];
-      // Inside a locator, `\]` and `\\` are escapes (#915): keep both
-      // characters and do not close the locator.
-      if (ch === "\\" && depth > 0 && k + 1 < rawValue.length) {
-        current += ch + rawValue[++k];
-        continue;
-      }
-      if (ch === "[") depth++;
-      else if (ch === "]" && depth > 0) depth--;
-      if (ch === "," && depth === 0) {
-        values.push(current.trim());
-        current = "";
-      } else {
-        current += ch;
-      }
-    }
-    values.push(current.trim());
-    const nonEmpty = values.filter((v) => v.length > 0);
+    const nonEmpty = splitCitationValues(rawValue);
     if (nonEmpty.length < 2) return undefined;
     const newText = nonEmpty
       .map((v) => `${indent}${attrKey}: ${v}\n`)
@@ -341,7 +347,8 @@ function buildA011Fix(
   return undefined;
 }
 
-function buildM060Fix(
+/** Quick fix for MSL-M060: lowercase the modal keyword at the diagnostic range. */
+export function buildM060Fix(
   uri: string,
   diag: LspDiagnosticLike,
 ): CodeAction | undefined {
@@ -481,7 +488,7 @@ function findTrailerLine(
 
 /** A TextEdit deleting whole lines `[startLine, endLine)` (0-based),
  * including the trailing newline of the last one. */
-function deleteLines(startLine: number, endLine: number): TextEdit {
+export function deleteLines(startLine: number, endLine: number): TextEdit {
   return {
     range: {
       start: { line: startLine, character: 0 },
@@ -492,7 +499,7 @@ function deleteLines(startLine: number, endLine: number): TextEdit {
 }
 
 /** Wrap `edits` on `uri` as a preferred quick fix for `diag`. */
-function quickFix(
+export function quickFix(
   uri: string,
   diag: LspDiagnosticLike,
   title: string,
@@ -509,7 +516,7 @@ function quickFix(
 
 /** Return the closest core type name within {@linkcode MAX_SUGGESTION_DISTANCE}
  * Levenshtein distance, or `undefined` when nothing is close enough. */
-function closestCoreType(value: string): string | undefined {
+export function closestCoreType(value: string): string | undefined {
   let best: string | undefined;
   let bestDistance = MAX_SUGGESTION_DISTANCE + 1;
   for (const candidate of ALL_CORE_TYPES) {
@@ -617,7 +624,8 @@ function buildS003Fix(
   return undefined;
 }
 
-function buildS010Fix(
+/** Informational stub action for MSL-S010 (see the comment in the body). */
+export function buildS010Fix(
   _uri: string,
   diag: LspDiagnosticLike,
 ): CodeAction | undefined {
