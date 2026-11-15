@@ -656,9 +656,7 @@ profile-delivered document (for example `PROFILE-DELIVERS-001`).
 
 The hash that `markspec lock` stores for an upstream snapshot covers the
 entries, links, and type registry of the upstream tree. It does not cover
-diagnostics, so a change to the validator does not move a pin. This release
-changed what the hash covers, so after upgrading markspec re-pin upstreams with
-`markspec lock --update`.
+diagnostics, so a change to the validator does not move a pin.
 
 **Examples:**
 
