@@ -231,10 +231,12 @@ class Semaphore {
  * traceability graph.
  *
  * The returned diagnostics combine parse diagnostics, the validator
- * pipeline's diagnostics (the same `runPipeline` call, project-wide scope,
- * that bare `markspec check` and the LSP make, so MSL-L006 and the other
- * traceability rules are included), inverse-generation diagnostics and
- * MSL-T013. They do not include fmt drift, lockfile drift or prose lint.
+ * pipeline's diagnostics, inverse-generation diagnostics and MSL-T013. The
+ * pipeline call is the same `runPipeline` call that bare `markspec check`
+ * and the LSP make, with project-wide scope by default
+ * (`options.projectWide`), so MSL-L006 and the other traceability rules are
+ * included. The diagnostics do not include fmt drift, lockfile drift or prose
+ * lint.
  *
  * @param paths - File paths to compile
  * @param options - Compile options
@@ -324,10 +326,10 @@ export async function compile(
   }
 
   // Phase 2: Validate all entries with the same validator pipeline that
-  // bare `markspec check` and the LSP run (`runPipeline`, project-wide
-  // scope unless `options.projectWide` is false): core hygiene, classification, typed attributes, traceability
-  // (MSL-L006, MSL-T014), Gherkin checks and the uxil family. The requested
-  // path set is the corpus being compiled, so project-wide scope applies.
+  // bare `markspec check` and the LSP run (`runPipeline`): core hygiene,
+  // classification, typed attributes, traceability (MSL-L006, MSL-T014),
+  // Gherkin checks and the uxil family. By default the requested path set is
+  // the whole project, so project-wide scope applies (`options.projectWide`).
   // Only the pipeline's diagnostics are used. The graph below is built from
   // compile's own classification, so the compiled graph does not depend on
   // the pipeline. CLI-only gates (fmt drift, lock drift, prose lint) are
