@@ -97,7 +97,6 @@ Deno.test("staticallyReached and hasDynamicImportOf: Windows-shaped graph", () =
 // for a reason not yet found (#932), so the test does not run there.
 Deno.test({
   name: "core/mod.ts has no static dependency on @cucumber/gherkin",
-  ignore: Deno.build.os === "windows",
   fn: async () => {
     const entry = fromFileUrl(new URL("../mod.ts", import.meta.url));
     const out = await new Deno.Command(Deno.execPath(), {
@@ -109,6 +108,18 @@ Deno.test({
     const graph = JSON.parse(
       new TextDecoder().decode(out.stdout),
     ) as ModuleGraph;
+    // TEMPORARY diagnostics for #932: print every edge that mentions gherkin.
+    console.log("DIAG932 deno", Deno.version.deno, "roots", graph.roots);
+    for (const m of graph.modules) {
+      for (const d of m.dependencies ?? []) {
+        if (JSON.stringify(d).includes("gherkin")) {
+          console.log("DIAG932 edge", m.specifier, JSON.stringify(d));
+        }
+      }
+      if (m.specifier.includes("gherkin")) {
+        console.log("DIAG932 module", JSON.stringify(m).slice(0, 600));
+      }
+    }
     const staticParser = [...staticallyReached(graph)].filter((s) =>
       s.includes("@cucumber/")
     );
