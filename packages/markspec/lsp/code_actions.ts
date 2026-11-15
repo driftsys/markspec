@@ -29,10 +29,14 @@
  *
  *   - **MSL-M060** — uppercase modal keyword. Action: lowercase it.
  *   - **MSL-A030** — generated attribute in source. Action: remove
- *     the offending trailer line.
+ *     the offending trailer line, found in the diagnosed entry's trailer
+ *     block only. When that line also holds the closing delimiter of a
+ *     block comment, only the attribute text is removed and the
+ *     delimiter stays.
  *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
  *     closest core type, when one is within Levenshtein distance 3.
- *     "Did you mean …" rather than exhaustive suggestions.
+ *     "Did you mean …" rather than exhaustive suggestions. The `Type:`
+ *     line is found in the diagnosed entry's trailer block only.
  *   - **MSL-A013** — single-cardinality attribute appears more than
  *     once. Action: delete every duplicate trailer line, keeping the
  *     first occurrence. Only lines in the diagnosed entry's trailer
@@ -70,6 +74,7 @@ import {
   CORE_CONCRETE_TYPES,
   type Entry,
 } from "../core/model/mod.ts";
+import { isSourceFile } from "./context.ts";
 import {
   findAttributeBlockRange,
   parse,
@@ -541,7 +546,9 @@ function findSourceTrailerLine(
     if (!owner || entry.location.line > owner.location.line) owner = entry;
   }
   const lines = owner?.attributeLines;
-  if (!owner || !lines) return -1;
+  if (!owner || !lines || lines.length === 0) return -1;
+  // The diagnostic must not lie below the entry's last trailer line.
+  if (line > Math.max(...lines) - 1) return -1;
   const at = owner.rawAttributes.findIndex((attr, n) =>
     attr.key === key && lines[n] !== undefined && accept(attr.value)
   );
@@ -557,10 +564,28 @@ function buildSourceA030Fix(
   const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
   if (attrKey === undefined) return undefined;
   const i = findSourceTrailerLine(entries, diag.range.start.line, attrKey);
-  if (i < 0 || i >= splitLines(documentText).lines.length) return undefined;
-  return quickFix(uri, diag, `Remove '${attrKey}' line`, [
-    deleteLines(i, i + 1),
-  ]);
+  const line = splitLines(documentText).lines[i];
+  if (i < 0 || line === undefined) return undefined;
+  // The target must be the attribute line; a stale line number gives no fix.
+  const keyAt = line.search(new RegExp(`(?<![A-Za-z-])${attrKey}\\s*:`));
+  if (keyAt < 0) return undefined;
+  const title = `Remove '${attrKey}' line`;
+  const closeAt = line.indexOf("*/", keyAt);
+  if (closeAt < 0) return quickFix(uri, diag, title, [deleteLines(i, i + 1)]);
+  // The line also closes a block comment. Deleting it would leave the
+  // comment unterminated, so keep the closing `*/` and drop the attribute.
+  const before = line.slice(0, keyAt).trimEnd();
+  const leading = line.slice(0, line.length - line.trimStart().length);
+  const kept = before.trim() === "" || before.trim() === "*"
+    ? `${leading}*/`
+    : `${before} */`;
+  return quickFix(uri, diag, title, [{
+    range: {
+      start: { line: i, character: 0 },
+      end: { line: i, character: line.length },
+    },
+    newText: kept + line.slice(closeAt + 2),
+  }]);
 }
 
 function buildSourceT020Fix(
@@ -907,4 +932,40 @@ function levenshtein(a: string, b: string): number {
     for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
   }
   return prev[b.length];
+}
+
+/**
+ * The entries that the A030 and T020 quick fixes read their line from, for
+ * the document at `filePath`: `undefined` for a file that is not a source
+ * file, so that {@linkcode buildCodeActions} takes the Markdown path. A
+ * source file is parsed only when a diagnostic of the request is an A030 or
+ * a T020. The list is empty, which gives no A030 or T020 fix, when no parse
+ * is needed or the parse fails; a failure is reported once through `warn`, so
+ * the other quick fixes of the request still work.
+ */
+export async function sourceEntriesForCodeActions(
+  filePath: string,
+  documentText: string | undefined,
+  diagnostics: readonly { code: string }[],
+  io: {
+    parse: (
+      text: string,
+      options: { file: string },
+    ) => Promise<{ entries: readonly Entry[] }>;
+    warn: (message: string) => void;
+  },
+): Promise<readonly Entry[] | undefined> {
+  if (!isSourceFile(filePath)) return undefined;
+  if (
+    documentText === undefined ||
+    !diagnostics.some((d) => d.code === "MSL-A030" || d.code === "MSL-T020")
+  ) return [];
+  try {
+    return (await io.parse(documentText, { file: filePath })).entries;
+  } catch (err) {
+    io.warn(
+      `Quick fixes for ${filePath} skipped: the source file failed to parse: ${err}`,
+    );
+    return [];
+  }
 }

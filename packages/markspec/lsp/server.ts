@@ -65,7 +65,10 @@ import {
   buildFormattingEdits,
 } from "./formatting.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
-import { buildCodeActions } from "./code_actions.ts";
+import {
+  buildCodeActions,
+  sourceEntriesForCodeActions,
+} from "./code_actions.ts";
 import { buildFeatureCodeActions } from "./feature_code_actions.ts";
 import {
   resolveNavigableLocation,
@@ -1490,32 +1493,6 @@ connection.onRenameRequest(async (params) => {
 // Code actions (quick fixes for diagnostics)
 // ---------------------------------------------------------------------------
 
-/**
- * The entries that the A030 and T020 quick fixes of a source file read their
- * line from. The file is parsed only when a diagnostic of the request needs
- * it. An empty list, which gives no A030 or T020 fix, stands for "not needed"
- * and for a parse failure; a failure is logged once, so the other quick fixes
- * of the request still work.
- */
-async function sourceEntriesForCodeActions(
-  filePath: string,
-  documentText: string | undefined,
-  diagnostics: readonly { code: string }[],
-) {
-  if (
-    documentText === undefined ||
-    !diagnostics.some((d) => d.code === "MSL-A030" || d.code === "MSL-T020")
-  ) return [];
-  try {
-    return (await parseFile(documentText, { file: filePath })).entries;
-  } catch (err) {
-    connection.console.warn(
-      `Quick fixes for ${filePath} skipped: the source file failed to parse: ${err}`,
-    );
-    return [];
-  }
-}
-
 connection.onCodeAction(async (params) => {
   tally("codeAction");
   const filePath = uriToPath(params.textDocument.uri);
@@ -1524,8 +1501,9 @@ connection.onCodeAction(async (params) => {
   const documentText = document?.getText();
   // deno-lint-ignore no-explicit-any
   const diagnostics = params.context.diagnostics as any;
-  // `.feature` diagnostics never reach the Markdown builders: those scan
-  // every indented `Key:` line, which can be a doc string line (#943).
+  // `.feature` diagnostics never reach the Markdown builders: a `.feature`
+  // file has no Markdown trailer block, and an indented `Key:` line in it
+  // can be a doc string line (#943).
   const actions = isFeatureFile(filePath)
     ? await buildFeatureCodeActions(
       params.textDocument.uri,
@@ -1537,9 +1515,10 @@ connection.onCodeAction(async (params) => {
       params.textDocument.uri,
       diagnostics,
       documentText,
-      isSourceFile(filePath)
-        ? await sourceEntriesForCodeActions(filePath, documentText, diagnostics)
-        : undefined,
+      await sourceEntriesForCodeActions(filePath, documentText, diagnostics, {
+        parse: parseFile,
+        warn: (message) => connection.console.warn(message),
+      }),
     );
   // deno-lint-ignore no-explicit-any
   return actions as any;
