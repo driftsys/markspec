@@ -402,7 +402,15 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
 10. **Parse diagnostics (#939).** `WorkspaceIndex` stores the parse diagnostics
     of each file, and the cross-file publish merges them in, so they persist.
     This applies to all file types.
-11. **Known gap.** The LSP does not publish `MSL-L006` and `MSL-T014` (#938).
+11. **(Resolved by #938) Known gap.** The LSP does not publish `MSL-L006` and
+    `MSL-T014` (#938). Resolved by #938 (2026-11-15): the language server now
+    runs the core validator pipeline with `projectWide: true`, then the corpus
+    post-pass, as the pipeline part of `markspec check` does. It publishes
+    `MSL-L006`, `MSL-T014` and the other Stage 2 to Stage 4 diagnostics. A
+    closed buffer of a file that the project walk indexed is parsed again from
+    disk, so links to its entries keep resolving. A file created after startup
+    is not in the walked set, so closing its buffer still removes it from the
+    index until the next re-index.
 
 ### Alternatives considered (LSP support for `.feature` files)
 

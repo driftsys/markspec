@@ -20,6 +20,7 @@
 import {
   DEFAULT_PROJECT_CONFIG,
   DEFAULT_TOOL_CONFIG,
+  deriveUpstreamId,
   type Diagnostic as CoreDiagnostic,
   discoverFiles,
   type DiscoveryDirEntry,
@@ -159,6 +160,16 @@ export class ProjectContext {
    * share the set — each file is still added to `corpusFilePaths` too, so
    * the existing read-only guards cover upstream files for free. */
   private readonly upstreamFilePaths = new Set<string>();
+
+  /** Absolute paths of the project files the last {@linkcode indexProject}
+   * walk discovered and owns. The set is filled from the discovery list
+   * before parsing, and an open buffer is parsed instead of the disk text. A
+   * closed editor buffer of one of these files is parsed again from disk,
+   * because the buffer only overrode the disk content while it was open
+   * (#938). Corpus files are normally not in this set, because discovery
+   * skips the cache directory; `server.ts` also returns early for corpus
+   * files before it calls {@linkcode closeFile}. */
+  private readonly walkedFiles = new Set<string>();
 
   /** `true` when a profile-affecting file (`.markspec.yaml`,
    * `project.yaml`) changed since the last watched-files reload ran.
@@ -420,6 +431,8 @@ export class ProjectContext {
     ) {
       if (owns(path)) files.push(path);
     }
+    this.walkedFiles.clear();
+    for (const path of files) this.walkedFiles.add(path);
 
     // Parse all files with bounded concurrency. The serial loop spent
     // most of its wall time waiting on file I/O while CPU was idle —
@@ -468,7 +481,11 @@ export class ProjectContext {
     const entryCount = this.index.getAllEntries().length;
     const allDiags = time(
       `validateAll/${entryCount}`,
-      () => this.index.validateAll(this.profile ?? null),
+      () =>
+        this.index.validateAll(this.profile ?? null, {
+          captionConventions: this.toolConfig.captionConventions,
+          declaredUpstreamIds: this.declaredUpstreamIds(),
+        }),
     );
     this.lastDiagnostics = allDiags;
 
@@ -511,6 +528,53 @@ export class ProjectContext {
     // on its own document changing, never on a change to a *different*
     // file.
     this.host.refreshLenses();
+  }
+
+  /** Upstream ids declared in `project.yaml` `dependencies:` and
+   * `references:`. Read from the current config on each call, so a
+   * `project.yaml` reload is picked up by the next validation. */
+  private declaredUpstreamIds(): string[] {
+    return [...this.config.dependencies, ...this.config.references]
+      .map((ref) => deriveUpstreamId(ref))
+      .filter((id): id is string => id !== undefined);
+  }
+
+  /**
+   * Handle the close of the editor buffer at `filePath`. A file the project
+   * walk indexed from disk is parsed again from disk, so links to its entries
+   * keep resolving; a file that no longer exists on disk, or that the walk
+   * did not index, is removed from the index. Validation is scheduled
+   * afterwards.
+   *
+   * Limitation: a file created after startup is not in the walked set, so
+   * closing its buffer removes it from the index until the next re-index.
+   *
+   * @param stillClosed Called after each await; when it returns `false` the
+   *   buffer was opened again meanwhile, and the open buffer's own parse wins.
+   *   The disk parse is stored only after the last check, with no await in
+   *   between, so this method then leaves the index unchanged.
+   */
+  async closeFile(
+    filePath: string,
+    stillClosed: () => boolean = () => true,
+  ): Promise<void> {
+    if (this.disposed) return;
+    if (this.walkedFiles.has(filePath)) {
+      const text = await this.host.readFile(filePath);
+      if (this.disposed || !stillClosed()) return;
+      if (text !== undefined) {
+        const parsed = await this.index.parseOnly(filePath, text);
+        if (this.disposed || !stillClosed()) return;
+        // No await between the check and the store: a reopened buffer's own
+        // parse is never overwritten by the disk text.
+        this.index.applyParsed(filePath, parsed);
+        this.scheduleValidateAll();
+        return;
+      }
+      this.walkedFiles.delete(filePath);
+    }
+    this.index.removeFile(filePath);
+    this.scheduleValidateAll();
   }
 
   /** Schedule {@linkcode publishAllDiagnostics} after 1000ms of quiet. */

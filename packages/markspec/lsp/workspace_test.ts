@@ -912,3 +912,130 @@ Deno.test("WorkspaceIndex: parseAndUpdateFile stores parse diagnostics per file 
   assertEquals(index.getParseDiagnostics("/p/a.md"), []);
   assertEquals(index.getAllParseDiagnostics(), []);
 });
+
+// --- Traceability diagnostics from the pipeline (#938) ---
+
+/** A profile whose `requirement` type may cite other requirements with `Satisfies:`. */
+function traceProfile(): EffectiveProfile {
+  const base = testProfile();
+  const testType = base.types.get("test")!;
+  return {
+    ...base,
+    types: new Map([["requirement", {
+      ...testType,
+      value: {
+        ...testType.value,
+        name: "requirement",
+        extends: "Requirement",
+        displayIdPattern: { value: "REQ_{n:04d}", origin: "p" },
+        traceability: new Map([["Satisfies", {
+          value: {
+            target: ["requirement"],
+            cardinality: { lower: 0, upper: Infinity },
+            required: false,
+          },
+          origin: "p",
+        }]]),
+      },
+    }]]),
+  };
+}
+
+const MISSING_TARGET_MD = `- [REQ_0001] Brake
+
+  The controller shall brake.
+
+      Id: 01REQ00000000000000000010A
+      Type: requirement
+      Satisfies: REQ_0099
+`;
+
+Deno.test("WorkspaceIndex: validateAll reports MSL-L006 for a Satisfies target that does not exist (#938)", async () => {
+  const parsed = await parseFile(MISSING_TARGET_MD, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  const l006 = index.validateAll(traceProfile()).filter((d) =>
+    d.code === "MSL-L006"
+  );
+  assertEquals(l006.length, 1);
+  assertEquals(l006[0].location?.file, "t.md");
+});
+
+Deno.test("WorkspaceIndex: validateAll reports MSL-T014 instead of MSL-L006 when upstreams are declared (#938)", async () => {
+  const parsed = await parseFile(MISSING_TARGET_MD, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  const diags = index.validateAll(traceProfile(), {
+    declaredUpstreamIds: ["acme/upstream"],
+  });
+  assertEquals(diags.filter((d) => d.code === "MSL-T014").length, 1);
+  assertEquals(diags.filter((d) => d.code === "MSL-L006").length, 0);
+});
+
+Deno.test("WorkspaceIndex: validateAll reports pipeline-owned codes exactly once (#938)", async () => {
+  const profile = traceProfile();
+  const md = `- [REQ_0001] Brake
+
+  The controller shall brake.
+
+  \`\`\`feature
+  Scenario: Stop
+    When the driver brakes
+  \`\`\`
+
+      Id: 01REQ00000000000000000010A
+      Type: requirement
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  const diags = index.validateAll(profile);
+  const keys = diags.map((d) =>
+    `${d.code}@${d.location?.file}:${d.location?.line}:${d.message}`
+  );
+  assertEquals(new Set(keys).size, keys.length);
+  assertEquals(diags.filter((d) => d.code === "MSL-B064").length, 1);
+});
+
+Deno.test("WorkspaceIndex: validateAll reports a uxil diagnostic exactly once (#938)", async () => {
+  const base = traceProfile();
+  const requirement = base.types.get("requirement")!;
+  const profile: EffectiveProfile = {
+    ...base,
+    types: new Map([["ux-contract", {
+      ...requirement,
+      value: {
+        ...requirement.value,
+        name: "ux-contract",
+        displayIdPattern: { value: "UXI_{n:4d}", origin: "p" },
+        traceability: new Map(),
+        declares: { value: "ux-surface", origin: "p" },
+      },
+    }]]),
+  };
+  const md = `- [UXI_0001] Contract
+
+  \`ux:media.home : widget\` — bad kind.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  const diags = index.validateAll(profile);
+  assertEquals(diags.filter((d) => d.code === "UXIL-009").length, 1);
+});
+
+Deno.test("WorkspaceIndex: validateAll leaves the indexed entries unclassified (D4, #938)", async () => {
+  const md = `- [REQ_0001] Brake
+
+  The controller shall brake.
+
+      Id: 01REQ00000000000000000010A
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  index.validateAll(traceProfile());
+  assertEquals(index.getEntriesForFile("t.md")[0].type, undefined);
+});
