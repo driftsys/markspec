@@ -16,7 +16,9 @@ export const docCmd = new Command()
   .option("-o, --output <path:string>", "Output file path")
   .action(async (options: { output?: string }, file: string) => {
     const { config } = await requireProjectConfig();
-    const { result: compiled, chain } = await compileProject([file]);
+    const { result: compiled, chain } = await compileProject([file], {
+      projectWide: false,
+    });
     const { renderPdf } = await import("../../render/mod.ts");
 
     const markdown = await Deno.readTextFile(file);

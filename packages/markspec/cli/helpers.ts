@@ -337,6 +337,13 @@ export async function loadProjectCorpus(
  * a partial corpus would hide a broken profile package. The returned
  * `corpusIndex` lets callers render corpus locations without rebuilding it.
  *
+ * The compile diagnostics come from the validator pipeline, the same call
+ * bare `check` makes, so they include MSL-L006 and the other traceability
+ * rules. `captionConventions` (from `.markspec.yaml`) and
+ * `declaredUpstreamIds` (from `project.yaml` `dependencies:` and
+ * `references:`) are loaded here and passed to `compile()` the way `check`
+ * passes them. The diagnostics never change the exit code of the callers.
+ *
  * Also loads locked upstream snapshots (federated upstream, slice 4) via
  * the shared core `loadProjectUpstreams` (#771) and injects them into the same
  * `corpusEntries` bucket passed to `compile()` — both delivered-profile
@@ -368,6 +375,12 @@ export async function compileProject(
      * config (#845).
      */
     projectRoot?: string | null;
+    /**
+     * Pipeline scope, forwarded to `compile()`. Default `true`. Pass `false`
+     * when `paths` is one file or a subset, so MSL-L006 and MSL-T014 are not
+     * reported for targets outside it (D8, #950).
+     */
+    projectWide?: boolean;
   } = {},
 ): Promise<{
   result: CompileResult;
@@ -382,9 +395,13 @@ export async function compileProject(
   const chain = projectRoot !== undefined
     ? await loadActiveProfile(projectRoot)
     : null;
-  const { compile, loadProjectUpstreams, parseLockfile } = await import(
-    "../core/mod.ts"
-  );
+  const {
+    compile,
+    deriveUpstreamId,
+    loadProjectUpstreams,
+    loadToolConfig,
+    parseLockfile,
+  } = await import("../core/mod.ts");
   const corpus = await loadProjectCorpus(chain);
   const corpusIndex = corpus.corpusIndex;
   let corpusError = false;
@@ -417,8 +434,24 @@ export async function compileProject(
     );
   }
 
+  // Validator inputs, loaded the way bare `check` loads them. A malformed
+  // `.markspec.yaml` yields the default tool config here (caption
+  // conventions inactive); `check` is the command that reports it.
+  const captionConventions = projectRoot !== undefined
+    ? (await loadToolConfig(projectRoot, readFile)).config.captionConventions
+    : {};
+  const declaredUpstreamIds = [
+    ...configResult.config.dependencies,
+    ...configResult.config.references,
+  ]
+    .map((ref) => deriveUpstreamId(ref))
+    .filter((id): id is string => id !== undefined);
+
   const withContributors = opts.withContributors ?? false;
   const result = await compile(paths, {
+    captionConventions,
+    declaredUpstreamIds,
+    projectWide: opts.projectWide,
     readFile: (p) => Deno.readTextFile(p),
     profile: chain?.effective ?? undefined,
     statFile: (p) =>

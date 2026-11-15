@@ -20,6 +20,7 @@ import { loadToolConfig } from "../config/markspec.ts";
 import { loadProfileForCommand } from "../profile/load.ts";
 import { discoverFiles, type DiscoveryIO } from "../discovery/mod.ts";
 import { sha256Bytes } from "./hash.ts";
+import { deriveUpstreamId } from "./upstream_refs.ts";
 
 export interface AcquireCompileIO {
   /** Config/profile reader — returns text or undefined (core `ReadFile`). */
@@ -36,6 +37,12 @@ export interface CompiledSnapshot {
   readonly snapshot: string; // sha256(compiledBytes)
 }
 
+/**
+ * Compile a fetched dependency tree into its upstream snapshot. The
+ * snapshot hash covers the compile diagnostics, so a change to the
+ * validator changes the hash of an upstream tree that has findings
+ * (#963).
+ */
 export async function compileAcquiredTree(
   treeRoot: string,
   io: AcquireCompileIO,
@@ -90,6 +97,15 @@ export async function compileAcquiredTree(
   const result = await compile(rel, {
     readFile: (r) => io.readText(join(treeRoot, r)),
     profile,
+    // The tree's own validator inputs, so the snapshot carries the
+    // diagnostics that the tree's own `check` reports.
+    captionConventions: toolConfig.config.captionConventions,
+    declaredUpstreamIds: [
+      ...configResult.config.dependencies,
+      ...configResult.config.references,
+    ]
+      .map((ref) => deriveUpstreamId(ref))
+      .filter((id): id is string => id !== undefined),
   });
 
   // `root` is cosmetic here — manifest.json is not hashed (only compiled.json

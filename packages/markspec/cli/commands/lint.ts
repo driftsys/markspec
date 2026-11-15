@@ -37,6 +37,7 @@ export const lintCmd = new Command()
       for (const group of scope.groups) {
         const { result, chain } = await compileProject(group.files, {
           projectRoot: group.projectRoot ?? null,
+          projectWide: scope.projectWide,
         });
         // `result.entries` is the merged project + delivered-corpus set. Pass
         // it whole with the active profile: `runLint` keeps corpus entries in

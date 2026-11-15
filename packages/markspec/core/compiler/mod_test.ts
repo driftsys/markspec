@@ -12,6 +12,7 @@ import {
   assertExists,
 } from "@std/assert";
 import { compile, serializeCompileResult } from "./mod.ts";
+import { applyCorpusPostPass, runPipeline } from "../validator/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import type {
   AttrDecl,
@@ -1453,4 +1454,306 @@ Deno.test("compile: a repeated Verifies to one target gives one generated link",
     l.origin === "generated" && l.from === "REQ_BRK_0010"
   );
   assertEquals(generated.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Validator pipeline in compile (#950): MSL-L006 and parity with `check`
+// ---------------------------------------------------------------------------
+
+/** Profile with `requirement` and `system-requirement`; the latter may
+ * `Satisfies:` a requirement. */
+function traceProfile(): EffectiveProfile {
+  const origin = "@test/trace";
+  const typeDef = (
+    name: string,
+    pattern: string,
+    traceability: EffectiveTypeDef["traceability"],
+  ): ProvenancedMapEntry<EffectiveTypeDef> => ({
+    origin,
+    value: {
+      name,
+      extends: "Requirement",
+      displayIdPattern: { value: pattern, origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability,
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+  });
+  const satisfies = {
+    target: ["requirement"] as const,
+    cardinality: { lower: 0, upper: 3 },
+    required: false,
+  };
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([
+      ["requirement", typeDef("requirement", "REQ-{n:04d}", new Map())],
+      [
+        "system-requirement",
+        typeDef(
+          "system-requirement",
+          "SREQ-{n:04d}",
+          new Map([["Satisfies", { value: satisfies, origin }]]),
+        ),
+      ],
+    ]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+}
+
+const TRACE_FILES: Record<string, string> = {
+  "/r/req.md": `- [REQ-0001] Response time
+
+  The system shall respond within 200 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+`,
+  "/r/sreq.md": `- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: system-requirement
+      Satisfies: REQ-9999
+      Frobnicate: yes
+`,
+  // An unknown `Type:` raises a classification diagnostic (MSL-T001). A
+  // second Stage-2 push in compile() would report it twice.
+  "/r/bad.md": `- [REQ-0002] Unclassifiable
+
+  The system shall do something.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+      Type: no-such-type
+`,
+};
+
+Deno.test("compile: a missing Satisfies target with a profile yields MSL-L006", async () => {
+  const result = await compile(["/r/req.md", "/r/sreq.md"], {
+    readFile: reader(TRACE_FILES),
+    profile: traceProfile(),
+  });
+  const l006 = result.diagnostics.filter((d) => d.code === "MSL-L006");
+  assertEquals(l006.length, 1);
+  assertEquals(l006[0].location?.file, "/r/sreq.md");
+});
+
+Deno.test("compile: declaredUpstreamIds turns the unresolved target into MSL-T014", async () => {
+  const result = await compile(["/r/req.md", "/r/sreq.md"], {
+    readFile: reader(TRACE_FILES),
+    profile: traceProfile(),
+    declaredUpstreamIds: ["acme/reqs"],
+  });
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-T014").length,
+    1,
+  );
+});
+
+Deno.test("compile: diagnostics equal the pipeline part of bare check, and none is reported twice", async () => {
+  const profile = traceProfile();
+  const paths = ["/r/req.md", "/r/sreq.md", "/r/bad.md"];
+  const result = await compile(paths, {
+    readFile: reader(TRACE_FILES),
+    profile,
+  });
+
+  // The pipeline part of bare `check`: parse all files, then runPipeline
+  // (project-wide) and the corpus post-pass.
+  const entries: Entry[] = [];
+  const parseDiags = [];
+  for (const path of paths) {
+    const parsed = await parseFile(TRACE_FILES[path], { file: path });
+    entries.push(...parsed.entries);
+    parseDiags.push(...parsed.diagnostics);
+  }
+  const expected = [
+    ...parseDiags,
+    ...applyCorpusPostPass(
+      runPipeline(entries, profile, {}, {
+        projectWide: true,
+        declaredUpstreamIds: [],
+      }).diagnostics,
+      entries,
+    ),
+  ];
+  const key = (
+    d: {
+      code: string;
+      location?: { file: string; line: number; column: number };
+    },
+  ) =>
+    `${d.code}@${d.location?.file}:${d.location?.line}:${d.location?.column}`;
+  // This fixture has no inverse or MSL-T013 findings, so the two sets are
+  // equal.
+  const actualKeys = result.diagnostics.map(key);
+  assertEquals([...actualKeys].sort(), expected.map(key).sort());
+  assertEquals(
+    actualKeys.length,
+    new Set(actualKeys).size,
+    `duplicate diagnostics: ${actualKeys.join(", ")}`,
+  );
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-R010").length,
+    1,
+  );
+  // The classification diagnostic is present exactly once.
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-T001").length,
+    1,
+  );
+});
+
+Deno.test("compile: projectWide false suppresses MSL-L006", async () => {
+  const result = await compile(["/r/sreq.md"], {
+    readFile: reader(TRACE_FILES),
+    profile: traceProfile(),
+    projectWide: false,
+  });
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
+});
+
+// ---------------------------------------------------------------------------
+// Review pins (#950): corpus and upstream targets, uxil once, DSL scope
+// ---------------------------------------------------------------------------
+
+const SREQ_TO_PLATFORM = {
+  "/r/sreq.md": `- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: system-requirement
+      Satisfies: REQ-0500
+`,
+};
+
+/** A requirement-typed entry that stands in for corpus or upstream content. */
+async function readOnlyTarget(
+  origin: NonNullable<Entry["origin"]>,
+): Promise<Entry[]> {
+  const { entries } = await parseFile(
+    `- [REQ-0500] Platform requirement
+
+  The platform shall provide a vehicle state bus.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEJ
+      Type: requirement
+`,
+    { file: "/cache/platform.md" },
+  );
+  return entries.map((e) => ({ ...e, type: "requirement", origin }));
+}
+
+for (
+  const [label, origin] of [
+    [
+      "delivered-corpus",
+      { kind: "profile", profileId: "p", profileVersion: "1" },
+    ],
+    ["upstream", { kind: "upstream", upstreamId: "plat", version: "v1" }],
+  ] as const
+) {
+  Deno.test(`compile: a ${label} entry is a pipeline trace target when a profile is loaded (no MSL-L006)`, async () => {
+    const result = await compile(["/r/sreq.md"], {
+      readFile: reader(SREQ_TO_PLATFORM),
+      profile: traceProfile(),
+      corpusEntries: await readOnlyTarget(origin),
+    });
+    assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
+    // Without the target the same project does report MSL-L006.
+    const missing = await compile(["/r/sreq.md"], {
+      readFile: reader(SREQ_TO_PLATFORM),
+      profile: traceProfile(),
+    });
+    assertEquals(
+      missing.diagnostics.filter((d) => d.code === "MSL-L006").length,
+      1,
+    );
+  });
+}
+
+Deno.test("compile: a uxil diagnostic is reported exactly once", async () => {
+  const result = await compile(["/repo/contract.md"], {
+    readFile: reader({ "/repo/contract.md": UXIL_CONTRACT_BAD_KIND }),
+    profile: makeUxilProfile({
+      "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },
+    }),
+  });
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "UXIL-009").length,
+    1,
+  );
+});
+
+Deno.test("compile: projectWide false suppresses the cross-entry TYPL codes", async () => {
+  const files: Record<string, string> = {
+    "/r/a.md": `- [REQ_0001] First declaration
+
+  The system shall provide \`$brake.pedal : signal float\`.
+
+      Id: 01HZZZ0000000000000000001A
+`,
+    "/r/b.md": `- [REQ_0002] Duplicate declaration
+
+  The system shall provide \`$brake.pedal : signal float\`.
+
+      Id: 01HZZZ0000000000000000001B
+`,
+    "/r/c.md": `- [REQ_0003] Citations
+
+  The system shall read \`$.pedal\` and \`$brake.missing\`.
+
+      Id: 01HZZZ0000000000000000002A
+`,
+  };
+  // A code the file-local scope keeps: an unknown attribute (MSL-R010).
+  files["/r/d.md"] = `- [REQ_0004] Unknown attribute
+
+  The system shall exist.
+
+      Id: 01HZZZ0000000000000000003A
+      Frobnicate: yes
+`;
+  const paths = Object.keys(files);
+  const whole = await compile(paths, { readFile: reader(files) });
+  assertEquals(
+    whole.diagnostics.filter((d) => d.code === "TYPL-009").length,
+    1,
+  );
+  const local = await compile(paths, {
+    readFile: reader(files),
+    projectWide: false,
+  });
+  assertEquals(
+    local.diagnostics.filter((d) =>
+      ["TYPL-009", "TYPL-010", "TYPL-011"].includes(d.code)
+    ),
+    [],
+  );
+  // A file-local code survives.
+  assertEquals(
+    local.diagnostics.filter((d) => d.code === "MSL-R010").length,
+    1,
+  );
 });

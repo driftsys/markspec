@@ -147,3 +147,204 @@ Deno.test("export json: matches the compile --format json output", async () => {
     "export json and compile --format json should produce identical output",
   );
 });
+
+// ---------------------------------------------------------------------------
+// export reports the validator pipeline's traceability diagnostics (#950)
+// ---------------------------------------------------------------------------
+
+Deno.test("export json: an unresolved Satisfies target is an MSL-L006 diagnostic and the exit code stays 0", async () => {
+  const files = {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+    system-requirement:
+      extends: Requirement
+      display-id-pattern: "SREQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "sreq.md": `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+      Satisfies: REQ-9999
+`,
+  };
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "sreq.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stderr, "MSL-L006");
+  const diagnostics = JSON.parse(stdout).diagnostics as { code: string }[];
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-L006").length, 1);
+});
+
+Deno.test("export json: project.yaml dependencies make an unresolved target MSL-T014", async () => {
+  const files = {
+    "project.yaml":
+      `${PROJECT_YAML}dependencies:\n  - url: https://example.invalid/icd.git\n    name: icd\n    version: v1.0.0\n`,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-dep"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "req.md": `# Requirements
+
+- [REQ-0001] Response time
+
+  The system shall respond within 200 ms.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+      Satisfies: ICD-0001
+`,
+  };
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "req.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  const codes = (JSON.parse(stdout).diagnostics as { code: string }[]).map((
+    d,
+  ) => d.code);
+  assertEquals(codes.filter((c) => c === "MSL-T014").length, 1, stderr);
+  assertEquals(codes.includes("MSL-L006"), false);
+});
+
+Deno.test("export json: project.yaml references make an unresolved target MSL-T014", async () => {
+  const files = {
+    "project.yaml":
+      `${PROJECT_YAML}references:\n  - url: https://example.invalid/icd\n    name: icd\n`,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-dep"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "req.md": `# Requirements
+
+- [REQ-0001] Response time
+
+  The system shall respond within 200 ms.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+      Satisfies: ICD-0001
+`,
+  };
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "req.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  const codes = (JSON.parse(stdout).diagnostics as { code: string }[]).map((
+    d,
+  ) => d.code);
+  assertEquals(codes.filter((c) => c === "MSL-T014").length, 1, stderr);
+  assertEquals(codes.includes("MSL-L006"), false);
+});
+
+Deno.test("export json: .markspec.yaml caption conventions reach compile (MSL-C072)", async () => {
+  const files = {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": "caption-conventions:\n  Figure: above\n",
+    "req.md": `# Requirements
+
+- [REQ-001] System diagram requirement
+
+  See the brake diagram below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+  };
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "req.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  const codes = (JSON.parse(stdout).diagnostics as { code: string }[]).map((
+    d,
+  ) => d.code);
+  assertEquals(codes.includes("MSL-C072"), true, stderr);
+});
+
+Deno.test("export json <subset>: a target in a file outside the explicit paths is MSL-L006 (#950)", async () => {
+  const files = {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-subset"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "a.md": `- [REQ-0001] First
+
+  The system shall respond.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+      Satisfies: REQ-0002
+`,
+    "b.md": `- [REQ-0002] Second
+
+  The system shall exist.
+
+      Id: 01REQ000000000000000000002
+      Type: requirement
+`,
+  };
+  const subset = await markspec(["export", "json", "a.md"], files);
+  assertEquals(subset.code, 0, subset.stderr);
+  const subsetCodes = (JSON.parse(subset.stdout).diagnostics as {
+    code: string;
+  }[]).map((d) => d.code);
+  assertEquals(subsetCodes.includes("MSL-L006"), true);
+  const whole = await markspec(["export", "json", "a.md", "b.md"], files);
+  const wholeCodes = (JSON.parse(whole.stdout).diagnostics as {
+    code: string;
+  }[]).map((d) => d.code);
+  assertEquals(wholeCodes.includes("MSL-L006"), false);
+});

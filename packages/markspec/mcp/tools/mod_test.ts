@@ -510,3 +510,136 @@ Deno.test("dispatchTool: entry_search with no hit in any project keeps the empty
   const text = await dispatchTool("entry_search", { query: "zzz" }, ws);
   assertEquals(text, "# Search results\n\nNo matches for `zzz`.\n");
 });
+
+// ---------------------------------------------------------------------------
+// validate reports the traceability diagnostics of the validator pipeline (#950)
+// ---------------------------------------------------------------------------
+
+Deno.test("dispatchTool: validate reports MSL-L006 for a missing Satisfies target", async () => {
+  const root = join(MEMORY_PARENT, "p");
+  const ws = await createWorkspace(memoryEnv({
+    [join(root, "project.yaml")]: PROJECT_YAML,
+    [join(root, ".markspec.yaml")]: "profiles:\n  - ./profiles/p\n",
+    [join(root, "profiles", "p", "markspec.yaml")]: `id: "@acme/trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+    system-requirement:
+      extends: Requirement
+      display-id-pattern: "SREQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    [join(root, "docs", "sreq.md")]: entryDoc(
+      "SREQ-0001",
+      "Derived response time",
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "      Type: system-requirement\n      Satisfies: REQ-9999\n",
+    ),
+  }));
+  const text = await dispatchTool("validate", {}, ws);
+  assertStringIncludes(text, "MSL-L006");
+});
+
+const TRACE_PROFILE = `id: "@acme/trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`;
+
+const DANGLING_REQ = entryDoc(
+  "REQ-0001",
+  "Response time",
+  "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  "      Type: requirement\n      Satisfies: ICD-0001\n",
+);
+
+const DEPENDENCIES_YAML =
+  `${PROJECT_YAML}dependencies:\n  - url: https://example.invalid/icd.git\n    name: icd\n    version: v1.0.0\n`;
+
+const REFERENCES_YAML =
+  `${PROJECT_YAML}references:\n  - url: https://example.invalid/icd\n    name: icd\n`;
+
+function traceFiles(projectYaml: string, markspecYaml: string) {
+  const root = join(MEMORY_PARENT, "p");
+  return {
+    root,
+    files: {
+      [join(root, "project.yaml")]: projectYaml,
+      [join(root, ".markspec.yaml")]: markspecYaml,
+      [join(root, "profiles", "p", "markspec.yaml")]: TRACE_PROFILE,
+      [join(root, "docs", "req.md")]: DANGLING_REQ,
+    },
+  };
+}
+
+Deno.test("dispatchTool: validate reports MSL-T014 for a target when project.yaml declares dependencies (#950)", async () => {
+  const { files } = traceFiles(
+    DEPENDENCIES_YAML,
+    "profiles:\n  - ./profiles/p\n",
+  );
+  const ws = await createWorkspace(memoryEnv(files));
+  const text = await dispatchTool("validate", {}, ws);
+  assertStringIncludes(text, "MSL-T014");
+  assertEquals(text.includes("MSL-L006"), false);
+});
+
+Deno.test("dispatchTool: validate reports MSL-T014 for a target when project.yaml declares references (#950)", async () => {
+  const { files } = traceFiles(
+    REFERENCES_YAML,
+    "profiles:\n  - ./profiles/p\n",
+  );
+  const ws = await createWorkspace(memoryEnv(files));
+  const text = await dispatchTool("validate", {}, ws);
+  assertStringIncludes(text, "MSL-T014");
+  assertEquals(text.includes("MSL-L006"), false);
+});
+
+Deno.test("dispatchTool: refresh picks up a project.yaml dependencies edit (#950)", async () => {
+  const { root, files } = traceFiles(
+    PROJECT_YAML,
+    "profiles:\n  - ./profiles/p\n",
+  );
+  const env = memoryEnv(files);
+  const ws = await createWorkspace(env);
+  assertStringIncludes(await dispatchTool("validate", {}, ws), "MSL-L006");
+  env.store.set(join(root, "project.yaml"), DEPENDENCIES_YAML);
+  await dispatchTool("markspec_refresh", {}, ws);
+  const after = await dispatchTool("validate", {}, ws);
+  assertStringIncludes(after, "MSL-T014");
+  assertEquals(after.includes("MSL-L006"), false);
+});
+
+Deno.test("dispatchTool: validate reports MSL-C072 from .markspec.yaml caption conventions (#950)", async () => {
+  const { root, files } = traceFiles(
+    PROJECT_YAML,
+    "profiles:\n  - ./profiles/p\ncaption-conventions:\n  Figure: above\n",
+  );
+  files[join(root, "docs", "req.md")] = `- [REQ-0001] Diagram
+
+  See below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+`;
+  const ws = await createWorkspace(memoryEnv(files));
+  assertStringIncludes(await dispatchTool("validate", {}, ws), "MSL-C072");
+});

@@ -108,3 +108,39 @@ Deno.test("insert: target file missing fails with error", async () => {
   assertEquals(code, 1);
   assertStringIncludes(stderr, "does-not-exist.md");
 });
+
+Deno.test("insert: a Satisfies target in another file reports no MSL-L006 (#950)", async () => {
+  const { code, stderr } = await markspec(
+    ["insert", "requirement", "req.md"],
+    {
+      files: {
+        ...BASE_FILES,
+        "profiles/typed/markspec.yaml": `${PROFILE_YAML}      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+        "req.md": `# Requirements
+
+- [REQ-0001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: REQ-0900
+`,
+        "other.md": `# Other
+
+- [REQ-0900] Elsewhere
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+      },
+    },
+  );
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("MSL-L006"), false, stderr);
+});

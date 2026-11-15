@@ -3,8 +3,9 @@
  *
  * Project context for the MCP server. Discovers the project root from a
  * starting CWD, loads the active profile, caches a `CompileResult`, and
- * refreshes the cache when tracked files change (mtime check) or when a
- * caller invokes `forceRefresh()`.
+ * refreshes the cache when a tracked file changes (mtime check), when
+ * `markspec.lock`, `project.yaml` or `.markspec.yaml` changes (mtime check),
+ * or when a caller invokes `forceRefresh()`.
  *
  * All I/O is injected via {@linkcode ProjectEnv} so this module is testable
  * without filesystem access.
@@ -12,10 +13,12 @@
 
 import { isAbsolute, join, resolve } from "@std/path";
 import {
+  type CaptionConventions,
   compile,
   type CompileResult,
   type DeliveredDocument,
   deliveredPathIsContained,
+  deriveUpstreamId,
   type Diagnostic,
   type DiscoveryDirEntry,
   type EffectiveProfile,
@@ -24,6 +27,7 @@ import {
   loadDeliveredCorpus,
   loadProfileForCommand,
   loadProjectUpstreams,
+  loadToolConfig,
   type Lockfile,
   parseLockfile,
   type ProfileChain,
@@ -472,6 +476,10 @@ function buildProject(
   // TRACKED_EXTENSIONS — the loop in `isStale()` would never notice it
   // appear, change, or disappear otherwise.
   let lockfileMtime: number | undefined;
+  // mtimes of `project.yaml` and `.markspec.yaml` as of the last compile.
+  // They feed the validator (declared upstream ids, caption conventions) but
+  // are not tracked project files, so `isStale()` compares them separately.
+  let validatorInputsMtime: string | undefined;
   const handlers = new Set<InvalidationHandler>();
 
   /** Discover all tracked file paths under `projectRoot`. */
@@ -531,6 +539,55 @@ function buildProject(
     }
   }
 
+  /** A string of the mtimes of `project.yaml` and `.markspec.yaml`; a missing
+   * file reads as `-`. */
+  async function configMtimeKey(): Promise<string> {
+    if (!projectRoot) return "";
+    const parts: string[] = [];
+    for (const name of ["project.yaml", ".markspec.yaml"]) {
+      try {
+        parts.push(String((await env.stat(join(projectRoot, name))).mtime));
+      } catch {
+        parts.push("-");
+      }
+    }
+    return parts.join("|");
+  }
+
+  /** Read the validator inputs `check` uses: caption conventions from
+   * `.markspec.yaml` and upstream ids declared in `project.yaml`. A missing
+   * or malformed file gives the defaults; `check` is the command that
+   * reports them. */
+  async function readValidatorInputs(): Promise<{
+    captionConventions: CaptionConventions;
+    declaredUpstreamIds: string[];
+    mtimeKey: string;
+  }> {
+    const mtimeKey = await configMtimeKey();
+    if (!projectRoot) {
+      return { captionConventions: {}, declaredUpstreamIds: [], mtimeKey };
+    }
+    const { config: toolConfig } = await loadToolConfig(
+      projectRoot,
+      env.readFile,
+    );
+    let loaded: ProjectConfig | undefined;
+    try {
+      loaded = (await loadConfig(projectRoot, env.readFile))?.config;
+    } catch { /* a malformed project.yaml declares no upstreams */ }
+    const declaredUpstreamIds = [
+      ...(loaded?.dependencies ?? []),
+      ...(loaded?.references ?? []),
+    ]
+      .map((ref) => deriveUpstreamId(ref))
+      .filter((id): id is string => id !== undefined);
+    return {
+      captionConventions: toolConfig.captionConventions,
+      declaredUpstreamIds,
+      mtimeKey,
+    };
+  }
+
   /** Run compile() over current tracked set; update cache. */
   async function runCompile(): Promise<CompileResult> {
     try {
@@ -543,7 +600,13 @@ function buildProject(
         )
         : { entries: [], diagnostics: [] };
       const upstream = await loadLockedUpstreams();
+      // Validator inputs, read again on each compile so an edit of
+      // `project.yaml` or `.markspec.yaml` is picked up (see `isStale`).
+      const inputs = await readValidatorInputs();
+      const { captionConventions, declaredUpstreamIds } = inputs;
       const result = await compile(paths, {
+        captionConventions,
+        declaredUpstreamIds,
         readFile: async (p: string) => {
           const content = await env.readFile(p);
           if (content === undefined) {
@@ -591,6 +654,7 @@ function buildProject(
       // or a later `isStale()` would see the new mtime as already
       // "seen" and silently serve the stale pre-failure `cached` result.
       lockfileMtime = upstream.mtime;
+      validatorInputsMtime = inputs.mtimeKey;
       tracked = snapshot;
       cached = merged;
       // Fire handlers AFTER cache is committed but isolate handler errors so
@@ -645,6 +709,9 @@ function buildProject(
       currentLockMtime = undefined;
     }
     if (currentLockMtime !== lockfileMtime) return true;
+    // 0b) project.yaml / .markspec.yaml edit (declared upstreams, caption
+    // conventions) — same reason as the lockfile above.
+    if ((await configMtimeKey()) !== validatorInputsMtime) return true;
     // 1) Any tracked file that is stale (mtime fast path → SHA256 truth gate)?
     for (const t of tracked) {
       // A tracked file now owned by another project (one found below this

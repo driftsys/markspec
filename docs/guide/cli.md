@@ -640,6 +640,24 @@ project config. Mapping file and directory read errors (`MSL-S001`) and parse
 diagnostics are printed to stderr, and compilation continues to the drift check.
 Missing sync directories are ignored.
 
+The diagnostics that `compile` prints to stderr, and that `compile` and
+[`export`](#export) put in the `diagnostics` array of their JSON output, come
+from the same validator pipeline that bare `markspec check` runs on the whole
+project. They include the traceability diagnostics `MSL-L006` and `MSL-T014`.
+They do not include the `check`-only gates: format drift, lockfile drift, the
+`MSL-L215` unreleased-pin advisory, listing-document checks, and prose lint.
+With explicit paths that are only part of the project, the pipeline checks only
+those files and reports `MSL-L006` for a target in a file outside them.
+
+Diagnostics never change the exit code of `compile`, `export`, `show`,
+`context`, `dependents`, or `report`. These commands exit `1` for input errors,
+for `--frozen` lockfile drift, and for an error-severity diagnostic from a
+profile-delivered document (for example `PROFILE-DELIVERS-001`).
+
+The hash that `markspec lock` stores for an upstream snapshot covers these
+diagnostics. After upgrading markspec, re-pin upstreams with
+`markspec lock --update`.
+
 **Examples:**
 
 ```sh
@@ -1392,7 +1410,10 @@ markspec mcp --root /path/to/your/markspec-project
   title.
 - `entry_context { id, depth? }` — walk the `satisfies` chain upward.
 - `validate { files? }` — run the validator, return a Markdown diagnostics
-  report.
+  report. The report holds the same pipeline diagnostics as bare
+  `markspec check`, including `MSL-L006` and `MSL-T014`, but not its format
+  drift, lockfile drift, `MSL-L215` pin advisory, listing-document, or prose
+  lint gates.
 - `markspec_refresh` — force-invalidate the compile cache and search for
   projects again (call after agent edits to guarantee freshness).
 - `project_list` — list each discovered project with its label, root, profile,

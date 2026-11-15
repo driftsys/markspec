@@ -295,7 +295,6 @@ export {
   normalizeListValues,
   repeatableAttributeValues,
   runPipeline,
-  suppressDeclaredAttrR010,
   validate,
   validateAttributesForEntry,
   validateListingDocuments,
