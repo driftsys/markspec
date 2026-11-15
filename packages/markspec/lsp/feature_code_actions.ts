@@ -8,7 +8,11 @@
  * or doc-string line. `buildFeatureCodeActions` builds the fixes.
  */
 
-import { FEATURE_HEADER_START_RE, featureHeaderRunEnd } from "../core/mod.ts";
+import {
+  FEATURE_HEADER_START_RE,
+  featureHeaderRunEnd,
+  parseFile,
+} from "../core/mod.ts";
 import {
   ATTRIBUTE_KEY_RE,
   buildM060Fix,
@@ -149,22 +153,22 @@ function findKeyLine(
 
 /**
  * Build quick fixes for the diagnostics of a `.feature` file (#943). The
- * attribute fixes (A030, A012, A013, T020, A011, P021) edit only lines inside the
- * trailer block of the header that the diagnostic points at, and never a
- * `# Id:` line. M060 and S010 use the shared builders, which work from the
+ * attribute fixes (A030, A012, A013, T020, A011, P021) edit only lines inside
+ * the trailer block of the header that the diagnostic points at, and never a
+ * `# Id:` line. B069 deletes the blank lines between a header and its node,
+ * only when a re-parse of the edited text yields the entry. M060 and S010 use the shared builders, which work from the
  * diagnostic range alone. Codes without a fix return nothing. When several
  * diagnostics of one code name the same key on one header, the nth
  * diagnostic fixes the nth matching line, so each action has its own line.
  *
  * @param uri - Document URI.
- * @param _filePath - Document path (used by later fixes that re-parse).
+ * @param filePath - Document path, used to re-parse the edited text.
  * @param diagnostics - Diagnostics the editor has on the range.
  * @param documentText - Full document text; LF or CRLF line endings.
  */
-// deno-lint-ignore require-await
 export async function buildFeatureCodeActions(
   uri: string,
-  _filePath: string,
+  filePath: string,
   diagnostics: readonly LspDiagnosticLike[],
   documentText: string,
 ): Promise<CodeAction[]> {
@@ -182,6 +186,9 @@ export async function buildFeatureCodeActions(
         break;
       case "MSL-P021":
         action = emptyTrailerFix(uri, diag, lines);
+        break;
+      case "MSL-B069":
+        action = await blankGapFix(uri, filePath, diag, lines, documentText);
         break;
       case "MSL-A030":
       case "MSL-A012":
@@ -366,4 +373,61 @@ function citationFix(
     },
     newText,
   }]);
+}
+
+/**
+ * MSL-B069, blank-gap variant: the diagnostic points at the header start.
+ * Walks from the end of the header run over blank lines, tag lines and plain
+ * comment lines, and offers to delete the blank lines. The fix is offered
+ * only when a re-parse of the edited text gives an entry at the header start
+ * line and no B069 for that header; this rules out a header above a
+ * Background, Examples or a step, a stacked header, and any other text in
+ * the gap.
+ */
+async function blankGapFix(
+  uri: string,
+  filePath: string,
+  diag: LspDiagnosticLike,
+  lines: readonly string[],
+  documentText: string,
+): Promise<CodeAction | undefined> {
+  const titleIdx = diag.range.start.line;
+  const run = headerRun(lines, titleIdx);
+  if (!run) return undefined;
+  const blanks: number[] = [];
+  for (let i = run.end; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === "") {
+      blanks.push(i);
+    } else if (trimmed.startsWith("@")) {
+      continue;
+    } else if (trimmed.startsWith("#")) {
+      if (FEATURE_HEADER_START_RE.test(trimmed.slice(1).trimStart())) break;
+    } else {
+      break;
+    }
+  }
+  if (blanks.length === 0) return undefined;
+  const removed = new Set(blanks);
+  const edited = documentText
+    .split("\n")
+    .filter((_, i) => !removed.has(i))
+    .join("\n");
+  const parsed = await parseFile(edited, { file: filePath });
+  const headerLine = titleIdx + 1;
+  const entryAtHeader = parsed.entries.some((e) =>
+    e.location.line === headerLine
+  );
+  const stillWarns = parsed.diagnostics.some((d) =>
+    d.code === "MSL-B069" && d.location?.line === headerLine
+  );
+  if (!entryAtHeader || stillWarns) return undefined;
+  return quickFix(
+    uri,
+    diag,
+    blanks.length === 1
+      ? "Remove the blank line between the header and the node"
+      : "Remove the blank lines between the header and the node",
+    blanks.map((i) => deleteLines(i, i + 1)),
+  );
 }

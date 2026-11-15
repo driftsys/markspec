@@ -543,3 +543,178 @@ Deno.test("P021: a diagnostic on a non-comment line gives no fix", async () => {
     [],
   );
 });
+
+// ---------------------------------------------------------------------------
+// MSL-B069 — blank line between a header and its node
+// ---------------------------------------------------------------------------
+
+const SC = "# [SC_A_0001] Title\n";
+
+Deno.test("B069: a blank line above a Scenario is removed", async () => {
+  const text =
+    `Feature: F\n\n  # [SC_A_0002] T\n\n  Scenario: S\n    Given x\n`;
+  const { fixed, actions } = await fix(text, "MSL-B069");
+  assertEquals(
+    fixed,
+    `Feature: F\n\n  # [SC_A_0002] T\n  Scenario: S\n    Given x\n`,
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].title,
+    "Remove the blank line between the header and the node",
+  );
+  assertEquals(actions[0].isPreferred, true);
+  assertEquals((await diagnosticsOf(fixed, "MSL-B069")).length, 0);
+});
+
+Deno.test("B069: a blank line above a Feature is removed", async () => {
+  const text = `${SC}\nFeature: F\n\n  Scenario: S\n    Given x\n`;
+  const { fixed } = await fix(text, "MSL-B069");
+  assertEquals(fixed, `${SC}Feature: F\n\n  Scenario: S\n    Given x\n`);
+});
+
+Deno.test("B069: a blank line after a tag line is removed", async () => {
+  const text =
+    `Feature: F\n\n  # [SC_A_0002] T\n  @tag\n\n  Scenario: S\n    Given x\n`;
+  const { fixed } = await fix(text, "MSL-B069");
+  assertEquals(
+    fixed,
+    `Feature: F\n\n  # [SC_A_0002] T\n  @tag\n  Scenario: S\n    Given x\n`,
+  );
+});
+
+Deno.test("B069: two blank lines are both removed", async () => {
+  const text =
+    `Feature: F\n\n  # [SC_A_0002] T\n\n\n  Scenario: S\n    Given x\n`;
+  const { fixed, actions } = await fix(text, "MSL-B069");
+  assertEquals(
+    fixed,
+    `Feature: F\n\n  # [SC_A_0002] T\n  Scenario: S\n    Given x\n`,
+  );
+  assertEquals(
+    actions[0].title,
+    "Remove the blank lines between the header and the node",
+  );
+});
+
+Deno.test("B069: CRLF file", async () => {
+  const text = `Feature: F\n\n  # [SC_A_0002] T\n\n  Scenario: S\n    Given x\n`
+    .replaceAll("\n", "\r\n");
+  const { fixed } = await fix(text, "MSL-B069");
+  assertEquals(
+    fixed,
+    `Feature: F\n\n  # [SC_A_0002] T\n  Scenario: S\n    Given x\n`
+      .replaceAll("\n", "\r\n"),
+  );
+});
+
+Deno.test("B069: a language file with a localized keyword", async () => {
+  const text =
+    `# language: fr\nFonctionnalité: F\n\n  # [SC_A_0002] T\n\n  Scénario: S\n    Soit x\n`;
+  const { fixed } = await fix(text, "MSL-B069");
+  assertEquals(
+    fixed,
+    `# language: fr\nFonctionnalité: F\n\n  # [SC_A_0002] T\n  Scénario: S\n    Soit x\n`,
+  );
+});
+
+async function noFix(text: string) {
+  const diagnostics = await diagnosticsOf(text, "MSL-B069");
+  assert(diagnostics.length > 0, "no MSL-B069 diagnostic in input");
+  assertEquals(
+    await buildFeatureCodeActions(URI, "a.feature", diagnostics, text),
+    [],
+  );
+}
+
+Deno.test("B069: no fix above a Background after a blank line", async () => {
+  await noFix(
+    `Feature: F\n\n  # [SC_A_0002] T\n\n  Background:\n    Given x\n\n  Scenario: S\n    Given y\n`,
+  );
+});
+
+Deno.test("B069: no fix above a Background with no gap", async () => {
+  await noFix(
+    `Feature: F\n\n  # [SC_A_0002] T\n  Background:\n    Given x\n\n  Scenario: S\n    Given y\n`,
+  );
+});
+
+Deno.test("B069: no fix above a step", async () => {
+  await noFix(
+    `Feature: F\n\n  Scenario: S\n    # [SC_A_0002] T\n\n    Given x\n`,
+  );
+});
+
+Deno.test("B069: no fix for the upper header of a stack", async () => {
+  const text =
+    `Feature: F\n\n  # [SC_A_0002] A\n\n  # [SC_A_0003] B\n  Scenario: S\n    Given x\n`;
+  const diagnostics = (await diagnosticsOf(text, "MSL-B069")).filter((d) =>
+    d.range.start.line === 2
+  );
+  assert(diagnostics.length > 0, "no B069 on the upper header");
+  assertEquals(
+    await buildFeatureCodeActions(URI, "a.feature", diagnostics, text),
+    [],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// MSL-P021 guards (synthetic diagnostics)
+// ---------------------------------------------------------------------------
+
+function syntheticP021(line: number) {
+  return {
+    code: "MSL-P021",
+    message: "x",
+    range: {
+      start: { line, character: 0 },
+      end: { line, character: 5 },
+    },
+  };
+}
+
+Deno.test("P021: a non-empty `# Satisfies: X` line gives no fix", async () => {
+  const text = `# [SC_A_0001] T\n#\n# Satisfies: X\nFeature: F\n`;
+  assertEquals(
+    await buildFeatureCodeActions(URI, "a.feature", [syntheticP021(2)], text),
+    [],
+  );
+});
+
+Deno.test("P021: an empty `# Key:` line after the run ends gives no fix", async () => {
+  const afterRun = `# [SC_A_0001] T\nFeature: F\n# Satisfies:\n`;
+  assertEquals(
+    await buildFeatureCodeActions(
+      URI,
+      "a.feature",
+      [syntheticP021(2)],
+      afterRun,
+    ),
+    [],
+  );
+  const afterBlank = `# [SC_A_0001] T\n\n# Satisfies:\nFeature: F\n`;
+  assertEquals(
+    await buildFeatureCodeActions(
+      URI,
+      "a.feature",
+      [syntheticP021(2)],
+      afterBlank,
+    ),
+    [],
+  );
+});
+
+Deno.test("P021: an all-empty block under body text deletes only the block", async () => {
+  const text = `# [SC_A_0001] T\n# Body text.\n# Satisfies:\nFeature: F\n`;
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    [syntheticP021(2)],
+    text,
+  );
+  const edits = actions.flatMap((a) => a.edit?.changes?.[URI] ?? []);
+  assertEquals(
+    applyEdits(text, edits),
+    `# [SC_A_0001] T\n# Body text.\nFeature: F\n`,
+  );
+});
