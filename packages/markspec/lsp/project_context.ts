@@ -27,6 +27,7 @@ import {
   type EffectiveProfile,
   type Entry,
   FEATURE_EXTENSIONS,
+  isDiscoverable,
   loadConfig,
   loadDeliveredCorpus,
   loadProfileForCommand,
@@ -170,6 +171,17 @@ export class ProjectContext {
    * skips the cache directory; `server.ts` also returns early for corpus
    * files before it calls {@linkcode closeFile}. */
   private readonly walkedFiles = new Set<string>();
+
+  /** The ownership test and `.gitignore` inheritance that
+   * {@linkcode indexProject} walked with, or `undefined` before it ran.
+   * {@linkcode closeFile} applies the same rules to a file created after
+   * the walk. */
+  private walkScope:
+    | {
+      readonly owns: (path: string) => boolean;
+      readonly inheritGitignoreFrom: string | undefined;
+    }
+    | undefined;
 
   /** `true` when a profile-affecting file (`.markspec.yaml`,
    * `project.yaml`) changed since the last watched-files reload ran.
@@ -418,16 +430,13 @@ export class ProjectContext {
     // Discover all relevant files (core/discovery: gitignore-aware,
     // honors .markspec.yaml `exclude:`).
     const files: string[] = [];
-    const io = {
-      readDir: (p: string) => this.host.readDir(p),
-      readFile: this.host.readFile,
-    };
+    this.walkScope = { owns, inheritGitignoreFrom };
     for await (
-      const path of discoverFiles(this.root, io, {
-        exclude: this.toolConfig.exclude,
-        inheritGitignoreFrom,
-        extensions: LSP_EXTENSIONS,
-      })
+      const path of discoverFiles(
+        this.root,
+        this.discoveryIO(),
+        this.discoveryOptions(inheritGitignoreFrom),
+      )
     ) {
       if (owns(path)) files.push(path);
     }
@@ -469,6 +478,36 @@ export class ProjectContext {
     });
     this.indexed = true;
     return files.length;
+  }
+
+  private discoveryIO() {
+    return {
+      readDir: (p: string) => this.host.readDir(p),
+      readFile: this.host.readFile,
+    };
+  }
+
+  /** The options of the project walk, shared by the walk and by the check
+   * in {@linkcode closeFile}. */
+  private discoveryOptions(inheritGitignoreFrom: string | undefined) {
+    return {
+      exclude: this.toolConfig.exclude,
+      inheritGitignoreFrom,
+      extensions: LSP_EXTENSIONS,
+    };
+  }
+
+  /** `true` when the project walk would index `filePath` now: this context
+   * owns it and the discovery rules include it. */
+  private async walkWouldInclude(filePath: string): Promise<boolean> {
+    const scope = this.walkScope;
+    if (!scope || !scope.owns(filePath)) return false;
+    return await isDiscoverable(
+      filePath,
+      this.root,
+      this.discoveryIO(),
+      this.discoveryOptions(scope.inheritGitignoreFrom),
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -540,14 +579,12 @@ export class ProjectContext {
   }
 
   /**
-   * Handle the close of the editor buffer at `filePath`. A file the project
-   * walk indexed from disk is parsed again from disk, so links to its entries
-   * keep resolving; a file that no longer exists on disk, or that the walk
-   * did not index, is removed from the index. Validation is scheduled
-   * afterwards.
-   *
-   * Limitation: a file created after startup is not in the walked set, so
-   * closing its buffer removes it from the index until the next re-index.
+   * Handle the close of the editor buffer at `filePath`. A file that exists
+   * on disk and that the project walk indexed, or would index now, is parsed
+   * again from disk and kept in the index, so links to its entries keep
+   * resolving. This includes a file created after startup. Any other file,
+   * such as one that no longer exists on disk or that the discovery rules
+   * exclude, is removed from the index. Validation is scheduled afterwards.
    *
    * @param stillClosed Called after each await; when it returns `false` the
    *   buffer was opened again meanwhile, and the open buffer's own parse wins.
@@ -559,7 +596,9 @@ export class ProjectContext {
     stillClosed: () => boolean = () => true,
   ): Promise<void> {
     if (this.disposed) return;
-    if (this.walkedFiles.has(filePath)) {
+    const walked = this.walkedFiles.has(filePath);
+    if (walked || await this.walkWouldInclude(filePath)) {
+      if (this.disposed || !stillClosed()) return;
       const text = await this.host.readFile(filePath);
       if (this.disposed || !stillClosed()) return;
       if (text !== undefined) {
@@ -568,6 +607,7 @@ export class ProjectContext {
         // No await between the check and the store: a reopened buffer's own
         // parse is never overwritten by the disk text.
         this.index.applyParsed(filePath, parsed);
+        this.walkedFiles.add(filePath);
         this.scheduleValidateAll();
         return;
       }
