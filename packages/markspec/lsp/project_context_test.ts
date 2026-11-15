@@ -337,8 +337,8 @@ Deno.test("ProjectContext.closeFile: a reopen during the discovery check keeps t
     TARGET_MD.replace("REQ-0001", "REQ-0003"),
   );
   let checks = 0;
-  // The first check runs before the discovery check settles; it flips to
-  // reopened by the time the check returns.
+  // The buffer is reopened while the discovery check awaits: the first
+  // stillClosed call, made after that check, returns false.
   await f.ctx.closeFile(created, () => ++checks < 1);
   const ids = f.ctx.index.getEntriesForFile(created).map((e) => e.displayId);
   f.ctx.dispose();

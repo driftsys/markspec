@@ -168,7 +168,9 @@ export async function* discoverFiles(
  * `.gitignore` chain and `exclude`. It checks the directories from `root`
  * down to the file, so a file under an ignored directory is not included.
  * The file must exist as a regular file: a path that does not exist, a
- * symbolic link, and a path outside `root` are not included.
+ * symbolic link, and a path outside `root` are not included. It lists every
+ * ancestor directory of the file, so it is meant for per-file checks, not
+ * bulk use.
  */
 export async function isDiscoverable(
   path: string,
