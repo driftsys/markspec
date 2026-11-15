@@ -1,5 +1,4 @@
 import { assert, assertEquals, assertFalse } from "@std/assert";
-import { fromFileUrl } from "@std/path";
 import "../mod.ts";
 import { loadedGherkin } from "./load.ts";
 
@@ -14,6 +13,9 @@ interface ModuleGraph {
   readonly roots: readonly string[];
   readonly modules: readonly {
     readonly specifier: string;
+    /** For example `esm` (a loaded JavaScript or TypeScript module), `npm`,
+     * or `external` (a specifier Deno did not load). */
+    readonly kind?: string;
     readonly dependencies?: readonly {
       /** The specifier as written in the import, for example `@cucumber/gherkin`. */
       readonly specifier: string;
@@ -46,10 +48,9 @@ function staticallyReached(graph: ModuleGraph): Set<string> {
 
 /**
  * `true` when some module imports `name` with a dynamic `import()`. Reads
- * the import edge itself, by the specifier as written in the source, not
- * the module entries for the npm package: `deno info` does not list those
- * on every platform (on the Windows CI runner it did not), while the edge
- * is always recorded in the importing module.
+ * the import edge itself, by the specifier as written in the source, so
+ * the check does not depend on how the npm package's own module entries
+ * are reported.
  */
 function hasDynamicImportOf(graph: ModuleGraph, name: string): boolean {
   return graph.modules.some((m) =>
@@ -59,21 +60,28 @@ function hasDynamicImportOf(graph: ModuleGraph, name: string): boolean {
   );
 }
 
-Deno.test("staticallyReached and hasDynamicImportOf: Windows-shaped graph", () => {
+Deno.test("staticallyReached and hasDynamicImportOf: graph with no npm module entry", () => {
   const mod = "file:///D:/a/markspec/markspec/packages/markspec/core/mod.ts";
   const load =
     "file:///D:/a/markspec/markspec/packages/markspec/core/gherkin/load.ts";
   const npm = "npm:@cucumber/gherkin@42.0.1";
   const graph = (isDynamic: boolean): ModuleGraph => ({
     roots: [mod],
-    // No module entry for the npm package, as on the Windows runner.
+    // No module entry for the npm package: the checks read the import edges.
     modules: [
       {
         specifier: mod,
-        dependencies: [{
-          specifier: "./gherkin/load.ts",
-          code: { specifier: load },
-        }],
+        dependencies: [
+          { specifier: "./gherkin/load.ts", code: { specifier: load } },
+          // Other dynamic imports, which must not count as the parser's.
+          {
+            specifier: "./other.ts",
+            code: { specifier: "file:///D:/other.ts" },
+            isDynamic: true,
+          },
+          // An unresolved dynamic import of the parser has no `code`.
+          { specifier: "@cucumber/gherkin", isDynamic: true },
+        ],
       },
       {
         specifier: load,
@@ -92,14 +100,13 @@ Deno.test("staticallyReached and hasDynamicImportOf: Windows-shaped graph", () =
   assertFalse(hasDynamicImportOf(graph(false), "@cucumber/gherkin"));
 });
 
-// The module graph does not depend on the operating system, so the Linux and
-// macOS CI jobs enforce this. On Windows the dynamic-import guard below fails
-// for a reason not yet found (#932), so the test does not run there.
 Deno.test({
   name: "core/mod.ts has no static dependency on @cucumber/gherkin",
-  ignore: Deno.build.os === "windows",
   fn: async () => {
-    const entry = fromFileUrl(new URL("../mod.ts", import.meta.url));
+    // Pass a file URL, not a path: on Windows `deno info` reads the drive
+    // letter of `d:\...` as a URL scheme and reports one external module
+    // with no dependencies (#932).
+    const entry = new URL("../mod.ts", import.meta.url).href;
     const out = await new Deno.Command(Deno.execPath(), {
       args: ["info", "--json", entry],
       stdout: "piped",
@@ -109,6 +116,16 @@ Deno.test({
     const graph = JSON.parse(
       new TextDecoder().decode(out.stdout),
     ) as ModuleGraph;
+    // Guard the graph itself: the entry must resolve to a local module and
+    // its static imports must be followed, or the checks below would pass
+    // without reading any import.
+    const root = graph.modules.find((m) => m.specifier === graph.roots[0]);
+    assertEquals(root?.kind, "esm", "the entry resolves to a local module");
+    const loader = new URL("./load.ts", import.meta.url).href;
+    assert(
+      staticallyReached(graph).has(loader),
+      "the static walk reaches core/gherkin/load.ts",
+    );
     const staticParser = [...staticallyReached(graph)].filter((s) =>
       s.includes("@cucumber/")
     );
