@@ -13,7 +13,8 @@ interface ModuleGraph {
   readonly roots: readonly string[];
   readonly modules: readonly {
     readonly specifier: string;
-    /** `esm` for a resolved local module; `external` when it was not loaded. */
+    /** For example `esm` (a loaded JavaScript or TypeScript module), `npm`,
+     * or `external` (a specifier Deno did not load). */
     readonly kind?: string;
     readonly dependencies?: readonly {
       /** The specifier as written in the import, for example `@cucumber/gherkin`. */
@@ -47,9 +48,9 @@ function staticallyReached(graph: ModuleGraph): Set<string> {
 
 /**
  * `true` when some module imports `name` with a dynamic `import()`. Reads
- * the import edge itself, by the specifier as written in the source, not
- * the module entries for the npm package, which `deno info` does not
- * always list, while the edge is always recorded in the importing module.
+ * the import edge itself, by the specifier as written in the source, so
+ * the check does not depend on how the npm package's own module entries
+ * are reported.
  */
 function hasDynamicImportOf(graph: ModuleGraph, name: string): boolean {
   return graph.modules.some((m) =>
@@ -59,14 +60,14 @@ function hasDynamicImportOf(graph: ModuleGraph, name: string): boolean {
   );
 }
 
-Deno.test("staticallyReached and hasDynamicImportOf: Windows-shaped graph", () => {
+Deno.test("staticallyReached and hasDynamicImportOf: graph with no npm module entry", () => {
   const mod = "file:///D:/a/markspec/markspec/packages/markspec/core/mod.ts";
   const load =
     "file:///D:/a/markspec/markspec/packages/markspec/core/gherkin/load.ts";
   const npm = "npm:@cucumber/gherkin@42.0.1";
   const graph = (isDynamic: boolean): ModuleGraph => ({
     roots: [mod],
-    // No module entry for the npm package, as on the Windows runner.
+    // No module entry for the npm package: the checks read the import edges.
     modules: [
       {
         specifier: mod,
@@ -112,6 +113,7 @@ Deno.test({
     // the checks below would pass without reading any import.
     const root = graph.modules.find((m) => m.specifier === graph.roots[0]);
     assertEquals(root?.kind, "esm", "the entry resolves to a local module");
+    assert(graph.modules.length > 1, "the graph holds the entry's imports");
     const staticParser = [...staticallyReached(graph)].filter((s) =>
       s.includes("@cucumber/")
     );
