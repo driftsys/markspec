@@ -110,6 +110,19 @@ Deno.test({
     ) as ModuleGraph;
     // TEMPORARY diagnostics for #932: print every edge that mentions gherkin.
     console.log("DIAG932 deno", Deno.version.deno, "roots", graph.roots);
+    console.log(
+      "DIAG932 modules",
+      graph.modules.length,
+      "keys",
+      Object.keys(graph).join(","),
+    );
+    for (const m of graph.modules.slice(0, 4)) {
+      console.log("DIAG932 first", JSON.stringify(m).slice(0, 300));
+    }
+    console.log(
+      "DIAG932 stderr",
+      new TextDecoder().decode(out.stderr).slice(0, 500),
+    );
     for (const m of graph.modules) {
       for (const d of m.dependencies ?? []) {
         if (JSON.stringify(d).includes("gherkin")) {
