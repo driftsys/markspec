@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { loadGherkin } from "../gherkin/load.ts";
-import { findHeaders } from "./feature_file.ts";
+import { featureHeaderRunEnd, findHeaders } from "./feature_file.ts";
 
 const api = await loadGherkin();
 
@@ -1243,4 +1243,34 @@ Deno.test("parseFeatureFile: MSL-P030 for a title-only Rule with no scenario", (
     parseFF(text).diagnostics.map((d) => [d.code, d.location?.line]),
     [["MSL-P030", 2]],
   );
+});
+
+Deno.test("featureHeaderRunEnd: run of a git-style header", () => {
+  const lines = ["# [SC_A_0001] T", "#", "# Id: X", "Feature: F"];
+  assertEquals(featureHeaderRunEnd(lines, 0), 3);
+});
+
+Deno.test("featureHeaderRunEnd: indented scenario header", () => {
+  const lines = [
+    "Feature: F",
+    "  # [SC_A_0001] T",
+    "  #     Id: X",
+    "  Scenario: S",
+  ];
+  assertEquals(featureHeaderRunEnd(lines, 1), 3);
+});
+
+Deno.test("featureHeaderRunEnd: stops before the next header start", () => {
+  const lines = ["# [SC_A_0001] A", "# Id: X", "# [SC_A_0002] B", "Feature: F"];
+  assertEquals(featureHeaderRunEnd(lines, 0), 2);
+});
+
+Deno.test("featureHeaderRunEnd: stops before a language line", () => {
+  const lines = ["# [SC_A_0001] A", "# language: fr", "Feature: F"];
+  assertEquals(featureHeaderRunEnd(lines, 0), 1);
+});
+
+Deno.test("featureHeaderRunEnd: stops at a non-comment line and at the end", () => {
+  assertEquals(featureHeaderRunEnd(["# [SC_A_0001] A", "  Given x"], 0), 1);
+  assertEquals(featureHeaderRunEnd(["# [SC_A_0001] A", "# Id: X"], 0), 2);
 });

@@ -763,3 +763,97 @@ Deno.test("lsp feature: a # line inside a doc string gets no completion or hover
     await client.shutdown();
   }
 });
+
+Deno.test("lsp feature: code actions edit the header lines, never a doc string line (#943)", async () => {
+  const lines = [
+    "# [TST_0001] Login",
+    "#",
+    "# Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "# Verified-by: TST_0009",
+    "Feature: F",
+    "",
+    "  Scenario: Docs",
+    "    Given a doc string",
+    '      """',
+    "      Verified-by: TST_0009",
+    '      """',
+    "",
+    "  # [TST_0002] Second",
+    "",
+    "  Scenario: S",
+    "    Given b",
+    "",
+  ];
+  const text = lines.join("\n");
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+  });
+  try {
+    await client.initialize();
+    const uri = toFileUrl(join(client.workDir, "ca.feature")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "feature", version: 1, text },
+    });
+    await client.waitUntil(
+      () => client.latestDiagnosticsFor(uri) !== undefined,
+      "parse diagnostics",
+      10000,
+    );
+    await client.waitUntil(
+      () => client.latestPublishIsCrossFile(uri),
+      "cross-file diagnostics",
+      10000,
+    );
+    await new Promise((r) => setTimeout(r, SETTLE_MS));
+    const diagnostics = client.latestDiagnosticsFor(uri) as Diag[];
+    const actions = await client.request("textDocument/codeAction", {
+      textDocument: { uri },
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: lines.length, character: 0 },
+      },
+      context: { diagnostics },
+    }) as Array<{
+      title: string;
+      edit: {
+        changes: Record<
+          string,
+          Array<{
+            range: { start: { line: number }; end: { line: number } };
+            newText: string;
+          }>
+        >;
+      };
+    }>;
+    const editsOf = (code: string) =>
+      actions
+        .filter((a) =>
+          (a as unknown as { diagnostics: Diag[] }).diagnostics?.[0]?.code ===
+            code
+        )
+        .map((a) => a.edit.changes[uri]);
+    const a030 = editsOf("MSL-A030");
+    assertEquals(a030.length, 1);
+    assertEquals(a030[0].length, 1);
+    assertEquals(a030[0][0].range.start.line, 3);
+    assertEquals(a030[0][0].range.end.line, 4);
+    assertEquals(a030[0][0].newText, "");
+    const b069 = editsOf("MSL-B069");
+    assertEquals(b069.length, 1);
+    assertEquals(b069[0].length, 1);
+    assertEquals(b069[0][0].range.start.line, 13);
+    assertEquals(b069[0][0].range.end.line, 14);
+    assertEquals(b069[0][0].newText, "");
+    for (const action of actions) {
+      for (const edit of action.edit.changes[uri] ?? []) {
+        assertEquals(
+          edit.range.start.line === 9,
+          false,
+          `${action.title} edits the doc string line`,
+        );
+      }
+    }
+  } finally {
+    await client.shutdown();
+  }
+});

@@ -67,6 +67,7 @@ import {
 } from "./formatting.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
 import { buildCodeActions } from "./code_actions.ts";
+import { buildFeatureCodeActions } from "./feature_code_actions.ts";
 import {
   resolveNavigableLocation,
   sourceLocationToLspLocation,
@@ -1490,7 +1491,7 @@ connection.onRenameRequest(async (params) => {
 // Code actions (quick fixes for diagnostics)
 // ---------------------------------------------------------------------------
 
-connection.onCodeAction((params) => {
+connection.onCodeAction(async (params) => {
   tally("codeAction");
   const filePath = uriToPath(params.textDocument.uri);
   if (!isMarkspecFile(filePath)) return null;
@@ -1498,11 +1499,16 @@ connection.onCodeAction((params) => {
   const documentText = document?.getText();
   // deno-lint-ignore no-explicit-any
   const diagnostics = params.context.diagnostics as any;
-  const actions = buildCodeActions(
-    params.textDocument.uri,
-    diagnostics,
-    documentText,
-  );
+  // `.feature` diagnostics never reach the Markdown builders: those scan
+  // every indented `Key:` line, which can be a doc string line (#943).
+  const actions = isFeatureFile(filePath)
+    ? await buildFeatureCodeActions(
+      params.textDocument.uri,
+      filePath,
+      diagnostics,
+      documentText ?? "",
+    )
+    : buildCodeActions(params.textDocument.uri, diagnostics, documentText);
   // deno-lint-ignore no-explicit-any
   return actions as any;
 });

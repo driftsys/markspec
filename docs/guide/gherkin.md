@@ -228,8 +228,6 @@ apply to those entries, which are typed without a profile. See
   the syntax (see [Write the scenarios](#write-the-scenarios)).
 - The VS Code extension colours English Gherkin keywords only; a `# language:`
   line does not change them (see [VS Code extension](editor-vscode.md)).
-- Renaming a scenario name does not update the locators that point at it, and
-  there are no quick fixes for `.feature` files (issue
-  [#943](https://github.com/driftsys/markspec/issues/943)).
+- Renaming a scenario name does not update the locators that point at it.
 - Open gaps for `.feature` entries are listed in
   [Known limitations](feature-files.md#known-limitations).

@@ -217,6 +217,30 @@ What works in a `.feature` file:
   `markspec fmt` does, and changes nothing else. It returns no edits for a file
   with no header, a file that does not parse, and a file whose headers all have
   an Id. The Markdown formatter is not used.
+- **Quick fixes.** The editor offers fixes for these codes. The attribute fixes
+  edit only the trailer lines of the header that the diagnostic points at (the
+  `MSL-P021` fix also deletes the `#`-only line above an all-empty trailer), and
+  the `MSL-B069` fix deletes only blank lines; no fix edits a step or a
+  doc-string line:
+  - `MSL-A030`: remove the generated attribute line.
+  - `MSL-A013`: keep the first line of a repeated key, remove the others.
+  - `MSL-A012`: remove a repeatable attribute line with an empty value list.
+  - `MSL-A011`: rewrite a comma-separated citation value as one line per value.
+  - `MSL-T020`: replace the `# Type:` value with the closest core type, when one
+    is within an edit distance of 3.
+  - `MSL-P021`: remove the empty `# Key:` lines of the trailer, and the `#` line
+    above when the whole trailer is empty. This can remove an empty `# Id:`
+    line; Format Document then stamps a new one.
+  - `MSL-B069`: remove the blank lines between the header and its node. The fix
+    is offered only when the first non-blank line after the header is not a
+    comment line, and a re-parse of the edited text attaches the header to its
+    node as an entry, keeps its Id, and reports no `MSL-P020` in the header.
+  - `MSL-M060` (lowercase a modal verb) and `MSL-S010` use the same fixes as in
+    Markdown.
+
+  A fix never removes a value-bearing `# Id:` line. Inserted lines keep the `#`
+  prefix of the line they replace, and every edit keeps the line ending of the
+  file.
 - **Completion.** Completion returns nothing on a step, a table line or any line
   of a doc string, including a `#` line inside it. On a `#` comment line outside
   a doc string, the `$Name` and `ux:` reference triggers work as in Markdown;
@@ -230,10 +254,15 @@ What works in a `.feature` file:
   Markdown and do not apply either.
 - Renaming a Scenario name does not update the scenario locators that point at
   it. Rename of a display ID is supported; rename of a scenario name is not.
-- There are no quick fixes for `.feature` files. The existing quick fixes match
-  indented trailer lines, which a `#` header does not have. Fix the diagnostics
-  by hand or with `markspec fmt` (issue
-  [#943](https://github.com/driftsys/markspec/issues/943)).
+- These diagnostics have no quick fix in a `.feature` file. Fix them by hand, or
+  with Format Document where it applies:
+  - `MSL-B069` for a header above a `Background`, an `Examples` block, a step or
+    another header, because the node that the header belongs to is a choice.
+  - `MSL-B069` for a header that a plain comment line separates from its node,
+    because removing the blank lines would join the comment to the header and
+    void its trailer.
+  - Parse errors (`MSL-B062`) and the other body diagnostics.
+  - A missing `# Id:` line. Format Document stamps it.
 - A headed `Scenario` that holds only steps, with no header prose and no
   description, gets `MSL-Q401` (body is too short) from `markspec lint`. Two
   more gaps are open: nested lists in a Gherkin description are flattened into

@@ -67,10 +67,36 @@ const LANGUAGE_RE = /^\s*#\s*language\s*:/;
 const HEADER_ID_SOURCE = "[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]";
 
 /** A header-start comment text: `[ID] ` after the `#`. */
-export const FEATURE_HEADER_START_RE = new RegExp(
+export const FEATURE_HEADER_START_RE: RegExp = new RegExp(
   `^\\[${HEADER_ID_SOURCE}\\]\\s`,
 );
 const HEADER_START_RE = FEATURE_HEADER_START_RE;
+
+/**
+ * Exclusive end index of the header comment run that starts at `titleIdx`.
+ *
+ * The run is the consecutive comment lines (`^\s*#`) from `titleIdx` down.
+ * It stops before a non-comment line, before the next header start (comment
+ * text starting with `[ID] `), and before a `# language:` line.
+ *
+ * @param lines - The file lines, without line endings.
+ * @param titleIdx - Zero-based index of the header's first line.
+ */
+export function featureHeaderRunEnd(
+  lines: readonly string[],
+  titleIdx: number,
+): number {
+  const isComment = (line: string | undefined) =>
+    line !== undefined && line.trimStart().startsWith("#");
+  let endIdx = titleIdx;
+  while (isComment(lines[endIdx + 1])) {
+    const next = lines[endIdx + 1];
+    const nextText = next.trimStart().slice(1).trimStart();
+    if (HEADER_START_RE.test(nextText) || LANGUAGE_RE.test(next)) break;
+    endIdx++;
+  }
+  return endIdx + 1;
+}
 
 /** File line of every node keyword a header may head, with its kind. */
 function nodeKinds(document: GherkinDocument): Map<number, FeatureNodeKind> {

@@ -11,14 +11,13 @@
 import { ulid as defaultUlid } from "@std/ulid";
 import type { Entry } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
-import { FEATURE_HEADER_START_RE as HEADER_START_RE } from "../parser/feature_file.ts";
+import { featureHeaderRunEnd } from "../parser/feature_file.ts";
 import {
   applyLineEnding,
   detectLineEnding,
   normalizeLineEndings,
 } from "../util/line_endings.ts";
 
-const LANGUAGE_RE = /^\s*#\s*language\s*:/;
 /** Leading whitespace, `#`, and the spaces after it. */
 const COMMENT_PREFIX_RE = /^(\s*#[ \t]*)/;
 
@@ -68,13 +67,7 @@ export function formatFeatureFile(
     if (!isComment(lines[titleIdx])) continue;
     // End of the header run: consecutive comment lines, up to the next
     // header start or a `# language:` line.
-    let endIdx = titleIdx;
-    while (isComment(lines[endIdx + 1])) {
-      const next = lines[endIdx + 1];
-      const nextText = next.trimStart().slice(1).trimStart();
-      if (HEADER_START_RE.test(nextText) || LANGUAGE_RE.test(next)) break;
-      endIdx++;
-    }
+    const endIdx = featureHeaderRunEnd(lines, titleIdx) - 1;
     const firstTrailer = entry.attributeLines?.[0];
     const trailerIdx = firstTrailer === undefined
       ? undefined
