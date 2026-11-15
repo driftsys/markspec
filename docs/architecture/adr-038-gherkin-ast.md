@@ -559,13 +559,17 @@ indented doc-string line.
    line had voided (`MSL-P020`, `MSL-R003` and `MSL-I003` also fired).
 7. **`MSL-B069` (D7).** Only the blank-gap variant gets a fix: the fix deletes
    the blank lines between the header and its node. A header above `Background`,
-   `Examples` or a step, and a stacked header, get no fix, because the node the
-   header belongs to is a choice. This narrows the example in the issue text.
+   `Examples` or a step, a stacked header, and a header followed by a plain
+   comment line (a line that starts with `#`) before its node, get no fix. For
+   the first two the node the header belongs to is a choice; for the comment
+   line, removing the blank lines would join the comment to the header and void
+   the trailer. This narrows the example in the issue text.
 8. **Async check (D8).** `buildFeatureCodeActions` is async. The `MSL-B069` fix
-   is offered only when a re-parse of the edited text gives an entry at the
-   header line and no `MSL-B069` for it, which holds in every Gherkin language.
-   A builder that throws or rejects is skipped for that diagnostic, so the other
-   actions stay.
+   is offered only when the first non-blank line after the header is not a
+   comment line, and a re-parse of the edited text attaches the header as an
+   entry, keeps its Id, and gives no `MSL-P020` in the header run. The re-parse
+   uses no keyword list, so this holds in every Gherkin language. A builder that
+   throws or rejects is skipped for that diagnostic, so the other actions stay.
 9. **Published codes (D9).** `MSL-T020` and `MSL-M060` reach the editor because
    the language server runs the whole validator pipeline (#938). The `#`-form
    `MSL-T020` fix replaces the `# Type:` value with the closest core type within

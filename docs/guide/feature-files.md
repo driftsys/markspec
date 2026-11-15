@@ -232,8 +232,9 @@ What works in a `.feature` file:
     above when the whole trailer is empty. This can remove an empty `# Id:`
     line; Format Document then stamps a new one.
   - `MSL-B069`: remove the blank lines between the header and its node. The fix
-    is offered only when a re-parse of the edited text attaches the header to
-    its node as an entry and no longer reports `MSL-B069` for it.
+    is offered only when the first non-blank line after the header is not a
+    comment line, and a re-parse of the edited text attaches the header to its
+    node as an entry, keeps its Id, and reports no `MSL-P020` in the header.
   - `MSL-M060` (lowercase a modal verb) and `MSL-S010` use the same fixes as in
     Markdown.
 
@@ -257,6 +258,9 @@ What works in a `.feature` file:
   with Format Document where it applies:
   - `MSL-B069` for a header above a `Background`, an `Examples` block, a step or
     another header, because the node that the header belongs to is a choice.
+  - `MSL-B069` for a header that a plain comment line separates from its node,
+    because removing the blank lines would join the comment to the header and
+    void its trailer.
   - Parse errors (`MSL-B062`) and the other body diagnostics.
   - A missing `# Id:` line. Format Document stamps it.
 - A headed `Scenario` that holds only steps, with no header prose and no

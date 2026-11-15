@@ -403,19 +403,19 @@ function citationFix(
 /**
  * MSL-B069, blank-gap variant: the diagnostic points at the header start.
  * Walks from the end of the header run over blank lines, tag lines and plain
- * comment lines, and offers to delete the blank lines. No fix is offered when
- * the first non-blank line after the header run is a comment line: removing
- * the blank lines would join that comment to the header run and void the
- * trailer. Only a tag line or the node keyword may follow the header.
+ * comment lines, and offers to delete the blank lines. The first non-blank
+ * line after the header run must not be a comment line: removing the blank
+ * lines would join that comment to the header run and void the trailer. Only
+ * a tag line or the node keyword may follow the header.
  *
- * The edited text is re-parsed, and the fix is offered only when that
- * re-parse gives an entry at the header start line (this rejects a header
- * that no longer attaches to a node, a header above a Background, Examples or
- * a step, a stacked header, and an edit that no longer parses), gives no
- * MSL-P020 inside the header run, and, when the header had a `# Id:` line
- * with a value, still gives the entry that Id. The last two checks keep the
- * fix from voiding the trailer, which would make Format Document stamp a
- * second `# Id:` line.
+ * The checks on the re-parsed edited text are a backstop behind that guard:
+ * the fix is offered only when the re-parse gives an entry at the header start
+ * line (this rejects a header that does not attach to a node, such as a header
+ * above a Background, Examples or a step or a stacked header, and an edit that
+ * no longer parses), gives no MSL-P020 inside the header run, and, when the
+ * header had a `# Id:` line with a value, still gives the entry that Id. The
+ * last two checks keep the fix from voiding the trailer, which would make
+ * Format Document stamp a second `# Id:` line.
  */
 async function blankGapFix(
   uri: string,

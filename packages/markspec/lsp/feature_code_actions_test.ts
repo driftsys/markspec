@@ -893,6 +893,58 @@ Deno.test("B069: no fix when a plain comment follows the blank gap", async () =>
   );
 });
 
+Deno.test("B069: no fix when a plain comment follows the gap, header without a trailer", async () => {
+  await noFix(
+    `Feature: F\n\n  # [SC_A_0002] T\n\n  # plain note\n  Scenario: S\n    Given x\n`,
+  );
+});
+
+Deno.test("B069: no fix when a plain comment follows the gap, header with a body line", async () => {
+  await noFix(
+    `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Body line.\n\n  # plain note\n  Scenario: S\n    Given x\n`,
+  );
+});
+
+Deno.test("B069: no fix when a bare # line follows the gap, header without a trailer", async () => {
+  await noFix(
+    `Feature: F\n\n  # [SC_A_0002] T\n\n  #\n  Scenario: S\n    Given x\n`,
+  );
+});
+
+Deno.test("A013: two identical diagnostics both keep the first line", async () => {
+  const id = ulid();
+  const text =
+    `# [SC_A_0001] T\n#\n# Id: ${id}\n# Type: A\n# Type: B\n# Type: C\nFeature: F\n`;
+  const diag = synthetic("MSL-A013", "SC_A_0001: 'Type' appears twice", 0);
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    [diag, diag],
+    text,
+  );
+  assertEquals(actions.length, 2);
+  for (const action of actions) {
+    assertEquals(
+      applyEdits(text, action.edit!.changes![URI]),
+      `# [SC_A_0001] T\n#\n# Id: ${id}\n# Type: A\nFeature: F\n`,
+    );
+  }
+});
+
+Deno.test("A013: a diagnostic for 'Id' gives no action", async () => {
+  const text =
+    `# [SC_A_0001] T\n#\n# Id: ${ulid()}\n# Id: ${ulid()}\nFeature: F\n`;
+  assertEquals(
+    await buildFeatureCodeActions(
+      URI,
+      "a.feature",
+      [synthetic("MSL-A013", "SC_A_0001: 'Id' appears twice", 0)],
+      text,
+    ),
+    [],
+  );
+});
+
 Deno.test("B069: a blank line after a tag line is removed before a plain comment", async () => {
   const id = ulid();
   const text =
