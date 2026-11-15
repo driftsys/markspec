@@ -53,8 +53,9 @@ const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
  * Parse one attribute line: the line is trimmed, one trailing continuation
  * backslash is dropped, and the value is trimmed. The value is empty for
  * `Key:` and `Key: \`. Returns `undefined` when the line is not a
- * `Key:` line. {@linkcode parseAttributes} and the LSP quick fixes read
- * lines through this function, so they agree with the parser.
+ * `Key:` line. {@linkcode parseAttributes} reads lines through this
+ * function, and so do the Markdown A011, A012 and A013 quick fixes of the
+ * LSP, so they agree with the parser.
  */
 export function parseAttributeLine(
   line: string,

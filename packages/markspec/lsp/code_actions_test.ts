@@ -1054,7 +1054,7 @@ Deno.test("buildCodeActions: MSL-A013 works on a CRLF document (#952)", () => {
   assertEquals(editsOf(actions)[0].range.start.line, 8);
 });
 
-Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#952)", () => {
+Deno.test("buildCodeActions: MSL-A030 removes the first forward match (#952)", () => {
   const doc = twoEntries(["      Superseded-by: REQ-009"], [
     "      Superseded-by: REQ-009",
   ]);
@@ -1065,7 +1065,7 @@ Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#
   assertEquals(editsOf(actions)[0].range.start.line, 7);
 });
 
-Deno.test("buildCodeActions: MSL-T020 replaces the value in the diagnosed entry (#952)", () => {
+Deno.test("buildCodeActions: MSL-T020 replaces the first forward match (#952)", () => {
   const doc = twoEntries(["      Type: Requirment"], [
     "      Type: Requirment",
   ]);
@@ -1103,12 +1103,80 @@ Deno.test("buildCodeActions: MSL-P021 regression guard, edits stay in the diagno
 });
 
 Deno.test("buildCodeActions: MSL-A012 skips a `Key :` line the parser skips (#952)", () => {
-  const doc = twoEntries(["      Labels : ,", "      Labels: ,"], []);
+  // `Labels : ,` is inside the trailer block but is not an attribute line.
+  const doc = twoEntries(
+    ["      Labels: a \\", "      Labels : ,", "      Labels: ,"],
+    [],
+  );
   const actions = buildCodeActions("file:///x.md", [
     titleDiag("MSL-A012", "Labels"),
   ], doc);
   assertEquals(actions.length, 1);
-  assertEquals(editsOf(actions)[0].range.start.line, 8);
+  assertEquals(editsOf(actions)[0].range.start.line, 9);
+});
+
+Deno.test("buildCodeActions: MSL-A013 ignores empty-value lines (#952)", () => {
+  const doc = twoEntries([
+    "      Type: Requirement",
+    "      Type: \\",
+    "      Type: Specification",
+  ], []);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A013", "Type"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = editsOf(actions);
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 9);
+});
+
+/** A Rust block doc comment holding an unprefixed, 4-space-indented entry. */
+const RS_BLOCK_DOC = (trailer: string) =>
+  [
+    "/**",
+    "- [REQ-001] Title",
+    "",
+    "    Body.",
+    "",
+    "    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    trailer,
+    "*/",
+    "fn f() {}",
+    "",
+  ].join("\n");
+
+Deno.test("buildCodeActions: MSL-A030 offers a fix in a source doc comment block (#952)", () => {
+  const doc = RS_BLOCK_DOC("    Superseded-by: REQ-009");
+  const actions = buildCodeActions("file:///x.rs", [
+    diag({
+      code: "MSL-A030",
+      message: "REQ-001: 'Superseded-by' has generated origin",
+      line: 1,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    6,
+  );
+});
+
+Deno.test("buildCodeActions: MSL-T020 offers a fix in a source doc comment block (#952)", () => {
+  const doc = RS_BLOCK_DOC("    Type: Requirment");
+  const actions = buildCodeActions("file:///x.rs", [
+    diag({
+      code: "MSL-T020",
+      message: "REQ-001: Type: 'Requirment' is not a core type",
+      line: 1,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.rs"][0].newText,
+    "Requirement",
+  );
 });
 
 Deno.test("buildCodeActions: MSL-A012 strips a continuation backslash before trailing spaces (#952)", () => {

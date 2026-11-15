@@ -588,6 +588,8 @@ Out of scope: `MSL-B062`, `MSL-P030`, `MSL-B060` to `MSL-B068`, `MSL-R003` with
 1. **One locator for both syntaxes.** A file-kind switch inside
    `buildCodeActions`, or one locator for Markdown and `.feature`. Rejected: it
    changes the Markdown builders and does not fit the async `MSL-B069` check.
+   (#952 later bounded the Markdown A011, A012 and A013 builders to the trailer
+   block of the diagnosed entry; the rationale above was written for #943.)
 2. **Locating lines.** Using the indexed `attributeLines` was rejected: it can
    lag the buffer and omits empty-valued lines.
 3. **Re-parse for every code.** Rejected: only `MSL-B069` needs the node kind.

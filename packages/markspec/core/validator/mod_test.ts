@@ -599,9 +599,13 @@ Deno.test("validate: a backslash outside a locator is no escape for MSL-A011 (#9
 Deno.test("repeatableAttributeValues: splits by the attribute's value type", () => {
   // id-list: bracketed locators keep their commas.
   assertEquals(
-    repeatableAttributeValues("Verified-by", "A [x, y], B")?.length,
-    2,
+    repeatableAttributeValues("Verified-by", "A [x, y], B"),
+    ["A [x, y]", "B"],
   );
+  assertEquals(repeatableAttributeValues("Verified-by", ", ,"), []);
+  // external-id: comma split, empty values dropped.
+  assertEquals(repeatableAttributeValues("External-id", "a, , b"), ["a", "b"]);
+  assertEquals(repeatableAttributeValues("External-id", ", ,"), []);
   // citation: not split; a lone comma is a value.
   assertEquals(repeatableAttributeValues("References", ","), [","]);
   assertEquals(repeatableAttributeValues("References", "  "), []);

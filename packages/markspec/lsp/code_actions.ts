@@ -13,11 +13,11 @@
  * source file, whose text is parsed as Markdown, they offer no action unless
  * the text holds a literal entry block. A030 and T020 still scan forward from
  * the diagnostic line without a block bound (#965 tracks bounding them).
- * Lines may end in LF or CRLF, a trailer line may be tab-led, and a value is
- * read as the parser reads it: the line is trimmed and one trailing
- * continuation backslash is dropped. When several diagnostics of A012 or A011
- * name the same key on one entry, the nth diagnostic fixes the nth matching
- * line.
+ * The A011, A012 and A013 fixes accept LF or CRLF line endings and a
+ * tab-led trailer line, and read a value as the parser reads it: the line is
+ * trimmed and one trailing continuation backslash is dropped. When several
+ * diagnostics of A012 or A011 name the same key on one entry, the nth
+ * diagnostic fixes the nth matching line.
  *
  * Currently handles:
  *
@@ -34,8 +34,9 @@
  *   - **MSL-A011** — citation attribute in CSV form. Action: rewrite
  *     the single CSV line as one trailer line per value (the
  *     canonical multi-line form), splitting on top-level commas. The
- *     fix uses the first line of the diagnosed entry's trailer block
- *     that has the key and two or more values.
+ *     fix uses the nth line of the diagnosed entry's trailer block
+ *     that has the key and two or more values (the first, unless
+ *     several diagnostics name the key).
  *   - **MSL-A012** — repeatable attribute with an empty value list.
  *     Action: remove the empty trailer line (the first line of the
  *     diagnosed entry's trailer block that has the key and no values).
@@ -150,6 +151,10 @@ export function buildCodeActions(
   // the nth diagnostic fixes the nth matching line, so each action has its
   // own line. A diagnostic that arrives alone counts as the first.
   const seenCounts = new Map<string, number>();
+  // The slot is keyed by line and key only. In Markdown, A011 (citation
+  // keys) and A012 (an empty value list) cannot name the same key, so the
+  // code adds nothing; the .feature builder keys its slot by code too,
+  // because it also numbers A030 diagnostics.
   const nextIndex = (diag: LspDiagnosticLike): number => {
     const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
     const slot = `${diag.range.start.line}|${key}`;
