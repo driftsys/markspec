@@ -1,11 +1,11 @@
 /**
  * @module lsp/feature_code_actions
  *
- * Locator helpers for quick fixes on `.feature` files (#943). A `.feature`
- * header is a run of comment lines (`# [ID] Title`, then `# Key: value`
- * trailer lines). These pure functions find the header run and its trailer
- * block in the file lines, so a fix edits only header lines and never a
- * step or doc-string line.
+ * Quick fixes for `.feature` files (#943). A `.feature` header is a run of
+ * comment lines (`# [ID] Title`, then `# Key: value` trailer lines). The
+ * locator functions find the header run and its trailer block in the file
+ * lines, so a trailer fix edits only lines of that block and never a step
+ * or doc-string line. `buildFeatureCodeActions` builds the fixes.
  */
 
 import { FEATURE_HEADER_START_RE, featureHeaderRunEnd } from "../core/mod.ts";
@@ -120,23 +120,40 @@ export function splitLines(
   return { lines, crlf };
 }
 
-/** Index of the first trailer line with `key` inside `block`, or -1. */
+/** The raw value of a trailer line (text after `Key:`), or `undefined`. */
+function lineValue(line: string): string | undefined {
+  const prefix = commentPrefix(line) ?? "";
+  return TRAILER_LINE_RE.exec(line.slice(prefix.length))?.[2];
+}
+
+/**
+ * Index of the `nth` (zero-based) trailer line with `key` inside `block`
+ * that satisfies `accept`, or -1.
+ */
 function findKeyLine(
   lines: readonly string[],
   block: LineRange,
   key: string,
+  accept: (value: string) => boolean = () => true,
+  nth = 0,
 ): number {
+  let seen = 0;
   for (let i = block.start; i < block.end; i++) {
-    if (trailerKey(lines[i]) === key) return i;
+    if (trailerKey(lines[i]) !== key) continue;
+    if (!accept(lineValue(lines[i]) ?? "")) continue;
+    if (seen++ === nth) return i;
   }
   return -1;
 }
 
 /**
- * Build quick fixes for the diagnostics of a `.feature` file (#943). Every
- * edit stays inside the trailer block of the header that the diagnostic
- * points at; a `# Id:` line is never edited. Codes without a fix return
- * nothing.
+ * Build quick fixes for the diagnostics of a `.feature` file (#943). The
+ * attribute fixes (A030, A012, A013, T020, A011) edit only lines inside the
+ * trailer block of the header that the diagnostic points at, and never a
+ * `# Id:` line. M060 and S010 use the shared builders, which work from the
+ * diagnostic range alone. Codes without a fix return nothing. When several
+ * diagnostics of one code name the same key on one header, the nth
+ * diagnostic fixes the nth matching line, so each action has its own line.
  *
  * @param uri - Document URI.
  * @param _filePath - Document path (used by later fixes that re-parse).
@@ -152,6 +169,7 @@ export async function buildFeatureCodeActions(
 ): Promise<CodeAction[]> {
   const { lines, crlf } = splitLines(documentText);
   const out: CodeAction[] = [];
+  const seenCounts = new Map<string, number>();
   for (const diag of diagnostics) {
     let action: CodeAction | undefined;
     switch (diag.code) {
@@ -166,7 +184,13 @@ export async function buildFeatureCodeActions(
       case "MSL-A013":
       case "MSL-T020":
       case "MSL-A011":
-        action = headerFix(uri, diag, lines, crlf);
+        {
+          const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+          const slot = `${diag.code}|${diag.range.start.line}|${key}`;
+          const nth = seenCounts.get(slot) ?? 0;
+          seenCounts.set(slot, nth + 1);
+          action = headerFix(uri, diag, lines, crlf, nth);
+        }
         break;
     }
     if (action) out.push(action);
@@ -180,13 +204,26 @@ function headerFix(
   diag: LspDiagnosticLike,
   lines: readonly string[],
   crlf: readonly boolean[],
+  nth: number,
 ): CodeAction | undefined {
   const block = trailerBlock(lines, diag.range.start.line);
   if (!block) return undefined;
   if (diag.code === "MSL-T020") return typeFix(uri, diag, lines, block);
   const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
   if (key === undefined || key === "Id") return undefined;
-  const at = findKeyLine(lines, block, key);
+  const accept = diag.code === "MSL-A012"
+    ? (value: string) => splitCitationValues(value).length === 0
+    : diag.code === "MSL-A011"
+    ? (value: string) => splitCitationValues(value).length >= 2
+    : () => true;
+  // A013 reports once per key, so it always starts at the first line.
+  const at = findKeyLine(
+    lines,
+    block,
+    key,
+    accept,
+    diag.code === "MSL-A013" ? 0 : nth,
+  );
   if (at < 0) return undefined;
   switch (diag.code) {
     case "MSL-A030":
@@ -221,7 +258,7 @@ function typeFix(
   if (bad === undefined) return undefined;
   const suggestion = closestCoreType(bad);
   if (suggestion === undefined) return undefined;
-  const at = findKeyLine(lines, block, "Type");
+  const at = findKeyLine(lines, block, "Type", (v) => v.includes(bad));
   if (at < 0) return undefined;
   const line = lines[at];
   const colon = line.indexOf(":", (commentPrefix(line) ?? "").length);

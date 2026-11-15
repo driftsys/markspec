@@ -324,3 +324,129 @@ Deno.test("other codes return nothing for now", async () => {
     [],
   );
 });
+
+// ---------------------------------------------------------------------------
+// Exact fixed text, line choice, trailer-block bound
+// ---------------------------------------------------------------------------
+
+/** `text` without the first line that contains `needle`. */
+function without(text: string, needle: string): string {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.includes(needle));
+  assert(at >= 0, `no line with ${needle}`);
+  lines.splice(at, 1);
+  return lines.join("\n");
+}
+
+Deno.test("A030: exact fixed text, git-style and indented", async () => {
+  for (const text of Object.values(variants(["Derives: SC_X_0001"]))) {
+    assertEquals(
+      (await fix(text, "MSL-A030")).fixed,
+      without(text, "Derives"),
+    );
+  }
+});
+
+Deno.test("A012: exact fixed text, git-style and indented", async () => {
+  for (const text of Object.values(variants(["Verified-by: ,"]))) {
+    const { fixed } = await fix(text, "MSL-A012");
+    assertEquals(fixed, without(text, "Verified-by"));
+  }
+});
+
+Deno.test("A012: with two same-key lines removes the empty one", async () => {
+  for (const text of Object.values(variants(["Labels: a", "Labels: ,"]))) {
+    const { fixed } = await fix(text, "MSL-A012");
+    assertEquals(fixed, without(text, "Labels: ,"));
+    assert(fixed.includes("Labels: a"));
+  }
+});
+
+Deno.test("A013: keeps the first value, exact text", async () => {
+  const trailer = ["Type: Requirement", "Type: Constraint", "Type: Contract"];
+  for (const text of Object.values(variants(trailer))) {
+    const { fixed } = await fix(text, "MSL-A013");
+    assertEquals(
+      fixed,
+      without(without(text, "Type: Constraint"), "Type: Contract"),
+    );
+  }
+});
+
+Deno.test("T020: exact fixed text, git-style and indented", async () => {
+  for (const text of Object.values(variants(["Type: Requirment"]))) {
+    const { fixed } = await fix(text, "MSL-T020");
+    assertEquals(fixed, text.replace("Requirment", "Requirement"));
+  }
+});
+
+Deno.test("A011: exact fixed text keeps the indent prefix", async () => {
+  const { git, indented } = variants(["References: [@a], [@b]"]);
+  assertEquals(
+    (await fix(git, "MSL-A011")).fixed,
+    git.replace(
+      "# References: [@a], [@b]",
+      "# References: [@a]\n# References: [@b]",
+    ),
+  );
+  assertEquals(
+    (await fix(indented, "MSL-A011")).fixed,
+    indented.replace(
+      "  # References: [@a], [@b]",
+      "  # References: [@a]\n  # References: [@b]",
+    ),
+  );
+});
+
+Deno.test("A011: fixes the first line with two or more values", async () => {
+  const { git } = variants(["References: [@a]", "References: [@b], [@c]"]);
+  const { fixed } = await fix(git, "MSL-A011");
+  assertEquals(
+    fixed,
+    git.replace(
+      "# References: [@b], [@c]",
+      "# References: [@b]\n# References: [@c]",
+    ),
+  );
+});
+
+Deno.test("A030: two same-key lines get one distinct line each", async () => {
+  const { git } = variants(["Derives: SC_X_0001", "Derives: SC_X_0002"]);
+  const diagnostics = await diagnosticsOf(git, "MSL-A030");
+  assertEquals(diagnostics.length, 2);
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    diagnostics,
+    git,
+  );
+  const lines = actions.map((a) => a.edit!.changes![URI][0].range.start.line);
+  assertEquals(new Set(lines).size, 2);
+  const edits = actions.flatMap((a) => a.edit!.changes![URI]);
+  assertEquals(
+    applyEdits(git, edits),
+    without(without(git, "SC_X_0001"), "SC_X_0002"),
+  );
+});
+
+Deno.test("A013: never touches the Type line of another header", async () => {
+  const [a, b] = [ulid(), ulid()];
+  const text = `# [SC_A_0001] Feature
+#
+# Id: ${a}
+# Type: Requirement
+# Type: Constraint
+Feature: F
+
+  # [SC_A_0002] Scenario
+  #
+  # Id: ${b}
+  # Type: Requirement
+  Scenario: S
+    Given x
+`;
+  const { fixed, edits } = await fix(text, "MSL-A013");
+  assertEquals(edits.length, 1);
+  assertEquals(fixed, without(text, "Type: Constraint"));
+  assert(fixed.includes("  # Type: Requirement"));
+});
