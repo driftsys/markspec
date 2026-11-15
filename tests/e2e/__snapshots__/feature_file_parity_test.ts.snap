@@ -3,7 +3,7 @@ export const snapshot = {};
 snapshot[`headerless .feature: compile --format json is unchanged 1`] = `
 {
   code: 0,
-  stdout: '{
+  stdout: \`{
   "entries": {
     "STK_BRK_0001": {
       "displayId": "STK_BRK_0001",
@@ -193,17 +193,42 @@ snapshot[`headerless .feature: compile --format json is unchanged 1`] = `
       }
     ]
   },
-  "diagnostics": [],
+  "diagnostics": [
+    {
+      "code": "MSL-T024",
+      "severity": "warning",
+      "message": "SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)",
+      "location": {
+        "file": "docs/srs.md",
+        "line": 3,
+        "column": 1
+      }
+    },
+    {
+      "code": "MSL-A005",
+      "severity": "warning",
+      "message": "SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope",
+      "location": {
+        "file": "docs/srs.md",
+        "line": 3,
+        "column": 1
+      }
+    }
+  ],
   "typeRegistry": {
     "bindings": {},
     "typedefs": {}
   }
 }
-',
+\`,
 }
 `;
 
-snapshot[`compile stderr 1`] = `""`;
+snapshot[`compile stderr 1`] = `
+"warning[MSL-T024]: docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)
+warning[MSL-A005]: docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope
+"
+`;
 
 snapshot[`headerless .feature: check --format json is unchanged 1`] = `
 {

@@ -12,10 +12,12 @@
 
 import { isAbsolute, join, resolve } from "@std/path";
 import {
+  type CaptionConventions,
   compile,
   type CompileResult,
   type DeliveredDocument,
   deliveredPathIsContained,
+  deriveUpstreamId,
   type Diagnostic,
   type DiscoveryDirEntry,
   type EffectiveProfile,
@@ -24,6 +26,7 @@ import {
   loadDeliveredCorpus,
   loadProfileForCommand,
   loadProjectUpstreams,
+  loadToolConfig,
   type Lockfile,
   parseLockfile,
   type ProfileChain,
@@ -543,7 +546,24 @@ function buildProject(
         )
         : { entries: [], diagnostics: [] };
       const upstream = await loadLockedUpstreams();
+      // Validator inputs, as bare `check` and the LSP pass them.
+      let captionConventions: CaptionConventions = {};
+      if (projectRoot) {
+        try {
+          captionConventions =
+            (await loadToolConfig(projectRoot, env.readFile)).config
+              .captionConventions;
+        } catch { /* a malformed tool config leaves the rule inactive */ }
+      }
+      const declaredUpstreamIds = [
+        ...(config?.dependencies ?? []),
+        ...(config?.references ?? []),
+      ]
+        .map((ref) => deriveUpstreamId(ref))
+        .filter((id): id is string => id !== undefined);
       const result = await compile(paths, {
+        captionConventions,
+        declaredUpstreamIds,
         readFile: async (p: string) => {
           const content = await env.readFile(p);
           if (content === undefined) {

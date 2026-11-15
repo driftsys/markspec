@@ -6,6 +6,7 @@
  */
 
 import type {
+  CaptionConventions,
   Diagnostic,
   DisplayId,
   Document,
@@ -26,10 +27,8 @@ import { parseFile } from "../parser/mod.ts";
 import {
   applyCorpusPostPass,
   classifyEntriesStage,
-  suppressDeclaredAttrR010,
-  validate,
+  runPipeline,
 } from "../validator/mod.ts";
-import { validateUxilFamily } from "../validator/uxil_family.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../typl/mod.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
@@ -85,6 +84,20 @@ export interface CompileOptions {
    * deterministically. Optional — absent means no corpus.
    */
   readonly corpusEntries?: readonly Entry[];
+  /**
+   * Caption-position conventions from `.markspec.yaml`
+   * (`ToolConfig.captionConventions`), passed to the validator pipeline
+   * for MSL-C072. Optional — absent means the rule is inactive.
+   */
+  readonly captionConventions?: CaptionConventions;
+  /**
+   * Upstream ids declared in `project.yaml` `dependencies:` and
+   * `references:` (derived with `deriveUpstreamId`). Passed to the
+   * validator pipeline so a trace target that stays unresolved is
+   * reported as MSL-T014 instead of MSL-L006. Optional — absent means
+   * MSL-L006 is unchanged.
+   */
+  readonly declaredUpstreamIds?: readonly string[];
 }
 
 /**
@@ -208,6 +221,12 @@ class Semaphore {
  * Compile MarkSpec files from the given paths into a resolved
  * traceability graph.
  *
+ * The returned diagnostics combine parse diagnostics, the validator
+ * pipeline's diagnostics (the same `runPipeline` call, project-wide scope,
+ * that bare `markspec check` and the LSP make, so MSL-L006 and the other
+ * traceability rules are included), inverse-generation diagnostics and
+ * MSL-T013. They do not include fmt drift, lockfile drift or prose lint.
+ *
  * @param paths - File paths to compile
  * @param options - Compile options
  * @returns Compiled entries, links, and diagnostics
@@ -295,35 +314,32 @@ export async function compile(
     if (res.document) documents.set(res.filePath, res.document);
   }
 
-  // Phase 2: Validate all entries. When a profile is loaded, suppress the
-  // core-only MSL-R010 "unknown attribute" warnings for attributes the profile
-  // declares — mirrors runPipeline's Stage 1 so LSP/MCP diagnostics match the
-  // `validate` command instead of flooding the editor with false positives.
-  const validationResult = validate(allEntries);
-  const validationDiagnostics = suppressDeclaredAttrR010(
-    validationResult.diagnostics,
+  // Phase 2: Validate all entries with the same validator pipeline that
+  // bare `markspec check` and the LSP run (`runPipeline`, project-wide
+  // scope): core hygiene, classification, typed attributes, traceability
+  // (MSL-L006, MSL-T014), Gherkin checks and the uxil family. The requested
+  // path set is the corpus being compiled, so project-wide scope applies.
+  // Only the pipeline's diagnostics are used. The graph below is built from
+  // compile's own classification, so the compiled graph does not depend on
+  // the pipeline. CLI-only gates (fmt drift, lock drift, prose lint) are
+  // not part of compile.
+  const pipelineDiagnostics = runPipeline(
     allEntries,
     options.profile ?? null,
-  );
+    options.captionConventions ?? {},
+    {
+      projectWide: true,
+      declaredUpstreamIds: options.declaredUpstreamIds ?? [],
+    },
+  ).diagnostics;
 
-  // Phase 2.5: Classify entries when a profile is loaded.
+  // Phase 2.5: Classify entries when a profile is loaded. The
+  // classification diagnostics are already part of the pipeline result.
   let classifiedEntries: readonly Entry[] = allEntries;
   if (options.profile) {
-    const stage2 = classifyEntriesStage(allEntries, options.profile);
-    classifiedEntries = stage2.entries;
-    parseDiagnostics.push(...stage2.diagnostics);
+    classifiedEntries = classifyEntriesStage(allEntries, options.profile)
+      .entries;
   }
-
-  // Phase 2.6: uxil diagnostics family (S9 #727) — profile-gated (inert
-  // without a `declares: ux-surface` designation), mirroring runPipeline's
-  // Stage 5 so compile-backed surfaces (CLI compile/export/show, the MCP
-  // server) agree with `check` and the LSP on designated corpora. No
-  // file-local filter here: the requested path set IS the corpus being
-  // compiled — the same full-set semantics MSL-L006 assumes in compile.
-  const uxilDiagnostics = validateUxilFamily(
-    classifiedEntries,
-    options.profile ?? null,
-  );
 
   // Phase 3: Build traceability graph.
   // Keep first occurrence of each display ID (validator catches duplicates).
@@ -386,17 +402,16 @@ export async function compile(
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 
-  // Build the corpus typl registry directly — validate() (called above)
+  // Build the corpus typl registry directly — the pipeline (called above)
   // already ran the full validateTypl pass (citation resolution, TYPL-009,
-  // etc.) for validationDiagnostics; re-running it here just to get
-  // `.registry` would redo that work a second time per compile/show/
-  // context/report/export/MCP call.
+  // etc.) for its diagnostics; re-running it here just to get `.registry`
+  // would redo that work a second time per compile/show/context/report/
+  // export/MCP call.
   const typeRegistry = buildTypeRegistry([...entries.values()]);
 
   let diagnostics: Diagnostic[] = [
     ...parseDiagnostics,
-    ...validationDiagnostics,
-    ...uxilDiagnostics,
+    ...pipelineDiagnostics,
     ...linkTargetDiags,
   ];
 

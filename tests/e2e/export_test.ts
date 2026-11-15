@@ -147,3 +147,48 @@ Deno.test("export json: matches the compile --format json output", async () => {
     "export json and compile --format json should produce identical output",
   );
 });
+
+// ---------------------------------------------------------------------------
+// export reports the validator pipeline's traceability diagnostics (#950)
+// ---------------------------------------------------------------------------
+
+Deno.test("export json: an unresolved Satisfies target is an MSL-L006 diagnostic and the exit code stays 0", async () => {
+  const files = {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `id: "@acme/export-trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+    system-requirement:
+      extends: Requirement
+      display-id-pattern: "SREQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    "sreq.md": `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+      Satisfies: REQ-9999
+`,
+  };
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "sreq.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stderr, "MSL-L006");
+  const diagnostics = JSON.parse(stdout).diagnostics as { code: string }[];
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-L006").length, 1);
+});

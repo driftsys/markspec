@@ -6,7 +6,7 @@ snapshot[`check --format json: unchanged output without a feature fence 1`] = `
 `;
 
 snapshot[`compile --format json: unchanged output without a feature fence 1`] = `
-'{
+\`{
   "entries": {
     "REQ_BRK_0010": {
       "displayId": "REQ_BRK_0010",
@@ -198,11 +198,22 @@ snapshot[`compile --format json: unchanged output without a feature fence 1`] = 
       }
     ]
   },
-  "diagnostics": [],
+  "diagnostics": [
+    {
+      "code": "MSL-A005",
+      "severity": "warning",
+      "message": "REQ_BRK_0020: attribute 'Satisfies' is not declared in the profile scope",
+      "location": {
+        "file": "req.md",
+        "line": 9,
+        "column": 1
+      }
+    }
+  ],
   "typeRegistry": {
     "bindings": {},
     "typedefs": {}
   }
 }
-'
+\`
 `;

@@ -510,3 +510,39 @@ Deno.test("dispatchTool: entry_search with no hit in any project keeps the empty
   const text = await dispatchTool("entry_search", { query: "zzz" }, ws);
   assertEquals(text, "# Search results\n\nNo matches for `zzz`.\n");
 });
+
+// ---------------------------------------------------------------------------
+// validate reports the traceability diagnostics of the validator pipeline (#950)
+// ---------------------------------------------------------------------------
+
+Deno.test("dispatchTool: validate reports MSL-L006 for a missing Satisfies target", async () => {
+  const root = join(MEMORY_PARENT, "p");
+  const ws = await createWorkspace(memoryEnv({
+    [join(root, "project.yaml")]: PROJECT_YAML,
+    [join(root, ".markspec.yaml")]: "profiles:\n  - ./profiles/p\n",
+    [join(root, "profiles", "p", "markspec.yaml")]: `id: "@acme/trace"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+    system-requirement:
+      extends: Requirement
+      display-id-pattern: "SREQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`,
+    [join(root, "docs", "sreq.md")]: entryDoc(
+      "SREQ-0001",
+      "Derived response time",
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "      Type: system-requirement\n      Satisfies: REQ-9999\n",
+    ),
+  }));
+  const text = await dispatchTool("validate", {}, ws);
+  assertStringIncludes(text, "MSL-L006");
+});
