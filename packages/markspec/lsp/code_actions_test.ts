@@ -8,7 +8,11 @@
 
 import { assertEquals } from "@std/assert";
 import { format, parse, parseFile, validate } from "../core/mod.ts";
-import { buildCodeActions, type LspDiagnosticLike } from "./code_actions.ts";
+import {
+  buildCodeActions,
+  type LspDiagnosticLike,
+  sourceEntriesForCodeActions,
+} from "./code_actions.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
 
 function diag(opts: {
@@ -1054,7 +1058,7 @@ Deno.test("buildCodeActions: MSL-A013 works on a CRLF document (#952)", () => {
   assertEquals(editsOf(actions)[0].range.start.line, 8);
 });
 
-Deno.test("buildCodeActions: MSL-A030 removes the first forward match (#952)", () => {
+Deno.test("buildCodeActions: MSL-A030 removes the line of the diagnosed entry (#952)", () => {
   const doc = twoEntries(["      Superseded-by: REQ-009"], [
     "      Superseded-by: REQ-009",
   ]);
@@ -1065,7 +1069,7 @@ Deno.test("buildCodeActions: MSL-A030 removes the first forward match (#952)", (
   assertEquals(editsOf(actions)[0].range.start.line, 7);
 });
 
-Deno.test("buildCodeActions: MSL-T020 replaces the first forward match (#952)", () => {
+Deno.test("buildCodeActions: MSL-T020 replaces the value of the diagnosed entry (#952)", () => {
   const doc = twoEntries(["      Type: Requirment"], [
     "      Type: Requirment",
   ]);
@@ -1130,54 +1134,198 @@ Deno.test("buildCodeActions: MSL-A013 ignores empty-value lines (#952)", () => {
   assertEquals(edits[0].range.start.line, 9);
 });
 
-/** A Rust block doc comment holding an unprefixed, 4-space-indented entry. */
-const RS_BLOCK_DOC = (trailer: string) =>
-  [
-    "/**",
-    "- [REQ-001] Title",
-    "",
-    "    Body.",
-    "",
-    "    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
-    trailer,
-    "*/",
-    "fn f() {}",
-    "",
-  ].join("\n");
-
-Deno.test("buildCodeActions: MSL-A030 offers a fix in a source doc comment block (#952)", () => {
-  const doc = RS_BLOCK_DOC("    Superseded-by: REQ-009");
-  const actions = buildCodeActions("file:///x.rs", [
-    diag({
-      code: "MSL-A030",
-      message: "REQ-001: 'Superseded-by' has generated origin",
-      line: 1,
-      character: 0,
-    }),
+Deno.test("buildCodeActions: MSL-A030 never removes a same-key line of the following entry (#965)", () => {
+  const doc = twoEntries([], ["      Superseded-by: REQ-009"]);
+  const actions = buildCodeActions("file:///x.md", [
+    titleDiag("MSL-A030", "Superseded-by"),
   ], doc);
-  assertEquals(actions.length, 1);
-  assertEquals(
-    actions[0].edit!.changes!["file:///x.rs"][0].range.start.line,
-    6,
-  );
+  assertEquals(actions, []);
 });
 
-Deno.test("buildCodeActions: MSL-T020 offers a fix in a source doc comment block (#952)", () => {
-  const doc = RS_BLOCK_DOC("    Type: Requirment");
-  const actions = buildCodeActions("file:///x.rs", [
+Deno.test("buildCodeActions: MSL-T020 never edits a same-value line of the following entry (#965)", () => {
+  const doc = twoEntries([], ["      Type: Requirment"]);
+  const actions = buildCodeActions("file:///x.md", [
     diag({
       code: "MSL-T020",
       message: "REQ-001: Type: 'Requirment' is not a core type",
-      line: 1,
+      line: 2,
       character: 0,
     }),
   ], doc);
-  assertEquals(actions.length, 1);
-  assertEquals(
-    actions[0].edit!.changes!["file:///x.rs"][0].newText,
-    "Requirement",
-  );
+  assertEquals(actions, []);
 });
+
+/** Source files in three comment layouts; each holds two entries. */
+const SOURCE_LAYOUTS: Record<string, (a: string[], b: string[]) => string> = {
+  "x.rs (/// comments)": (a, b) =>
+    [
+      "/// [REQ-001] First",
+      "///",
+      "///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      ...a.map((l) => `///     ${l}`),
+      "fn a() {}",
+      "",
+      "/// [REQ-002] Second",
+      "///",
+      "///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      ...b.map((l) => `///     ${l}`),
+      "fn b() {}",
+      "",
+    ].join("\n"),
+  "x.rs (* block comment)": (a, b) =>
+    [
+      "/**",
+      " * [REQ-001] First",
+      " *",
+      " *     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      ...a.map((l) => ` *     ${l}`),
+      " */",
+      "fn a() {}",
+      "",
+      "/**",
+      " * [REQ-002] Second",
+      " *",
+      " *     Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      ...b.map((l) => ` *     ${l}`),
+      " */",
+      "fn b() {}",
+      "",
+    ].join("\n"),
+  "x.rs (block comment, no * prefix)": (a, b) =>
+    [
+      "/**",
+      "    [REQ-001] First",
+      "",
+      "        Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      ...a.map((l) => `        ${l}`),
+      "*/",
+      "fn a() {}",
+      "",
+      "/**",
+      "    [REQ-002] Second",
+      "",
+      "        Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      ...b.map((l) => `        ${l}`),
+      "*/",
+      "fn b() {}",
+      "",
+    ].join("\n"),
+};
+
+/** The 0-based line of the first line that holds `needle`. */
+function lineOf(text: string, needle: string): number {
+  return text.split("\n").findIndex((l) => l.includes(needle));
+}
+
+async function sourceActions(
+  text: string,
+  diagnostic: LspDiagnosticLike,
+) {
+  const parsed = await parseFile(text, { file: "/x.rs" });
+  return buildCodeActions("file:///x.rs", [diagnostic], text, parsed.entries);
+}
+
+Deno.test("buildCodeActions: a source file with no entries gets no A030 or T020 fix, but keeps M060 (#965)", () => {
+  // The text is a valid Markdown entry block; a source file must not take
+  // the Markdown path.
+  const text = twoEntries([
+    "      Superseded-by: REQ-009",
+    "      Type: Requirment",
+  ], []);
+  const actions = buildCodeActions(
+    "file:///x.rs",
+    [
+      titleDiag("MSL-A030", "Superseded-by"),
+      diag({
+        code: "MSL-T020",
+        message: "REQ-001: Type: 'Requirment' is not a core type",
+        line: 2,
+        character: 0,
+      }),
+      diag({
+        code: "MSL-M060",
+        message: "REQ-001: modal keyword 'SHALL' in body prose is uppercase",
+        line: 4,
+        character: 2,
+      }),
+    ],
+    text,
+    [],
+  );
+  assertEquals(actions.map((a) => a.title), ["Lowercase 'shall'"]);
+});
+
+for (const [name, layout] of Object.entries(SOURCE_LAYOUTS)) {
+  const titleLine = (text: string) => lineOf(text, "[REQ-001]");
+
+  Deno.test(`buildCodeActions: MSL-A030 removes the right line in ${name} (#965)`, async () => {
+    const text = layout(["Superseded-by: REQ-009"], []);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-A030",
+        message: "REQ-001: 'Superseded-by' has generated origin",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions.length, 1);
+    const edit = actions[0].edit!.changes!["file:///x.rs"];
+    assertEquals(edit.length, 1);
+    assertEquals(edit[0].range.start.line, lineOf(text, "Superseded-by"));
+    assertEquals(edit[0].range.end.line, lineOf(text, "Superseded-by") + 1);
+  });
+
+  Deno.test(`buildCodeActions: MSL-A030 skips a same-key line of the following entry in ${name} (#965)`, async () => {
+    const text = layout([], ["Superseded-by: REQ-009"]);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-A030",
+        message: "REQ-001: 'Superseded-by' has generated origin",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions, []);
+  });
+
+  Deno.test(`buildCodeActions: MSL-T020 replaces the right value in ${name} (#965)`, async () => {
+    const text = layout(["Type: Requirment"], []);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-T020",
+        message: "REQ-001: Type: 'Requirment' is not a core type",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions.length, 1);
+    const edit = actions[0].edit!.changes!["file:///x.rs"][0];
+    const line = lineOf(text, "Type: Requirment");
+    assertEquals(edit.newText, "Requirement");
+    assertEquals(edit.range.start.line, line);
+    assertEquals(
+      edit.range.start.character,
+      text.split("\n")[line].indexOf("Requirment"),
+    );
+  });
+
+  Deno.test(`buildCodeActions: MSL-T020 skips a same-value line of the following entry in ${name} (#965)`, async () => {
+    const text = layout([], ["Type: Requirment"]);
+    const actions = await sourceActions(
+      text,
+      diag({
+        code: "MSL-T020",
+        message: "REQ-001: Type: 'Requirment' is not a core type",
+        line: titleLine(text),
+        character: 0,
+      }),
+    );
+    assertEquals(actions, []);
+  });
+}
 
 Deno.test("buildCodeActions: MSL-A012 strips a continuation backslash before trailing spaces (#952)", () => {
   for (const tail of ["\\  ", "\\\t"]) {
@@ -1234,4 +1382,348 @@ Deno.test("buildCodeActions: real MSL-A012 diagnostics fix the right lines (#952
     actions[1].edit!.changes!["file:///x.md"][0].range.start.line,
     15,
   );
+});
+
+// ---------------------------------------------------------------------------
+// #965 review pass 1: comment close, owner selection, D2, wiring, bounds
+// ---------------------------------------------------------------------------
+
+const ID_LINE = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+const A030_DIAG = (line: number) =>
+  diag({
+    code: "MSL-A030",
+    message: "REQ-001: 'Superseded-by' has generated origin",
+    line,
+    character: 0,
+  });
+const T020_DIAG = (line: number, value = "Requirment") =>
+  diag({
+    code: "MSL-T020",
+    message: `REQ-001: Type: '${value}' is not a core type`,
+    line,
+    character: 0,
+  });
+
+Deno.test("buildCodeActions: MSL-A030 keeps the comment close of a *-prefixed block (#965)", async () => {
+  const text = [
+    "/**",
+    " * [REQ-001] First",
+    " *",
+    ` *     Id: ${ID_LINE}`,
+    " *     Superseded-by: REQ-009 */",
+    "fn a() {}",
+    "",
+  ].join("\n");
+  const actions = await sourceActions(text, A030_DIAG(1));
+  assertEquals(actions.length, 1);
+  const edit = actions[0].edit!.changes!["file:///x.rs"];
+  assertEquals(edit.length, 1);
+  assertEquals(edit[0].range, {
+    start: { line: 4, character: 0 },
+    end: { line: 4, character: " *     Superseded-by: REQ-009 */".length },
+  });
+  assertEquals(edit[0].newText, " */");
+});
+
+Deno.test("buildCodeActions: MSL-A030 keeps the comment close of an unprefixed block (#965)", async () => {
+  const text = [
+    "/**",
+    "    [REQ-001] First",
+    "",
+    `        Id: ${ID_LINE}`,
+    "        Superseded-by: REQ-009 */",
+    "fn a() {}",
+    "",
+  ].join("\n");
+  const actions = await sourceActions(text, A030_DIAG(1));
+  assertEquals(actions.length, 1);
+  const edit = actions[0].edit!.changes!["file:///x.rs"];
+  assertEquals(edit.length, 1);
+  assertEquals(edit[0].range.start, { line: 4, character: 0 });
+  assertEquals(edit[0].newText, "        */");
+});
+
+Deno.test("buildCodeActions: MSL-A030 deletes a whole line that has no comment close (#965)", async () => {
+  const text = SOURCE_LAYOUTS["x.rs (* block comment)"](
+    ["Superseded-by: REQ-009"],
+    [],
+  );
+  const actions = await sourceActions(text, A030_DIAG(1));
+  assertEquals(actions[0].edit!.changes!["file:///x.rs"][0].newText, "");
+});
+
+Deno.test("buildCodeActions: source fixes target the second entry when the diagnostic is on its title (#965)", async () => {
+  const layout = SOURCE_LAYOUTS["x.rs (/// comments)"];
+  const text = layout(
+    ["Superseded-by: REQ-009", "Type: Requirment"],
+    ["Superseded-by: REQ-009", "Type: Requirment"],
+  );
+  const lines = text.split("\n");
+  const second = lines.findIndex((l) => l.includes("[REQ-002]"));
+  const a030 = await sourceActions(text, A030_DIAG(second));
+  assertEquals(
+    a030[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    lines.findIndex((l, n) => n > second && l.includes("Superseded-by")),
+  );
+  const t020 = await sourceActions(text, T020_DIAG(second));
+  assertEquals(
+    t020[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    lines.findIndex((l, n) => n > second && l.includes("Type:")),
+  );
+});
+
+Deno.test("buildCodeActions: source fixes work when the diagnostic is on a trailer line (#965)", async () => {
+  const text = SOURCE_LAYOUTS["x.rs (/// comments)"](
+    ["Superseded-by: REQ-009", "Type: Requirment"],
+    [],
+  );
+  const lines = text.split("\n");
+  const attr = lines.findIndex((l) => l.includes("Superseded-by"));
+  const a030 = await sourceActions(text, A030_DIAG(attr));
+  assertEquals(
+    a030[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    attr,
+  );
+  const typeLine = lines.findIndex((l) => l.includes("Type: Requirment"));
+  const t020 = await sourceActions(text, T020_DIAG(typeLine));
+  assertEquals(
+    t020[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    typeLine,
+  );
+});
+
+Deno.test("buildCodeActions: source fixes give no action for a diagnostic below the trailer (#965)", async () => {
+  const text = SOURCE_LAYOUTS["x.rs (/// comments)"](
+    ["Superseded-by: REQ-009", "Type: Requirment"],
+    [],
+  );
+  const code = text.split("\n").findIndex((l) => l.startsWith("fn a"));
+  assertEquals(await sourceActions(text, A030_DIAG(code)), []);
+  assertEquals(await sourceActions(text, T020_DIAG(code)), []);
+});
+
+Deno.test("buildCodeActions: MSL-A030 gives no action when the attribute line does not hold the key (#965)", async () => {
+  const text = SOURCE_LAYOUTS["x.rs (/// comments)"](
+    ["Superseded-by: REQ-009"],
+    [],
+  );
+  const parsed = await parseFile(text, { file: "/x.rs" });
+  const code = text.split("\n").findIndex((l) => l.startsWith("fn a")) + 1;
+  const stale = parsed.entries.map((e) => ({
+    ...e,
+    attributeLines: e.rawAttributes.map(() => code),
+  }));
+  assertEquals(
+    buildCodeActions("file:///x.rs", [A030_DIAG(0)], text, stale),
+    [],
+  );
+});
+
+Deno.test("buildCodeActions: MSL-T020 picks the Type line that holds the bad value (#965)", async () => {
+  const lines = ["Type: Requirement", "Type: Requirment"];
+  const source = SOURCE_LAYOUTS["x.rs (/// comments)"](lines, []);
+  const at = source.split("\n").findIndex((l) => l.includes("Requirment"));
+  const sourceFix = await sourceActions(source, T020_DIAG(0));
+  assertEquals(
+    sourceFix[0].edit!.changes!["file:///x.rs"][0].range.start.line,
+    at,
+  );
+  const doc = twoEntries(lines.map((l) => `      ${l}`), []);
+  const mdAt = doc.split("\n").findIndex((l) => l.includes("Requirment"));
+  const mdFix = buildCodeActions("file:///x.md", [T020_DIAG(2)], doc);
+  assertEquals(editsOf(mdFix)[0].range.start.line, mdAt);
+});
+
+Deno.test("buildCodeActions: MSL-T020 edits the value, not the key, when the value is a prefix of it (#965)", () => {
+  const doc = twoEntries(["      Type: Typ"], []);
+  const actions = buildCodeActions("file:///x.md", [
+    T020_DIAG(2, "Typ"),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(editsOf(actions)[0].range.start.character, 12);
+});
+
+/** An entry with no trailer, then an entry whose trailer holds the keys. */
+const NO_TRAILER_THEN_KEYS = [
+  "# Test",
+  "",
+  "- [REQ-001] First",
+  "",
+  "  Body.",
+  "",
+  "- [REQ-002] Second",
+  "",
+  "  Body.",
+  "",
+  `      Id: ${ID_LINE}`,
+  "      Superseded-by: REQ-009",
+  "      Type: Requirment",
+  "",
+].join("\n");
+
+Deno.test("buildCodeActions: Markdown A030 and T020 give no action when the diagnosed entry has no trailer block (#965)", () => {
+  assertEquals(
+    buildCodeActions("file:///x.md", [A030_DIAG(2)], NO_TRAILER_THEN_KEYS),
+    [],
+  );
+  assertEquals(
+    buildCodeActions("file:///x.md", [T020_DIAG(2)], NO_TRAILER_THEN_KEYS),
+    [],
+  );
+});
+
+Deno.test("buildCodeActions: Markdown A030 and T020 give no action for a diagnostic before any entry (#965)", () => {
+  assertEquals(
+    buildCodeActions("file:///x.md", [A030_DIAG(0)], NO_TRAILER_THEN_KEYS),
+    [],
+  );
+  assertEquals(
+    buildCodeActions("file:///x.md", [T020_DIAG(0)], NO_TRAILER_THEN_KEYS),
+    [],
+  );
+});
+
+Deno.test("sourceEntriesForCodeActions: parses a source file that has an A030 diagnostic (#965)", async () => {
+  const parsed = [{ displayId: "REQ-001" }] as never;
+  let parses = 0;
+  const entries = await sourceEntriesForCodeActions(
+    "/x.rs",
+    "text",
+    [{ code: "MSL-M060" }, { code: "MSL-A030" }],
+    {
+      parse: (_text, options) => {
+        parses++;
+        assertEquals(options.file, "/x.rs");
+        return Promise.resolve({ entries: parsed });
+      },
+      warn: () => {},
+    },
+  );
+  assertEquals(entries, parsed);
+  assertEquals(parses, 1);
+});
+
+Deno.test("sourceEntriesForCodeActions: parses for T020 and skips the parse for other codes (#965)", async () => {
+  let parses = 0;
+  const io = {
+    parse: () => {
+      parses++;
+      return Promise.resolve({ entries: [] });
+    },
+    warn: () => {},
+  };
+  await sourceEntriesForCodeActions("/x.rs", "t", [{ code: "MSL-T020" }], io);
+  assertEquals(parses, 1);
+  const none = await sourceEntriesForCodeActions(
+    "/x.rs",
+    "t",
+    [{ code: "MSL-M060" }, { code: "MSL-A011" }],
+    io,
+  );
+  assertEquals(none, []);
+  assertEquals(parses, 1);
+});
+
+Deno.test("sourceEntriesForCodeActions: a parse failure gives [] and one warning (#965)", async () => {
+  const warnings: string[] = [];
+  const entries = await sourceEntriesForCodeActions(
+    "/x.rs",
+    "t",
+    [{ code: "MSL-A030" }],
+    {
+      parse: () => Promise.reject(new Error("grammar missing")),
+      warn: (m) => warnings.push(m),
+    },
+  );
+  assertEquals(entries, []);
+  assertEquals(warnings.length, 1);
+});
+
+Deno.test("sourceEntriesForCodeActions: a Markdown file gives undefined without parsing (#965)", async () => {
+  let parses = 0;
+  const entries = await sourceEntriesForCodeActions(
+    "/x.md",
+    "t",
+    [{ code: "MSL-A030" }],
+    {
+      parse: () => {
+        parses++;
+        return Promise.resolve({ entries: [] });
+      },
+      warn: () => {},
+    },
+  );
+  assertEquals(entries, undefined);
+  assertEquals(parses, 0);
+});
+
+Deno.test("buildCodeActions: MSL-A030 keeps the text after the comment close (#965)", async () => {
+  const text = [
+    "/**",
+    " * [REQ-001] First",
+    " *",
+    ` *     Id: ${ID_LINE}`,
+    " *     Superseded-by: REQ-009 */ fn a() {}",
+    "",
+  ].join("\n");
+  const actions = await sourceActions(text, A030_DIAG(1));
+  assertEquals(actions.length, 1);
+  assertEquals(
+    actions[0].edit!.changes!["file:///x.rs"][0].newText,
+    " */ fn a() {}",
+  );
+});
+
+Deno.test("buildCodeActions: source fixes give no action for a diagnostic before the first entry (#965)", async () => {
+  const text = "// header\n\n" +
+    SOURCE_LAYOUTS["x.rs (/// comments)"](
+      ["Superseded-by: REQ-009", "Type: Requirment"],
+      [],
+    );
+  assertEquals(await sourceActions(text, A030_DIAG(0)), []);
+  assertEquals(await sourceActions(text, T020_DIAG(0)), []);
+});
+
+/**
+ * Entries parsed from a clean source file whose only attribute is
+ * `Superseded-by` on the 4th line (0-based 3), and that text with that line
+ * replaced by `line`. Models an entry list that is out of date with the text.
+ */
+async function withReplacedAttributeLine(line: string) {
+  const clean = [
+    "/// [REQ-001] First",
+    "///",
+    `///     Id: ${ID_LINE}`,
+    "///     Superseded-by: REQ-009",
+    "fn a() {}",
+    "",
+  ];
+  const parsed = await parseFile(clean.join("\n"), { file: "/x.rs" });
+  const text = clean.map((l, n) => n === 3 ? line : l).join("\n");
+  return { text, entries: parsed.entries };
+}
+
+Deno.test("buildCodeActions: MSL-A030 does not match a key that is the tail of a longer key (#965)", async () => {
+  const { text, entries } = await withReplacedAttributeLine(
+    "///     Not-Superseded-by: REQ-009",
+  );
+  assertEquals(
+    buildCodeActions("file:///x.rs", [A030_DIAG(0)], text, entries),
+    [],
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A030 looks for the comment close after the key (#965)", async () => {
+  // A close-like text before the key is not the comment close.
+  const { text, entries } = await withReplacedAttributeLine(
+    "///     a */ Superseded-by: REQ-009",
+  );
+  const actions = buildCodeActions(
+    "file:///x.rs",
+    [A030_DIAG(0)],
+    text,
+    entries,
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].edit!.changes!["file:///x.rs"][0].newText, "");
 });

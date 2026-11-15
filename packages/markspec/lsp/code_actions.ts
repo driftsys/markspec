@@ -11,8 +11,14 @@
  * block of the entry the diagnostic belongs to, and offer no action when no
  * line of that block qualifies. They need a parsed Markdown entry, so in a
  * source file, whose text is parsed as Markdown, they offer no action unless
- * the text holds a literal entry block. A030 and T020 still scan forward from
- * the diagnostic line without a block bound (#965 tracks bounding them).
+ * the text holds a literal entry block. The A030 and T020 fixes are bounded
+ * the same way. In Markdown they use the trailer block of the diagnosed
+ * entry. In a source file the caller passes the entries that the source
+ * parser extracted from the doc comments; each entry carries the file line of
+ * every trailer attribute (`Entry.attributeLines`), so the fix works for
+ * `///` comments, `*`-prefixed block comments and block comments with no
+ * prefix. When no trailer line of the diagnosed entry qualifies, there is no
+ * action: the fixes never scan forward without a bound.
  * The A011, A012 and A013 fixes accept LF or CRLF line endings and a
  * tab-led trailer line, and read a value as the parser reads it: the line is
  * trimmed and one trailing continuation backslash is dropped. When several
@@ -23,10 +29,14 @@
  *
  *   - **MSL-M060** — uppercase modal keyword. Action: lowercase it.
  *   - **MSL-A030** — generated attribute in source. Action: remove
- *     the offending trailer line.
+ *     the offending trailer line, found in the diagnosed entry's trailer
+ *     block only. When that line also holds the closing delimiter of a
+ *     block comment, the line is rewritten to its comment prefix plus
+ *     the delimiter, and the text after the delimiter is kept.
  *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
  *     closest core type, when one is within Levenshtein distance 3.
- *     "Did you mean …" rather than exhaustive suggestions.
+ *     "Did you mean …" rather than exhaustive suggestions. The `Type:`
+ *     line is found in the diagnosed entry's trailer block only.
  *   - **MSL-A013** — single-cardinality attribute appears more than
  *     once. Action: delete every duplicate trailer line, keeping the
  *     first occurrence. Only lines in the diagnosed entry's trailer
@@ -59,7 +69,12 @@
  *     an informational stub (full revert requires connector cache I/O).
  */
 
-import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
+import {
+  CORE_ABSTRACT_TYPES,
+  CORE_CONCRETE_TYPES,
+  type Entry,
+} from "../core/model/mod.ts";
+import { isSourceFile } from "./context.ts";
 import {
   findAttributeBlockRange,
   parse,
@@ -130,11 +145,19 @@ const MAX_SUGGESTION_DISTANCE = 3;
  * `documentText` is optional; it's only needed for fixes that locate
  * a specific line in the source (e.g. MSL-A030 attribute removal).
  * MSL-M060 only invocations may omit it.
+ *
+ * `sourceEntries` is set for a source file only, and never for Markdown:
+ * the entries that the source parser extracted from its doc comments. The
+ * A030 and T020 fixes of a source file read their line from these entries,
+ * so an empty list gives a source file no A030 or T020 fix. Without
+ * `sourceEntries`, the document is Markdown and the fixes read its trailer
+ * block.
  */
 export function buildCodeActions(
   uri: string,
   diagnostics: readonly LspDiagnosticLike[],
   documentText?: string,
+  sourceEntries?: readonly Entry[],
 ): CodeAction[] {
   const out: CodeAction[] = [];
   // Parsed once, and only when a Markdown fix needs the entries.
@@ -171,10 +194,14 @@ export function buildCodeActions(
     } else if (documentText !== undefined) {
       switch (diag.code) {
         case "MSL-A030":
-          action = buildA030Fix(uri, diag, documentText);
+          action = sourceEntries
+            ? buildSourceA030Fix(uri, diag, documentText, sourceEntries)
+            : buildA030Fix(uri, diag, markdown());
           break;
         case "MSL-T020":
-          action = buildT020Fix(uri, diag, documentText);
+          action = sourceEntries
+            ? buildSourceT020Fix(uri, diag, documentText, sourceEntries)
+            : buildT020Fix(uri, diag, markdown());
           break;
         case "MSL-A013":
           action = buildA013Fix(uri, diag, markdown());
@@ -428,13 +455,20 @@ export function buildM060Fix(
 function buildA030Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
 ): CodeAction | undefined {
-  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
-  if (!match) return undefined;
-  const attrKey = match[1];
-  const i = findTrailerLine(documentText, diag.range.start.line, attrKey);
-  if (i === undefined) return undefined;
+  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+  if (attrKey === undefined) return undefined;
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
+  if (!block) return undefined;
+  const i = findKeyLine(
+    doc.lines,
+    block.range,
+    attrKey,
+    markdownKey,
+    markdownValue,
+  );
+  if (i < 0) return undefined;
   return quickFix(uri, diag, `Remove '${attrKey}' line`, [
     deleteLines(i, i + 1),
   ]);
@@ -443,42 +477,132 @@ function buildA030Fix(
 function buildT020Fix(
   uri: string,
   diag: LspDiagnosticLike,
-  documentText: string,
+  doc: MarkdownDocument,
 ): CodeAction | undefined {
-  const match = T020_VALUE_RE.exec(diag.message);
-  if (!match) return undefined;
-  const badValue = match[1];
+  const badValue = T020_VALUE_RE.exec(diag.message)?.[1];
+  if (badValue === undefined) return undefined;
+  const block = markdownTrailerBlock(doc, diag.range.start.line);
+  if (!block) return undefined;
+  const i = findKeyLine(
+    doc.lines,
+    block.range,
+    "Type",
+    markdownKey,
+    markdownValue,
+    (value) => value.includes(badValue),
+  );
+  if (i < 0) return undefined;
+  return replaceTypeValue(uri, diag, doc.lines[i], i, badValue);
+}
+
+/** The "replace with the closest core type" fix for the `Type:` value
+ * `badValue` on line `i`, or `undefined` when no core type is close. */
+function replaceTypeValue(
+  uri: string,
+  diag: LspDiagnosticLike,
+  line: string,
+  i: number,
+  badValue: string,
+): CodeAction | undefined {
   const suggestion = closestCoreType(badValue);
   if (!suggestion) return undefined;
-  // Scan forward from the diagnostic line for the matching Type:
-  // trailer line, then locate the bad value's column within it.
-  const lines = documentText.split("\n");
-  for (let i = diag.range.start.line; i < lines.length; i++) {
-    const line = lines[i];
-    const idx = line.indexOf(badValue);
-    if (idx < 0) continue;
-    // Confirm this line is a `Type:` trailer (defensive against an
-    // accidental occurrence of the bad value in body prose).
-    if (!/^\s{4,}Type\s*:/.test(line)) continue;
-    return {
-      title: `Replace with '${suggestion}'`,
-      kind: "quickfix",
-      diagnostics: [diag],
-      isPreferred: true,
-      edit: {
-        changes: {
-          [uri]: [{
-            range: {
-              start: { line: i, character: idx },
-              end: { line: i, character: idx + badValue.length },
-            },
-            newText: suggestion,
-          }],
-        },
+  const idx = line.indexOf(badValue, Math.max(0, line.indexOf(":")));
+  if (idx < 0) return undefined;
+  return {
+    title: `Replace with '${suggestion}'`,
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: true,
+    edit: {
+      changes: {
+        [uri]: [{
+          range: {
+            start: { line: i, character: idx },
+            end: { line: i, character: idx + badValue.length },
+          },
+          newText: suggestion,
+        }],
       },
-    };
+    },
+  };
+}
+
+/**
+ * The 0-based file line of the first trailer attribute with `key` (and a
+ * value that `accept` allows) in the source entry that the diagnostic at the
+ * 0-based `line` belongs to: the entry with the last title line at or before
+ * `line`. Reads `Entry.attributeLines`, so it never reaches another entry.
+ * Returns -1 when no entry holds the line (the diagnostic is before the
+ * first entry), the owner has no attribute lines, the diagnostic lies below
+ * the entry's last trailer line, or no attribute qualifies.
+ */
+function findSourceTrailerLine(
+  entries: readonly Entry[],
+  line: number,
+  key: string,
+  accept: (value: string) => boolean = () => true,
+): number {
+  let owner: Entry | undefined;
+  for (const entry of entries) {
+    if (entry.location.line - 1 > line) continue;
+    if (!owner || entry.location.line > owner.location.line) owner = entry;
   }
-  return undefined;
+  const lines = owner?.attributeLines;
+  if (!owner || !lines) return -1;
+  // The diagnostic must not lie below the entry's last trailer line.
+  if (line > Math.max(...lines) - 1) return -1;
+  const at = owner.rawAttributes.findIndex((attr, n) =>
+    attr.key === key && lines[n] !== undefined && accept(attr.value)
+  );
+  return at < 0 ? -1 : lines[at] - 1;
+}
+
+function buildSourceA030Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+  entries: readonly Entry[],
+): CodeAction | undefined {
+  const attrKey = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+  if (attrKey === undefined) return undefined;
+  const i = findSourceTrailerLine(entries, diag.range.start.line, attrKey);
+  const line = splitLines(documentText).lines[i];
+  if (i < 0 || line === undefined) return undefined;
+  // The target line must hold `Key:`; a line without it gives no fix.
+  const keyAt = line.search(new RegExp(`(?<![A-Za-z-])${attrKey}\\s*:`));
+  if (keyAt < 0) return undefined;
+  const title = `Remove '${attrKey}' line`;
+  const closeAt = line.indexOf("*/", keyAt);
+  if (closeAt < 0) return quickFix(uri, diag, title, [deleteLines(i, i + 1)]);
+  // The line also closes a block comment. Deleting it would leave the
+  // comment unterminated, so keep the closing `*/` and drop the attribute.
+  const leading = line.slice(0, line.length - line.trimStart().length);
+  return quickFix(uri, diag, title, [{
+    range: {
+      start: { line: i, character: 0 },
+      end: { line: i, character: line.length },
+    },
+    newText: `${leading}*/${line.slice(closeAt + 2)}`,
+  }]);
+}
+
+function buildSourceT020Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+  entries: readonly Entry[],
+): CodeAction | undefined {
+  const badValue = T020_VALUE_RE.exec(diag.message)?.[1];
+  if (badValue === undefined) return undefined;
+  const i = findSourceTrailerLine(
+    entries,
+    diag.range.start.line,
+    "Type",
+    (value) => value.includes(badValue),
+  );
+  const line = splitLines(documentText).lines[i];
+  if (i < 0 || line === undefined) return undefined;
+  return replaceTypeValue(uri, diag, line, i, badValue);
 }
 
 function buildA013Fix(
@@ -504,25 +628,6 @@ function buildA013Fix(
     `Remove duplicate '${attrKey}' line(s)`,
     dupLines.map((i) => deleteLines(i, i + 1)),
   );
-}
-
-/**
- * Find the first trailer line defining `attrKey` — `<indent><Key>:` —
- * at or after the 0-based `fromLine`. The parser canonicalises trailer
- * indent to 6 spaces but accepts any indent ≥4 (one tab), so the match
- * is lenient. Returns the 0-based line index, or `undefined`.
- */
-function findTrailerLine(
-  documentText: string,
-  fromLine: number,
-  attrKey: string,
-): number | undefined {
-  const lines = documentText.split("\n");
-  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
-  for (let i = fromLine; i < lines.length; i++) {
-    if (lineRe.test(lines[i])) return i;
-  }
-  return undefined;
 }
 
 /** A half-open range of line indexes: `start` inclusive, `end` exclusive. */
@@ -825,4 +930,40 @@ function levenshtein(a: string, b: string): number {
     for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
   }
   return prev[b.length];
+}
+
+/**
+ * The entries that the A030 and T020 quick fixes read their line from, for
+ * the document at `filePath`: `undefined` for a file that is not a source
+ * file, so that {@linkcode buildCodeActions} takes the Markdown path. A
+ * source file is parsed only when a diagnostic of the request is an A030 or
+ * a T020. The list is empty, which gives no A030 or T020 fix, when no parse
+ * is needed or the parse fails; a failure is reported once through `warn`, so
+ * the other quick fixes of the request still work.
+ */
+export async function sourceEntriesForCodeActions(
+  filePath: string,
+  documentText: string | undefined,
+  diagnostics: readonly { code: string }[],
+  io: {
+    parse: (
+      text: string,
+      options: { file: string },
+    ) => Promise<{ entries: readonly Entry[] }>;
+    warn: (message: string) => void;
+  },
+): Promise<readonly Entry[] | undefined> {
+  if (!isSourceFile(filePath)) return undefined;
+  if (
+    documentText === undefined ||
+    !diagnostics.some((d) => d.code === "MSL-A030" || d.code === "MSL-T020")
+  ) return [];
+  try {
+    return (await io.parse(documentText, { file: filePath })).entries;
+  } catch (err) {
+    io.warn(
+      `Quick fixes for ${filePath} skipped: the source file failed to parse: ${err}`,
+    );
+    return [];
+  }
 }

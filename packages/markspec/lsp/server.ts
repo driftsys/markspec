@@ -48,6 +48,7 @@ import {
   isWithin,
   loadMarkdownFormatter,
   makeDisplayId,
+  parseFile,
   targetsForRelation,
   VERSION,
 } from "../core/mod.ts";
@@ -64,7 +65,10 @@ import {
   buildFormattingEdits,
 } from "./formatting.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
-import { buildCodeActions } from "./code_actions.ts";
+import {
+  buildCodeActions,
+  sourceEntriesForCodeActions,
+} from "./code_actions.ts";
 import { buildFeatureCodeActions } from "./feature_code_actions.ts";
 import {
   resolveNavigableLocation,
@@ -1497,8 +1501,9 @@ connection.onCodeAction(async (params) => {
   const documentText = document?.getText();
   // deno-lint-ignore no-explicit-any
   const diagnostics = params.context.diagnostics as any;
-  // `.feature` diagnostics never reach the Markdown builders: those scan
-  // every indented `Key:` line, which can be a doc string line (#943).
+  // `.feature` diagnostics never reach the Markdown builders: a `.feature`
+  // file has no Markdown trailer block, and an indented `Key:` line in it
+  // can be a doc string line (#943).
   const actions = isFeatureFile(filePath)
     ? await buildFeatureCodeActions(
       params.textDocument.uri,
@@ -1506,7 +1511,15 @@ connection.onCodeAction(async (params) => {
       diagnostics,
       documentText ?? "",
     )
-    : buildCodeActions(params.textDocument.uri, diagnostics, documentText);
+    : buildCodeActions(
+      params.textDocument.uri,
+      diagnostics,
+      documentText,
+      await sourceEntriesForCodeActions(filePath, documentText, diagnostics, {
+        parse: parseFile,
+        warn: (message) => connection.console.warn(message),
+      }),
+    );
   // deno-lint-ignore no-explicit-any
   return actions as any;
 });
