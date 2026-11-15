@@ -344,7 +344,11 @@ decision text above is kept as it was written.
   group, with its own profile, `exclude:` list, and project-wide gates. The
   lockfile drift gate of a root still compares against every file the walk of
   that root finds, including the files of nested projects, because that is the
-  set `markspec lock` pins.
+  set `markspec lock` pins. _Amended 2026-11-16
+  ([#860](https://github.com/driftsys/markspec/issues/860),
+  [#871](https://github.com/driftsys/markspec/pull/871)):_ each `markspec.lock`
+  now pins only the files of its own project, so the drift gate also compares
+  each nested project against its own lockfile and only that project's files.
 - A directory argument expands to the files the bare walk of its project finds
   below that directory, so `exclude:` applies to it.
 - For any folder, this resolver gives the root the LSP server and the MCP server

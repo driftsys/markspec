@@ -147,9 +147,7 @@ also processes each nested project as its own group, with its own profile. MCP
 `validate` and bare `check` therefore agree for nested projects: a display ID
 declared once in each of two nested projects is not a duplicate for either, and
 a `Satisfies:` that points from one nested project into another is unresolved
-for either. The lockfile drift gate of `check` is the one exception: it compares
-the lockfile of an enclosing project against every file below that project,
-including the files of nested projects.
+for either.
 
 To stop the MCP server from treating a nested folder that has its own config
 (for example a test fixture) as a separate project, list it under `exclude:` in
