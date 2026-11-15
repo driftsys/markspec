@@ -431,8 +431,8 @@ function checkStructural(
       }
       // MSL-R010: Unknown attributes are warnings in the core. A
       // profile-aware validator widens this check to include profile-declared
-      // attributes; until then, anything outside the universal set is
-      // unrecognized. Core-typed attributes (per ADR-003 §Part 2) are
+      // attributes; until then, anything outside the universal set and the
+      // core relation keys is unrecognized. Core-typed attributes (per ADR-003 §Part 2) are
       // suppressed here — the per-type validator emits a more specific
       // MSL-T022 when they appear on the "wrong" type.
       if (
@@ -445,7 +445,7 @@ function checkStructural(
           code: "MSL-R010",
           severity: "warning",
           message:
-            `${entry.displayId}: unknown attribute '${attr.key}' (not in core universal set; profile-declared attributes are permitted when a profile is loaded)`,
+            `${entry.displayId}: unknown attribute '${attr.key}' (not in core universal set or core relation keys; profile-declared attributes are permitted when a profile is loaded)`,
           location: entry.location,
         });
       }
