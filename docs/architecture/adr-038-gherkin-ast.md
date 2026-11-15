@@ -569,7 +569,7 @@ indented doc-string line.
 10. **Missing Id (D10).** There is no quick fix for `MSL-R003` or `MSL-I003`.
     Format Document stamps the Id, as for Markdown.
 
-Out of scope: `MSL-B062`, `MSL-P030`, `MSL-B060` to `MSL-B068`, `MSL-R003` and
+Out of scope: `MSL-B062`, `MSL-P030`, `MSL-B060` to `MSL-B068`, `MSL-R003` with
 `MSL-I004` (multiple Id), `MSL-P022`, a non-empty malformed `MSL-P021`,
 `MSL-A006`.
 

@@ -217,9 +217,10 @@ What works in a `.feature` file:
   `markspec fmt` does, and changes nothing else. It returns no edits for a file
   with no header, a file that does not parse, and a file whose headers all have
   an Id. The Markdown formatter is not used.
-- **Quick fixes.** The editor offers fixes for these codes, and each one edits
-  only the trailer lines of the header that the diagnostic points at, never a
-  step or a doc-string line:
+- **Quick fixes.** The editor offers fixes for these codes. The attribute fixes
+  edit only the trailer lines of the header that the diagnostic points at, and
+  the `MSL-B069` fix deletes only blank lines; no fix edits a step or a
+  doc-string line:
   - `MSL-A030`: remove the generated attribute line.
   - `MSL-A013`: keep the first line of a repeated key, remove the others.
   - `MSL-A012`: remove a repeatable attribute line with an empty value list.
