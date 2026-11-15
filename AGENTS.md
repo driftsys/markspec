@@ -96,7 +96,8 @@ markspec/
 │       │   │                          Capabilities: diagnostics, completions,
 │       │   │                          hover, definition, references, document /
 │       │   │                          workspace symbols, rename, folding,
-│       │   │                          document highlights, code actions.
+│       │   │                          document highlights, code actions,
+│       │   │                          document links (`Source:` values).
 │       │   ├── workspace.ts         ← in-memory entry index, incremental updates
 │       │   ├── project_context.ts   ← per-project state: config, profile, lock,
 │       │   │                          index, corpora, diagnostics, reloads
@@ -119,6 +120,8 @@ markspec/
 │       │   │                          `.feature` entries fold over their node
 │       │   ├── highlights.ts        ← document highlights (read / write) for
 │       │   │                          whole-token display-ID matches in file
+│       │   ├── document_links.ts    ← document links: `Source:` file paths
+│       │   │                          (`:line` → `#L<line>`) and http(s) URIs
 │       │   ├── code_actions.ts      ← quick-fix code actions for diagnostics
 │       │   │                          (MSL-M060 lowercase, MSL-A030 remove,
 │       │   │                          MSL-T020 suggest, MSL-A013 dedup,
@@ -192,9 +195,10 @@ alone:**
 @packages/markspec/lsp/hover.ts @packages/markspec/lsp/definition.ts
 @packages/markspec/lsp/references.ts @packages/markspec/lsp/rename.ts
 @packages/markspec/lsp/symbols.ts @packages/markspec/lsp/folding.ts
-@packages/markspec/lsp/highlights.ts @packages/markspec/lsp/code_actions.ts
-@packages/markspec/lsp/context.ts @packages/markspec/lsp/diagnostics.ts
-@packages/markspec/lsp/util.ts @packages/markspec/main.ts
+@packages/markspec/lsp/highlights.ts @packages/markspec/lsp/document_links.ts
+@packages/markspec/lsp/code_actions.ts @packages/markspec/lsp/context.ts
+@packages/markspec/lsp/diagnostics.ts @packages/markspec/lsp/util.ts
+@packages/markspec/main.ts
 
 ## Key rules
 

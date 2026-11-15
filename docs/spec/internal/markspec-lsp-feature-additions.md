@@ -73,7 +73,7 @@ Out of scope (and where each piece is owned):
 | `markspec/profile` (custom)                | **must-have**    | Active profile metadata — types, prefixes, colors. Drives client-side profile-aware coloring.   | `core/profile`        |
 | `textDocument/codeLens`                    | should-have      | Inline counts ("5 dependents") and chain links above entry titles.                              | `WorkspaceIndex`      |
 | `textDocument/inlayHint`                   | should-have      | Inline resolved type / dependent count without explicit screen real estate.                     | `WorkspaceIndex`      |
-| `textDocument/documentLink`                | removed          | Removed (#947): it only targeted the generated `Verified-by`; see §5.3.                         | n/a                   |
+| `textDocument/documentLink`                | should-have      | Clickable `Source:` file paths and URIs; see §5.3.                                              | `WorkspaceIndex`      |
 | `textDocument/rangeFormatting`             | deferred (v1.1)  | Format a selected range only.                                                                   | `core/formatter`      |
 | `textDocument/onTypeFormatting`            | deferred (v1.1)  | Format as user types (e.g. on `:`, newline).                                                    | `core/formatter`      |
 | `textDocument/selectionRange`              | deferred (v1.1)  | Expand-selection (inline → line → trailer → entry → section).                                   | parser positions      |
@@ -283,7 +283,7 @@ under `markspec/` is the standard LSP convention for domain-specific extensions
 
 Two capabilities (code lens and inlay hints) surface traceability information
 inline in the editor without consuming dedicated screen real estate. §5.3
-records the document-link provider that was removed.
+describes the document-link provider.
 
 ### 5.1 `textDocument/codeLens`
 
@@ -317,16 +317,22 @@ For each entry, the server emits inline hints positioned after the title:
 Hints are tooltip-clickable to drill into details. Same backing as code lens —
 no separate computation.
 
-### 5.3 `textDocument/documentLink` (removed)
+### 5.3 `textDocument/documentLink`
 
-The server does not provide document links. An earlier provider
-(`lsp/document_links.ts`) made file-path values of `Verified-by:` lines
-clickable. `Verified-by` is a generated attribute (it is computed from
-`Verifies`), and a hand-written `Verified-by:` trailer is MSL-A030, so the
-provider had no use on valid input, so it was removed (#947). Authors write the
-link as `Verifies:`, which holds an entry ID. Document links for the authored
-`Source:` attribute, which holds a file path or an ID, are a separate feature
-(#961).
+For each `Source:` value of an entry, the server emits a link:
+
+| Value                         | Link                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| Relative path                 | The file under the project root of the owning project, when it exists. |
+| Absolute path                 | The file, when it exists.                                              |
+| `<path>:<line>`               | As above, with `#L<line>` appended to the target URI.                  |
+| `http://` or `https://` URI   | The URI as is.                                                         |
+| Anything else (display ID, …) | No link.                                                               |
+
+The link range covers the path (or the URI) without the `:<line>` suffix. File
+existence is checked in the server, not in core. Entries from a delivered corpus
+or a locked upstream get no links. `Verified-by` is a generated attribute and
+gets no links.
 
 ### 5.4 Performance
 
@@ -444,14 +450,14 @@ mechanism for graceful degradation.
 The LSP server is not a CLI surface, so clig.dev applies indirectly. The
 relevant disciplines:
 
-| Discipline             | How the new capabilities comply                                                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deterministic output   | Formatter is already deterministic; LSP wrapper preserves that property.                                                                                                                    |
-| Same code path as CLI  | Both `markspec fmt` (CLI) and `textDocument/formatting` (LSP) call `core/formatter`. Single source of truth.                                                                                |
-| No interactive prompts | LSP is a structured protocol; no prompts on the server side.                                                                                                                                |
-| Stream conventions     | LSP uses JSON-RPC over stdio; server writes to stdout (protocol), debug log to stderr. Already enforced.                                                                                    |
-| `NO_COLOR`             | Server doesn't write color output; N/A. Clients honor `NO_COLOR` in their own rendering.                                                                                                    |
-| Stable contract        | Capability set is additive — after 1.0, capabilities are added and never removed without a major version change. Before 1.0 a capability may be removed (for example `documentLink`, #947). |
+| Discipline             | How the new capabilities comply                                                                                                                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deterministic output   | Formatter is already deterministic; LSP wrapper preserves that property.                                                                                                                                              |
+| Same code path as CLI  | Both `markspec fmt` (CLI) and `textDocument/formatting` (LSP) call `core/formatter`. Single source of truth.                                                                                                          |
+| No interactive prompts | LSP is a structured protocol; no prompts on the server side.                                                                                                                                                          |
+| Stream conventions     | LSP uses JSON-RPC over stdio; server writes to stdout (protocol), debug log to stderr. Already enforced.                                                                                                              |
+| `NO_COLOR`             | Server doesn't write color output; N/A. Clients honor `NO_COLOR` in their own rendering.                                                                                                                              |
+| Stable contract        | Capability set is additive — after 1.0, capabilities are added and never removed without a major version change. Before 1.0 a capability may be removed (for example the removed `Verified-by` document links, #947). |
 
 ---
 
@@ -472,8 +478,8 @@ Capped at five; three remain open after v1 implementation. None blocks v1.
    suppression — would have been simpler but less flexible, and would have
    coupled the server to a per-client preference it has no way to discover.
 
-3. **Document-link line-number heuristic.** Resolved by removal: the document
-   link provider was removed (#947), so no path pattern needs recognizing.
+3. **Document-link line-number heuristic.** Resolved: only a numeric
+   `:<line>[:<col>]` suffix is recognized, and only for `Source:` values (#961).
 
 4. **Formatter idempotence under partial edits.** §3.1 returns a minimal-diff
    `TextEdit[]`. If the user is mid-edit on a partial entry block (missing

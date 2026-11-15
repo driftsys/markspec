@@ -2,7 +2,8 @@
  * @module lsp
  *
  * MarkSpec LSP server — real-time diagnostics, entry block completion,
- * and ID reference completion for MarkSpec documents and source doc comments.
+ * ID reference completion, and clickable `Source:` file paths and URIs
+ * (document links) for MarkSpec documents and source doc comments.
  *
  * This is a standalone compile target:
  *   deno compile packages/markspec/lsp/server.ts → markspec-lsp
@@ -35,6 +36,7 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
+import { isAbsolute, join } from "@std/path";
 import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
@@ -60,6 +62,7 @@ import {
 } from "./project_context.ts";
 import { ProjectRegistry } from "./project_registry.ts";
 import { buildCodeLenses } from "./code_lens.ts";
+import { buildDocumentLinks } from "./document_links.ts";
 import {
   buildF012FallbackMessage,
   buildFormattingEdits,
@@ -569,6 +572,7 @@ connection.onInitialize(
         codeLensProvider: { resolveProvider: false },
         inlayHintProvider: { resolveProvider: false },
         codeActionProvider: { codeActionKinds: ["quickfix"] },
+        documentLinkProvider: { resolveProvider: false },
         semanticTokensProvider: {
           legend: {
             tokenTypes: [...SEMANTIC_TOKEN_LEGEND.tokenTypes],
@@ -1522,6 +1526,50 @@ connection.onCodeAction(async (params) => {
     );
   // deno-lint-ignore no-explicit-any
   return actions as any;
+});
+
+// ---------------------------------------------------------------------------
+// Document links — clickable `Source:` file paths and URIs
+// ---------------------------------------------------------------------------
+
+/** `true` when `path` is an existing regular file. */
+function isExistingFile(path: string): boolean {
+  try {
+    return Deno.statSync(path).isFile;
+  } catch {
+    return false;
+  }
+}
+
+connection.onDocumentLinks((params) => {
+  tally("documentLink");
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return [];
+  if (!isMarkspecFile(filePath)) return [];
+
+  // Delivered-corpus and upstream entries are read-only and their paths
+  // are not local (ADR-030), so they get no links.
+  const entries = ctx.index.getEntriesForFile(filePath).filter(
+    (entry) => !isCorpusEntry(entry),
+  );
+  const root = ctx.root;
+  // A relative path resolves against the project root. A link is emitted
+  // only when the file exists.
+  const resolveTarget = (
+    path: string,
+    lineSuffix: number | undefined,
+  ): string | undefined => {
+    const absPath = isAbsolute(path) ? path : join(root, path);
+    if (!isExistingFile(absPath)) return undefined;
+    const baseUri = pathToUri(absPath);
+    return lineSuffix === undefined ? baseUri : `${baseUri}#L${lineSuffix}`;
+  };
+
+  // deno-lint-ignore no-explicit-any
+  return buildDocumentLinks(entries, document.getText(), resolveTarget) as any;
 });
 
 // ---------------------------------------------------------------------------
