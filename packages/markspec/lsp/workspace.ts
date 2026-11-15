@@ -331,7 +331,8 @@ export class WorkspaceIndex {
    * bare `markspec check` makes: Stage 1 hygiene, classification, typed
    * attributes (MSL-A0xx, MSL-R083), traceability (MSL-L006, MSL-T014 and the
    * other Stage 4 rules), Gherkin and locator checks, and the uxil family.
-   * Without a profile the pipeline runs Stage 1 only. The classified entries
+   * Without a profile, classification, typed attributes and traceability
+   * (Stages 2 to 4) do not run. The classified entries
    * the pipeline returns are used for diagnostics only; the index keeps the
    * parsed entries.
    *

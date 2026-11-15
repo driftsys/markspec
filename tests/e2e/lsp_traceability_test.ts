@@ -54,7 +54,6 @@ Deno.test("lsp traceability: a Satisfies target that does not exist is reported 
       "cross-file diagnostics for reqs.md",
       10000,
     );
-    await new Promise((r) => setTimeout(r, 200));
     const diags = client.latestDiagnosticsFor(uri) as Diag[];
     assertEquals(
       diags.filter((d) => d.code === "MSL-L006").length,

@@ -402,10 +402,11 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
 10. **Parse diagnostics (#939).** `WorkspaceIndex` stores the parse diagnostics
     of each file, and the cross-file publish merges them in, so they persist.
     This applies to all file types.
-11. **Traceability diagnostics (#938).** `WorkspaceIndex.validateAll` runs the
-    core pipeline with `projectWide: true` and then the corpus post-pass, the
-    same pair bare `markspec check` runs. The LSP therefore publishes `MSL-L006`
-    and `MSL-T014` along with the other Stage 2 to Stage 4 codes.
+11. **Known gap.** The LSP does not publish `MSL-L006` and `MSL-T014` (#938).
+    Resolved by #938 (2026-11-15): the language server now runs the core
+    validator pipeline with `projectWide: true`, then the corpus post-pass, as
+    bare `markspec check` does. It publishes `MSL-L006`, `MSL-T014` and the
+    other Stage 2 to Stage 4 diagnostics.
 
 ### Alternatives considered (LSP support for `.feature` files)
 
