@@ -705,16 +705,30 @@ Deno.test("P021: an empty `# Key:` line after the run ends gives no fix", async 
 });
 
 Deno.test("P021: an all-empty block under body text deletes only the block", async () => {
-  const text = `# [SC_A_0001] T\n# Body text.\n# Satisfies:\nFeature: F\n`;
+  const text = `# [SC_A_0001] T\n# Body text.\n#\n# Satisfies:\nFeature: F\n`;
+  const { fixed, edits } = await fix(text, "MSL-P021");
+  // One deletion of the `#` line and the empty key line below it.
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 2);
+  assertEquals(edits[0].range.end.line, 4);
+  assertEquals(fixed, `# [SC_A_0001] T\n# Body text.\nFeature: F\n`);
+});
+
+Deno.test("a builder that throws for one diagnostic keeps the other actions", async () => {
+  const text =
+    `# [SC_A_0001] T\n#\n# Id: ${ulid()}\n# Satisfies:\nFeature: F\n`;
+  const real = await diagnosticsOf(text, "MSL-P021");
+  // No `range`: the attribute builder throws a TypeError on `range.start`.
+  const broken = {
+    code: "MSL-A030",
+    message: "attribute 'Verified-by' is generated",
+  } as unknown as (typeof real)[number];
   const actions = await buildFeatureCodeActions(
     URI,
     "a.feature",
-    [syntheticP021(2)],
+    [broken, ...real],
     text,
   );
-  const edits = actions.flatMap((a) => a.edit?.changes?.[URI] ?? []);
-  assertEquals(
-    applyEdits(text, edits),
-    `# [SC_A_0001] T\n# Body text.\nFeature: F\n`,
-  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title, "Remove empty 'Satisfies' line");
 });

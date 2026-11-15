@@ -156,8 +156,10 @@ function findKeyLine(
  * attribute fixes (A030, A012, A013, T020, A011, P021) edit only lines inside
  * the trailer block of the header that the diagnostic points at, and never a
  * `# Id:` line. B069 deletes the blank lines between a header and its node,
- * only when a re-parse of the edited text yields the entry. M060 and S010 use the shared builders, which work from the
- * diagnostic range alone. Codes without a fix return nothing. When several
+ * only when a re-parse of the edited text yields the entry. M060 and S010
+ * use the shared builders, which work from the diagnostic range alone. Codes
+ * without a fix return nothing. A builder that throws or rejects for one
+ * diagnostic loses only that diagnostic's action. When several
  * diagnostics of one code name the same key on one header, the nth
  * diagnostic fixes the nth matching line, so each action has its own line.
  *
@@ -177,32 +179,37 @@ export async function buildFeatureCodeActions(
   const seenCounts = new Map<string, number>();
   for (const diag of diagnostics) {
     let action: CodeAction | undefined;
-    switch (diag.code) {
-      case "MSL-M060":
-        action = buildM060Fix(uri, diag);
-        break;
-      case "MSL-S010":
-        action = buildS010Fix(uri, diag);
-        break;
-      case "MSL-P021":
-        action = emptyTrailerFix(uri, diag, lines);
-        break;
-      case "MSL-B069":
-        action = await blankGapFix(uri, filePath, diag, lines, documentText);
-        break;
-      case "MSL-A030":
-      case "MSL-A012":
-      case "MSL-A013":
-      case "MSL-T020":
-      case "MSL-A011":
-        {
-          const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
-          const slot = `${diag.code}|${diag.range.start.line}|${key}`;
-          const nth = seenCounts.get(slot) ?? 0;
-          seenCounts.set(slot, nth + 1);
-          action = headerFix(uri, diag, lines, crlf, nth);
-        }
-        break;
+    try {
+      switch (diag.code) {
+        case "MSL-M060":
+          action = buildM060Fix(uri, diag);
+          break;
+        case "MSL-S010":
+          action = buildS010Fix(uri, diag);
+          break;
+        case "MSL-P021":
+          action = emptyTrailerFix(uri, diag, lines);
+          break;
+        case "MSL-B069":
+          action = await blankGapFix(uri, filePath, diag, lines, documentText);
+          break;
+        case "MSL-A030":
+        case "MSL-A012":
+        case "MSL-A013":
+        case "MSL-T020":
+        case "MSL-A011":
+          {
+            const key = ATTRIBUTE_KEY_RE.exec(diag.message)?.[1];
+            const slot = `${diag.code}|${diag.range.start.line}|${key}`;
+            const nth = seenCounts.get(slot) ?? 0;
+            seenCounts.set(slot, nth + 1);
+            action = headerFix(uri, diag, lines, crlf, nth);
+          }
+          break;
+      }
+    } catch {
+      // One failing builder must not drop the other diagnostics' actions.
+      continue;
     }
     if (action) out.push(action);
   }
