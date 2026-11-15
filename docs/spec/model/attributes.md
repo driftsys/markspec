@@ -193,7 +193,7 @@ above are available in core-only mode.
 | `SoftwareInterface` | (none typical)                                                        | `Provided-by`, `Required-by`, `Realized-by` (generated) |
 | `HardwareInterface` | `Bus-protocol`, `Voltage-level`, `Connector-type`, `Signal-direction` | `Provided-by`, `Required-by`, `Realized-by` (generated) |
 | `Record`            | (none typical)                                                        | (standalone)                                            |
-| `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Mitigated-by` (generated)                              |
+| `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Mitigated-by`                                          |
 
 ### Component types
 

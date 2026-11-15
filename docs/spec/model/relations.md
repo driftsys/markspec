@@ -51,9 +51,8 @@ from toolchain bookkeeping.
 
 ## Core relations
 
-The following relations are declared by the `@markspec/default` profile and are
-available in any project that uses it. In core-only mode (no profile
-configured), these relation keys are treated as unknown attributes (`MSL-A020`).
+The following relations are the core relations (`CORE_RELATIONS` in the core
+model). They are available without a profile.
 
 | Relation         | Inverse          | Typical source type | Typical target type             |
 | ---------------- | ---------------- | ------------------- | ------------------------------- |
@@ -68,8 +67,9 @@ configured), these relation keys are treated as unknown attributes (`MSL-A020`).
 | `Allocated-to`   | `Allocated`      | `Requirement`       | `Component`                     |
 | `Realizes`       | `Realized-by`    | `Component`, `Unit` | `Specification`                 |
 | `Generated-from` | (none)           | any                 | any                             |
+| `References`     | `Cited-by`       | any                 | any                             |
 | `Mitigated-by`   | `Mitigates`      | `Risk`              | `Specification`                 |
-| `Affects`        | `Affected-by`    | any                 | `Component`, `Unit`, `Contract` |
+| `Affects`        | `Affected-by`    | `Record`            | `Component`, `Unit`, `Contract` |
 | `Addresses`      | `Addressed-by`   | `Requirement`       | `Change`                        |
 
 `Provides` / `Requires` are the symmetric provider/consumer relations between a
@@ -78,9 +78,9 @@ component and a `Contract` (including `SoftwareInterface` /
 it. `Allocated-to` is **not** reused for provider-hosting — it keeps its single
 requirement-allocation meaning.
 
-Note: `Supersedes` / `Superseded-by` are **universal attributes** (not relation
-attributes) — they are part of core and are available without any profile. See
-the [Attributes](attributes.md) chapter.
+Note: `Supersedes` / `Superseded-by` are universal attributes. `Supersedes` is
+also a core relation (it produces a graph edge) and is available without any
+profile. See the [Attributes](attributes.md) chapter.
 
 **`Allocated-to` drives discipline classification.** Per
 [ADR-017](../../architecture/adr-017-discipline-classification.md) the toolchain
@@ -168,12 +168,6 @@ Profiles can add new relations beyond the core set:
 ```yaml
 profile:
   relations:
-    - key: Mitigated-by
-      inverse: Mitigates
-      source-types: [hazard]
-      target-types: [requirement]
-      cardinality: many-to-many
-
     - key: Addresses
       inverse: Addressed-by
       source-types: [requirement]
