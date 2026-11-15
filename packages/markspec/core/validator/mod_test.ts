@@ -8,7 +8,7 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
-import { makeDisplayId } from "../model/mod.ts";
+import { CORE_RELATIONS, makeDisplayId } from "../model/mod.ts";
 import { repeatableAttributeValues, runPipeline, validate } from "./mod.ts";
 import type { TyplBlock } from "../typl/mod.ts";
 
@@ -188,6 +188,38 @@ Deno.test("validate: unknown attribute → MSL-R010 warning", () => {
   const r010 = result.diagnostics.filter((d) => d.code === "MSL-R010");
   assertEquals(r010.length, 1);
   assertEquals(r010[0].severity, "warning");
+});
+
+Deno.test("validate: every core relation key is not flagged MSL-R010", () => {
+  for (const { attr } of CORE_RELATIONS) {
+    const result = validate([
+      entry({
+        displayId: "REQ-001",
+        rawAttributes: [
+          { key: "Id", value: ULID_A },
+          { key: attr, value: "REQ-002" },
+        ],
+        id: ULID_A,
+      }),
+    ]);
+    const r010 = result.diagnostics.filter((d) => d.code === "MSL-R010");
+    assertEquals(r010, [], `${attr} must not report MSL-R010`);
+  }
+});
+
+Deno.test("validate: Generated-from is not flagged MSL-R010", () => {
+  const result = validate([
+    entry({
+      displayId: "REQ-001",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Generated-from", value: "REQ-002" },
+      ],
+      id: ULID_A,
+    }),
+  ]);
+  const r010 = result.diagnostics.filter((d) => d.code === "MSL-R010");
+  assertEquals(r010, []);
 });
 
 // ---------------------------------------------------------------------------
