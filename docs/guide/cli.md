@@ -654,9 +654,13 @@ Diagnostics never change the exit code of `compile`, `export`, `show`,
 for `--frozen` lockfile drift, and for an error-severity diagnostic from a
 profile-delivered document (for example `PROFILE-DELIVERS-001`).
 
-The hash that `markspec lock` stores for an upstream snapshot covers the
-entries, links, and type registry of the upstream tree. It does not cover
-diagnostics, so a change to the validator does not move a pin.
+The hash that `markspec lock` stores for a `dependencies:` upstream (a git
+repository that markspec compiles itself) covers the entries, links, forward and
+reverse link maps, and type registry of the upstream tree. It does not cover
+diagnostics, so a change to the validator does not move a pin. A pin recorded by
+an earlier markspec version, whose snapshot also covered diagnostics, does not
+match. Run `markspec lock --update` to re-pin. For a `references:` upstream, the
+hash is of the published `compiled.json`, which keeps its diagnostics.
 
 **Examples:**
 

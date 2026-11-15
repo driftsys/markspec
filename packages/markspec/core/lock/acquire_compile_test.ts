@@ -177,7 +177,13 @@ Deno.test("compileAcquiredTree: the snapshot excludes validator diagnostics (#96
   assertEquals(withFinding.snapshot, clean.snapshot);
   assertEquals(withFinding.compiledBytes, clean.compiledBytes);
   const json = JSON.parse(new TextDecoder().decode(clean.compiledBytes));
-  assertEquals("diagnostics" in json, false);
+  assertEquals(Object.keys(json).sort(), [
+    "entries",
+    "forward",
+    "links",
+    "reverse",
+    "typeRegistry",
+  ]);
   assertEquals(Object.keys(json.entries), ["STK_ICD_0001"]);
 });
 
@@ -198,4 +204,26 @@ Deno.test("compileAcquiredTree: a changed entry changes the snapshot (#963)", as
   );
   if ("error" in before || "error" in after) throw new Error("unexpected");
   assertEquals(before.snapshot === after.snapshot, false);
+});
+
+Deno.test("compileAcquiredTree: a changed trailer attribute value changes the snapshot (#963)", async () => {
+  const withSatisfies = (target: string) => ({
+    ...PROJECT,
+    "/dep/docs/reqs.md": PROJECT["/dep/docs/reqs.md"].replace(
+      "01HGW2Q8MNP3RSTVWXYZABCDEF\n",
+      `01HGW2Q8MNP3RSTVWXYZABCDEF\n      Satisfies: ${target}\n`,
+    ),
+  });
+  const a = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(withSatisfies("STK_ICD_0100")),
+    "0.0.0-test",
+  );
+  const b = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(withSatisfies("STK_ICD_0200")),
+    "0.0.0-test",
+  );
+  if ("error" in a || "error" in b) throw new Error("unexpected error");
+  assertEquals(a.snapshot === b.snapshot, false);
 });

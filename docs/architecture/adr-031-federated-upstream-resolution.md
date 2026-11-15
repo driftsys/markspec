@@ -73,11 +73,13 @@ implicit fallback (pre-1.0, no back-compat per project policy).
 The two fields select two fetchers internally. A `dependencies:` git repository
 is acquired and compiled in-process (`core/lock/upstream_deps.ts`); a
 `references:` published site is fetched as ready compile-output JSON
-(`core/lock/upstream_refs.ts`). Both write the identical `manifest.json` +
-`compiled.json` cache layout, so the consumer reads either identically. A
-`kind: git|registry` discriminator on `projectRef` was considered and dropped —
-explicit-but-redundant today; recoverable as a non-breaking org-schema addition
-if a closed-source dependency with a published API becomes real.
+(`core/lock/upstream_refs.ts`). Both write the same `manifest.json` +
+`compiled.json` cache layout, so the consumer reads either identically. The one
+difference is that the `compiled.json` of a git dependency omits `diagnostics`,
+which a published site keeps. A `kind: git|registry` discriminator on
+`projectRef` was considered and dropped — explicit-but-redundant today;
+recoverable as a non-breaking org-schema addition if a closed-source dependency
+with a published API becomes real.
 
 ### D3 — Touch the network only in `markspec lock`
 
@@ -140,12 +142,13 @@ error shows.
 The compiled-JSON output `markspec compile --output` already emits — a
 `manifest.json` pointing at inline `compiled.json` (Tier 1) or an NDJSON
 entries/edges pair (Tier 2) — is the canonical interchange. The git fetcher
-produces the same JSON by compiling the acquired checkout in-process
-(`compileAcquiredTree`); a published `references:` site serves it directly. Type
-classification happens upstream with the upstream's _own_ profile — the consumer
-never re-classifies a foreign vocabulary, so a resolved upstream target is
-exempt from the consumer's `MSL-L004` target-type check. Hydration is guarded by
-a schema-skew check (`checkSnapshotSchema`): a snapshot whose
+produces the same JSON, except that it omits `diagnostics`, by compiling the
+acquired checkout in-process (`compileAcquiredTree`); a published `references:`
+site serves the full output directly, diagnostics included. Type classification
+happens upstream with the upstream's _own_ profile — the consumer never
+re-classifies a foreign vocabulary, so a resolved upstream target is exempt from
+the consumer's `MSL-L004` target-type check. Hydration is guarded by a
+schema-skew check (`checkSnapshotSchema`): a snapshot whose
 `markspecSchemaVersion` / `generator.coreSchema` does not match the running core
 is rejected (`UPSTREAM-SNAPSHOT-001`), never silently misparsed.
 **Authoritative-source rule:** hydration skips any snapshot entry that already

@@ -208,8 +208,9 @@ are not read.
 ## Addendum (2026-11-15): the snapshot hash excludes diagnostics (#963)
 
 The `snapshot` hash of an `[[upstream.dependency]]` row covers the compiled
-entries, links and type registry of the acquired tree. It does not cover the
-validator diagnostics of that tree, and the stored `compiled.json` does not
-contain them. A change to the validator therefore does not change a pin. This
-moves existing dependency `snapshot` hashes once, and `markspec lock --update`
-re-pins them. There is no migration tooling (ADR-031).
+entries, links, forward and reverse link maps, and type registry of the acquired
+tree. It does not cover the validator diagnostics of that tree, and the stored
+`compiled.json` does not contain them. A change to the validator therefore does
+not change a pin. This moves existing dependency `snapshot` hashes once, and
+`markspec lock --update` re-pins them. No migration is provided (the pre-1.0
+no-back-compat rule in ADR-031).

@@ -3,9 +3,9 @@
  *
  * Deterministic in-process compile of an acquired dependency tree
  * (design §4.3). Produces the same `manifest.json` + `compiled.json` layout
- * a published `references:` site serves, so `loadUpstreamCorpus` /
- * `probeCacheSnapshot` read a dependency snapshot identically to a reference
- * snapshot. The output is byte-reproducible from (tree, markspec version):
+ * a published `references:` site serves, except that `compiled.json` omits
+ * `diagnostics` (#963), so `loadUpstreamCorpus` / `probeCacheSnapshot` read a
+ * dependency snapshot identically to a reference snapshot. The output is byte-reproducible from (tree, markspec version):
  * files are compiled in sorted, tree-relative order with no stat/git IO, so
  * `entry.location.file`, `properties.file.path`, and entry ordering are all
  * stable. Pure — every file touch flows through {@linkcode AcquireCompileIO}.
@@ -114,6 +114,8 @@ export async function compileAcquiredTree(
   // probeCacheSnapshot JSON.parse it), and compact output keeps
   // `entry.location.file`'s tree-relative path adjacent to its `"file":`
   // key with no formatting-introduced variance to reason about.
+  // Dropping `diagnostics` here is intentional: they are neither hashed nor
+  // stored, so a validator change cannot move a pin (#963).
   const { diagnostics: _diagnostics, ...compiled } = serializeCompileResult(
     result,
   );
