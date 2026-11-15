@@ -511,10 +511,9 @@ Deno.test("P021: CRLF file", async () => {
   assertEquals(fixed.replaceAll("\r\n", "").includes("\n"), false);
 });
 
-Deno.test("P021: a malformed non-empty line yields no P021 and no action", async () => {
-  // `# Satisfies STK` (no colon) gives MSL-P020; no input gives MSL-P021 on
-  // a non-empty line, because the parser raises P021 only for an empty
-  // `# Key:` line.
+Deno.test("P020: a malformed non-empty line has no route and gives no action", async () => {
+  // `# Satisfies STK` (no colon) gives MSL-P020 for this `.feature` input,
+  // not MSL-P021. MSL-P020 has no quick fix, so no action is returned.
   const text =
     `# [SC_A_0001] T\n#\n# Id: ${ulid()}\n# Satisfies STK\nFeature: F\n`;
   assertEquals((await diagnosticsOf(text, "MSL-P021")).length, 0);
@@ -802,14 +801,21 @@ Feature: F
 
 Deno.test("M060: a header prose modal verb gets a lowercase edit", async () => {
   const text = "# [SC_A_0001] T\n# The system SHALL stop.\nFeature: F\n";
-  const diag = synthetic("MSL-M060", "modal keyword 'SHALL' in prose", 1);
+  // The range of `SHALL` in `# The system SHALL stop.`.
+  const diag = {
+    ...synthetic("MSL-M060", "modal keyword 'SHALL' in prose", 1),
+    range: {
+      start: { line: 1, character: 13 },
+      end: { line: 1, character: 18 },
+    },
+  };
   const actions = await buildFeatureCodeActions(URI, "a.feature", [diag], text);
   assertEquals(actions.length, 1);
   assertEquals(actions[0].title, "Lowercase 'shall'");
   assertEquals(actions[0].edit!.changes![URI], [{
     range: {
-      start: { line: 1, character: 0 },
-      end: { line: 1, character: 5 },
+      start: { line: 1, character: 13 },
+      end: { line: 1, character: 18 },
     },
     newText: "shall",
   }]);
@@ -835,6 +841,7 @@ Deno.test("A012: a trailing continuation backslash is not a value", async () => 
   assert(diags.length > 0, "parser emits A012 for `, \\`");
   const { fixed } = await fix(text, "MSL-A012");
   assertEquals(fixed, without(text, "Labels"));
+  await assertGone(fixed, "MSL-A012");
 });
 
 Deno.test("P021: an empty `# Id:` line is removed with the block", async () => {
@@ -871,14 +878,41 @@ Deno.test("T020: edits the Type line that holds the bad value", async () => {
   );
 });
 
-Deno.test("B069: a plain comment line in the gap is walked over", async () => {
+Deno.test("B069: no fix when a plain comment follows the blank gap", async () => {
+  // Removing the blank line would join `# plain note` to the header run, which
+  // voids the trailer (MSL-P020), loses the entry's Id and makes Format
+  // Document stamp a second `# Id:`.
   const id = ulid();
   const text =
     `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Id: ${id}\n\n  # plain note\n  Scenario: S\n    Given x\n`;
+  const diagnostics = await diagnosticsOf(text, "MSL-B069");
+  assert(diagnostics.length > 0, "no MSL-B069 diagnostic in input");
+  assertEquals(
+    await buildFeatureCodeActions(URI, "a.feature", diagnostics, text),
+    [],
+  );
+});
+
+Deno.test("B069: a blank line after a tag line is removed before a plain comment", async () => {
+  const id = ulid();
+  const text =
+    `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Id: ${id}\n  @tag\n\n  # plain note\n  Scenario: S\n    Given x\n`;
   const { fixed } = await fix(text, "MSL-B069");
   assertEquals(
     fixed,
-    `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Id: ${id}\n  # plain note\n  Scenario: S\n    Given x\n`,
+    `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Id: ${id}\n  @tag\n  # plain note\n  Scenario: S\n    Given x\n`,
+  );
+  await assertGone(fixed, "MSL-B069");
+});
+
+Deno.test("B069: the gap walk passes a plain comment to reach a later blank", async () => {
+  const id = ulid();
+  const text =
+    `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Id: ${id}\n  @tag\n  # plain note\n\n  Scenario: S\n    Given x\n`;
+  const { fixed } = await fix(text, "MSL-B069");
+  assertEquals(
+    fixed,
+    `Feature: F\n\n  # [SC_A_0002] T\n  #\n  # Id: ${id}\n  @tag\n  # plain note\n  Scenario: S\n    Given x\n`,
   );
 });
 
@@ -893,6 +927,9 @@ Deno.test("B069: format parity after the fix, header with an Id", async () => {
 
 Deno.test("stale diagnostic: a later header's same-key line is never edited", async () => {
   const [a, b] = [ulid(), ulid()];
+  // The first header has no `Derives` line. The second header has a
+  // generated, an empty and a duplicated key, so a whole-file search would
+  // find and edit it.
   const text = `# [SC_A_0001] Feature
 #
 # Id: ${a}
@@ -902,14 +939,20 @@ Feature: F
   #
   # Id: ${b}
   # Derives: SC_X_0002
+  # Labels: ,
+  # Type: Requirement
+  # Type: Constraint
+  # References: [@a], [@b]
   Scenario: S
     Given x
 `;
   for (
     const diag of [
       synthetic("MSL-A030", "SC_A_0001: 'Derives' is generated", 0),
-      synthetic("MSL-A012", "SC_A_0001: 'Derives' list is empty", 0),
-      synthetic("MSL-A013", "SC_A_0001: 'Derives' appears twice", 0),
+      synthetic("MSL-A012", "SC_A_0001: 'Labels' list is empty", 0),
+      synthetic("MSL-A013", "SC_A_0001: 'Type' appears twice", 0),
+      synthetic("MSL-A011", "SC_A_0001: 'References' is CSV", 0),
+      synthetic("MSL-T020", "SC_A_0001: Type: 'Constraint' is unknown", 0),
     ]
   ) {
     assertEquals(
@@ -918,4 +961,69 @@ Feature: F
       diag.code,
     );
   }
+});
+
+Deno.test("A012: two empty `# Labels: ,` lines get one action each, on distinct lines", async () => {
+  const { git } = variants(["Labels: ,", "Labels: ,"]);
+  const diagnostics = await diagnosticsOf(git, "MSL-A012");
+  assertEquals(diagnostics.length, 2);
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    diagnostics,
+    git,
+  );
+  assertEquals(actions.length, 2);
+  const lines = actions.map((a) => a.edit!.changes![URI][0].range.start.line)
+    .sort((x, y) => x - y);
+  assertEquals(lines, [3, 4]);
+});
+
+Deno.test("A011: two CSV `# References:` lines get one action each, on distinct lines", async () => {
+  const { git } = variants([
+    "References: [@a], [@b]",
+    "References: [@c], [@d]",
+  ]);
+  const diagnostics = await diagnosticsOf(git, "MSL-A011");
+  assertEquals(diagnostics.length, 2);
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    diagnostics,
+    git,
+  );
+  assertEquals(actions.length, 2);
+  const lines = actions.map((a) => a.edit!.changes![URI][0].range.start.line)
+    .sort((x, y) => x - y);
+  assertEquals(lines, [3, 4]);
+});
+
+Deno.test("A030 and A012 on one `# Derives: ,` line both get an action", async () => {
+  const { git } = variants(["Derives: ,"]);
+  const diagnostics = [
+    ...await diagnosticsOf(git, "MSL-A030"),
+    ...await diagnosticsOf(git, "MSL-A012"),
+  ];
+  assertEquals(diagnostics.map((d) => d.code).sort(), [
+    "MSL-A012",
+    "MSL-A030",
+  ]);
+  const actions = await buildFeatureCodeActions(
+    URI,
+    "a.feature",
+    diagnostics,
+    git,
+  );
+  assertEquals(actions.length, 2);
+});
+
+Deno.test("A011: a continuation backslash is not part of the last value", async () => {
+  const text =
+    `# [SC_A_0001] T\n#\n# Id: ${ulid()}\n# References: [@a], [@b] \\\n#\nFeature: F\n`;
+  const diags = await diagnosticsOf(text, "MSL-A011");
+  assert(diags.length > 0, "parser emits A011 for the CSV value");
+  const { fixed } = await fix(text, "MSL-A011");
+  assert(!fixed.includes("\\"), fixed);
+  assert(fixed.includes("# References: [@b]\n"), fixed);
+  await assertGone(fixed, "MSL-A011");
 });

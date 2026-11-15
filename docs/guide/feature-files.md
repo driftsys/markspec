@@ -218,7 +218,8 @@ What works in a `.feature` file:
   with no header, a file that does not parse, and a file whose headers all have
   an Id. The Markdown formatter is not used.
 - **Quick fixes.** The editor offers fixes for these codes. The attribute fixes
-  edit only the trailer lines of the header that the diagnostic points at, and
+  edit only the trailer lines of the header that the diagnostic points at (the
+  `MSL-P021` fix also deletes the `#`-only line above an all-empty trailer), and
   the `MSL-B069` fix deletes only blank lines; no fix edits a step or a
   doc-string line:
   - `MSL-A030`: remove the generated attribute line.

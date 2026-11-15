@@ -4,8 +4,9 @@
  * Quick fixes for `.feature` files (#943). A `.feature` header is a run of
  * comment lines (`# [ID] Title`, then `# Key: value` trailer lines). The
  * locator functions find the header run and its trailer block in the file
- * lines, so a trailer fix edits only lines of that block and never a step
- * or doc-string line. `buildFeatureCodeActions` builds the fixes for
+ * lines, so a trailer fix edits only lines of that block (the P021 fix also
+ * deletes the `#`-only line above an all-empty block) and never a step or
+ * doc-string line. `buildFeatureCodeActions` builds the fixes for
  * MSL-A030, A013, A012, A011, T020, P021 (empty `# Key:` line), B069 (blank
  * lines between header and node), M060 and S010.
  */
@@ -402,14 +403,19 @@ function citationFix(
 /**
  * MSL-B069, blank-gap variant: the diagnostic points at the header start.
  * Walks from the end of the header run over blank lines, tag lines and plain
- * comment lines, and offers to delete the blank lines. The fix is offered
- * only when a re-parse of the edited text gives an entry at the header start
- * line and no B069 for that header. Both checks stay: the entry check guards
- * against a header that the edit leaves unattached, and the B069 check
- * guards against a header that still has text between it and its node. This
- * rules out a header above a
- * Background, Examples or a step, a stacked header, and any other text in
- * the gap.
+ * comment lines, and offers to delete the blank lines. No fix is offered when
+ * the first non-blank line after the header run is a comment line: removing
+ * the blank lines would join that comment to the header run and void the
+ * trailer. Only a tag line or the node keyword may follow the header.
+ *
+ * The edited text is re-parsed, and the fix is offered only when that
+ * re-parse gives an entry at the header start line (this rejects a header
+ * that no longer attaches to a node, a header above a Background, Examples or
+ * a step, a stacked header, and an edit that no longer parses), gives no
+ * MSL-P020 inside the header run, and, when the header had a `# Id:` line
+ * with a value, still gives the entry that Id. The last two checks keep the
+ * fix from voiding the trailer, which would make Format Document stamp a
+ * second `# Id:` line.
  */
 async function blankGapFix(
   uri: string,
@@ -422,11 +428,15 @@ async function blankGapFix(
   const run = headerRun(lines, titleIdx);
   if (!run) return undefined;
   const blanks: number[] = [];
+  let firstNonBlank: string | undefined;
   for (let i = run.end; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (trimmed === "") {
       blanks.push(i);
-    } else if (trimmed.startsWith("@")) {
+      continue;
+    }
+    firstNonBlank ??= trimmed;
+    if (trimmed.startsWith("@")) {
       continue;
     } else if (trimmed.startsWith("#")) {
       if (FEATURE_HEADER_START_RE.test(trimmed.slice(1).trimStart())) break;
@@ -435,6 +445,7 @@ async function blankGapFix(
     }
   }
   if (blanks.length === 0) return undefined;
+  if (firstNonBlank?.startsWith("#")) return undefined;
   const removed = new Set(blanks);
   const edited = documentText
     .split("\n")
@@ -442,13 +453,17 @@ async function blankGapFix(
     .join("\n");
   const parsed = await parseFile(edited, { file: filePath });
   const headerLine = titleIdx + 1;
-  const entryAtHeader = parsed.entries.some((e) =>
-    e.location.line === headerLine
+  const entry = parsed.entries.find((e) => e.location.line === headerLine);
+  if (!entry) return undefined;
+  const hadId = lines.slice(run.start, run.end).some((l) =>
+    trailerKey(l) === "Id" && (lineValue(l) ?? "").trim() !== ""
   );
-  const stillWarns = parsed.diagnostics.some((d) =>
-    d.code === "MSL-B069" && d.location?.line === headerLine
+  if (hadId && !entry.id) return undefined;
+  const voided = parsed.diagnostics.some((d) =>
+    d.code === "MSL-P020" && d.location !== undefined &&
+    d.location.line >= headerLine && d.location.line <= run.end
   );
-  if (!entryAtHeader || stillWarns) return undefined;
+  if (voided) return undefined;
   return quickFix(
     uri,
     diag,

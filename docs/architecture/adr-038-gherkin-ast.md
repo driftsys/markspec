@@ -547,12 +547,12 @@ indented doc-string line.
    for where a header run ends. The formatter and the language server both use
    it.
 5. **Format parity (D5).** Fixes delete whole lines, replace a value inside one
-   line (`MSL-T020`), or replace one line with several (`MSL-A011`). Every fix
-   keeps the `#` prefix and the line ending of the line it edits. No fix removes
-   a value-bearing `# Id:` line. When every header had an Id, the fixed text
-   gives `formatFeatureText(fixed).changed === false`. The `MSL-P021` fix can
-   remove an empty `# Id:` line, because that line carries no value; Format
-   Document then stamps a new Id.
+   line (`MSL-T020`), or replace one line with several that copy the `#` prefix
+   and the line ending of the replaced line (`MSL-A011`). No fix removes a
+   value-bearing `# Id:` line. When every header had an Id, the fixed text gives
+   `formatFeatureText(fixed).changed === false`. The `MSL-P021` fix can remove
+   an empty `# Id:` line, because that line carries no value; Format Document
+   then stamps a new Id.
 6. **`MSL-P021` (D6).** Only an empty `# Key:` line gets a fix. The fix removes
    every empty key line of the trailer block, and the `#`-only line above the
    block when the whole block is empty. This restores a trailer that the empty
