@@ -1,5 +1,4 @@
 import { assert, assertEquals, assertFalse } from "@std/assert";
-import { fromFileUrl } from "@std/path";
 import "../mod.ts";
 import { loadedGherkin } from "./load.ts";
 
@@ -14,6 +13,8 @@ interface ModuleGraph {
   readonly roots: readonly string[];
   readonly modules: readonly {
     readonly specifier: string;
+    /** `esm` for a resolved local module; `external` when it was not loaded. */
+    readonly kind?: string;
     readonly dependencies?: readonly {
       /** The specifier as written in the import, for example `@cucumber/gherkin`. */
       readonly specifier: string;
@@ -47,9 +48,8 @@ function staticallyReached(graph: ModuleGraph): Set<string> {
 /**
  * `true` when some module imports `name` with a dynamic `import()`. Reads
  * the import edge itself, by the specifier as written in the source, not
- * the module entries for the npm package: `deno info` does not list those
- * on every platform (on the Windows CI runner it did not), while the edge
- * is always recorded in the importing module.
+ * the module entries for the npm package, which `deno info` does not
+ * always list, while the edge is always recorded in the importing module.
  */
 function hasDynamicImportOf(graph: ModuleGraph, name: string): boolean {
   return graph.modules.some((m) =>
@@ -92,14 +92,13 @@ Deno.test("staticallyReached and hasDynamicImportOf: Windows-shaped graph", () =
   assertFalse(hasDynamicImportOf(graph(false), "@cucumber/gherkin"));
 });
 
-// The module graph does not depend on the operating system, so the Linux and
-// macOS CI jobs enforce this. On Windows the dynamic-import guard below fails
-// for a reason not yet found (#932), so the test does not run there.
 Deno.test({
   name: "core/mod.ts has no static dependency on @cucumber/gherkin",
-  ignore: Deno.build.os === "windows",
   fn: async () => {
-    const entry = fromFileUrl(new URL("../mod.ts", import.meta.url));
+    // Pass a file URL, not a path: on Windows `deno info` reads the drive
+    // letter of `d:\...` as a URL scheme and reports one external module
+    // with no dependencies (#932).
+    const entry = new URL("../mod.ts", import.meta.url).href;
     const out = await new Deno.Command(Deno.execPath(), {
       args: ["info", "--json", entry],
       stdout: "piped",
@@ -109,6 +108,10 @@ Deno.test({
     const graph = JSON.parse(
       new TextDecoder().decode(out.stdout),
     ) as ModuleGraph;
+    // Guard the graph itself: the entry must resolve to a local module, or
+    // the checks below would pass without reading any import.
+    const root = graph.modules.find((m) => m.specifier === graph.roots[0]);
+    assertEquals(root?.kind, "esm", "the entry resolves to a local module");
     const staticParser = [...staticallyReached(graph)].filter((s) =>
       s.includes("@cucumber/")
     );
