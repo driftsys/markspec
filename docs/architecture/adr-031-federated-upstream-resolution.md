@@ -237,7 +237,11 @@ lock/CLI layer beside the existing resolvers. Core never grows a network or git
 dependency, so Node compatibility is preserved. The in-process compile of an
 acquired tree (`compileAcquiredTree`) runs with sorted, tree-relative file paths
 and no stat/git callbacks, so the cached `compiled.json` and its `snapshot` hash
-are byte-reproducible across machines from `(tree, markspec version)`.
+are byte-reproducible across machines from `(tree, markspec version)`. The
+snapshot covers the entries, links, forward and reverse maps, and the type
+registry of the tree. Validator diagnostics are neither hashed nor stored in it
+(#963), so a validator change never moves a pin. Every reader of the stored
+snapshot takes only its entries.
 
 ## Non-features (out of scope for v1, deliberately)
 
