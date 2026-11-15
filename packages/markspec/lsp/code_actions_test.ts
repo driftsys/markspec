@@ -1221,6 +1221,36 @@ async function sourceActions(
   return buildCodeActions("file:///x.rs", [diagnostic], text, parsed.entries);
 }
 
+Deno.test("buildCodeActions: a source file with no entries gets no A030 or T020 fix, but keeps M060 (#965)", () => {
+  // The text is a valid Markdown entry block; a source file must not take
+  // the Markdown path.
+  const text = twoEntries([
+    "      Superseded-by: REQ-009",
+    "      Type: Requirment",
+  ], []);
+  const actions = buildCodeActions(
+    "file:///x.rs",
+    [
+      titleDiag("MSL-A030", "Superseded-by"),
+      diag({
+        code: "MSL-T020",
+        message: "REQ-001: Type: 'Requirment' is not a core type",
+        line: 2,
+        character: 0,
+      }),
+      diag({
+        code: "MSL-M060",
+        message: "REQ-001: modal keyword 'SHALL' in body prose is uppercase",
+        line: 4,
+        character: 2,
+      }),
+    ],
+    text,
+    [],
+  );
+  assertEquals(actions.map((a) => a.title), ["Lowercase 'shall'"]);
+});
+
 for (const [name, layout] of Object.entries(SOURCE_LAYOUTS)) {
   const titleLine = (text: string) => lineOf(text, "[REQ-001]");
 

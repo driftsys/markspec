@@ -141,10 +141,12 @@ const MAX_SUGGESTION_DISTANCE = 3;
  * a specific line in the source (e.g. MSL-A030 attribute removal).
  * MSL-M060 only invocations may omit it.
  *
- * `sourceEntries` is set for a source file only: the entries that the
- * source parser extracted from its doc comments. The A030 and T020 fixes
- * read their line from these entries. Without it, they read the Markdown
- * trailer block. A source file with no entries gets no A030 or T020 fix.
+ * `sourceEntries` is set for a source file only, and never for Markdown:
+ * the entries that the source parser extracted from its doc comments. The
+ * A030 and T020 fixes of a source file read their line from these entries,
+ * so an empty list gives a source file no A030 or T020 fix. Without
+ * `sourceEntries`, the document is Markdown and the fixes read its trailer
+ * block.
  */
 export function buildCodeActions(
   uri: string,

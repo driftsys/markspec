@@ -1490,6 +1490,32 @@ connection.onRenameRequest(async (params) => {
 // Code actions (quick fixes for diagnostics)
 // ---------------------------------------------------------------------------
 
+/**
+ * The entries that the A030 and T020 quick fixes of a source file read their
+ * line from. The file is parsed only when a diagnostic of the request needs
+ * it. An empty list, which gives no A030 or T020 fix, stands for "not needed"
+ * and for a parse failure; a failure is logged once, so the other quick fixes
+ * of the request still work.
+ */
+async function sourceEntriesForCodeActions(
+  filePath: string,
+  documentText: string | undefined,
+  diagnostics: readonly { code: string }[],
+) {
+  if (
+    documentText === undefined ||
+    !diagnostics.some((d) => d.code === "MSL-A030" || d.code === "MSL-T020")
+  ) return [];
+  try {
+    return (await parseFile(documentText, { file: filePath })).entries;
+  } catch (err) {
+    connection.console.warn(
+      `Quick fixes for ${filePath} skipped: the source file failed to parse: ${err}`,
+    );
+    return [];
+  }
+}
+
 connection.onCodeAction(async (params) => {
   tally("codeAction");
   const filePath = uriToPath(params.textDocument.uri);
@@ -1511,9 +1537,8 @@ connection.onCodeAction(async (params) => {
       params.textDocument.uri,
       diagnostics,
       documentText,
-      // A030 and T020 locate their line from the source parser's entries.
-      isSourceFile(filePath) && documentText !== undefined
-        ? (await parseFile(documentText, { file: filePath })).entries
+      isSourceFile(filePath)
+        ? await sourceEntriesForCodeActions(filePath, documentText, diagnostics)
         : undefined,
     );
   // deno-lint-ignore no-explicit-any
