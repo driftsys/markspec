@@ -6,9 +6,18 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { ProjectContext, type ProjectContextHost } from "./project_context.ts";
+import { pathToUri } from "./util.ts";
 
-const ROOT = "/proj";
+/** Absolute project root: on Windows it carries a drive letter. */
+const ROOT = resolve("/proj");
+
+/** Lookup key for the fake file system: `/` separators on every platform,
+ * so a path built with `join` and one built with `/` find the same file. */
+function key(path: string): string {
+  return path.replaceAll("\\", "/");
+}
 
 const PROFILE_YAML = `id: "@acme/wiring"
 version: 0.1.0
@@ -50,14 +59,18 @@ const CAPTION_MD = `# Requirements
 `;
 
 /** Load a context over in-memory files, index `md`, publish, and return the
- * diagnostic codes published for `/proj/doc.md`. */
+ * diagnostic codes published for `doc.md` at the root. */
 async function publishedCodes(
   files: Record<string, string>,
   md: string,
 ): Promise<string[]> {
   const published = new Map<string, string[]>();
+  const byKey = new Map(
+    Object.entries(files).map(([path, text]) => [key(path), text]),
+  );
+  const docPath = join(ROOT, "doc.md");
   const host: ProjectContextHost = {
-    readFile: (path) => Promise.resolve(files[path]),
+    readFile: (path) => Promise.resolve(byKey.get(key(path))),
     realPath: (path) => Promise.resolve(path),
     readDir: async function* () {},
     sendDiagnostics: (uri, diagnostics) =>
@@ -70,10 +83,10 @@ async function publishedCodes(
   };
   const ctx = new ProjectContext(ROOT, host);
   await ctx.load();
-  await ctx.index.parseAndUpdateFile(`${ROOT}/doc.md`, md);
+  await ctx.index.parseAndUpdateFile(docPath, md);
   ctx.publishAllDiagnostics();
   ctx.dispose();
-  return published.get(`file://${ROOT}/doc.md`) ?? [];
+  return published.get(pathToUri(docPath)) ?? [];
 }
 
 const PROFILE_FILES = {
