@@ -183,7 +183,8 @@ The tables below summarize typical attribute usage by type group. Attributes
 under "Typical profile attributes" are **not** defined by core — they require
 the relevant profile to be active. Core declares `Bus-protocol`,
 `Connector-type`, `Voltage-level` and `Signal-direction` on `HardwareInterface`,
-and `License` on `SoftwareComponent`; the tables list them as core attributes.
+and `License` on `SoftwareComponent`.
+
 In core-only mode, `MSL-R010` is not reported for the universal attributes
 above, the core relation keys, or the attributes declared on core types. The
 type checks (`MSL-T022`, `MSL-R083`) still apply.
@@ -216,12 +217,12 @@ type checks (`MSL-T022`, `MSL-R083`) still apply.
 
 ### Item types
 
-| Type         | Typical profile attributes | Notes                                              |
-| ------------ | -------------------------- | -------------------------------------------------- |
-| `Definition` | (none typical)             | Used in glossary cross-check lint rule             |
-| `Objective`  | `Priority`                 | Not a `Satisfies` or `Derived-from` target in core |
-| `Standard`   | (none typical)             | Always Reference shape                             |
-| `Change`     | `Priority`, `Status`       | No core relation to Requirements                   |
+| Type         | Typical profile attributes | Notes                                      |
+| ------------ | -------------------------- | ------------------------------------------ |
+| `Definition` | (none typical)             | Used in glossary cross-check lint rule     |
+| `Objective`  | `Priority`                 | Not a `Satisfies` or `Derived-from` target |
+| `Standard`   | (none typical)             | Always Reference shape                     |
+| `Change`     | `Priority`, `Status`       | No core relation to Requirements           |
 
 ## Profile-declared attributes
 

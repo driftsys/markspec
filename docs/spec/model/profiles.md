@@ -264,9 +264,9 @@ Profiles extend core — they cannot weaken or redefine it:
 
 MarkSpec ships one bundled profile:
 
-| Profile                     | Purpose                                                                                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@markspec/profile-default` | RFC 2119 modal keywords, `Reference-url`/`Reference-document`/`License` attributes, core relations (`Satisfies`, `Verifies`, …), `DRAFT`/`RELEASED` labels |
+| Profile                     | Purpose                                            |
+| --------------------------- | -------------------------------------------------- |
+| `@markspec/profile-default` | RFC 2119 modal keywords, `DRAFT`/`RELEASED` labels |
 
 There is no bundled ISO 26262 or ASPICE profile. A compliance profile (`ASIL`
 labels, functional-safety relations, ASPICE process attributes, …) is something

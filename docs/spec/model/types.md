@@ -196,8 +196,9 @@ A glossary term. Used in `GLOSSARY.md` or equivalent. A planned lint rule
 
 ### Objective
 
-A goal, OKR, or strategic objective. An `Objective` is not a `Specification`, so
-core does not allow it as the target of `Satisfies` or `Derived-from`.
+A goal, OKR, or strategic objective. Core relations do not allow an `Objective`
+as a `Satisfies` or `Derived-from` target, because those relations target only
+`Specification`.
 
 - **Typical profile attributes:** `Priority`
 
@@ -221,8 +222,8 @@ A normative external document. Always **Reference shape** (`Id:` is a `urn:`,
 
 ### Change
 
-A change request, issue, or ticket. Core declares no relation that links a
-`Change` to a `Requirement`. A profile can declare one (see
+A change request, issue, or ticket. No core relation links a `Change` to a
+`Requirement`. A profile can declare one (see
 [Profile-declared relations](relations.md#profile-declared-relations)).
 
 - **Typical profile attributes:** `Priority`, `Status`

@@ -179,11 +179,6 @@ profile:
       target-types: [change]
 ```
 
-The `source-types` and `target-types` constraints are advisory — the validator
-warns (`MSL-R010`) when a relation is used between types that the profile did
-not intend. They are not hard errors because cross-type relations are sometimes
-legitimate in practice.
-
 ## Locators
 
 A trace value can carry a locator in square brackets after its target. The
