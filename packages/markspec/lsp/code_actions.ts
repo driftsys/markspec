@@ -1,7 +1,9 @@
 /**
  * @module lsp/code_actions
  *
- * Code-action builder. Walks the diagnostics the editor has on a
+ * Code-action builder for Markdown and source files. `.feature` files are
+ * routed to `feature_code_actions.ts` by `onCodeAction` in `server.ts`; this
+ * module also exports the pure helpers that module reuses. Walks the diagnostics the editor has on a
  * range and emits LSP `CodeAction[]` quick fixes for the ones
  * MarkSpec knows how to mechanically repair.
  *

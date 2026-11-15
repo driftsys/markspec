@@ -125,6 +125,10 @@ markspec/
 │       │   │                          MSL-A011 multi-line, MSL-A012 remove,
 │       │   │                          MSL-P021 empty `Key:` remove,
 │       │   │                          MSL-P023 indent git-style trailer)
+│       │   ├── feature_code_actions.ts ← quick fixes for `.feature` header
+│       │   │                          diagnostics (A030, A013, A012, A011, T020,
+│       │   │                          P021 empty key, B069 blank gap; M060 and
+│       │   │                          S010 shared); `onCodeAction` routes them
 │       │   ├── context.ts           ← doc comment context guard (source files);
 │       │   │                          `isFeatureFile`: `.feature` is MarkSpec on `#`
 │       │   │                          comment lines only (Id stamping on format

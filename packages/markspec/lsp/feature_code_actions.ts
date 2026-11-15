@@ -5,7 +5,9 @@
  * comment lines (`# [ID] Title`, then `# Key: value` trailer lines). The
  * locator functions find the header run and its trailer block in the file
  * lines, so a trailer fix edits only lines of that block and never a step
- * or doc-string line. `buildFeatureCodeActions` builds the fixes.
+ * or doc-string line. `buildFeatureCodeActions` builds the fixes for
+ * MSL-A030, A013, A012, A011, T020, P021 (empty `# Key:` line), B069 (blank
+ * lines between header and node), M060 and S010.
  */
 
 import {

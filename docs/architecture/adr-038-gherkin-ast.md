@@ -390,9 +390,10 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    line to the end line of its owned `feature` body node (the last one, after
    any fenced example in the header prose), not to the next entry. Other entries
    keep the existing range.
-7. **Code actions (D6).** There is no dedicated handling for `.feature` files.
-   The existing quick fixes match indented trailer lines and do not apply to `#`
-   headers.
+7. **(Resolved by #943) Code actions (D6).** There is no dedicated handling for
+   `.feature` files. The existing quick fixes match indented trailer lines and
+   do not apply to `#` headers. Resolved by #943 (2026-11-15): see the amendment
+   "code actions for `.feature` files".
 8. **Parser load cost (D7).** The first `.feature` parse loads the Gherkin
    parser lazily, and `loadGherkin` caches the loaded parser for later parses.
    There is no per-text parse cache.
@@ -425,9 +426,9 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    - (b) Treat only `#` comment lines as MarkSpec. Chosen.
 3. **Folding (D4).** Folding to the next entry cuts a Feature entry at its first
    nested Scenario header. The owned node range avoids that.
-4. **Scenario-name rename (D3), code actions (D6), per-text parse cache (D7),
-   Gherkin keyword highlighting (D2).** Not implemented. Alternatives not
-   documented beyond the reasons stated in the decisions above.
+4. **Scenario-name rename (D3), per-text parse cache (D7), Gherkin keyword
+   highlighting (D2).** Not implemented. Alternatives not documented beyond the
+   reasons stated in the decisions above.
 
 ## Amendment 2026-11-14 — VS Code client for `.feature` files
 
@@ -516,14 +517,86 @@ Facts about the Cucumber extensions, verified on 2026-11-14 from their published
 7. **Activation (D7).** Activating on `onLanguage:feature` alone was rejected:
    it would start the server in workspaces that are not MarkSpec projects.
 
+## Amendment 2026-11-15 — code actions for `.feature` files (#943)
+
+Case B slice 3 (epic #915). It resolves item 7 (D6) of the LSP amendment.
+
+Before this change, `onCodeAction` ran the Markdown quick fixes on `.feature`
+files. The `MSL-A030`, `MSL-A013`, `MSL-A012`, `MSL-T020` and `MSL-A011`
+builders scan for `^\s{4,}Key:` to the end of the file, so they could edit an
+indented doc-string line.
+
+1. **Module (D1).** `lsp/feature_code_actions.ts` exports
+   `buildFeatureCodeActions`. It reuses pure helpers that `lsp/code_actions.ts`
+   now exports. The Markdown builders are unchanged.
+2. **Routing (D2).** `server.ts` calls `buildFeatureCodeActions` when
+   `isFeatureFile(path)` is true and `buildCodeActions` otherwise, so no
+   `.feature` diagnostic reaches a Markdown line-scanning builder. `MSL-M060`
+   and `MSL-S010` use the shared builders, which work from the diagnostic range
+   alone.
+3. **Locating lines (D3).** The fix scans only the trailer block of the header
+   that the diagnostic points at. The header run and the trailer block come from
+   `headerRun` and `trailerBlock`. The `MSL-P021` range is the line itself. When
+   several diagnostics of one code name the same key on one header, the nth
+   diagnostic fixes the nth matching line.
+4. **Shared run rule (D4).** `featureHeaderRunEnd` in
+   `core/parser/feature_file.ts`, exported from `core/mod.ts`, holds the rule
+   for where a header run ends. The formatter and the language server both use
+   it.
+5. **Format parity (D5).** Fixes delete whole lines, or insert lines that copy
+   the `#` prefix and the line ending of the line they replace. No fix removes a
+   value-bearing `# Id:` line. When every header had an Id, the fixed text gives
+   `formatFeatureText(fixed).changed === false`. The `MSL-P021` fix can remove
+   an empty `# Id:` line, because that line carries no value; Format Document
+   then stamps a new Id.
+6. **`MSL-P021` (D6).** Only an empty `# Key:` line gets a fix. The fix removes
+   every empty key line of the trailer block, and the `#`-only line above the
+   block when the whole block is empty. This restores a trailer that the empty
+   line had voided (`MSL-P020`, `MSL-R003` and `MSL-I003` also fired).
+7. **`MSL-B069` (D7).** Only the blank-gap variant gets a fix: the fix deletes
+   the blank lines between the header and its node. A header above `Background`,
+   `Examples` or a step, and a stacked header, get no fix, because the node the
+   header belongs to is a choice. This narrows the example in the issue text.
+8. **Async check (D8).** `buildFeatureCodeActions` is async. The `MSL-B069` fix
+   is offered only when a re-parse of the edited text gives an entry at the
+   header line and no `MSL-B069` for it, which holds in every Gherkin language.
+   A builder that throws or rejects is skipped for that diagnostic, so the other
+   actions stay.
+9. **Published codes (D9).** `MSL-T020` and `MSL-M060` reach the editor because
+   the language server runs the whole validator pipeline (#938). The `#`-form
+   `MSL-T020` fix replaces the `# Type:` value with the closest core type within
+   an edit distance of 3.
+10. **Missing Id (D10).** There is no quick fix for `MSL-R003` or `MSL-I003`.
+    Format Document stamps the Id, as for Markdown.
+
+Out of scope: `MSL-B062`, `MSL-P030`, `MSL-B060` to `MSL-B068`, `MSL-R003` and
+`MSL-I004` (multiple Id), `MSL-P022`, a non-empty malformed `MSL-P021`,
+`MSL-A006`.
+
+### Alternatives considered (code actions for `.feature` files)
+
+1. **One locator for both syntaxes.** A file-kind switch inside
+   `buildCodeActions`, or one locator for Markdown and `.feature`. Rejected: it
+   changes the Markdown builders and does not fit the async `MSL-B069` check.
+2. **Locating lines.** Using the indexed `attributeLines` was rejected: it can
+   lag the buffer and omits empty-valued lines.
+3. **Re-parse for every code.** Rejected: only `MSL-B069` needs the node kind.
+4. **`MSL-B069` with English keyword patterns.** Rejected: wrong or no fix in
+   `# language:` files.
+5. **`MSL-B069` moving the header above the enclosing Feature or Rule.**
+   Deferred: the intent is unclear.
+6. **A "Stamp Id" quick fix.** Rejected: Format Document covers it.
+7. **Leave `.feature` on the Markdown builders.** Rejected: they edit Gherkin
+   text today.
+
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
 failure), 3 (pins) and 4 (code), and decisions 1 to 6 of the procedure-view
 amendment, and decisions 1 to 5 of the Case A block-role amendment, and
 decisions 1 to 11 of the Case B `.feature` amendment, and decisions 1 to 11 of
-the LSP amendment, and decisions 1 to 7 of the VS Code client amendment.
-Supersedes #584.\
+the LSP amendment, and decisions 1 to 7 of the VS Code client amendment, and
+decisions 1 to 10 of the code-actions amendment. Supersedes #584.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
 [Language §1.3 §8 (Gherkin blocks in entries)](../spec/language/language.md#8-gherkin-blocks-in-entries),
@@ -540,6 +613,8 @@ Code: `packages/markspec/core/gherkin/`,
 `packages/markspec/core/parser/feature_file.ts`,
 `packages/markspec/core/formatter/feature_file.ts`,
 `packages/markspec/lsp/context.ts`, `packages/markspec/lsp/folding.ts`,
+`packages/markspec/lsp/feature_code_actions.ts`,
+`packages/markspec/lsp/code_actions.ts`,
 `packages/markspec/lsp/project_context.ts`, `packages/markspec/lsp/server.ts`,
 `packages/markspec/lsp/workspace.ts`, `editors/vscode/src/documentSelector.ts`,
 `editors/vscode/src/projectGate.ts`, `editors/vscode/syntaxes/`.
