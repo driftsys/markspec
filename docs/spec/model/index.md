@@ -20,7 +20,7 @@ chain. Core behavior is version-locked and cannot be overridden by profiles.
 **Profile layer** — domain-specific extensions declared in a `markspec.yaml`
 manifest. A profile can add subtypes (e.g., `requirement extends Requirement`
 with a display-ID pattern), domain attributes (e.g., `ASIL`, `Priority`), domain
-relations (e.g., `Mitigated-by`), label concerns, and document conventions. A
+relations (e.g., `Addresses`), label concerns, and document conventions. A
 project activates profiles via `.markspec.yaml`. When no profile is configured
 the toolchain runs in core-only mode.
 

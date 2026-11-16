@@ -49,9 +49,9 @@ them and for profile-declared subtypes.
 Normative statement of what the system shall do. The primary entry type in most
 traceable documentation projects.
 
-- **Typical relations:** `Satisfies` (→ upstream `Requirement` or `Objective`),
-  `Derived-from` (→ other `Requirement`). Verified by `Test` entries via
-  `Verified-by` (generated inverse of `Verifies`).
+- **Typical relations:** `Satisfies` and `Derived-from` (→ upstream
+  `Specification`, typically another `Requirement`). Verified by `Test` entries
+  via `Verified-by` (generated inverse of `Verifies`).
 - **Typical profile attributes:** `ASIL`, `Priority`, `Safety-goal`
 
 ```markdown
@@ -196,17 +196,17 @@ A glossary term. Used in `GLOSSARY.md` or equivalent. A planned lint rule
 
 ### Objective
 
-A goal, OKR, or strategic objective. The upstream anchor for `Requirement`
-`Satisfies` chains. Objectives typically have no upstream targets — they are the
-roots of the traceability tree.
+A goal, OKR, or strategic objective. Core relations do not allow an `Objective`
+as a `Satisfies` or `Derived-from` target, because those relations target only
+`Specification`.
 
 - **Typical profile attributes:** `Priority`
 
 ### Standard
 
 A normative external document. Always **Reference shape** (`Id:` is a `urn:`,
-`doi:`, or `https:` URI). Profile adds `Reference-url`, `Reference-document`,
-and `License` attributes (via `@markspec/default`).
+`doi:`, or `https:` URI). Core provides the `Reference-url` and
+`Reference-document` attributes for Reference-shape entries.
 
 ```markdown
 - [@ISO-26262-6] ISO 26262 Part 6
@@ -218,13 +218,13 @@ and `License` attributes (via `@markspec/default`).
       Type: Standard
       Reference-document: ISO 26262-6:2018
       Reference-url: https://www.iso.org/standard/68388.html
-      License: ISO-proprietary
 ```
 
 ### Change
 
-A change request, issue, or ticket. Linked to `Requirement` entries via
-`Addresses` / `Addressed-by`.
+A change request, issue, or ticket. No core relation links a `Change` to a
+`Requirement`. A profile can declare one (see
+[Profile-declared relations](relations.md#profile-declared-relations)).
 
 - **Typical profile attributes:** `Priority`, `Status`
 

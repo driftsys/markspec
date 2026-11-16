@@ -514,8 +514,8 @@ beside `.markspec.yaml`, profile-schema §2.2) carries the same `prose:` block a
 - It is **strictly weaker than a profile**: it may enable/disable groups, add
   lexicon entries, set weights, and set a _local_ `score.threshold`, but it
   **cannot demote** a core-defined `error` or a profile-promoted `error`
-  (core-data-model §4.10). Attempting to is ignored with an `MSL-A020`-class
-  config warning (a profile is the stronger compliance authority).
+  (core-data-model §4.10). Attempting to is ignored with a config warning (a
+  profile is the stronger compliance authority).
 - When **both** a profile and `.markspec/lint.yaml` exist, the profile wins
   every conflict; `.markspec/lint.yaml` only fills gaps the profile left unset.
   (Rationale: a project file must not silently weaken a compliance profile.)

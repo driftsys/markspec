@@ -10,8 +10,8 @@ tooling.
 | Element            | Purpose                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------- |
 | **Subtypes**       | Domain-specific entry types with display-ID patterns (`requirement extends Requirement`) |
-| **Attributes**     | Extra trailer keys beyond the core universal set (`ASIL`, `Priority`, `License`)         |
-| **Relations**      | Trace edges with cardinality and inverse rules (`Mitigated-by`, `Addresses`)             |
+| **Attributes**     | Extra trailer keys beyond the core universal set (`ASIL`, `Priority`)                    |
+| **Relations**      | Trace edges with cardinality and inverse rules (`Addresses`)                             |
 | **Label concerns** | Structured label vocabulary (`DRAFT`, `RELEASED`, `ASIL-B`)                              |
 | **Conventions**    | Document-level formatting rules (caption position, prose wrap)                           |
 
@@ -44,9 +44,9 @@ profile:
       values: [ASIL-A, ASIL-B, ASIL-C, ASIL-D, QM]
 
   relations:
-    - key: Mitigated-by
-      inverse: Mitigates
-      source-types: [hazard]
+    - key: Addresses
+      inverse: Addressed-by
+      source-types: [change]
       target-types: [requirement]
 
   labels:
@@ -110,7 +110,7 @@ Attributes (1):
   - ASIL: ASIL classification (ASIL-A | ASIL-B | ASIL-C | ASIL-D | QM)
 
 Relations (1):
-  - Mitigated-by: inverse Mitigates; hazard → requirement
+  - Addresses: inverse Addressed-by; change → requirement
 ```
 
 Use `markspec profile describe type requirement` for full detail on any profile
@@ -123,7 +123,7 @@ A project with no `.markspec.yaml` (or an empty profiles list) runs in
 
 - Only the 4 abstract and 15 core concrete types are recognised.
 - Unknown `Type:` values produce `MSL-T020`.
-- Unknown trailer keys produce `MSL-A020`.
+- Unknown trailer keys produce `MSL-R010`.
 - No display-ID patterns, no domain relations, no domain attributes.
 - The type-resolution chain uses only steps 1, 5, 6, 7, and 8 (profile steps 2–4
   do not apply).
@@ -264,9 +264,9 @@ Profiles extend core — they cannot weaken or redefine it:
 
 MarkSpec ships one bundled profile:
 
-| Profile                     | Purpose                                                                                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@markspec/profile-default` | RFC 2119 modal keywords, `Reference-url`/`Reference-document`/`License` attributes, core relations (`Satisfies`, `Verifies`, …), `DRAFT`/`RELEASED` labels |
+| Profile                     | Purpose                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `@markspec/profile-default` | Empty baseline: declares no types, attributes, labels or rules, only default colour roles (modal-keyword checks are in core) |
 
 There is no bundled ISO 26262 or ASPICE profile. A compliance profile (`ASIL`
 labels, functional-safety relations, ASPICE process attributes, …) is something
