@@ -8,7 +8,7 @@
  * from core/mod.ts, never from internal paths.
  */
 
-export const VERSION = "0.12.1";
+export const VERSION = "0.13.0";
 
 export { DISPLAY_ID_CHAR_RE, DISPLAY_ID_TOKEN_RE } from "./util/display_id.ts";
 

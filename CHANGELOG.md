@@ -1,5 +1,126 @@
 # Changelog
 
+## [0.13.0] (2026-11-16)
+
+### Upgrade notes
+
+- Run `markspec lock --update` once after upgrading. The upstream snapshot
+  hash changed ([#950], [#963]), so existing pins report drift until they are
+  re-pinned.
+
+### Documentation
+
+- **spec:** align relations, types and attributes with core ([#975]) ([ed3e3e1]), closes [#957]
+- **docs:** describe per-project groups for bare check in nested projects ([#974]) ([828b3d4]), closes [#964]
+- **spec:** align Tests targets and the core-relations table with core ([#959]) ([145c1e2]), closes [#948]
+- stop telling authors to write the generated Verified-by link ([#949]) ([309d6f8]), refs [#946]
+- Gherkin spec section, AST section and guide chapter ([#945]) ([4bf064a])
+- **spec:** fix the locator example in relations.md ([#922]) ([983580a]), closes [#918]
+- **docs:** add ADR-036, MCP write tools only propose ([#911]) ([f013e67]), refs [#63]
+
+### Features
+
+- **lsp:** link Source file paths as document links ([#973]) ([d85d251]), closes [#961]
+- **lsp:** quick fixes for .feature files ([#953]) ([2b76028]), refs [#943]
+- **lsp:** register .feature files and Gherkin highlighting in VS Code ([#942]) ([44fc75f]), closes [#941]
+- **lsp:** support .feature files in the language server ([#940]) ([5a76243]), closes [#939]
+- **core:** read MarkSpec entries from .feature files ([#936]) ([cedda3a])
+- **core:** give embedded Gherkin blocks a role from the host entry type ([#934]) ([09d6ffa])
+- **core:** derive the Gherkin procedure view and warn on steps without a result ([#933]) ([3be49fe])
+- **core:** parse fenced Gherkin blocks into an AST ([#931]) ([ea994ab])
+- **core:** scenario locators on Satisfies and Verifies ([#929]) ([d6510f4]), refs [#924]
+- **core:** accept git-style trailer blocks ([#927]) ([b5f7804]), closes [#914]
+
+### Bug Fixes
+
+- **core:** exclude validator diagnostics from the upstream snapshot hash ([#970]) ([f89830b]), closes [#963]
+- **lsp:** bound the A030 and T020 quick fixes to the diagnosed entry's trailer block ([#969]) ([4c35b44]), closes [#965]
+- **core:** accept Generated-from in core-only check ([#968]) ([f59a8be]), closes [#958]
+- **lsp:** keep a file created after startup in the index when its buffer closes ([#967]) ([007325e])
+- **core:** run the validator pipeline in compile for MCP validate and export ([#966]) ([b42a139]), fixes [#950]
+- **lsp:** bound Markdown quick fixes to the diagnosed entry's trailer block ([#962]) ([02a6ab6]), closes [#952]
+- **lsp:** treat Verifies, not the generated Verified-by, as the authored link ([#960]) ([1016f38])
+- **lsp:** publish the pipeline's traceability diagnostics ([#951]) ([118bb19]), closes [#938]
+- **core:** keep trailing Key: value prose in the entry body ([#923]) ([7689e33]), closes [#916]
+- **cli:** grant network access and stage the Typst package in the compiled binary ([#920]) ([fea554b]), closes [#919], [#917]
+
+[0.13.0]: https://github.com/driftsys/markspec/compare/v0.12.1...v0.13.0
+[ed3e3e1]: https://github.com/driftsys/markspec/commit/ed3e3e1
+[#975]: https://github.com/driftsys/markspec/issues/975
+[#957]: https://github.com/driftsys/markspec/issues/957
+[828b3d4]: https://github.com/driftsys/markspec/commit/828b3d4
+[#974]: https://github.com/driftsys/markspec/issues/974
+[#964]: https://github.com/driftsys/markspec/issues/964
+[145c1e2]: https://github.com/driftsys/markspec/commit/145c1e2
+[#959]: https://github.com/driftsys/markspec/issues/959
+[#948]: https://github.com/driftsys/markspec/issues/948
+[309d6f8]: https://github.com/driftsys/markspec/commit/309d6f8
+[#949]: https://github.com/driftsys/markspec/issues/949
+[#946]: https://github.com/driftsys/markspec/issues/946
+[4bf064a]: https://github.com/driftsys/markspec/commit/4bf064a
+[#945]: https://github.com/driftsys/markspec/issues/945
+[983580a]: https://github.com/driftsys/markspec/commit/983580a
+[#922]: https://github.com/driftsys/markspec/issues/922
+[#918]: https://github.com/driftsys/markspec/issues/918
+[f013e67]: https://github.com/driftsys/markspec/commit/f013e67
+[#911]: https://github.com/driftsys/markspec/issues/911
+[#63]: https://github.com/driftsys/markspec/issues/63
+[d85d251]: https://github.com/driftsys/markspec/commit/d85d251
+[#973]: https://github.com/driftsys/markspec/issues/973
+[#961]: https://github.com/driftsys/markspec/issues/961
+[2b76028]: https://github.com/driftsys/markspec/commit/2b76028
+[#953]: https://github.com/driftsys/markspec/issues/953
+[#943]: https://github.com/driftsys/markspec/issues/943
+[44fc75f]: https://github.com/driftsys/markspec/commit/44fc75f
+[#942]: https://github.com/driftsys/markspec/issues/942
+[#941]: https://github.com/driftsys/markspec/issues/941
+[5a76243]: https://github.com/driftsys/markspec/commit/5a76243
+[#940]: https://github.com/driftsys/markspec/issues/940
+[#939]: https://github.com/driftsys/markspec/issues/939
+[cedda3a]: https://github.com/driftsys/markspec/commit/cedda3a
+[#936]: https://github.com/driftsys/markspec/issues/936
+[09d6ffa]: https://github.com/driftsys/markspec/commit/09d6ffa
+[#934]: https://github.com/driftsys/markspec/issues/934
+[3be49fe]: https://github.com/driftsys/markspec/commit/3be49fe
+[#933]: https://github.com/driftsys/markspec/issues/933
+[ea994ab]: https://github.com/driftsys/markspec/commit/ea994ab
+[#931]: https://github.com/driftsys/markspec/issues/931
+[d6510f4]: https://github.com/driftsys/markspec/commit/d6510f4
+[#929]: https://github.com/driftsys/markspec/issues/929
+[#924]: https://github.com/driftsys/markspec/issues/924
+[b5f7804]: https://github.com/driftsys/markspec/commit/b5f7804
+[#927]: https://github.com/driftsys/markspec/issues/927
+[#914]: https://github.com/driftsys/markspec/issues/914
+[f89830b]: https://github.com/driftsys/markspec/commit/f89830b
+[#970]: https://github.com/driftsys/markspec/issues/970
+[#963]: https://github.com/driftsys/markspec/issues/963
+[4c35b44]: https://github.com/driftsys/markspec/commit/4c35b44
+[#969]: https://github.com/driftsys/markspec/issues/969
+[#965]: https://github.com/driftsys/markspec/issues/965
+[f59a8be]: https://github.com/driftsys/markspec/commit/f59a8be
+[#968]: https://github.com/driftsys/markspec/issues/968
+[#958]: https://github.com/driftsys/markspec/issues/958
+[007325e]: https://github.com/driftsys/markspec/commit/007325e
+[#967]: https://github.com/driftsys/markspec/issues/967
+[b42a139]: https://github.com/driftsys/markspec/commit/b42a139
+[#966]: https://github.com/driftsys/markspec/issues/966
+[#950]: https://github.com/driftsys/markspec/issues/950
+[02a6ab6]: https://github.com/driftsys/markspec/commit/02a6ab6
+[#962]: https://github.com/driftsys/markspec/issues/962
+[#952]: https://github.com/driftsys/markspec/issues/952
+[1016f38]: https://github.com/driftsys/markspec/commit/1016f38
+[#960]: https://github.com/driftsys/markspec/issues/960
+[118bb19]: https://github.com/driftsys/markspec/commit/118bb19
+[#951]: https://github.com/driftsys/markspec/issues/951
+[#938]: https://github.com/driftsys/markspec/issues/938
+[7689e33]: https://github.com/driftsys/markspec/commit/7689e33
+[#923]: https://github.com/driftsys/markspec/issues/923
+[#916]: https://github.com/driftsys/markspec/issues/916
+[fea554b]: https://github.com/driftsys/markspec/commit/fea554b
+[#920]: https://github.com/driftsys/markspec/issues/920
+[#919]: https://github.com/driftsys/markspec/issues/919
+[#917]: https://github.com/driftsys/markspec/issues/917
+
 ## [0.12.1] (2026-11-11)
 
 ### Bug Fixes
