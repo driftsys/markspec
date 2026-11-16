@@ -168,13 +168,18 @@ starts at or above that project; discovery does not read them from below it.
 - A nested project is a separate project. Its entries are not merged into the
   enclosing project's graph, and it is compiled and validated against its own
   profile.
-- This split is intended, and it differs from the CLI: bare `markspec check`
-  still checks the enclosing tree as one graph, nested projects included. MCP
-  `validate` can therefore disagree with `check` for nested projects. A display
-  ID declared once in each of two nested projects is a duplicate for `check`
-  (MSL-R006 / MSL-I008) but not for MCP `validate`, and a `Satisfies:` that
-  points from one nested project into another resolves for `check` but is
-  unresolved for MCP `validate`.
+- This split is intended. When this section was written, it differed from the
+  CLI: bare `markspec check` checked the enclosing tree as one graph, nested
+  projects included, so MCP `validate` could disagree with `check` for nested
+  projects. _Amended 2026-11-16
+  ([#856](https://github.com/driftsys/markspec/issues/856),
+  [#867](https://github.com/driftsys/markspec/pull/867), recorded in
+  [ADR-027](adr-027-cli-smoother-defaults.md)):_ bare `check` now processes each
+  nested project as its own group, with its own profile, so the two no longer
+  disagree on duplicate IDs or cross-project `Satisfies:` links, for nested
+  projects that are not listed under `exclude:`. A nested folder that is listed
+  there is not a separate project for MCP, and its entries stay in the enclosing
+  project's MCP graph, but `check` skips its files.
 - Every tool and resource answers for all discovered projects and labels each
   result `## Project: <label>`, where the label is the project root relative to
   the primary root (the config root found by walking up from the start folder,
