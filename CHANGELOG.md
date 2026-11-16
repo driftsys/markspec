@@ -4,9 +4,13 @@
 
 ### Upgrade notes
 
-- Run `markspec lock --update` once after upgrading. The upstream snapshot
-  hash changed ([#950], [#963]), so existing pins report drift until they are
-  re-pinned.
+- The snapshot hash of a `dependencies:` upstream no longer covers validator
+  diagnostics ([#963]). A pin recorded by an earlier version is kept while its
+  dependency cache is intact. When the cache is missing or damaged, the restore
+  warns `MSL-L213` and keeps the old pin. To re-pin, run
+  `markspec lock --update=<id>` for one dependency, or `markspec lock --update`
+  for all upstreams. `--update` also re-resolves each pin to the newest
+  revision that its intent allows. `references:` upstreams are not affected.
 
 ### Documentation
 
