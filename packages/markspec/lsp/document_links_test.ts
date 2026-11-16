@@ -117,11 +117,24 @@ Deno.test("buildDocumentLinks: a Windows drive path reaches the resolver unchang
   assertEquals(rec.seen, [["C:\\x\\y.rs", undefined], ["C:\\x\\y.rs", 12]]);
 });
 
-Deno.test("buildDocumentLinks: display ID gets no link when the resolver accepts only real paths", async () => {
-  assertEquals(
-    await linksOf(doc("Source: STK_AEB_0001"), realPathsOnly),
-    [],
-  );
+Deno.test("buildDocumentLinks: display ID gets no link when the resolver checks real files", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(`${dir}/real.rs`, "// code\n");
+    const realFiles = (path: string) => {
+      try {
+        return Deno.statSync(`${dir}/${path}`).isFile
+          ? `file://${dir}/${path}`
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    assertEquals(await linksOf(doc("Source: STK_AEB_0001"), realFiles), []);
+    assertEquals((await linksOf(doc("Source: real.rs"), realFiles)).length, 1);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
 });
 
 Deno.test("buildDocumentLinks: missing file (resolver returns undefined) gets no link", async () => {
@@ -191,4 +204,71 @@ Deno.test("buildDocumentLinks: entries with a profile or upstream origin are not
     ),
     [],
   );
+});
+
+Deno.test("buildDocumentLinks: an attribute whose key only ends in Source is not linked", async () => {
+  const rec = recordingResolver();
+  assertEquals(await linksOf(doc("Data-Source: src/x.rs"), rec.resolve), []);
+  assertEquals(rec.seen, []);
+});
+
+Deno.test("buildDocumentLinks: the value is searched after the key, not earlier on the line", async () => {
+  // In a doc comment the value `/` also appears in the `///` prefix.
+  const text = `/// [STK_0001] T
+///
+///     Id: 01HABC
+///     Source: /
+fn f() {}
+`;
+  const links = await linksOf(text, recordingResolver().resolve, "/proj/a.rs");
+  assertEquals(links.length, 1);
+  assertEquals(links[0].range.start, { line: 3, character: 16 });
+});
+
+Deno.test("buildDocumentLinks: a URI ending in :<digits> is linked whole", async () => {
+  const uri = "https://host:8080/a:80";
+  const links = await linksOf(doc(`Source: ${uri}`), realPathsOnly);
+  assertEquals(links.length, 1);
+  assertEquals(links[0].target, uri);
+  assertEquals(links[0].range.end.character, 14 + uri.length);
+});
+
+Deno.test("buildDocumentLinks: a path with a space or a comma reaches the resolver whole", async () => {
+  const rec = recordingResolver();
+  await linksOf(doc("Source: my dir/a,b.rs:5"), rec.resolve);
+  assertEquals(rec.seen, [["my dir/a,b.rs", 5]]);
+});
+
+Deno.test("buildDocumentLinks: every entry of a document is linked", async () => {
+  const text = `- [STK_0001] A
+
+      Id: 01HABC
+      Source: a.rs
+
+- [STK_0002] B
+
+      Id: 01HABD
+      Source: b.rs:2
+`;
+  const links = await linksOf(text, realPathsOnly);
+  assertEquals(links.map((l) => l.target), [
+    "file:///proj/a.rs",
+    "file:///proj/b.rs#L2",
+  ]);
+  assertEquals(links.map((l) => l.range.start.line), [3, 8]);
+});
+
+Deno.test("buildDocumentLinks: a Source line in a *-prefixed block doc comment is linked", async () => {
+  const text = `/**
+ * [STK_0001] T
+ *
+ *     Id: 01HABC
+ *     Source: src/lib.rs:9
+ */
+fn f() {}
+`;
+  const links = await linksOf(text, realPathsOnly, "/proj/src/lib.rs");
+  assertEquals(links.length, 1);
+  assertEquals(links[0].target, "file:///proj/src/lib.rs#L9");
+  assertEquals(links[0].range.start, { line: 4, character: 15 });
 });

@@ -148,7 +148,10 @@ Deno.test("lsp documentLink: a Source naming an existing directory produces no l
   assertEquals(links, []);
 });
 
-Deno.test("lsp documentLink: returns empty array for non-MarkSpec file", async () => {
+// A `.json` file is never indexed, so this test passes whatever the
+// `isMarkspecFile` guard in the handler does: the guard is defence in depth.
+// The test pins only that a file outside the index gets no links.
+Deno.test("lsp documentLink: a file outside the index gets no links", async () => {
   const text = entry("Source: src/foo.rs");
   const { links } = await linksFor(text, { "src/foo.rs": "// code\n" }, {
     docPath: "data.json",

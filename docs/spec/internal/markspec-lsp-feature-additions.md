@@ -324,10 +324,13 @@ For each `Source:` value of an entry, the server emits a link:
 | Value                         | Link                                                                   |
 | ----------------------------- | ---------------------------------------------------------------------- |
 | Relative path                 | The file under the project root of the owning project, when it exists. |
-| Absolute path (also Windows)  | The file, when it exists.                                              |
+| Absolute path                 | The file, when it exists.                                              |
 | `<path>:<line>`               | As above, with `#L<line>` appended to the target URI.                  |
 | `http://` or `https://` URI   | The URI as is.                                                         |
 | Anything else (display ID, …) | No link.                                                               |
+
+A Windows drive path is absolute, and used as is, only when the server runs on
+Windows; on other systems the server joins it to the project root.
 
 `Source` is single-valued: the whole trimmed value is one token, and commas and
 spaces are part of it. The server finds each `Source:` line from the parsed
@@ -343,9 +346,9 @@ gets no links.
 Code lens and inlay hints share the same in-memory data the validator already
 walks. No new full-graph computations. Per-document cost is O(entries in
 document) — sub-millisecond for typical files. Document links also check the
-file system once per `Source:` value (a `stat` call), so their cost depends on
-the file system. The server SHOULD compute them lazily on first request, then
-cache until the document changes.
+file system once per `Source:` path value (a `stat` call; `http(s)` values call
+none), so their cost depends on the file system. The server SHOULD compute them
+lazily on first request, then cache until the document changes.
 
 ### 5.5 Lazy-loading constraint
 
@@ -431,7 +434,7 @@ under 250ms — the new modules are small (<10KB each).
 | `markspec/profile`          | < 10ms | Cached response; serialization only.                                              |
 | `textDocument/codeLens`     | < 20ms | Per-document; reuses already-indexed data.                                        |
 | `textDocument/inlayHint`    | < 20ms | Same.                                                                             |
-| `textDocument/documentLink` | < 20ms | Per-document; one `stat` call per `Source:` value.                                |
+| `textDocument/documentLink` | < 20ms | Per-document; one `stat` call per `Source:` path value.                           |
 
 These are warm-cache budgets. Cold cache (immediately after
 `workspace/didChangeContent`) may be 2-3× higher; that's acceptable because
