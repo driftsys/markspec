@@ -18,8 +18,8 @@ Deno.test("lsp lifecycle: initialize returns capabilities", async () => {
     assertExists(capabilities);
     // Verify text document sync
     assertEquals(capabilities.textDocumentSync, 1); // Full
-    // The document-link provider was removed (#947).
-    assertEquals(capabilities.documentLinkProvider, undefined);
+    // The document-link provider links `Source:` values (#961).
+    assertEquals(capabilities.documentLinkProvider, { resolveProvider: false });
     // Verify completion provider
     const completion = capabilities.completionProvider as Record<
       string,
