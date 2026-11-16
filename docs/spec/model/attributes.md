@@ -186,8 +186,8 @@ the relevant profile to be active. Core declares `Bus-protocol`,
 and `License` on `SoftwareComponent`.
 
 In core-only mode, `MSL-R010` is not reported for the universal attributes
-above, the core relation keys, or the attributes declared on core types. The
-type checks (`MSL-T022`, `MSL-R083`) still apply.
+above, the core relation keys, `Type`, or the attributes declared on core types.
+The type checks (`MSL-T022`, `MSL-R083`) still apply.
 
 ### Specification types
 
