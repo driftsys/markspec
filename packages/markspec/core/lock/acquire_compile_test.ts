@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { compileAcquiredTree } from "./acquire_compile.ts";
+import { sha256Bytes } from "./hash.ts";
 
 // Build an in-memory tree fixture: project.yaml + one or more requirements
 // files. `enumOrder` picks the order the fake `readDir` yields the entries of
@@ -145,76 +146,90 @@ Deno.test("compileAcquiredTree: no project.yaml → error", async () => {
   assertEquals("error" in r, true);
 });
 
-Deno.test("compileAcquiredTree: the snapshot carries the tree's caption conventions and declared upstreams (#950)", async () => {
-  const files: Record<string, string> = {
-    "/dep/project.yaml":
-      "name: dep\nversion: 1.0.0\ndependencies:\n  - url: https://example.invalid/icd.git\n    name: icd\n    version: v1.0.0\n",
-    "/dep/.markspec.yaml":
-      "profiles:\n  - ./profiles/p\ncaption-conventions:\n  Figure: above\n",
-    "/dep/profiles/p/markspec.yaml": `id: "@acme/dep"
-version: 0.1.0
-profile:
-  types:
-    requirement:
-      extends: Requirement
-      display-id-pattern: "REQ-{n:04d}"
-      traceability:
-        Satisfies:
-          target: [requirement]
-          cardinality: 0..3
-          required: false
-`,
-    "/dep/req.md": `- [REQ-0001] Diagram
+// A later file that redeclares STK_ICD_0001 adds a duplicate-ID validator
+// finding but changes neither the entries (first declaration wins), the links
+// nor the registry.
+const WITH_DUPLICATE = {
+  ...PROJECT,
+  "/dep/docs/z.md": [
+    "- [STK_ICD_0001] Brake torque interface copy",
+    "",
+    "  The interface shall carry brake torque within 5 ms.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+    "",
+  ].join("\n"),
+};
 
-  See below.
-
-  ![Brake diagram](brake.svg)
-
-  Figure: Brake pressure schematic
-
-      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-      Type: requirement
-      Satisfies: ICD-0001
-`,
-  };
-  const out = await compileAcquiredTree("/dep", fixtureIO(files), "v1");
-  if ("error" in out) throw new Error(out.error);
-  const text = new TextDecoder().decode(out.compiledBytes);
-  assertStringIncludes(text, "MSL-C072");
-  assertStringIncludes(text, "MSL-T014");
-  assertEquals(text.includes("MSL-L006"), false);
+Deno.test("compileAcquiredTree: the snapshot excludes validator diagnostics (#963)", async () => {
+  const clean = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(PROJECT),
+    "0.0.0-test",
+  );
+  const withFinding = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(WITH_DUPLICATE),
+    "0.0.0-test",
+  );
+  if ("error" in clean || "error" in withFinding) {
+    throw new Error("unexpected error");
+  }
+  assertEquals(withFinding.snapshot, clean.snapshot);
+  assertEquals(withFinding.compiledBytes, clean.compiledBytes);
+  assertEquals(clean.snapshot, await sha256Bytes(clean.compiledBytes));
+  const json = JSON.parse(new TextDecoder().decode(clean.compiledBytes));
+  assertEquals(Object.keys(json).sort(), [
+    "entries",
+    "forward",
+    "links",
+    "reverse",
+    "typeRegistry",
+  ]);
+  assertEquals(Object.keys(json.entries), ["STK_ICD_0001"]);
 });
 
-Deno.test("compileAcquiredTree: a references: upstream makes an unresolved target MSL-T014 (#950)", async () => {
-  const files: Record<string, string> = {
-    "/dep/project.yaml":
-      "name: dep\nversion: 1.0.0\nreferences:\n  - url: https://example.invalid/icd\n    name: icd\n",
-    "/dep/.markspec.yaml": "profiles:\n  - ./profiles/p\n",
-    "/dep/profiles/p/markspec.yaml": `id: "@acme/dep"
-version: 0.1.0
-profile:
-  types:
-    requirement:
-      extends: Requirement
-      display-id-pattern: "REQ-{n:04d}"
-      traceability:
-        Satisfies:
-          target: [requirement]
-          cardinality: 0..3
-          required: false
-`,
-    "/dep/req.md": `- [REQ-0001] Linked
-
-  The system shall exist.
-
-      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-      Type: requirement
-      Satisfies: ICD-0001
-`,
+Deno.test("compileAcquiredTree: a changed entry changes the snapshot (#963)", async () => {
+  const before = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(PROJECT),
+    "0.0.0-test",
+  );
+  const changed = {
+    ...PROJECT,
+    "/dep/docs/reqs.md": PROJECT["/dep/docs/reqs.md"].replace("5 ms", "8 ms"),
   };
-  const out = await compileAcquiredTree("/dep", fixtureIO(files), "v1");
-  if ("error" in out) throw new Error(out.error);
-  const text = new TextDecoder().decode(out.compiledBytes);
-  assertStringIncludes(text, "MSL-T014");
-  assertEquals(text.includes("MSL-L006"), false);
+  const after = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(changed),
+    "0.0.0-test",
+  );
+  if ("error" in before || "error" in after) throw new Error("unexpected");
+  assertEquals(before.snapshot === after.snapshot, false);
+});
+
+Deno.test("compileAcquiredTree: a changed non-relation attribute value changes the snapshot (#963)", async () => {
+  // `Labels:` is not a trace relation, so it is absent from links, forward and
+  // reverse. Only the hashed entries carry its value.
+  const withLabels = (label: string) => ({
+    ...PROJECT,
+    "/dep/docs/reqs.md": PROJECT["/dep/docs/reqs.md"].replace(
+      "01HGW2Q8MNP3RSTVWXYZABCDEF\n",
+      `01HGW2Q8MNP3RSTVWXYZABCDEF\n      Labels: ${label}\n`,
+    ),
+  });
+  const a = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(withLabels("ASIL-A")),
+    "0.0.0-test",
+  );
+  const b = await compileAcquiredTree(
+    "/dep",
+    fixtureIO(withLabels("ASIL-B")),
+    "0.0.0-test",
+  );
+  if ("error" in a || "error" in b) throw new Error("unexpected error");
+  assertEquals(a.snapshot === b.snapshot, false);
+  const json = JSON.parse(new TextDecoder().decode(a.compiledBytes));
+  assertEquals(json.links, []);
 });

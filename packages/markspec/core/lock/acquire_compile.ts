@@ -3,10 +3,11 @@
  *
  * Deterministic in-process compile of an acquired dependency tree
  * (design §4.3). Produces the same `manifest.json` + `compiled.json` layout
- * a published `references:` site serves, so `loadUpstreamCorpus` /
- * `probeCacheSnapshot` read a dependency snapshot identically to a reference
- * snapshot. The output is byte-reproducible from (tree, markspec version):
- * files are compiled in sorted, tree-relative order with no stat/git IO, so
+ * a published `references:` site serves, except that `compiled.json` omits
+ * `diagnostics` (#963). `loadUpstreamCorpus` / `probeCacheSnapshot` read a
+ * dependency snapshot identically to a reference snapshot, because they read
+ * only the entries. The output is byte-reproducible from (tree, markspec
+ * version): files are compiled in sorted, tree-relative order with no stat/git IO, so
  * `entry.location.file`, `properties.file.path`, and entry ordering are all
  * stable. Pure — every file touch flows through {@linkcode AcquireCompileIO}.
  */
@@ -20,7 +21,6 @@ import { loadToolConfig } from "../config/markspec.ts";
 import { loadProfileForCommand } from "../profile/load.ts";
 import { discoverFiles, type DiscoveryIO } from "../discovery/mod.ts";
 import { sha256Bytes } from "./hash.ts";
-import { deriveUpstreamId } from "./upstream_refs.ts";
 
 export interface AcquireCompileIO {
   /** Config/profile reader — returns text or undefined (core `ReadFile`). */
@@ -39,9 +39,10 @@ export interface CompiledSnapshot {
 
 /**
  * Compile a fetched dependency tree into its upstream snapshot. The
- * snapshot hash covers the compile diagnostics, so a change to the
- * validator changes the hash of an upstream tree that has findings
- * (#963).
+ * snapshot covers the entries, links and registry only. Validator
+ * diagnostics are neither hashed nor stored, so a validator change never
+ * moves a pin (#963). Every reader of the stored snapshot takes only its
+ * entries.
  */
 export async function compileAcquiredTree(
   treeRoot: string,
@@ -97,15 +98,6 @@ export async function compileAcquiredTree(
   const result = await compile(rel, {
     readFile: (r) => io.readText(join(treeRoot, r)),
     profile,
-    // The tree's own validator inputs, so the snapshot carries the
-    // diagnostics that the tree's own `check` reports.
-    captionConventions: toolConfig.config.captionConventions,
-    declaredUpstreamIds: [
-      ...configResult.config.dependencies,
-      ...configResult.config.references,
-    ]
-      .map((ref) => deriveUpstreamId(ref))
-      .filter((id): id is string => id !== undefined),
   });
 
   // `root` is cosmetic here — manifest.json is not hashed (only compiled.json
@@ -123,7 +115,11 @@ export async function compileAcquiredTree(
   // probeCacheSnapshot JSON.parse it), and compact output keeps
   // `entry.location.file`'s tree-relative path adjacent to its `"file":`
   // key with no formatting-introduced variance to reason about.
-  const compiled = serializeCompileResult(result);
+  // Dropping `diagnostics` here is intentional: they are neither hashed nor
+  // stored, so a validator change cannot move a pin (#963).
+  const { diagnostics: _diagnostics, ...compiled } = serializeCompileResult(
+    result,
+  );
   const compiledBytes = new TextEncoder().encode(JSON.stringify(compiled));
   return {
     manifestJson,
