@@ -183,14 +183,21 @@ function startMarkspec(context: ExtensionContext): void {
 
   const workspaceFolder = workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  const serverOptions = resolveServerOptions({
-    extensionPath: context.extensionPath,
-    workspaceFolder,
-    configuredServerPath: config.get<string>("server.path") || undefined,
-    configuredServerArgs: config.get<string[]>("server.args"),
-    logPath: config.get<string>("trace.logPath") || undefined,
-    platform: process.platform,
-  });
+  let serverOptions: ReturnType<typeof resolveServerOptions>;
+  try {
+    serverOptions = resolveServerOptions({
+      extensionPath: context.extensionPath,
+      workspaceFolder,
+      configuredServerPath: config.get<string>("server.path") || undefined,
+      configuredServerArgs: config.get<string[]>("server.args"),
+      logPath: config.get<string>("trace.logPath") || undefined,
+      platform: process.platform,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    window.showErrorMessage(`MarkSpec: ${reason}`);
+    return;
+  }
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [...MARKSPEC_DOCUMENT_SELECTOR],
@@ -425,15 +432,22 @@ function registerMcpProvider(context: ExtensionContext): void {
       provideMcpServerDefinitions: () => {
         const cfg = workspace.getConfiguration("markspec");
         const workspaceFolder = workspace.workspaceFolders?.[0]?.uri.fsPath;
-        const resolved = resolveMcpDefinition({
-          extensionPath: context.extensionPath,
-          workspaceFolder,
-          enabled: cfg.get<boolean>("mcp.enabled", true),
-          configuredServerPath: cfg.get<string>("server.path") || undefined,
-          configuredMcpArgs: cfg.get<string[]>("mcp.args"),
-          platform: process.platform,
-          extensionVersion: extensionVersion(context),
-        });
+        let resolved: ReturnType<typeof resolveMcpDefinition>;
+        try {
+          resolved = resolveMcpDefinition({
+            extensionPath: context.extensionPath,
+            workspaceFolder,
+            enabled: cfg.get<boolean>("mcp.enabled", true),
+            configuredServerPath: cfg.get<string>("server.path") || undefined,
+            configuredMcpArgs: cfg.get<string[]>("mcp.args"),
+            platform: process.platform,
+            extensionVersion: extensionVersion(context),
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          window.showErrorMessage(`MarkSpec: ${reason}`);
+          return [];
+        }
         if (!resolved) return [];
         const def = new McpStdioServerDefinition(
           resolved.label,

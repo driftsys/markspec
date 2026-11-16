@@ -12,7 +12,7 @@
  */
 
 import * as path from "node:path";
-import { expandVariables } from "./serverOptions";
+import { expandExecutablePath, expandVariables } from "./serverOptions";
 
 export interface ResolveMcpInput {
   /** Absolute path to the unpacked extension directory. */
@@ -79,7 +79,10 @@ function resolveCommand(
 ): { command: string; args: string[] } {
   if (input.configuredServerPath) {
     return {
-      command: input.configuredServerPath,
+      command: expandExecutablePath(
+        input.configuredServerPath,
+        input.workspaceFolder,
+      ),
       args: expandVariables(
         input.configuredMcpArgs ?? ["mcp"],
         input.workspaceFolder,

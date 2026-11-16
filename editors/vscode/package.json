@@ -45,6 +45,12 @@
     "workspaceContains:**/.markspec.yaml"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "MarkSpec starts the executable named by markspec.server.path, which a workspace can set. It runs only once the workspace is trusted."
+    }
+  },
   "contributes": {
     "languages": [
       {

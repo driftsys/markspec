@@ -59,7 +59,10 @@ function resolveCommand(
 ): { command: string; args: string[] } {
   if (input.configuredServerPath) {
     return {
-      command: input.configuredServerPath,
+      command: expandExecutablePath(
+        input.configuredServerPath,
+        input.workspaceFolder,
+      ),
       args: expandVariables(
         input.configuredServerArgs ?? ["lsp"],
         input.workspaceFolder,
@@ -71,6 +74,28 @@ function resolveCommand(
     command: path.join(input.extensionPath, "bin", binaryName),
     args: ["lsp"],
   };
+}
+
+/**
+ * Expand `${workspaceFolder}` in the configured `markspec.server.path`.
+ *
+ * Throws when the path uses `${workspaceFolder}` but no workspace folder is
+ * open: spawning the literal path would fail with an unclear ENOENT.
+ */
+export function expandExecutablePath(
+  configuredPath: string,
+  workspaceFolder: string | undefined,
+): string {
+  if (
+    workspaceFolder === undefined &&
+    configuredPath.includes("${workspaceFolder}")
+  ) {
+    throw new Error(
+      "markspec.server.path uses ${workspaceFolder}, but no workspace folder " +
+        "is open: open a folder, or set an absolute path.",
+    );
+  }
+  return expandVariables([configuredPath], workspaceFolder)[0];
 }
 
 /** Expand `${workspaceFolder}` in each arg. Other `${...}` left untouched. */

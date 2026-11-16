@@ -643,3 +643,31 @@ Deno.test("mcp multi: resources list STK_0001 once and read it from both project
     await Deno.remove(cwd, { recursive: true });
   }
 });
+
+Deno.test('mcp: an empty discovery boundary compiles no entry (exclude: ["**"])', async () => {
+  const dir = await Deno.makeTempDir();
+  await Deno.writeTextFile(`${dir}/project.yaml`, PROJECT_YAML);
+  await Deno.writeTextFile(
+    `${dir}/.markspec.yaml`,
+    'profiles: []\nexclude: ["**"]\n',
+  );
+  await Deno.mkdir(`${dir}/docs`);
+  await Deno.writeTextFile(`${dir}/docs/req.md`, FIXTURE_DOC);
+  const proc = new McpProcess(dir);
+  try {
+    await proc.request("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "test", version: "0.0.1" },
+    });
+    await proc.notify("notifications/initialized", {});
+    const resp = await proc.request("resources/list", {});
+    // deno-lint-ignore no-explicit-any
+    const uris = ((resp.result as any).resources as Array<{ uri: string }>)
+      .map((r) => r.uri);
+    assertEquals(uris.includes("markspec://entry/STK_E2E_0001"), false);
+  } finally {
+    await proc.close();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
