@@ -27,6 +27,7 @@ export const lintCmd = new Command()
       const scope = await resolveScope(paths, {
         verb: "linting",
         quiet: options.quiet === true || options.format === "json",
+        silent: options.quiet === true,
       });
       const { computeScoreRollup, isCorpusEntry, runLint } = await import(
         "../../core/mod.ts"
