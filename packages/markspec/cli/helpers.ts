@@ -13,6 +13,7 @@ import {
   ConfigError,
   CORE_SCHEMA_VERSION,
   corpusOriginLabel,
+  resolveConfigRoot,
   UnreadableProjectFileError,
   VERSION,
 } from "../core/mod.ts";
@@ -28,7 +29,7 @@ import type {
   ProjectRootResolver,
   ReadFile,
 } from "../core/mod.ts";
-import { dirname, join, relative, resolve } from "@std/path";
+import { dirname, join, relative, resolve, SEPARATOR } from "@std/path";
 
 export { CORE_SCHEMA_VERSION, VERSION };
 
@@ -721,6 +722,53 @@ async function walkProjects(
 }
 
 /**
+ * The warning for an explicit file whose nearest `project.yaml` or
+ * `.markspec.yaml` is hidden by an enclosing project (#845).
+ *
+ * An excluded or gitignored folder can be re-included with `exclude:`
+ * negations in the enclosing project's `.markspec.yaml`. A hidden folder
+ * (a path segment starting with `.`) is never a project root, whatever the
+ * negations: the warning suggests renaming it instead.
+ */
+export function hiddenConfigWarning(
+  file: string,
+  hiddenRoot: string,
+  owner: string,
+): string {
+  const rel = (path: string) =>
+    relative(Deno.cwd(), path).split(SEPARATOR).join("/");
+  const dir = (path: string) => rel(path) === "" ? "." : `${rel(path)}/`;
+  const where = rel(owner) === "" ? "the current directory" : `${rel(owner)}/`;
+  const config = rel(owner) === ""
+    ? ".markspec.yaml"
+    : `${rel(owner)}/.markspec.yaml`;
+  const folder = relative(owner, hiddenRoot).split(SEPARATOR).join("/");
+  const hiddenSegment = folder.split("/").find((part) => part.startsWith("."));
+  const head = `warning: ${file}: the project config in ${dir(hiddenRoot)} ` +
+    `is ignored, because the enclosing project (${where}) hides that folder ` +
+    "(its .markspec.yaml exclude:, a .gitignore entry, a built-in skip such " +
+    "as build/, or a hidden folder). The file is processed with the profile " +
+    "and configuration of that project. ";
+  if (hiddenSegment !== undefined) {
+    return head +
+      `To keep ${dir(hiddenRoot)} a project, rename the hidden folder ` +
+      `"${hiddenSegment}": a folder whose name starts with "." is never a ` +
+      "project root, even when exclude: re-includes it.";
+  }
+  // Re-include every folder on the way: an excluded parent stays excluded
+  // otherwise (exclude: ["**"] hides a/ as well as a/b/).
+  const segments = folder.split("/");
+  const negations = [
+    ...segments.map((_, i) => `"!${segments.slice(0, i + 1).join("/")}/"`),
+    `"!${folder}/**"`,
+  ];
+  return head +
+    `To keep ${dir(hiddenRoot)} a project, re-include it in the exclude: ` +
+    `list of ${config}, for example ${negations.slice(0, -1).join(", ")} ` +
+    `and ${negations[negations.length - 1]}.`;
+}
+
+/**
  * Shared scope resolution for `check` / `lint` / `fmt`. Project roots are
  * resolved the way the LSP and the MCP server resolve them (#845), so the
  * same file is checked with the same project, profile and `markspec.lock`
@@ -757,6 +805,11 @@ export async function resolveScope(
     extensions?: ReadonlySet<string>;
     /** Suppress the scope header (set for -q and --format json). */
     quiet?: boolean;
+    /**
+     * Suppress warnings on standard error (set for -q only: a warning on
+     * standard error does not disturb --format json).
+     */
+    silent?: boolean;
   },
 ): Promise<ResolvedScope> {
   const {
@@ -838,8 +891,26 @@ export async function resolveScope(
   // Group the files by the project root that owns each file. The resolver
   // caches its answer per directory: files of one folder share one lookup.
   const groups = new Map<string | undefined, string[]>();
+  const hidden = new Set<string>();
+  const nearestConfigs = new Map<string, string | undefined>();
   for (const file of files) {
-    const root = await resolver.ownerOf(dirname(resolve(file)));
+    const dir = dirname(resolve(file));
+    const root = await resolver.ownerOf(dir);
+    // A config that an enclosing project hides is not a root (#845): say so
+    // once, instead of letting the file be validated silently with the
+    // enclosing project's profile (unknown-attribute noise, for example).
+    let nearest = nearestConfigs.get(dir);
+    if (!nearestConfigs.has(dir)) {
+      nearest = await resolveConfigRoot(dir, io.readFile);
+      nearestConfigs.set(dir, nearest);
+    }
+    if (
+      nearest !== undefined && root !== undefined && nearest !== root &&
+      !hidden.has(nearest)
+    ) {
+      hidden.add(nearest);
+      if (!opts.silent) console.error(hiddenConfigWarning(file, nearest, root));
+    }
     const group = groups.get(root);
     if (group) group.push(file);
     else groups.set(root, [file]);
