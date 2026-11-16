@@ -13,6 +13,7 @@ import type {
   Attribute,
   Diagnostic,
   DocumentAttributes,
+  EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
 import {
@@ -226,12 +227,36 @@ const CANONICAL_ORDER: readonly string[] = [
  * `normalizeBodyAst` is FORMATTER-ONLY — the validate/parse path must
  * never call it.
  */
+/**
+ * What the effective profile conventions ask `markspec fmt` to keep as
+ * written. `modal-keywords.casing: preserve` keeps modal and EARS keyword
+ * casing; `native-content.mode: preserve` keeps native content imported
+ * from another tool (definition-like punctuation, literal code spans).
+ */
+interface Preservation {
+  readonly modalCasing: boolean;
+  readonly nativeContent: boolean;
+}
+
+function preservationOf(options: FormatOptions | undefined): Preservation {
+  const conventions = options?.conventions;
+  return {
+    modalCasing:
+      conventions?.get("modal-keywords")?.value.settings["casing"] ===
+        "preserve",
+    nativeContent:
+      conventions?.get("native-content")?.value.settings["mode"] ===
+        "preserve",
+  };
+}
+
 function emitBodyViaAst(
   lines: string[],
   file: string,
   diagnostics: Diagnostic[],
   cachedEntries: Entry[] | undefined,
   proseFormat: ProseFormatter | undefined,
+  preservation: Preservation,
   lineWidth: number = MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth,
 ): boolean {
   // When the caller supplies pre-parsed entries whose line numbers are still
@@ -301,6 +326,7 @@ function emitBodyViaAst(
         nestedDiagnostics,
         undefined,
         proseFormat,
+        preservation,
         lineWidth,
       );
       for (const { token, original } of replacements) {
@@ -357,11 +383,14 @@ function emitBodyViaAst(
     // (§3.4.1 / §5.2) → render. The §5 equivalence relation guards the
     // emit; `render`+`build` is the inverse on canonical input for
     // every body shape under the equivalence gate.
-    const ast0 = buildBodyAst(entry.body);
-    const canonical = normalizeBodyAst(ast0);
+    const astOptions = {
+      preserveNativeContent: preservation.nativeContent,
+    };
+    const ast0 = buildBodyAst(entry.body, astOptions);
+    const canonical = preservation.modalCasing ? ast0 : normalizeBodyAst(ast0);
     const emittedBody = renderBodyAst(canonical);
 
-    if (!astEquivalent(buildBodyAst(emittedBody), canonical)) {
+    if (!astEquivalent(buildBodyAst(emittedBody, astOptions), canonical)) {
       // SP3 residual. The build/render inverse is not yet total over
       // every valid Markdown body construct; for a body where the
       // emitted form does not re-build AST-equivalent to the canonical
@@ -414,7 +443,11 @@ function emitBodyViaAst(
         });
       }
       if (polished !== undefined && polished !== emittedBody) {
-        if (markdownSemanticallyEquivalent(emittedBody, polished)) {
+        if (
+          markdownSemanticallyEquivalent(emittedBody, polished, {
+            verbatimInlineCode: preservation.nativeContent,
+          })
+        ) {
           finalBody = polished;
         } else {
           diagnostics.push({
@@ -469,6 +502,12 @@ function emitBodyViaAst(
 export interface FormatOptions {
   /** File path for diagnostic messages. */
   readonly file?: string;
+  /**
+   * Effective profile conventions. `modal-keywords.casing: preserve` keeps
+   * source keyword casing; `native-content.mode: preserve` keeps native
+   * content imported from another tool as written.
+   */
+  readonly conventions?: EffectiveProfile["conventions"];
   /** ULID generator override (for testing). */
   readonly generateUlid?: () => string;
   /**
@@ -593,7 +632,10 @@ function normalizeTabMarkers(
       start > marker.start && start < marker.end
     );
     if (
-      containsRefused || !markdownSemanticallyEquivalent(before, after) ||
+      containsRefused ||
+      !markdownSemanticallyEquivalent(before, after, {
+        verbatimInlineCode: preservationOf(options).nativeContent,
+      }) ||
       !identitiesKept
     ) {
       // Refusing an enclosing entry must also undo admitted changes to its
@@ -1063,6 +1105,7 @@ function formatEntries(
       diagnostics,
       changed ? undefined : entries,
       proseFormat,
+      preservationOf(options),
       lineWidth,
     )
   ) changed = true;
@@ -1108,7 +1151,9 @@ function formatEntries(
         previous.end = Math.max(previous.end, extent.end);
       } else merged.push({ ...extent });
     }
-    const prose = formatProseSegments(collapsedLines, merged, proseFormat);
+    const prose = formatProseSegments(collapsedLines, merged, proseFormat, {
+      verbatimInlineCode: preservationOf(options).nativeContent,
+    });
     if (prose.changed) changed = true;
     for (const fallback of prose.fallbacks) {
       const cause = fallback.reason === "error"
@@ -1369,7 +1414,7 @@ export function findItemEnd(
 const TRAILER_SHAPED_RE = /^[A-Z][A-Za-z-]*:(?:\s.*)?$/;
 
 /** A trailer-shaped line with no value: `Key:` (spec §2 makes it MSL-P021). */
-const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
+const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):[ \t]*$/;
 
 /**
  * Remove empty-valued `Key:` lines from each entry's trailing trailer block.
@@ -1429,10 +1474,12 @@ function removeEmptyTrailerLines(
       l.startsWith(trailerIndent) && TRAILER_SHAPED_RE.test(l.trim())
     );
     if (!isTrailerBlock) continue;
-    const kept = block.filter((l) => !EMPTY_TRAILER_RE.test(l.trim()));
+    const kept = block.filter((line) =>
+      !EMPTY_TRAILER_RE.test(line.trimStart())
+    );
     if (kept.length === block.length) continue;
     for (const l of block) {
-      const key = EMPTY_TRAILER_RE.exec(l.trim())?.[1];
+      const key = EMPTY_TRAILER_RE.exec(l.trimStart())?.[1];
       if (key === undefined) continue;
       diagnostics.push({
         code: "MSL-F001",

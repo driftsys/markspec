@@ -775,8 +775,9 @@ function parseDisciplineMode(
   return raw as DisciplineMode;
 }
 
-const KNOWN_CONVENTIONS = new Set(["modal-keywords"]);
+const KNOWN_CONVENTIONS = new Set(["modal-keywords", "native-content"]);
 const MODAL_KEYWORDS_CASING_VALUES = new Set(["rfc2119", "iso", "preserve"]);
+const NATIVE_CONTENT_MODE_VALUES = new Set(["canonical", "preserve"]);
 
 function parseLabelConcerns(
   raw: unknown,
@@ -996,6 +997,20 @@ function parseConventions(
           valid = false;
           continue;
         }
+      }
+      if (
+        name === "native-content" && k === "mode" &&
+        !NATIVE_CONTENT_MODE_VALUES.has(v)
+      ) {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message:
+            `profile.conventions.native-content.mode: '${v}' not valid (expected: canonical, preserve)`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+        valid = false;
+        continue;
       }
       settings[k] = v;
     }

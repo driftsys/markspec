@@ -307,6 +307,7 @@ async function checkGroup(
         createEditorConfigResolver(readFile),
       ),
       textWrap,
+      chain?.effective.conventions,
     );
 
     if (

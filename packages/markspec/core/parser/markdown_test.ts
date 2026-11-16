@@ -834,6 +834,28 @@ Deno.test("parseMarkdown: directive comment mid-body — still clean (#687)", ()
   assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
 });
 
+Deno.test("parseMarkdown: body URLs, links and literal code are not malformed trailers", () => {
+  for (
+    const body of [
+      "[ticket](https://example.test/ref)",
+      "![preview](https://example.test/image.png)",
+      "<https://example.test/ref>",
+      "https://example.test/ref",
+      "`[ticket](https://example.test/ref)`",
+      "```text\n  Bad_Key: literal content\n  ```",
+    ]
+  ) {
+    const input = `- [STK_0004] Title\n\n  ${body}\n\n      Id: ${ULID}\n`;
+    const { entries, diagnostics } = parseMarkdown(input);
+    assertEquals(entries.length, 1);
+    assertEquals(
+      diagnostics.filter((diagnostic) => diagnostic.code.startsWith("MSL-P02")),
+      [],
+    );
+    assertStringIncludes(entries[0].body, body.replaceAll("\n  ", "\n"));
+  }
+});
+
 Deno.test("parseMarkdown: real spaced-key trailer typo still MSL-P022 (#697 regression guard)", () => {
   const md = `- [STK_0004] Title
 
@@ -845,6 +867,13 @@ Deno.test("parseMarkdown: real spaced-key trailer typo still MSL-P022 (#697 regr
   const { diagnostics } = parseMarkdown(md);
   const p022 = diagnostics.filter((d) => d.code === "MSL-P022");
   assertEquals(p022.length, 1);
+  const legacy = parseMarkdown(
+    md.replace("      Verified by:", "  Verified by:"),
+  );
+  assertEquals(
+    legacy.diagnostics.filter((finding) => finding.code === "MSL-P022").length,
+    1,
+  );
 });
 
 Deno.test("parseMarkdown: Markdown punctuation before a colon on the last body line is prose, not a trailer", () => {

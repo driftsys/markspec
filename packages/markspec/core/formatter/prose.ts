@@ -16,7 +16,10 @@
  */
 
 import type { ProseFormatter } from "./dprint.ts";
-import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
+import {
+  type EquivalenceOptions,
+  markdownSemanticallyEquivalent,
+} from "./md_equiv.ts";
 
 /** 0-based `[start, end)` line span of one entry block. */
 export interface EntryExtent {
@@ -54,6 +57,7 @@ export function formatProseSegments(
   lines: readonly string[],
   entryExtents: readonly EntryExtent[],
   proseFormat: ProseFormatter,
+  equivalence: EquivalenceOptions = {},
 ): ProsePassResult {
   const extents = [...entryExtents].sort((a, b) => a.start - b.start);
   const out: string[] = [];
@@ -88,7 +92,7 @@ export function formatProseSegments(
       out.push(...segment);
       return;
     }
-    if (!markdownSemanticallyEquivalent(chunk, formatted)) {
+    if (!markdownSemanticallyEquivalent(chunk, formatted, equivalence)) {
       fallbacks.push({ line: gapStart + from, reason: "non-equivalent" });
       out.push(...segment);
       return;

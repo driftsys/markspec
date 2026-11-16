@@ -102,7 +102,7 @@ export const fmtCmd = new Command()
       let hasErrors = false;
       const resolver = await cliProjectRootResolver();
 
-      for (const group of scope.groups) {
+      for (const [index, group] of scope.groups.entries()) {
         // Prose wrapping of the group's project, `.markspec.yaml`
         // `format.text-wrap` (ADR-029 amendment).
         const textWrap = group.projectRoot !== undefined
@@ -177,6 +177,8 @@ export const fmtCmd = new Command()
           );
           const result = format(content, {
             file: filePath,
+            // Inherited casing conventions of this group's own profile.
+            conventions: chains[index]?.effective.conventions,
             formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
             ...(isMarkdown ? await markdownStyle(filePath) : {}),
             textWrap,

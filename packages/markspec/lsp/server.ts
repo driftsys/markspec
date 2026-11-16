@@ -1668,6 +1668,7 @@ connection.onDocumentFormatting(async (params) => {
   const style = await editorConfigResolver()(filePath);
   const result = format(currentText, {
     file: filePath,
+    conventions: ctx.profile?.conventions,
     formatMarkdownProse,
     lineWidth: style.lineWidth,
     textWrap: ctx.toolConfig.textWrap,

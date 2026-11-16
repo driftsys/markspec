@@ -455,6 +455,27 @@ Deno.test("build: definition list preserves inline markup and round-trips", () =
   assertEquals(render(blocks), s);
 });
 
+Deno.test("build: under native-content preserve, encoded and escaped colons stay prose", () => {
+  for (const colon of ["&#58;", "&#x3a;", "\\:"]) {
+    const body = `The opening sentence remains part of the paragraph.
+The continuation must also remain visible.
+The final sentence contains an example
+${colon} with punctuation and **markup**.`;
+    const blocks = buildBodyAst(body, { preserveNativeContent: true });
+    assertEquals(blocks[0].kind, "paragraph");
+    assertEquals(render(blocks), body);
+    // The canonical mode keeps the flattened-text recognition.
+    assertEquals(buildBodyAst(body)[0].kind, "definition-list");
+  }
+});
+
+Deno.test("build: under native-content preserve, a separator after several prose lines keeps the paragraph", () => {
+  const body = "Opening prose.\nContinuation prose.\nExample\n: explanation.";
+  const blocks = buildBodyAst(body, { preserveNativeContent: true });
+  assertEquals(blocks[0].kind, "paragraph");
+  assertEquals(render(blocks), body);
+});
+
 Deno.test("deflist: verbatim term/def captured, never flattened", () => {
   const s = "ASIL\n: _Automotive_ Safety **Integrity** Level";
   const dl = buildBodyAst(s)[0] as DefinitionListNode;

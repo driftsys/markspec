@@ -1019,6 +1019,40 @@ profile:
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
 
+Deno.test("parseManifest: native-content convention accepts canonical and preserve", () => {
+  for (const mode of ["canonical", "preserve"]) {
+    const result = parseManifest(`
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  conventions:
+    native-content:
+      mode: ${mode}
+`);
+    assertEquals(result.diagnostics.length, 0);
+    assertEquals(
+      result.manifest?.conventions.find((c) => c.name === "native-content")
+        ?.settings["mode"],
+      mode,
+    );
+  }
+});
+
+Deno.test("parseManifest: unknown native-content mode → PROFILE-LOAD-003 error", () => {
+  const result = parseManifest(`
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  conventions:
+    native-content:
+      mode: lossless
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
 Deno.test("parseManifest: unknown convention name → PROFILE-LOAD-003 warning", () => {
   const yaml = `
 id: "@test/p"

@@ -27,15 +27,27 @@ import remarkGfm from "remark-gfm";
 
 const parser = unified().use(remarkParse).use(remarkGfm);
 
+/** Options of {@linkcode markdownSemanticallyEquivalent}. */
+export interface EquivalenceOptions {
+  /**
+   * Compare inline code spans by their verbatim source too, so a rewrite of
+   * the delimiters or padding of a literal span is not presentation. Set
+   * under the profile convention `native-content.mode: preserve`.
+   */
+  readonly verbatimInlineCode?: boolean;
+}
+
 /** True when `a` and `b` are the same Markdown, modulo presentation. */
 export function markdownSemanticallyEquivalent(
   a: string,
   b: string,
+  options: EquivalenceOptions = {},
 ): boolean {
   if (a === b) return true;
+  const verbatim = options.verbatimInlineCode === true;
   return deepEqual(
-    normalize(parser.parse(a)),
-    normalize(parser.parse(b)),
+    normalize(parser.parse(a), verbatim ? a : undefined),
+    normalize(parser.parse(b), verbatim ? b : undefined),
   );
 }
 
@@ -46,11 +58,18 @@ export function markdownSemanticallyEquivalent(
  * a content change pass as a wrap change). Returns a plain JSON-ish
  * structure for comparison; never mutates the input tree.
  */
-function normalize(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(normalize);
+function normalize(node: unknown, source: string | undefined): unknown {
+  if (Array.isArray(node)) return node.map((child) => normalize(child, source));
   if (node === null || typeof node !== "object") return node;
   const src = node as Record<string, unknown>;
   const out: Record<string, unknown> = {};
+  if (source !== undefined && src.type === "inlineCode") {
+    const position = src.position as {
+      start: { offset: number };
+      end: { offset: number };
+    };
+    out.verbatim = source.slice(position.start.offset, position.end.offset);
+  }
   for (const key of Object.keys(src).sort()) {
     if (key === "position") continue;
     if (
@@ -60,7 +79,7 @@ function normalize(node: unknown): unknown {
       out.value = src.value.replace(/[ \t\r\n\f\v]+/g, " ");
       continue;
     }
-    out[key] = normalize(src[key]);
+    out[key] = normalize(src[key], source);
   }
   return out;
 }

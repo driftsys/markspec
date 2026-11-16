@@ -189,11 +189,25 @@ const ADMONITION_FIRST_LINE_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 // ---------------------------------------------------------------------------
 
 const DEFLIST_RE = /^([^\n:][^\n]*)\n:\s+(.+)$/m;
+/** The whole verbatim paragraph must be `Term\n: definition`
+ * (`native-content.mode: preserve`). */
+const VERBATIM_DEFLIST_RE = /^([^\n:][^\n]*)\n:\s+([\s\S]+)$/;
+
+/** Options of {@linkcode buildBodyAst}. */
+export interface BuildBodyAstOptions {
+  /**
+   * The profile convention `native-content.mode: preserve`: a definition
+   * list is recognised on the verbatim paragraph only, so an encoded or
+   * escaped colon (`&#58;`, `\:`) in imported prose stays prose.
+   */
+  readonly preserveNativeContent?: boolean;
+}
 
 function tryDefinitionList(
   text: string,
+  pattern: RegExp = DEFLIST_RE,
 ): { term: string; definition: string } | undefined {
-  const m = DEFLIST_RE.exec(text.trim());
+  const m = pattern.exec(text.trim());
   if (!m) return undefined;
   return { term: m[1].trim(), definition: m[2].trim() };
 }
@@ -202,9 +216,11 @@ function tryDefinitionList(
  * Deterministically split a verbatim definition-list slice into its
  * term and definition substrings.
  *
- * Detection still runs on the flattened text via {@linkcode
+ * Detection runs on the flattened text via {@linkcode
  * tryDefinitionList} (markup-stripped recognition, mirroring caption /
- * math detection). This function only governs what is *stored*: it
+ * math detection), or on the verbatim text under the profile convention
+ * `native-content.mode: preserve`, where an encoded or escaped colon stays
+ * prose. This function only governs what is *stored*: it
  * returns the byte-exact verbatim term and definition so inline markup
  * on either side survives.
  *
@@ -223,7 +239,7 @@ function tryDefinitionList(
  *
  * Returns `undefined` only when the verbatim slice contains no `\n:`
  * separator (cannot happen for a canonical single-item deflist that
- * flattened-detection accepted, but kept total for safety).
+ * detection accepted, but kept total for safety).
  */
 function splitVerbatimDeflist(
   verbatim: string,
@@ -339,7 +355,11 @@ function deQuote(rawBlockquote: string): string {
 // Main builder — mdast node → BodyBlock
 // ---------------------------------------------------------------------------
 
-function mapMdastNode(node: RootContent, body: string): BodyBlock {
+function mapMdastNode(
+  node: RootContent,
+  body: string,
+  options: BuildBodyAstOptions = {},
+): BodyBlock {
   const range = positionToRange(node.position);
 
   switch (node.type) {
@@ -368,10 +388,13 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
       }
 
       // Check for definition-list pattern `Term\n: def`
-      const defList = tryDefinitionList(text);
+      const defList = options.preserveNativeContent
+        ? tryDefinitionList(verbatim, VERBATIM_DEFLIST_RE)
+        : tryDefinitionList(text);
       if (defList) {
         // Detection ran on the flattened text (markup-stripped, like
-        // caption / math detection). The *stored* term and definition
+        // caption / math detection), or on the verbatim text under
+        // `native-content.mode: preserve`. The *stored* term and definition
         // are the byte-exact verbatim substrings so inline markup on
         // either side survives. The split is deterministic (first
         // `\n:`) and mirrors `renderDefinitionList` exactly — it can
@@ -379,7 +402,7 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
         // `DEFLIST_RE.exec(verbatim.trim())` could, so there is no
         // flattened fallback. `splitVerbatimDeflist` only returns
         // `undefined` when there is no `\n:` at all (impossible here,
-        // since flattened detection already matched `\n:`); the
+        // since detection already matched `\n:`); the
         // `?? defList` keeps the expression total.
         const split = splitVerbatimDeflist(verbatim) ?? defList;
         const vTerm = split.term;
@@ -435,7 +458,7 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
         (item: ListItem): ListItemNode => {
           const itemRange = positionToRange(item.position);
           const subBlocks: BodyBlock[] = (item.children ?? []).map(
-            (child) => mapMdastNode(child as RootContent, body),
+            (child) => mapMdastNode(child as RootContent, body, options),
           );
           return {
             blocks: subBlocks,
@@ -611,8 +634,11 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
  *   the paragraph start line; intra-paragraph column tracking is correct
  *   only for single-line paragraphs.
  */
-export function buildBodyAst(body: string): BodyBlock[] {
-  return buildBodyAstWithTree(body).blocks;
+export function buildBodyAst(
+  body: string,
+  options: BuildBodyAstOptions = {},
+): BodyBlock[] {
+  return buildBodyAstWithTree(body, options).blocks;
 }
 
 /**
@@ -622,6 +648,7 @@ export function buildBodyAst(body: string): BodyBlock[] {
  */
 export function buildBodyAstWithTree(
   body: string,
+  options: BuildBodyAstOptions = {},
 ): { blocks: BodyBlock[]; tree: Root } {
   // Line-ending normalisation is a §3.4 spec-permitted transformation:
   // every AST is built from LF-canonical text so `\r` never reaches a
@@ -635,7 +662,7 @@ export function buildBodyAstWithTree(
 
   const tree = processor.parse(normalised) as Root;
   const blocks: BodyBlock[] = tree.children.map((node) =>
-    mapMdastNode(node, normalised)
+    mapMdastNode(node, normalised, options)
   );
 
   // Post-pass: assign caption positions

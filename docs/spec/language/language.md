@@ -445,6 +445,16 @@ normalization of the entry's own list marker, when it does not change the list
 structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
 the whole file. Move the content above the trailer.
 
+Body URLs, Markdown links, inline code and fenced code are not suspected
+malformed trailers merely because they contain a colon. Malformed-trailer
+diagnostics apply to the indented trailer region and recognized legacy
+trailer-key typos such as `Verified by:`; genuine invalid keys remain errors.
+
+Attribute padding consists of ASCII spaces and tabs. Native Unicode characters
+inside an attribute value, including U+FEFF and nonbreaking spaces at its
+boundaries, are data and must survive parsing and formatting. A value containing
+only such a character is not an empty placeholder.
+
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both
 unindented shapes, and emits a deprecation diagnostic
@@ -1832,6 +1842,13 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 
 ### MarkSpec normalization
 
+The whole-document Markdown pass must also preserve the literal spelling of
+inline code spans, including delimiters and whitespace within table cells.
+CommonMark semantic equivalence alone is insufficient because parsing normalizes
+code-span padding. A rewrite changing that spelling is rejected in favor of the
+original segment, with the existing formatter-fallback diagnostic; native
+fidelity checks remain independent and strict.
+
 - **Attribute blocks** — sorted to canonical order, trailing backslashes
   normalized.
 - **Entry titles** — a title soft-wrapped across multiple physical lines is
@@ -2128,6 +2145,22 @@ allowedKeys = ["layout", "permalink", "sidebar_position", "draft", "aliases"]
 All formatting rules are fixed, except the prose wrapping (`format.text-wrap`)
 and the line width and line ending, which come from `.editorconfig`. There is no
 formatter choice — dprint is the formatter.
+
+The effective profile convention `modal-keywords.casing: preserve` keeps
+imported modal and EARS keyword casing unchanged during formatting. The CLI
+formatter, project-wide format-drift gate, and editor formatter use the same
+effective convention. Without `preserve`, the core casing rules apply. The
+`MSL-M060` lowercase warning also respects `preserve`; the missing-modal hint
+`MSL-M061` and unrelated prose findings remain active.
+
+The effective profile convention `native-content.mode: preserve` keeps native
+content imported from another requirements tool as written. Under `preserve`,
+definition-list recognition requires a complete verbatim `Term` line followed by
+a literal `:` definition: an encoded or escaped colon in prose is not a
+definition separator, and preceding prose and inline markup are not discarded.
+The formatter also compares inline code spans by their verbatim source, so the
+delimiters and padding of a literal span are not rewritten. Without `preserve`
+(or with `mode: canonical`), the core formatting rules apply.
 
 ### 9.2 CI
 
