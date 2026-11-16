@@ -32,15 +32,23 @@ const entry = (sourceLine: string) =>
 async function linksFor(
   md: string,
   extraFiles: Record<string, string> = {},
+  options: { docPath?: string; waitIndexed?: boolean; baseFiles?: boolean } =
+    {},
 ): Promise<{ links: DocumentLink[]; workDir: string }> {
+  const docPath = options.docPath ?? "reqs.md";
   const client = await LspTestClient.create({
-    "project.yaml": "name: test-project\n",
-    "reqs.md": md,
+    ...(options.baseFiles === false
+      ? {}
+      : { "project.yaml": "name: test-project\n" }),
+    [docPath]: md,
     ...extraFiles,
   });
   try {
     await client.initialize();
-    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    if (options.waitIndexed) {
+      await client.waitForNotification("markspec/indexed", 15000);
+    }
+    const fileUri = toFileUrl(join(client.workDir, ...docPath.split("/"))).href;
     await client.notify("textDocument/didOpen", {
       textDocument: {
         uri: fileUri,
@@ -101,27 +109,49 @@ Deno.test("lsp documentLink: Verified-by value produces no link", async () => {
   assertEquals(links, []);
 });
 
-Deno.test("lsp documentLink: returns empty array for non-MarkSpec file", async () => {
-  const client = await LspTestClient.create({
-    "project.yaml": "name: test-project\n",
-    "config.json": '{"k":1}\n',
-  });
+Deno.test("lsp documentLink: a relative Source resolves against the nested project's root", async () => {
+  // The workspace root holds two projects. The document is in a subfolder
+  // of project `a`; the same relative path exists at several other places,
+  // and only `a/src/foo.rs` is the project-root match.
+  const { links, workDir } = await linksFor(
+    entry("Source: src/foo.rs"),
+    {
+      ".markspec.yaml": "profiles: []\n",
+      "a/.markspec.yaml": "profiles: []\n",
+      "b/.markspec.yaml": "profiles: []\n",
+      "src/foo.rs": "// workspace root\n",
+      "a/src/foo.rs": "// project a\n",
+      "a/docs/src/foo.rs": "// document folder\n",
+      "b/src/foo.rs": "// project b\n",
+    },
+    { docPath: "a/docs/reqs.md", waitIndexed: true, baseFiles: false },
+  );
+  assertEquals(links.length, 1);
+  assertEquals(links[0].target, toFileUrl(join(workDir, "a/src/foo.rs")).href);
+});
+
+Deno.test("lsp documentLink: an absolute Source path is linked as is", async () => {
+  const abs = await Deno.makeTempFile({ suffix: ".rs" });
   try {
-    await client.initialize();
-    const fileUri = toFileUrl(join(client.workDir, "config.json")).href;
-    await client.notify("textDocument/didOpen", {
-      textDocument: {
-        uri: fileUri,
-        languageId: "json",
-        version: 1,
-        text: '{"k":1}\n',
-      },
-    });
-    const links = await client.request("textDocument/documentLink", {
-      textDocument: { uri: fileUri },
-    }) as DocumentLink[];
-    assertEquals(links, []);
+    const { links } = await linksFor(entry(`Source: ${abs}:3`));
+    assertEquals(links.length, 1);
+    assertEquals(links[0].target, `${toFileUrl(abs).href}#L3`);
   } finally {
-    await client.shutdown();
+    await Deno.remove(abs);
   }
+});
+
+Deno.test("lsp documentLink: a Source naming an existing directory produces no link", async () => {
+  const { links } = await linksFor(entry("Source: src"), {
+    "src/foo.rs": "// code\n",
+  });
+  assertEquals(links, []);
+});
+
+Deno.test("lsp documentLink: returns empty array for non-MarkSpec file", async () => {
+  const text = entry("Source: src/foo.rs");
+  const { links } = await linksFor(text, { "src/foo.rs": "// code\n" }, {
+    docPath: "data.json",
+  });
+  assertEquals(links, []);
 });

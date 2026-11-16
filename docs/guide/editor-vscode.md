@@ -23,6 +23,7 @@ use on the command line.
 | Document highlights      | Cursor on a display ID highlights every occurrence in the file                                |
 | Code lens                | Per-entry inline lenses: "↑ N dependents" and "↓ Satisfies: ID — Title"                       |
 | Inlay hints              | Per-entry inline hints: resolved `: <type>` and `(N dependents)` counters                     |
+| Document links           | A `Source:` file path or `http(s)` URI is clickable (`:<line>` opens that line)               |
 | Document formatting      | `Shift+Alt+F` runs the same code path as `markspec fmt` on the buffer                         |
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted        |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), `.feature` headers |

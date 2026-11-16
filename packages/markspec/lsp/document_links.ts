@@ -1,16 +1,19 @@
 /**
  * @module lsp/document_links
  *
- * Pure helper for the LSP `textDocument/documentLink` handler. Walks
- * each entry's source lines, finds `Source:` trailer lines, and emits
- * one `DocumentLink` per value that is a file path or an `http(s)://`
- * URI.
+ * Pure helper for the LSP `textDocument/documentLink` handler. `Source` is a
+ * single-valued attribute, so each entry yields at most one link: the whole
+ * trimmed value is one token that is either an `http(s)://` URI or a file path
+ * with an optional `:<line>[:<col>]` suffix.
  *
- * The link **range** covers only the path (not the optional `:line[:col]`
- * suffix) or the whole URI. The link **target** is the URI returned by
- * `resolveTarget` for a path, or the value itself for a URI. A value for
- * which `resolveTarget` returns `undefined` (for example a display ID, or
- * a path that does not exist) gets no link.
+ * The line of each `Source:` value comes from the parser
+ * (`Entry.rawAttributes` + `Entry.attributeLines`), not from a text scan. This
+ * covers Markdown trailers and source doc comments (`///`, `*`), and never
+ * links a line that is outside an entry's trailer or inside a code fence.
+ *
+ * The link **range** covers the URI, or the path without the line suffix. The
+ * link **target** is the value itself for a URI, or the URI returned by
+ * `resolveTarget` for a path.
  */
 
 import { type Entry, isCorpusEntry } from "../core/mod.ts";
@@ -24,44 +27,25 @@ export interface DocumentLink {
   readonly target: string;
 }
 
-/**
- * Matches a trailer-indented `Source:` line, capturing the leading
- * indent + key + ": " prefix in group 1 so callers can compute the
- * value's starting column.
- *
- * Trailer indent is ≥4 spaces per the parser; the formatter
- * canonicalises to 6.
- */
-const SOURCE_LINE_RE = /^(\s{4,}Source\s*:\s*)(.*)$/;
-
 /** A value that is an `http(s)://` URI, linked as is. */
-const URI_TOKEN_RE = /^https?:\/\/\S+$/i;
+const URI_VALUE_RE = /^https?:\/\/\S+$/i;
 
-/**
- * Match a single path value: `<path>` with an optional `:line[:col]`
- * suffix. Group 1 captures the path (which the link range covers);
- * group 2 captures the line number when present.
- *
- * Path characters: anything except whitespace, comma, and colon, which
- * keeps the boundary between path and `:line` unambiguous.
- */
-const PATH_TOKEN_RE = /^([^\s,:]+)(?::(\d+)(?::\d+)?)?$/;
+/** An optional trailing `:<line>[:<col>]` suffix, digits only. */
+const LINE_SUFFIX_RE = /:(\d+)(?::\d+)?$/;
 
 /**
  * Build the `DocumentLink[]` for a document.
  *
  * @param entries — entries declared in the document the client requested
  *   links for. Entries that carry an `origin` (delivered corpus, upstream)
- *   are skipped. Each entry's `location.line` (1-based) anchors the search;
- *   the helper scans lines from that entry's start up to either the next
- *   entry's start − 1 or the end of `text`.
+ *   are skipped.
  * @param text — the full text of the document. Used to locate the value's
- *   column within each `Source:` line.
+ *   column on its line.
  * @param resolveTarget — `(path, lineSuffix?) => uri | undefined`.
- *   Resolves a value's path portion to a `file://` URI, appending
- *   `#L<lineSuffix>` when `lineSuffix` is a number. Returns `undefined`
- *   to suppress the link (for example when the file does not exist).
- *   Keeping the resolver injected keeps the helper free of I/O.
+ *   Resolves a path to a `file://` URI, appending `#L<lineSuffix>` when
+ *   `lineSuffix` is a number. Returns `undefined` to suppress the link (for
+ *   example when the file does not exist). Keeping the resolver injected
+ *   keeps the helper free of I/O.
  */
 export function buildDocumentLinks(
   entries: readonly Entry[],
@@ -71,80 +55,45 @@ export function buildDocumentLinks(
     lineSuffix: number | undefined,
   ) => string | undefined,
 ): DocumentLink[] {
-  if (entries.length === 0) return [];
-
   const lines = text.split("\n");
-  const sorted = [...entries].sort(
-    (a, b) => a.location.line - b.location.line,
-  );
-
   const out: DocumentLink[] = [];
-
-  for (let i = 0; i < sorted.length; i++) {
-    const entry = sorted[i];
+  for (const entry of entries) {
     // Delivered-corpus and upstream entries are read-only and their paths
-    // are not local (ADR-030), so they get no links. They still bound the
-    // line range of the entry before them.
+    // are not local (ADR-030), so they get no links.
     if (isCorpusEntry(entry)) continue;
-    // 1-based inclusive start; 1-based inclusive end.
-    const startLine = entry.location.line;
-    const endLine = i + 1 < sorted.length
-      ? sorted[i + 1].location.line - 1
-      : lines.length;
+    const attributeLines = entry.attributeLines;
+    if (!attributeLines) continue;
+    entry.rawAttributes.forEach((attr, n) => {
+      const fileLine = attributeLines[n];
+      if (attr.key !== "Source" || fileLine === undefined) return;
+      const value = attr.value.trim();
+      if (value.length === 0) return;
+      const lineText = lines[fileLine - 1]?.replace(/\r$/, "");
+      if (lineText === undefined) return;
+      const keyAt = lineText.search(/Source\s*:/);
+      const column = keyAt < 0 ? -1 : lineText.indexOf(value, keyAt);
+      if (column < 0) return;
 
-    for (let lineNo = startLine; lineNo <= endLine; lineNo++) {
-      const line = lines[lineNo - 1];
-      if (line === undefined) continue;
-      const m = SOURCE_LINE_RE.exec(line);
-      if (!m) continue;
-
-      // Walk comma-separated tokens, tracking the column of each token's
-      // start so the emitted range is accurate.
-      let cursor = m[1].length;
-      const csvParts = m[2].split(",");
-      for (let p = 0; p < csvParts.length; p++) {
-        const part = csvParts[p];
-        let tokenStart = 0;
-        while (tokenStart < part.length && /\s/.test(part[tokenStart])) {
-          tokenStart++;
-        }
-        let tokenEnd = part.length;
-        while (tokenEnd > tokenStart && /\s/.test(part[tokenEnd - 1])) {
-          tokenEnd--;
-        }
-        const token = part.slice(tokenStart, tokenEnd);
-        const tokenColumn = cursor + tokenStart;
-
-        // Advance past this part and the comma separator.
-        cursor += part.length;
-        if (p < csvParts.length - 1) cursor += 1;
-
-        if (token.length === 0) continue;
-
-        let target: string | undefined;
-        let length: number;
-        if (URI_TOKEN_RE.test(token)) {
-          target = token;
-          length = token.length;
-        } else {
-          const pm = PATH_TOKEN_RE.exec(token);
-          if (!pm) continue;
-          const numericLine = pm[2] !== undefined ? Number(pm[2]) : undefined;
-          target = resolveTarget(pm[1], numericLine);
-          length = pm[1].length;
-        }
-        if (target === undefined) continue;
-
-        const lspLine = lineNo - 1;
-        out.push({
-          range: {
-            start: { line: lspLine, character: tokenColumn },
-            end: { line: lspLine, character: tokenColumn + length },
-          },
-          target,
-        });
+      let target: string | undefined;
+      let length = value.length;
+      if (URI_VALUE_RE.test(value)) {
+        target = value;
+      } else {
+        const suffix = LINE_SUFFIX_RE.exec(value);
+        const path = suffix ? value.slice(0, suffix.index) : value;
+        if (path.length === 0) return;
+        target = resolveTarget(path, suffix ? Number(suffix[1]) : undefined);
+        length = path.length;
       }
-    }
+      if (target === undefined) return;
+      out.push({
+        range: {
+          start: { line: fileLine - 1, character: column },
+          end: { line: fileLine - 1, character: column + length },
+        },
+        target,
+      });
+    });
   }
   return out;
 }

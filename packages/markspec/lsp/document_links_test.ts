@@ -3,29 +3,31 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { Entry } from "../core/mod.ts";
+import { type Entry, parseFile } from "../core/mod.ts";
 import { buildDocumentLinks } from "./document_links.ts";
 
-function fakeEntry(line: number): Entry {
-  // Minimal Entry stub — only the fields buildDocumentLinks reads.
+/** Resolver that accepts every path and records what it received. */
+function recordingResolver(): {
+  seen: Array<[string, number | undefined]>;
+  resolve: (path: string, lineSuffix: number | undefined) => string;
+} {
+  const seen: Array<[string, number | undefined]> = [];
   return {
-    displayId: "STK_0001",
-    title: "T",
-    body: "",
-    rawAttributes: [],
-    location: { file: "/proj/reqs.md", line, column: 1 },
-  } as unknown as Entry;
+    seen,
+    resolve: (path, lineSuffix) => {
+      seen.push([path, lineSuffix]);
+      return lineSuffix === undefined
+        ? `file:///proj/${path}`
+        : `file:///proj/${path}#L${lineSuffix}`;
+    },
+  };
 }
 
-// Resolver that accepts every path; the server-side resolver adds the
-// existence check.
-const idResolver = (
-  path: string,
-  lineSuffix: number | undefined,
-): string | undefined =>
-  lineSuffix === undefined
-    ? `file:///proj/${path}`
-    : `file:///proj/${path}#L${lineSuffix}`;
+/** Resolver that accepts only real paths, like the server's. */
+const realPathsOnly = (path: string, lineSuffix: number | undefined) =>
+  path.includes("/") || path.includes(".")
+    ? `file:///proj/${path}${lineSuffix === undefined ? "" : `#L${lineSuffix}`}`
+    : undefined;
 
 const doc = (sourceLine: string) =>
   `- [STK_0001] T
@@ -34,24 +36,34 @@ const doc = (sourceLine: string) =>
       ${sourceLine}
 `;
 
+async function linksOf(
+  text: string,
+  resolve: (path: string, lineSuffix: number | undefined) => string | undefined,
+  file = "/proj/reqs.md",
+) {
+  const { entries } = await parseFile(text, { file });
+  return buildDocumentLinks(entries, text, resolve);
+}
+
 Deno.test("buildDocumentLinks: empty entries returns []", () => {
-  assertEquals(buildDocumentLinks([], "", idResolver), []);
+  assertEquals(buildDocumentLinks([], "", realPathsOnly), []);
 });
 
-Deno.test("buildDocumentLinks: no Source attribute returns []", () => {
-  const text = `- [STK_0001] T
+Deno.test("buildDocumentLinks: no Source attribute returns []", async () => {
+  assertEquals(
+    await linksOf(
+      `- [STK_0001] T
 
       Id: 01HABC
-`;
-  assertEquals(buildDocumentLinks([fakeEntry(1)], text, idResolver), []);
+`,
+      realPathsOnly,
+    ),
+    [],
+  );
 });
 
-Deno.test("buildDocumentLinks: relative path value is linked", () => {
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc("Source: src/sensor.rs"),
-    idResolver,
-  );
+Deno.test("buildDocumentLinks: relative path value is linked", async () => {
+  const links = await linksOf(doc("Source: src/sensor.rs"), realPathsOnly);
   assertEquals(links.length, 1);
   assertEquals(links[0].target, "file:///proj/src/sensor.rs");
   // `      Source: ` is 14 characters wide.
@@ -61,115 +73,122 @@ Deno.test("buildDocumentLinks: relative path value is linked", () => {
   });
 });
 
-Deno.test("buildDocumentLinks: :line suffix becomes #L fragment, range excludes it", () => {
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc("Source: src/foo.rs:42"),
-    idResolver,
-  );
+Deno.test("buildDocumentLinks: :line suffix becomes #L fragment, range excludes it", async () => {
+  const links = await linksOf(doc("Source: src/foo.rs:42"), realPathsOnly);
   assertEquals(links.length, 1);
   assertEquals(links[0].target, "file:///proj/src/foo.rs#L42");
   assertEquals(links[0].range.end.character, 14 + "src/foo.rs".length);
 });
 
-Deno.test("buildDocumentLinks: :line:col suffix keeps only the line", () => {
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc("Source: src/foo.rs:42:5"),
-    idResolver,
-  );
+Deno.test("buildDocumentLinks: :line:col suffix keeps only the line", async () => {
+  const links = await linksOf(doc("Source: src/foo.rs:42:5"), realPathsOnly);
   assertEquals(links[0].target, "file:///proj/src/foo.rs#L42");
 });
 
-Deno.test("buildDocumentLinks: http(s) URI is linked as is without the resolver", () => {
-  const uri = "https://example.com/spec/page.html#sec";
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc(`Source: ${uri}`),
-    () => {
+Deno.test("buildDocumentLinks: http, https and an uppercase scheme are linked as is", async () => {
+  for (
+    const uri of [
+      "http://example.com/a.html",
+      "https://example.com/a.html#sec",
+      "HTTPS://example.com/A",
+    ]
+  ) {
+    const links = await linksOf(doc(`Source: ${uri}`), () => {
       throw new Error("resolver must not be called for a URI");
-    },
-  );
+    });
+    assertEquals(links.length, 1, uri);
+    assertEquals(links[0].target, uri);
+    assertEquals(links[0].range.end.character, 14 + uri.length);
+  }
+});
+
+Deno.test("buildDocumentLinks: a URI containing a comma is linked whole", async () => {
+  const uri = "https://example.com/a,b";
+  const links = await linksOf(doc(`Source: ${uri}`), realPathsOnly);
   assertEquals(links.length, 1);
   assertEquals(links[0].target, uri);
   assertEquals(links[0].range.end.character, 14 + uri.length);
 });
 
-Deno.test("buildDocumentLinks: display ID gets no link when the resolver rejects it", () => {
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc("Source: STK_AEB_0001"),
-    () => undefined,
-  );
-  assertEquals(links, []);
+Deno.test("buildDocumentLinks: a Windows drive path reaches the resolver unchanged, minus the line suffix", async () => {
+  const rec = recordingResolver();
+  await linksOf(doc("Source: C:\\x\\y.rs"), rec.resolve);
+  await linksOf(doc("Source: C:\\x\\y.rs:12"), rec.resolve);
+  assertEquals(rec.seen, [["C:\\x\\y.rs", undefined], ["C:\\x\\y.rs", 12]]);
 });
 
-Deno.test("buildDocumentLinks: missing file (resolver returns undefined) gets no link", () => {
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc("Source: src/missing.rs"),
-    () => undefined,
-  );
-  assertEquals(links, []);
-});
-
-Deno.test("buildDocumentLinks: comma-separated values keep their own columns", () => {
-  const links = buildDocumentLinks(
-    [fakeEntry(1)],
-    doc("Source: a.rs, b.kt:10"),
-    idResolver,
-  );
-  assertEquals(links.length, 2);
-  assertEquals(links[0].target, "file:///proj/a.rs");
-  assertEquals(links[1].target, "file:///proj/b.kt#L10");
-  assertEquals(links[0].range.start.character, 14);
-  assertEquals(links[1].range.start.character, 14 + "a.rs, ".length);
+Deno.test("buildDocumentLinks: display ID gets no link when the resolver accepts only real paths", async () => {
   assertEquals(
-    links[1].range.end.character,
-    14 + "a.rs, ".length + "b.kt".length,
-  );
-});
-
-Deno.test("buildDocumentLinks: Source outside any entry range is ignored", () => {
-  const text = `prose line — Source: rogue.rs is not a real attribute
-
-- [STK_0001] T
-
-      Id: 01HABC
-      Source: real.rs
-`;
-  const links = buildDocumentLinks([fakeEntry(3)], text, idResolver);
-  assertEquals(links.length, 1);
-  assertEquals(links[0].target, "file:///proj/real.rs");
-});
-
-Deno.test("buildDocumentLinks: Verified-by is not linked", () => {
-  assertEquals(
-    buildDocumentLinks(
-      [fakeEntry(1)],
-      doc("Verified-by: tests/sit_bar.rs"),
-      idResolver,
-    ),
+    await linksOf(doc("Source: STK_AEB_0001"), realPathsOnly),
     [],
   );
 });
 
-Deno.test("buildDocumentLinks: entries with an origin are not linked", () => {
+Deno.test("buildDocumentLinks: missing file (resolver returns undefined) gets no link", async () => {
+  assertEquals(
+    await linksOf(doc("Source: src/missing.rs"), () => undefined),
+    [],
+  );
+});
+
+Deno.test("buildDocumentLinks: Verified-by is not linked", async () => {
+  assertEquals(
+    await linksOf(doc("Verified-by: tests/sit_bar.rs"), realPathsOnly),
+    [],
+  );
+});
+
+Deno.test("buildDocumentLinks: a Source line in a Rust doc comment is linked", async () => {
+  const text = `/// [STK_0001] T
+///
+/// Body.
+///
+///     Id: 01HABC
+///     Source: src/lib.rs:7
+fn f() {}
+`;
+  const links = await linksOf(text, realPathsOnly, "/proj/src/lib.rs");
+  assertEquals(links.length, 1);
+  assertEquals(links[0].target, "file:///proj/src/lib.rs#L7");
+  assertEquals(links[0].range.start, { line: 5, character: 16 });
+});
+
+Deno.test("buildDocumentLinks: a fenced Source line in the body is not linked", async () => {
   const text = `- [STK_0001] T
 
+  Example:
+
+  \`\`\`text
+      Source: fenced/example.rs
+  \`\`\`
+
       Id: 01HABC
-      Source: own.rs
-
-- [STK_0002] Delivered
-
-      Id: 01HABD
-      Source: delivered.rs
 `;
-  const delivered = {
-    ...fakeEntry(6),
-    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
-  } as unknown as Entry;
-  const links = buildDocumentLinks([fakeEntry(1), delivered], text, idResolver);
-  assertEquals(links.length, 1);
-  assertEquals(links[0].target, "file:///proj/own.rs");
+  assertEquals(await linksOf(text, realPathsOnly), []);
+});
+
+Deno.test("buildDocumentLinks: entries with a profile or upstream origin are not linked", async () => {
+  const text = doc("Source: own.rs");
+  const { entries } = await parseFile(text, { file: "/proj/reqs.md" });
+  const own = entries[0];
+  const withOrigin = (origin: unknown) =>
+    ({ ...own, origin }) as unknown as Entry;
+  const rec = recordingResolver();
+  assertEquals(buildDocumentLinks([own], text, rec.resolve).length, 1);
+  assertEquals(
+    buildDocumentLinks(
+      [withOrigin({ kind: "profile", profileId: "p", profileVersion: "1" })],
+      text,
+      rec.resolve,
+    ),
+    [],
+  );
+  assertEquals(
+    buildDocumentLinks(
+      [withOrigin({ kind: "upstream", upstreamId: "u", version: "1" })],
+      text,
+      rec.resolve,
+    ),
+    [],
+  );
 });

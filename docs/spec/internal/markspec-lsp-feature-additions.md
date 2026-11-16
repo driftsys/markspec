@@ -6,8 +6,8 @@ Scope: New LSP server capabilities that build on the existing `markspec lsp`
 surface (diagnostics, completions, hover, definition, references, symbols,
 rename, folding, highlights, code actions, semantic tokens) — covering
 formatting, the custom `markspec/profile` request, and inline information
-surfaces (code lens, inlay hints). All capabilities are editor-agnostic: they
-serve every LSP client (VS Code, Neovim, Helix, …).\
+surfaces (code lens, inlay hints, document links). All capabilities are
+editor-agnostic: they serve every LSP client (VS Code, Neovim, Helix, …).\
 Builds on: [markspec-vscode-authoring.md](markspec-vscode-authoring.md)
 (consumes `textDocument/formatting` and `markspec/profile` as v1 prerequisites),
 [markspec-toolchain-distribution.md](markspec-toolchain-distribution.md) (single
@@ -51,9 +51,9 @@ Out of scope (and where each piece is owned):
   use standard LSP client tooling.
 - **Existing capabilities.** Diagnostics, completions, hover, definition,
   references, document/workspace symbols, rename, folding, document highlights,
-  code actions, semantic tokens are already shipped — see
-  `packages/markspec/lsp/server.ts`. This spec adds to them, does not modify
-  them.
+  code actions, semantic tokens are already shipped (document links are
+  specified in §5.3) — see `packages/markspec/lsp/server.ts`. This spec adds to
+  them, does not modify them.
 - **CLI subcommands.** The `fmt`, `compile`, and `report` CLI surfaces are owned
   by the implementation under `packages/markspec/cli/commands/`. The LSP
   capabilities specified here delegate to the same `core/` modules but expose
@@ -324,22 +324,28 @@ For each `Source:` value of an entry, the server emits a link:
 | Value                         | Link                                                                   |
 | ----------------------------- | ---------------------------------------------------------------------- |
 | Relative path                 | The file under the project root of the owning project, when it exists. |
-| Absolute path                 | The file, when it exists.                                              |
+| Absolute path (also Windows)  | The file, when it exists.                                              |
 | `<path>:<line>`               | As above, with `#L<line>` appended to the target URI.                  |
 | `http://` or `https://` URI   | The URI as is.                                                         |
 | Anything else (display ID, …) | No link.                                                               |
 
-The link range covers the path (or the URI) without the `:<line>` suffix. File
+`Source` is single-valued: the whole trimmed value is one token, and commas and
+spaces are part of it. The server finds each `Source:` line from the parsed
+entry (`rawAttributes` and `attributeLines`), so source doc comments are covered
+and no line outside an entry's trailer or inside a code fence is linked. The
+link range covers the path (or the URI) without the `:<line>` suffix. File
 existence is checked in the server, not in core. Entries from a delivered corpus
 or a locked upstream get no links. `Verified-by` is a generated attribute and
 gets no links.
 
 ### 5.4 Performance
 
-Both capabilities share the same in-memory data the validator already walks. No
-new full-graph computations. Per-document cost is O(entries in document) —
-sub-millisecond for typical files. The server SHOULD compute them lazily on
-first request, then cache until the document changes.
+Code lens and inlay hints share the same in-memory data the validator already
+walks. No new full-graph computations. Per-document cost is O(entries in
+document) — sub-millisecond for typical files. Document links also check the
+file system once per `Source:` value (a `stat` call), so their cost depends on
+the file system. The server SHOULD compute them lazily on first request, then
+cache until the document changes.
 
 ### 5.5 Lazy-loading constraint
 
@@ -370,6 +376,7 @@ The `initialize` capabilities object grows by:
   documentFormattingProvider: true,
   codeLensProvider: { resolveProvider: false },
   inlayHintProvider: { resolveProvider: false },
+  documentLinkProvider: { resolveProvider: false },
 }
 ```
 
@@ -418,12 +425,13 @@ under 250ms — the new modules are small (<10KB each).
 
 ### 7.3 Per-request latency budgets
 
-| Capability                | Budget | Rationale                                                                         |
-| ------------------------- | ------ | --------------------------------------------------------------------------------- |
-| `textDocument/formatting` | < 50ms | Format-on-save must feel instant. Existing CLI formatter benchmarks support this. |
-| `markspec/profile`        | < 10ms | Cached response; serialization only.                                              |
-| `textDocument/codeLens`   | < 20ms | Per-document; reuses already-indexed data.                                        |
-| `textDocument/inlayHint`  | < 20ms | Same.                                                                             |
+| Capability                  | Budget | Rationale                                                                         |
+| --------------------------- | ------ | --------------------------------------------------------------------------------- |
+| `textDocument/formatting`   | < 50ms | Format-on-save must feel instant. Existing CLI formatter benchmarks support this. |
+| `markspec/profile`          | < 10ms | Cached response; serialization only.                                              |
+| `textDocument/codeLens`     | < 20ms | Per-document; reuses already-indexed data.                                        |
+| `textDocument/inlayHint`    | < 20ms | Same.                                                                             |
+| `textDocument/documentLink` | < 20ms | Per-document; one `stat` call per `Source:` value.                                |
 
 These are warm-cache budgets. Cold cache (immediately after
 `workspace/didChangeContent`) may be 2-3× higher; that's acceptable because
@@ -504,6 +512,6 @@ Capped at five; three remain open after v1 implementation. None blocks v1.
 | §2 Capability set   | LSP 3.17 spec; `packages/markspec/lsp/server.ts` existing capabilities; [markspec-vscode-authoring.md §1, §4.4, §6.1](markspec-vscode-authoring.md) |
 | §3 Formatting       | `core/formatter/`; `markspec fmt` CLI; CLAUDE.md "Deterministic output"                                                                             |
 | §4 markspec/profile | `core/profile/`; [markspec-profile-schema.md](markspec-profile-schema.md); rust-analyzer / typescript-language-server custom-request conventions    |
-| §5 Inline surfaces  | LSP `textDocument/codeLens` / `inlayHint`; existing `WorkspaceIndex` (`lsp/workspace.ts`)                                                           |
+| §5 Inline surfaces  | LSP `textDocument/codeLens` / `inlayHint` / `documentLink`; existing `WorkspaceIndex` (`lsp/workspace.ts`)                                          |
 | §7 Performance      | CLAUDE.md "Single binary, lazy loading"; existing cold-start measurements                                                                           |
 | §8 Skew detection   | [markspec-toolchain-distribution.md §3.3](markspec-toolchain-distribution.md); existing `markspec/version` notification                             |

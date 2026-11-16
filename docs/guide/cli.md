@@ -1582,13 +1582,14 @@ defined in your profile.
 `Derived-from:`, `Verifies:`, `Tests:`, etc.) the server suggests all known
 display IDs in the project.
 
-**Document links** — a `Source:` value is clickable. A file path resolves
-against the project root (an absolute path is used as is), and a `:<line>`
-suffix opens the file at that line. An `http://` or `https://` value opens as
-is. A path gets a link only when the file exists, and a value such as a display
-ID gets none. Windows drive paths (`C:\...`) and values that contain spaces or
-commas are not linked. Entries delivered by a profile or an upstream have no
-links.
+**Document links** — the `Source:` value of an entry is clickable, in Markdown
+files and in source doc comments. `Source` holds one value, and the whole value
+is one link target. An `http://` or `https://` value opens as is. Any other
+value is a file path: it resolves against the project root, or is used as is
+when it is absolute (including a Windows drive path such as `C:\x\y.rs`). A
+trailing `:<line>` or `:<line>:<col>` opens the file at that line. A path gets a
+link only when it names an existing file, so a value such as a display ID gets
+none. Entries delivered by a profile or an upstream have no links.
 
 **Source file context guard** — in source files (Rust, Kotlin, Java, C, C++,
 TypeScript, TSX, JavaScript, C#), completions only activate near entry markers
