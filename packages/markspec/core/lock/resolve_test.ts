@@ -7,6 +7,11 @@ import {
 } from "./resolve.ts";
 import { parseMapping } from "../sync/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
+import {
+  BUILTIN_DEFAULT_SOURCE_PATH,
+  DEFAULT_PROFILE_MANIFEST,
+} from "../profile/default_profile.ts";
+import { sha256Bytes } from "./hash.ts";
 import type {
   Attribute,
   Entry,
@@ -213,6 +218,35 @@ Deno.test(
     assertEquals(
       result[0].diagnostics.some((d) => d.code === "MSL-L102"),
       true,
+    );
+  },
+);
+
+Deno.test(
+  "resolveProfileChain: the bundled default tier hashes the embedded manifest without reading a file",
+  async () => {
+    const chain = {
+      tiers: [
+        mkTier(
+          "@markspec/profile-default",
+          "1.0.0",
+          { kind: "builtin" },
+          BUILTIN_DEFAULT_SOURCE_PATH,
+        ),
+      ],
+      effective: {} as never,
+    } as unknown as ProfileChain;
+    let reads = 0;
+    const readFile = () => {
+      reads++;
+      return Promise.resolve({ error: "ENOENT" });
+    };
+    const result = await resolveProfileChain(chain, readFile);
+    assertEquals(reads, 0);
+    assertEquals(result[0].diagnostics, []);
+    assertEquals(
+      result[0].upstream.hash,
+      await sha256Bytes(new TextEncoder().encode(DEFAULT_PROFILE_MANIFEST)),
     );
   },
 );

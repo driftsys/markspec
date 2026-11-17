@@ -31,6 +31,10 @@ import type {
   UpstreamProfile,
   UpstreamReference,
 } from "./model.ts";
+import {
+  BUILTIN_DEFAULT_SOURCE_PATH,
+  DEFAULT_PROFILE_MANIFEST,
+} from "../profile/default_profile.ts";
 import { sha256Bytes } from "./hash.ts";
 import { type EdgeQuad, hashCanonicalEdges } from "./canonical_edges.ts";
 import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
@@ -395,7 +399,8 @@ function formatSpecifier(spec: ProfileSpecifier): string {
 /**
  * Resolve every profile chain tier into an upstream record. Each tier's
  * `markspec.yaml` is read from `tier.sourcePath` via `readFile` and
- * `sha256:*`-hashed; a read failure attaches MSL-L102 and degrades the
+ * `sha256:*`-hashed (the bundled default tier hashes its embedded manifest
+ * text instead); a read failure attaches MSL-L102 and degrades the
  * tier's hash to `sha256:0` (identity-only).
  *
  * The `extends` chain is reconstructed from list order: tiers are
@@ -413,7 +418,11 @@ export async function resolveProfileChain(
   for (const tier of realChain.tiers) {
     const diagnostics: Diagnostic[] = [];
     let hash = "sha256:0";
-    const fetched = await readFile(tier.sourcePath);
+    // The bundled default profile has no file: its source path is a label,
+    // so hash the embedded manifest text instead of reading the path.
+    const fetched = tier.sourcePath === BUILTIN_DEFAULT_SOURCE_PATH
+      ? new TextEncoder().encode(DEFAULT_PROFILE_MANIFEST)
+      : await readFile(tier.sourcePath);
     if (fetched instanceof Uint8Array) {
       hash = await sha256Bytes(fetched);
     } else {
