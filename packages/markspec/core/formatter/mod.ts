@@ -24,6 +24,7 @@ import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
 import {
   ATTR_LINE_RE,
   findTrailerStart,
+  leadingColumns,
   parseAttributes,
 } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
@@ -242,7 +243,7 @@ function emitBodyViaAst(
   } else {
     // Diagnostics from this re-parse are intentionally discarded: the
     // input is already canonical (post-collapse) output.
-    ({ entries } = parseMarkdown(lines.join("\n"), { file }));
+    entries = parseMarkdown(lines.join("\n"), { file }).entries;
   }
   if (entries.length === 0) return false;
 
@@ -333,6 +334,8 @@ function emitBodyViaAst(
       entry.location.line,
       indent,
       itemEndFloor,
+      [],
+      entry.nestedEntryLines,
     );
     const bodyStart = titleLineIdx + 1;
     const bodyEnd = range
@@ -752,6 +755,13 @@ function formatEntries(
       entry.endLine === undefined
         ? 0
         : entry.endLine + (lines.length - lengthAtStart);
+    // The nested item moves by the change in line count since here, as the
+    // item end does.
+    const nestedLines = () =>
+      entry.nestedEntryLines === undefined ? undefined : {
+        start: entry.nestedEntryLines.start + (lines.length - lengthAtStart),
+        end: entry.nestedEntryLines.end + (lines.length - lengthAtStart),
+      };
     const existingTrailer = protectedRanges.length > 0
       ? findAttributeBlockRange(
         lines,
@@ -759,6 +769,7 @@ function formatEntries(
         indent,
         itemEndFloor(),
         protectedRanges,
+        nestedLines(),
       )
       : undefined;
     let attrs = protectedRanges.length > 0
@@ -788,6 +799,8 @@ function formatEntries(
         entry.location.line,
         indent,
         itemEndFloor(),
+        [],
+        nestedLines(),
       );
       const limit = attrRange ? attrRange.start : lines.length;
       let titleEnd = titleLineIdx;
@@ -839,6 +852,7 @@ function formatEntries(
       indent,
       itemEndFloor(),
       protectedRanges,
+      nestedLines(),
     );
     if (
       trailerRange &&
@@ -898,6 +912,7 @@ function formatEntries(
       indent,
       itemEndFloor(),
       protectedRanges,
+      nestedLines(),
     );
 
     if (range) {
@@ -1358,6 +1373,7 @@ export function findAttributeBlockRange(
   indent: number,
   itemEndFloor = 0,
   preservedRanges: readonly EntryExtent[] = [],
+  nestedEntryLines?: { readonly start: number; readonly end: number },
 ): { start: number; end: number } | undefined {
   const startIdx = entryStartLine - 1;
   const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
@@ -1380,14 +1396,38 @@ export function findAttributeBlockRange(
     }
   }
   const indentStr = " ".repeat(indent);
-  const content = lines.slice(floor, scanEnd).map((l) =>
-    l.startsWith(indentStr) ? l.slice(indent) : l
-  );
-  const attrStart = floor + findTrailerStart(content);
+  const lineAt = (i: number) =>
+    lines[i].startsWith(indentStr) ? lines[i].slice(indent) : lines[i];
+  const all: number[] = [];
+  for (let i = floor; i < scanEnd; i++) all.push(i);
+  const attrStart = floor + findTrailerStart(all.map(lineAt));
+  const nestedFrom = nestedEntryLines === undefined
+    ? Infinity
+    : nestedEntryLines.start - 1;
 
+  // The trailer that starts at or after a nested entry-shaped item is that
+  // item's own, not this entry's (MSL-P024), as in the parser. Look again
+  // without the item's lines.
   if (attrStart >= scanEnd) return undefined;
-
-  return { start: attrStart, end: scanEnd };
+  const lastLine = lines[scanEnd - 1] ?? "";
+  if (
+    attrStart < nestedFrom ||
+    leadingColumns(lastLine) <= indent + 4
+  ) return { start: attrStart, end: scanEnd };
+  const nestedTo = nestedEntryLines!.end - 1;
+  const kept = all.filter((i) => i < nestedFrom || i > nestedTo);
+  const content = kept.map(lineAt);
+  let contentEnd = content.length;
+  while (contentEnd > 0 && content[contentEnd - 1].trim() === "") {
+    contentEnd--;
+  }
+  const trailerAt = findTrailerStart(content);
+  if (trailerAt >= contentEnd) return undefined;
+  const start = kept[trailerAt];
+  const end = kept[contentEnd - 1] + 1;
+  // A trailer that a nested item splits cannot be rewritten in place.
+  if (end - start !== contentEnd - trailerAt) return undefined;
+  return { start, end };
 }
 
 /**

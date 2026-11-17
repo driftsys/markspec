@@ -1374,3 +1374,47 @@ Deno.test("parseMarkdown: a title-only item is dropped by default", () => {
   });
   assertEquals(entries, []);
 });
+
+// ---------------------------------------------------------------------------
+// Nested entry-shaped item (#928, MSL-P024)
+// ---------------------------------------------------------------------------
+
+const NESTED_ENTRY = `- [REQ-001] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  - [REQ-003] Child
+
+    Child body.
+
+        Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+
+Deno.test("parseMarkdown: a nested entry does not give its Id to the parent (#928)", () => {
+  const { entries } = parseMarkdown(NESTED_ENTRY, { file: "n.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entries[0].body, "Body.");
+});
+
+Deno.test("parseMarkdown: a nested entry directly under the trailer keeps the parent Id (#928)", () => {
+  const text = NESTED_ENTRY.replace(
+    "ABCDEF\n\n  - [REQ-003]",
+    "ABCDEF\n  - [REQ-003]",
+  );
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+});
+
+Deno.test("parseMarkdown: a nested entry raises one MSL-P024 warning at its line (#928)", () => {
+  const { diagnostics } = parseMarkdown(NESTED_ENTRY, { file: "n.md" });
+  const found = diagnostics.filter((d) => d.code === "MSL-P024");
+  assertEquals(found.length, 1);
+  assertEquals(found[0].severity, "warning");
+  assertEquals(found[0].location?.line, 7);
+  assertStringIncludes(found[0].message, "nested entry is not supported");
+  assertEquals(diagnostics.some((d) => d.code === "MSL-P020"), false);
+});

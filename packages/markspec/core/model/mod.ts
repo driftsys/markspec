@@ -646,6 +646,14 @@ export interface Entry {
    */
   readonly endLine?: number;
   /**
+   * 1-based first and last file line of the first entry-shaped list item
+   * nested in this entry (MSL-P024), or absent when there is none. A
+   * nested entry is not supported: those lines are not part of this entry,
+   * so its trailer detection skips them. The formatter reads it to find the
+   * same trailer as the parser.
+   */
+  readonly nestedEntryLines?: { readonly start: number; readonly end: number };
+  /**
    * 1-based file line of each element of {@linkcode Entry.rawAttributes},
    * in the same order. Diagnostics about one trailer value point at its
    * line. Optional: entries built without the parser leave it unset, and

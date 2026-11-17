@@ -59,6 +59,16 @@ export function translateEntryLocations(
           endLine: lineMap.translate(entry.endLine, 1)?.line ?? entry.endLine,
         }
         : {}),
+      ...(entry.nestedEntryLines !== undefined
+        ? {
+          nestedEntryLines: {
+            start: lineMap.translate(entry.nestedEntryLines.start, 1)?.line ??
+              entry.nestedEntryLines.start,
+            end: lineMap.translate(entry.nestedEntryLines.end, 1)?.line ??
+              entry.nestedEntryLines.end,
+          },
+        }
+        : {}),
       ...(entry.attributeLines !== undefined
         ? {
           attributeLines: entry.attributeLines.map((line) =>
