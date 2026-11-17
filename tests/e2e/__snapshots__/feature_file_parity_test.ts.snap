@@ -274,7 +274,7 @@ markspec-schema = 1
 id        = "@markspec/profile-default"
 specifier = "builtin"
 resolved  = "1.0.0"
-hash      = "sha256:0"
+hash      = "sha256:e4a69ad4392aa828249cec6b896217693d2fb831a3d87fe1ee3444c36c0a3fbf"
 
 [[edge]]
 source-ulid     = "01HGW2Q8MNP3RSTVWXYZABCDEG"

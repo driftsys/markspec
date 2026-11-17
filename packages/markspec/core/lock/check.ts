@@ -133,7 +133,7 @@ export function checkDrift(
         code: "MSL-L210",
         severity: "error",
         message:
-          `Hash mismatch for profile '${id}': locked ${old.hash} vs current ${current.hash}.`,
+          `Hash mismatch for profile '${id}': locked ${old.hash} vs current ${current.hash}. Run \`markspec lock --update=${id}\`.`,
         location: undefined,
       });
     }
