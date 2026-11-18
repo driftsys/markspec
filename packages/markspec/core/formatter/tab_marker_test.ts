@@ -144,7 +144,7 @@ Deno.test("tab marker: nested tab normalization keeps enclosing entry extents va
   assertEquals(result.output.includes("\t"), false);
   assertEquals(
     result.output,
-    `- [REQ-001] Outer\n\n  Body.\n\n  - [REQ-002] Inner\n\n    Inner body.\n\n      Id: ${ID}\n`,
+    "- [REQ-001] Outer\n\n  Body.\n\n  - [REQ-002] Inner\n\n    Inner body.\n",
   );
   assertEquals(result.diagnostics.some((d) => d.code === "MSL-F013"), false);
   assertEquals(format(result.output, options).output, result.output);
@@ -514,18 +514,10 @@ Deno.test("tab marker: parent trailer passes preserve a refused child's trailer"
       const input = "- [REQ-001] Parent\n\n    - Plain\n\n" + child +
         parentTrailer;
       const first = format(input, opts);
-      assertStringIncludes(first.output, child);
-      assertEquals(first.output.includes("\n      Satisfies:"), false);
-      assertEquals(
-        first.output.slice(first.output.indexOf(child) + child.length),
-        `\n      Id: ${ID}\n`,
-      );
-      assertEquals(
-        parseMarkdown(first.output).entries[0].rawAttributes.map((
-          { key, value },
-        ) => ({ key, value })),
-        [{ key: "Id", value: ID }],
-      );
+      // The parent holds a nested entry-shaped item (MSL-P024): fmt leaves
+      // it unchanged and stamps no Id.
+      assertEquals(first.output, input);
+      assertEquals(parseMarkdown(first.output).entries[0].id, undefined);
       assertEquals(format(first.output, opts).output, first.output);
       assertEquals(
         first.diagnostics.filter((d) => d.code === "MSL-F013").length,
@@ -546,7 +538,7 @@ Deno.test("tab marker: parent formatting preserves a refused child's sibling hie
   const first = format(input, opts);
   assertEquals(
     first.output,
-    `- [REQ-001] Parent\n\n  The parent shall do X.\n\n${child}\n      Id: ${ID}\n`,
+    input,
   );
   assertEquals(format(first.output, opts).output, first.output);
 });

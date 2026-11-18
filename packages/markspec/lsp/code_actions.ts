@@ -746,6 +746,8 @@ function markdownTrailerBlock(
     owner.location.line,
     indent,
     owner.endLine ?? 0,
+    [],
+    owner.nestedEntryLines,
   );
   if (!range || line >= range.end) return undefined;
   return { range, indent };

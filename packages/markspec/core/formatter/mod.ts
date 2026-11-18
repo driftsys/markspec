@@ -24,7 +24,6 @@ import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
 import {
   ATTR_LINE_RE,
   findTrailerStart,
-  leadingColumns,
   parseAttributes,
 } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
@@ -245,6 +244,8 @@ function emitBodyViaAst(
     // input is already canonical (post-collapse) output.
     entries = parseMarkdown(lines.join("\n"), { file }).entries;
   }
+  // An entry with a nested entry-shaped item (MSL-P024) is left as it is.
+  entries = entries.filter((entry) => entry.nestedEntryLines === undefined);
   if (entries.length === 0) return false;
 
   let bodyChanged = false;
@@ -334,8 +335,6 @@ function emitBodyViaAst(
       entry.location.line,
       indent,
       itemEndFloor,
-      [],
-      entry.nestedEntryLines,
     );
     const bodyStart = titleLineIdx + 1;
     const bodyEnd = range
@@ -675,6 +674,15 @@ export function format(
   };
 }
 
+/**
+ * `false` for an entry that holds a nested entry-shaped item (MSL-P024): no
+ * formatter pass changes such an entry, because its lines would then move or
+ * lose the nested item's text.
+ */
+function formattable(entry: Entry): boolean {
+  return entry.nestedEntryLines === undefined;
+}
+
 /** Run the entry and prose passes after tab-marker admission. */
 function formatEntries(
   markdown: string,
@@ -705,11 +713,13 @@ function formatEntries(
   // pass; left in place they demote the whole trailer block to body code.
   const repaired = removeEmptyTrailerLines(
     rawBody,
-    parseMarkdown(rawBody, { file }).entries,
+    parseMarkdown(rawBody, { file }).entries.filter(formattable),
     diagnostics,
   );
   const body = repaired ?? rawBody;
-  const { entries } = parseMarkdown(body, { file });
+  const { entries: allEntries } = parseMarkdown(body, { file });
+  const entries = allEntries.filter(formattable);
+  const hasNestedEntries = allEntries.length !== entries.length;
 
   // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
   // file extension HERE so the invariant has one home — a caller that wires
@@ -720,7 +730,9 @@ function formatEntries(
   // CLI/LSP call-site guards remain as defense-in-depth.
   const isMarkdownFile = MARKDOWN_EXTENSIONS.has(extname(file).toLowerCase());
   const proseFormat = isMarkdownFile ? options?.formatMarkdownProse : undefined;
-  if (entries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined) {
+  if (
+    allEntries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined
+  ) {
     // No entries and no front matter — nothing to format. Returning the
     // original `markdown` preserves the source's exact byte sequence,
     // including its line-ending convention.
@@ -755,13 +767,6 @@ function formatEntries(
       entry.endLine === undefined
         ? 0
         : entry.endLine + (lines.length - lengthAtStart);
-    // The nested item moves by the change in line count since here, as the
-    // item end does.
-    const nestedLines = () =>
-      entry.nestedEntryLines === undefined ? undefined : {
-        start: entry.nestedEntryLines.start + (lines.length - lengthAtStart),
-        end: entry.nestedEntryLines.end + (lines.length - lengthAtStart),
-      };
     const existingTrailer = protectedRanges.length > 0
       ? findAttributeBlockRange(
         lines,
@@ -769,7 +774,6 @@ function formatEntries(
         indent,
         itemEndFloor(),
         protectedRanges,
-        nestedLines(),
       )
       : undefined;
     let attrs = protectedRanges.length > 0
@@ -799,8 +803,6 @@ function formatEntries(
         entry.location.line,
         indent,
         itemEndFloor(),
-        [],
-        nestedLines(),
       );
       const limit = attrRange ? attrRange.start : lines.length;
       let titleEnd = titleLineIdx;
@@ -852,7 +854,6 @@ function formatEntries(
       indent,
       itemEndFloor(),
       protectedRanges,
-      nestedLines(),
     );
     if (
       trailerRange &&
@@ -912,7 +913,6 @@ function formatEntries(
       indent,
       itemEndFloor(),
       protectedRanges,
-      nestedLines(),
     );
 
     if (range) {
@@ -957,7 +957,17 @@ function formatEntries(
   // stay aligned with parser-reported positions. Operates inside
   // fenced code regions only outside-code; verbatim regions keep
   // their blank-line counts.
-  const collapsedLines = collapseBlankLines(lines);
+  const collapsedLines = collapseBlankLines(
+    lines,
+    hasNestedEntries
+      ? parseMarkdown(lines.join("\n"), { file }).entries
+        .filter((entry) => !formattable(entry))
+        .map((entry) => ({
+          start: entry.location.line - 1,
+          end: entry.endLine ?? entry.location.line,
+        }))
+      : [],
+  );
   if (collapsedLines.length !== lines.length) changed = true;
 
   // SP3 §5.2-via-AST cutover: route each entry's body through the
@@ -992,7 +1002,7 @@ function formatEntries(
   if (proseFormat !== undefined) {
     const proseEntries = changed
       ? parseMarkdown(collapsedLines.join("\n"), { file }).entries
-      : entries;
+      : allEntries;
     const extents = proseEntries.map((e) => {
       const start = e.location.line - 1;
       const entryIndent = contentColumn(
@@ -1090,7 +1100,10 @@ function renderFrontMatter(attrs: DocumentAttributes): string {
  * regions are preserved verbatim — blank-line counts inside fenced
  * blocks are author intent, not noise.
  */
-function collapseBlankLines(lines: readonly string[]): string[] {
+function collapseBlankLines(
+  lines: readonly string[],
+  keptRanges: readonly EntryExtent[] = [],
+): string[] {
   const out: string[] = [];
   const fencedLines = fencedCodeLines(lines.join("\n"));
   const protectedRanges = protectedTabRanges(lines, true);
@@ -1098,7 +1111,8 @@ function collapseBlankLines(lines: readonly string[]): string[] {
   for (const [i, line] of lines.entries()) {
     if (
       fencedLines.has(i) ||
-      protectedRanges.some((range) => i >= range.start && i < range.end)
+      protectedRanges.some((range) => i >= range.start && i < range.end) ||
+      keptRanges.some((range) => i >= range.start && i < range.end)
     ) {
       out.push(line);
       prevBlank = false;
@@ -1373,7 +1387,10 @@ export function findAttributeBlockRange(
   indent: number,
   itemEndFloor = 0,
   preservedRanges: readonly EntryExtent[] = [],
-  nestedEntryLines?: { readonly start: number; readonly end: number },
+  nestedEntryLines?: readonly {
+    readonly start: number;
+    readonly end: number;
+  }[],
 ): { start: number; end: number } | undefined {
   const startIdx = entryStartLine - 1;
   const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
@@ -1398,24 +1415,15 @@ export function findAttributeBlockRange(
   const indentStr = " ".repeat(indent);
   const lineAt = (i: number) =>
     lines[i].startsWith(indentStr) ? lines[i].slice(indent) : lines[i];
-  const all: number[] = [];
-  for (let i = floor; i < scanEnd; i++) all.push(i);
-  const attrStart = floor + findTrailerStart(all.map(lineAt));
-  const nestedFrom = nestedEntryLines === undefined
-    ? Infinity
-    : nestedEntryLines.start - 1;
-
-  // The trailer that starts at or after a nested entry-shaped item is that
-  // item's own, not this entry's (MSL-P024), as in the parser. Look again
-  // without the item's lines.
-  if (attrStart >= scanEnd) return undefined;
-  const lastLine = lines[scanEnd - 1] ?? "";
-  if (
-    attrStart < nestedFrom ||
-    leadingColumns(lastLine) <= indent + 4
-  ) return { start: attrStart, end: scanEnd };
-  const nestedTo = nestedEntryLines!.end - 1;
-  const kept = all.filter((i) => i < nestedFrom || i > nestedTo);
+  // The lines of a nested entry-shaped item are not part of this entry
+  // (MSL-P024), as in the parser: its trailer is never this entry's.
+  const kept: number[] = [];
+  for (let i = floor; i < scanEnd; i++) {
+    if (nestedEntryLines?.some((r) => i >= r.start - 1 && i <= r.end - 1)) {
+      continue;
+    }
+    kept.push(i);
+  }
   const content = kept.map(lineAt);
   let contentEnd = content.length;
   while (contentEnd > 0 && content[contentEnd - 1].trim() === "") {

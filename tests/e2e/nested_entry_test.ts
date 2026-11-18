@@ -2,8 +2,8 @@
  * @module tests/e2e/nested_entry_test
  *
  * E2E: an entry-shaped list item nested in an entry (#928) is not an entry.
- * `check` reports MSL-P024, the parent keeps its own Id, and `fmt` leaves
- * the file unchanged and gives the same output when run twice.
+ * `check` reports one MSL-P024 per nested item, the parent keeps its own Id,
+ * and `fmt` leaves the file byte for byte unchanged, also when run twice.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -17,81 +17,148 @@ const PROJECT = {
 
 const PARENT_ID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const CHILD_ID = "01HGW2Q8MNP3RSTVWXYZABCDEG";
+const OTHER_CHILD_ID = "01HGW2Q8MNP3RSTVWXYZABCDEH";
 
-const NESTED = `# Doc
+const PARENT = "- [REQ-001] Parent\n\n  The system shall keep its own Id.\n\n";
+const CHILD = `  - [REQ-003] Child\n\n    Child body.\n\n`;
 
-- [REQ-0001] Parent
+interface Case {
+  readonly name: string;
+  readonly text: string;
+  /** Parent Id the compiled entry must have, or `undefined` for none. */
+  readonly parentId: string | undefined;
+  /** File lines of the MSL-P024 diagnostics. */
+  readonly nestedLines: number[];
+  /** Diagnostic codes that must not be reported. */
+  readonly absent?: string[];
+}
 
-  The system shall keep its own Id.
+const CASES: Case[] = [
+  {
+    name: "canonical child trailer, parent trailer below the child",
+    text:
+      `${PARENT}${CHILD}        Id: ${CHILD_ID}\n\n      Id: ${PARENT_ID}\n`,
+    parentId: PARENT_ID,
+    nestedLines: [5],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "parent trailer above the child, child git-style trailer",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - [REQ-003] Child\n\n    Child body.\n    Id: ${CHILD_ID}\n`,
+    parentId: PARENT_ID,
+    nestedLines: [7],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "parent trailer directly above the child",
+    text:
+      `- [REQ-001] Parent\n\n  The system shall keep its own Id.\n  Id: ${PARENT_ID}\n${CHILD}        Id: ${CHILD_ID}\n`
+        .replace("Id.\n  Id:", "Id.\n\n      Id:"),
+    parentId: PARENT_ID,
+    nestedLines: [6],
+    absent: ["MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "parent without an Id, child canonical trailer",
+    text: `${PARENT}${CHILD}        Id: ${CHILD_ID}\n`,
+    parentId: undefined,
+    nestedLines: [5],
+    absent: ["MSL-P020"],
+  },
+  {
+    name: "parent without an Id, child git-style trailer",
+    text: `${PARENT}${CHILD.trimEnd()}\n    Id: ${CHILD_ID}\n`,
+    parentId: undefined,
+    nestedLines: [5],
+    absent: ["MSL-P020"],
+  },
+  {
+    name: "parent without an Id, child tab-indented trailer",
+    text: `${PARENT}${CHILD}    \tId: ${CHILD_ID}\n`,
+    parentId: undefined,
+    nestedLines: [5],
+    absent: ["MSL-P020"],
+  },
+  {
+    name: "two nested entries",
+    text:
+      `${PARENT}${CHILD}        Id: ${CHILD_ID}\n\n  - [REQ-004] Other\n\n    Other body.\n\n        Id: ${OTHER_CHILD_ID}\n`,
+    parentId: undefined,
+    nestedLines: [5, 11],
+    absent: ["MSL-P020"],
+  },
+  {
+    name: "two nested entries, parent trailer above them",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n${CHILD}        Id: ${CHILD_ID}\n\n  - [REQ-004] Other\n\n    Other body.\n\n        Id: ${OTHER_CHILD_ID}\n`,
+    parentId: PARENT_ID,
+    nestedLines: [7, 13],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "nested entry at depth 2",
+    text:
+      `${PARENT}  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n`,
+    parentId: undefined,
+    nestedLines: [7],
+    absent: ["MSL-P020"],
+  },
+];
 
-      Id: ${PARENT_ID}
+for (const lineEnding of ["\n", "\r\n"]) {
+  const label = lineEnding === "\n" ? "LF" : "CRLF";
+  for (const testCase of CASES) {
+    const text = testCase.text.replaceAll("\n", lineEnding);
 
-  - [REQ-0003] Child
+    Deno.test(`check (${label}): ${testCase.name}`, async () => {
+      const { stderr } = await markspec(["check", "doc.md"], {
+        files: { ...PROJECT, "doc.md": text },
+      });
+      const nested = [...stderr.matchAll(/MSL-P024\]: doc\.md:(\d+)/g)]
+        .map((m) => Number(m[1]));
+      assertEquals(nested, testCase.nestedLines, stderr);
+      for (const code of testCase.absent ?? []) {
+        assertEquals(stderr.includes(code), false, `${code}: ${stderr}`);
+      }
+    });
 
-    Child body.
+    Deno.test(`compile (${label}): ${testCase.name}`, async () => {
+      const { stdout } = await markspec(
+        ["compile", "doc.md", "--format", "json"],
+        { files: { ...PROJECT, "doc.md": text } },
+      );
+      const entries = Object.values(
+        JSON.parse(stdout.slice(stdout.indexOf("{"))).entries,
+      ) as { displayId: string; id?: string }[];
+      assertEquals(entries.length, 1, stdout);
+      assertEquals(entries[0].id, testCase.parentId);
+    });
 
-        Id: ${CHILD_ID}
-`;
+    Deno.test(`fmt (${label}): ${testCase.name} stays unchanged`, async () => {
+      const run = await markspecPersist(["fmt", "doc.md"], {
+        files: { ...PROJECT, "doc.md": text },
+      });
+      try {
+        assertEquals(run.code, 0, run.stderr);
+        const first = await Deno.readTextFile(join(run.dir, "doc.md"));
+        assertEquals(first, text);
+        await markspecInDir(run.dir, ["fmt", "doc.md"]);
+        assertEquals(await Deno.readTextFile(join(run.dir, "doc.md")), first);
+      } finally {
+        await Deno.remove(run.dir, { recursive: true });
+      }
+    });
+  }
+}
 
-Deno.test("check: a nested entry warns MSL-P024 and not MSL-P020", async () => {
-  const { code, stderr } = await markspec(["check", "doc.md"], {
-    "doc.md": NESTED,
+Deno.test("check: the issue input keeps the parent Id and warns once", async () => {
+  const text =
+    `- [REQ-001] Parent\n\n  Body.\n  Id: ${PARENT_ID}\n  - [REQ-003] Child\n\n    Child body.\n\n        Id: ${CHILD_ID}\n`;
+  const { stderr } = await markspec(["check", "doc.md"], {
+    files: { ...PROJECT, "doc.md": text },
   });
-  assertStringIncludes(stderr, "MSL-P024");
-  assertStringIncludes(stderr, "doc.md:9");
-  assertEquals(stderr.includes("MSL-P020"), false, stderr);
+  assertEquals(stderr.match(/MSL-P024/g)?.length, 1, stderr);
+  assertStringIncludes(stderr, "doc.md:5");
   assertEquals(stderr.includes("error["), false, stderr);
-  assertEquals(code, 2);
-});
-
-Deno.test("compile: the parent keeps its own Id next to a nested entry", async () => {
-  const { stdout } = await markspec(["compile", "doc.md", "--format", "json"], {
-    files: { ...PROJECT, "doc.md": NESTED },
-  });
-  assertStringIncludes(stdout, PARENT_ID);
-  assertEquals(stdout.includes(CHILD_ID), false);
-});
-
-Deno.test("fmt: a nested entry is left unchanged and fmt is idempotent", async () => {
-  const run = await markspecPersist(["fmt", "doc.md"], {
-    files: { ...PROJECT, "doc.md": NESTED },
-  });
-  try {
-    assertEquals(run.code, 0, run.stderr);
-    const first = await Deno.readTextFile(join(run.dir, "doc.md"));
-    assertEquals(first, NESTED);
-    await markspecInDir(run.dir, ["fmt", "doc.md"]);
-    assertEquals(await Deno.readTextFile(join(run.dir, "doc.md")), first);
-  } finally {
-    await Deno.remove(run.dir, { recursive: true });
-  }
-});
-
-const UNSEPARATED = `# Doc
-
-- [REQ-0001] Parent
-
-  The system shall keep its own Id.
-  Id: ${PARENT_ID}
-  - [REQ-0003] Child
-
-    Child body.
-
-        Id: ${CHILD_ID}
-`;
-
-Deno.test("fmt: a trailer directly above a nested entry keeps both Ids", async () => {
-  const run = await markspecPersist(["fmt", "doc.md"], {
-    files: { ...PROJECT, "doc.md": UNSEPARATED },
-  });
-  try {
-    assertEquals(run.code, 0, run.stderr);
-    const first = await Deno.readTextFile(join(run.dir, "doc.md"));
-    assertStringIncludes(first, `      Id: ${PARENT_ID}\n`);
-    assertStringIncludes(first, `        Id: ${CHILD_ID}\n`);
-    await markspecInDir(run.dir, ["fmt", "doc.md"]);
-    assertEquals(await Deno.readTextFile(join(run.dir, "doc.md")), first);
-  } finally {
-    await Deno.remove(run.dir, { recursive: true });
-  }
 });

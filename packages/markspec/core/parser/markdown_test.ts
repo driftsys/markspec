@@ -1418,3 +1418,48 @@ Deno.test("parseMarkdown: a nested entry raises one MSL-P024 warning at its line
   assertStringIncludes(found[0].message, "nested entry is not supported");
   assertEquals(diagnostics.some((d) => d.code === "MSL-P020"), false);
 });
+
+Deno.test("parseMarkdown: every nested entry is excluded, one MSL-P024 each (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  - [REQ-003] A
+
+    A body.
+
+        Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+  - [REQ-004] B
+
+    B body.
+
+    Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+`;
+  const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].id, undefined);
+  assertEquals(entries[0].rawAttributes, []);
+  assertEquals(entries[0].nestedEntryLines, [
+    { start: 5, end: 9 },
+    { start: 11, end: 15 },
+  ]);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "MSL-P024").map((d) =>
+      d.location?.line
+    ),
+    [5, 11],
+  );
+  assertEquals(diagnostics.some((d) => d.code === "MSL-P020"), false);
+});
+
+Deno.test("parseMarkdown: the parent trailer below a nested entry stays the parent's (#928)", () => {
+  const text = `${NESTED_ENTRY}
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+`.replace(
+    "\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n\n  - [REQ-003]",
+    "\n  - [REQ-003]",
+  );
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEH");
+});

@@ -391,12 +391,14 @@ reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
 ```
 
 **Nested entry.** A list item inside an entry that is itself entry-shaped (a
-`- [ID] Title` item with body content) is not an entry: nested entries are not
-supported. The parser ends the entry's own content before that item, so the
-entry keeps its own trailer and `Id:`, and the nested item's text, including its
-`Id:`, is not part of the entry. `check` reports `MSL-P024` (warning) at the
-nested item. `markspec fmt` leaves an entry that holds a nested item unchanged,
-and stamps no `Id:` on it. Move the item to the top level, as a separate entry.
+`- [ID] Title` item with body content), at any depth, is not an entry: nested
+entries are not supported. The parser removes the lines of every such item from
+the entry's content before it reads the body and the trailer, so the entry keeps
+its own trailer and `Id:`, wherever the trailer is, and the nested item's text,
+including its `Id:`, is not part of the entry. `check` reports `MSL-P024`
+(warning) once for each nested item, at the item. `markspec fmt` leaves an entry
+that holds a nested item unchanged, byte for byte, and stamps no `Id:` on it.
+Move each item to the top level, as a separate entry.
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both

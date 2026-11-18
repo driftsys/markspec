@@ -61,12 +61,10 @@ export function translateEntryLocations(
         : {}),
       ...(entry.nestedEntryLines !== undefined
         ? {
-          nestedEntryLines: {
-            start: lineMap.translate(entry.nestedEntryLines.start, 1)?.line ??
-              entry.nestedEntryLines.start,
-            end: lineMap.translate(entry.nestedEntryLines.end, 1)?.line ??
-              entry.nestedEntryLines.end,
-          },
+          nestedEntryLines: entry.nestedEntryLines.map((range) => ({
+            start: lineMap.translate(range.start, 1)?.line ?? range.start,
+            end: lineMap.translate(range.end, 1)?.line ?? range.end,
+          })),
         }
         : {}),
       ...(entry.attributeLines !== undefined
