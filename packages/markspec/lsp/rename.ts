@@ -25,6 +25,8 @@
  * `onPrepareRename` against a fenced cursor position separately (via
  * `isLineFenced`) using the full document text it already has.
  * `displayIdForRename` applies the same guard to direct rename requests.
+ * A cursor on an ID inside a scenario locator is not renameable: both
+ * `prepareRenameRange` and `displayIdForRename` reject it.
  */
 
 import {
@@ -36,6 +38,7 @@ import {
 import { displayIdAtPosition } from "./hover.ts";
 import {
   FEATURE_TRAILER_LINE_RE,
+  isInsideLocator,
   locatorSpans,
   TRAILER_LINE_RE,
 } from "./locators.ts";
@@ -53,9 +56,10 @@ export function displayIdForRename(
   lspLine: number,
   column: number,
   fencedLines?: ReadonlySet<number>,
+  featureFile = false,
 ): string | undefined {
   if (isLineFenced(text, lspLine, fencedLines)) return undefined;
-  return displayIdAtPosition(line, column);
+  return displayIdAtPosition(line, column, featureFile);
 }
 
 /** A subset of the LSP `TextEdit` interface. */
@@ -94,9 +98,11 @@ export function prepareRenameRange(
   line: string,
   column: number,
   lspLine: number,
+  featureFile = false,
 ): PrepareRenameResult | null {
   if (column < 0 || column >= line.length) return null;
   if (/\s/.test(line[column])) return null;
+  if (isInsideLocator(line, column, featureFile)) return null;
   let start = column;
   while (start > 0 && DISPLAY_ID_CHAR_RE.test(line[start - 1])) start--;
   let end = column;

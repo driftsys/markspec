@@ -118,6 +118,8 @@ export function scanEntryTrailer(
     // present in hover.ts and rename.ts.
     // An ID inside a closed scenario locator is scenario text, not a
     // reference (#915).
+    // Only Markdown trailers reach this scanner: a `.feature` `# Key:` line
+    // has no 4-space indent, so it never matches TRAILER_LINE_RE above.
     const locators = locatorSpans(line, LOCATOR_TRAILER_LINE_RE);
     DISPLAY_ID_RE.lastIndex = 0;
     let match: RegExpExecArray | null;

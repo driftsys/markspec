@@ -1439,6 +1439,7 @@ connection.onPrepareRename((params) => {
     line,
     params.position.character,
     params.position.line,
+    isFeatureFile(filePath),
   );
 });
 
@@ -1469,6 +1470,7 @@ connection.onRenameRequest(async (params) => {
     params.position.line,
     params.position.character,
     fencedLines,
+    isFeatureFile(filePath),
   );
   if (!oldId) return null;
   const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(oldId));
