@@ -115,6 +115,38 @@ Deno.test("checkDrift: profile resolved-version drift → MSL-L211", () => {
   assertEquals(d.some((x) => x.code === "MSL-L211"), true);
 });
 
+Deno.test("checkDrift: old identity-only profile hash → MSL-L210 with a remediation", () => {
+  const profile = {
+    kind: "profile" as const,
+    id: "@markspec/profile-default",
+    specifier: "builtin",
+    resolved: "1.0.0",
+  };
+  const locked: Lockfile = {
+    ...EMPTY_LOCKED,
+    upstreams: [{ ...profile, hash: "sha256:0" }],
+  };
+  const resolved: ResolvedUpstreams = {
+    ...EMPTY_RESOLVED,
+    profiles: [{
+      upstream: { ...profile, hash: "sha256:abc" },
+      diagnostics: [],
+    }],
+  };
+  const d = checkDrift(locked, resolved, []);
+  const l210 = d.find((x) => x.code === "MSL-L210");
+  assertEquals(
+    l210?.message.includes("locked sha256:0 vs current sha256:abc"),
+    true,
+  );
+  assertEquals(
+    l210?.message.includes(
+      "Run `markspec lock --update=@markspec/profile-default`.",
+    ),
+    true,
+  );
+});
+
 Deno.test("checkDrift: canonical edge hash drift → MSL-L212", () => {
   const resolved: ResolvedUpstreams = {
     ...EMPTY_RESOLVED,
