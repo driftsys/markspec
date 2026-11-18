@@ -1219,3 +1219,29 @@ Deno.test("format: CSV split keeps a locator with commas in one value, verbatim"
     `      Verified-by: TST_A [x, y]\n      Verified-by: TST_B [Brake  at 20 m]\n`,
   );
 });
+
+Deno.test("format: whole-document mode adds a missing final newline", () => {
+  const identity = (md: string): string => md;
+  const result = format("# Title\n\nText.", {
+    file: "t.md",
+    formatMarkdownProse: identity,
+  });
+  assertEquals(result.changed, true);
+  assertEquals(result.output, "# Title\n\nText.\n");
+});
+
+Deno.test("format: whole-document mode keeps CRLF when it adds the final newline", () => {
+  const identity = (md: string): string => md;
+  const result = format("# Title\r\n\r\nText.", {
+    file: "t.md",
+    formatMarkdownProse: identity,
+  });
+  assertEquals(result.output, "# Title\r\n\r\nText.\r\n");
+});
+
+Deno.test("format: whole-document mode leaves an empty file empty", () => {
+  const identity = (md: string): string => md;
+  const result = format("", { file: "t.md", formatMarkdownProse: identity });
+  assertEquals(result.output, "");
+  assertEquals(result.changed, false);
+});

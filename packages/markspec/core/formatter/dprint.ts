@@ -101,12 +101,54 @@ async function instantiate(): Promise<ProseFormatter> {
     MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
     MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
   );
-  return (markdown: string, options?: ProseFormatOptions): string =>
-    formatter.formatText({
-      filePath: "fragment.md",
-      fileText: markdown,
-      overrideConfig: options?.lineWidth !== undefined
-        ? { lineWidth: options.lineWidth }
-        : undefined,
-    });
+  return withHiddenMarkdownFenceTags(
+    (markdown: string, options?: ProseFormatOptions): string =>
+      formatter.formatText({
+        filePath: "fragment.md",
+        fileText: markdown,
+        overrideConfig: options?.lineWidth !== undefined
+          ? { lineWidth: options.lineWidth }
+          : undefined,
+      }),
+  );
+}
+
+/**
+ * An opening code fence whose info string starts with the `md` or
+ * `markdown` tag (any case). Group 1 is the text before the tag, group 2 is
+ * the tag. A list marker or a `>` before the fence is allowed.
+ */
+const MARKDOWN_FENCE_TAG_RE =
+  /^([ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+)?[ \t>]*(?:`{3,}|~{3,})[ \t]*)(md|markdown)(?=[ \t]|$)/gim;
+
+/** Prefix of the placeholder tag that replaces a hidden fence tag. */
+const HIDDEN_TAG_PREFIX = "markspec-hidden-fence-tag-";
+
+/**
+ * Wrap `format` so that it does not format the content of a code fence
+ * tagged `md` or `markdown`. dprint-markdown formats such content as
+ * Markdown; the CommonMark-semantic gate then rejects the change and the
+ * whole prose segment stays unformatted (MSL-F012). The wrapper replaces
+ * each tag with a placeholder tag that dprint does not know, calls
+ * `format`, and puts the original tags back. prim does the same.
+ */
+export function withHiddenMarkdownFenceTags(
+  format: ProseFormatter,
+): ProseFormatter {
+  return (markdown, options) => {
+    const tags: string[] = [];
+    const hidden = markdown.replace(
+      MARKDOWN_FENCE_TAG_RE,
+      (_match, before: string, tag: string) => {
+        tags.push(tag);
+        return `${before}${HIDDEN_TAG_PREFIX}${tags.length - 1}`;
+      },
+    );
+    if (tags.length === 0) return format(markdown, options);
+    const formatted = format(hidden, options);
+    return formatted.replace(
+      new RegExp(`${HIDDEN_TAG_PREFIX}(\\d+)`, "g"),
+      (match, index: string) => tags[Number(index)] ?? match,
+    );
+  };
 }

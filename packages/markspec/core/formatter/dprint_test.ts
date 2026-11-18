@@ -3,6 +3,7 @@ import {
   loadMarkdownFormatter,
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
   MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
+  withHiddenMarkdownFenceTags,
 } from "./dprint.ts";
 
 Deno.test("MarkSpec markdown config: the exported style objects are frozen", () => {
@@ -58,4 +59,47 @@ Deno.test("loadMarkdownFormatter: per-call lineWidth override narrows the wrap",
   if (at40.split("\n").length <= at80.split("\n").length) {
     throw new Error("narrower width should produce more lines");
   }
+});
+
+// ---------------------------------------------------------------------------
+// `md` / `markdown` fences (#984)
+// ---------------------------------------------------------------------------
+
+const FENCE_CONTENT = "*  item one\n*  item two\n\nSome   text   here.";
+
+for (
+  const opener of [
+    "```md",
+    "```markdown",
+    "~~~md",
+    "~~~~Markdown",
+    "``` MD title=x",
+    "```markdown {.class}",
+  ]
+) {
+  Deno.test(`loadMarkdownFormatter: keeps the content of a '${opener}' fence`, async () => {
+    const fmt = await loadMarkdownFormatter();
+    const close = opener.match(/^[`~]+/)![0];
+    const fence = `${opener}\n${FENCE_CONTENT}\n${close}`;
+    const input = `Para   one\nwrapped.\n\n${fence}\n\nPara   two.\n`;
+    const out = fmt(input);
+    // dprint may normalize the fence delimiters; the content stays.
+    assertStringIncludes(out, `\n${FENCE_CONTENT}\n`);
+    assertStringIncludes(out, "Para one wrapped.");
+    assertStringIncludes(out, "Para two.");
+  });
+}
+
+Deno.test("withHiddenMarkdownFenceTags: hides the tag from the inner formatter", () => {
+  const seen: string[] = [];
+  const wrapped = withHiddenMarkdownFenceTags((text) => {
+    seen.push(text);
+    return text;
+  });
+  const input =
+    "> ```md\n> x\n> ```\n\n- ~~~markdown\n  y\n  ~~~\n\n```mdx\nz\n```";
+  assertEquals(wrapped(input), input);
+  assertEquals(seen[0].includes("```md\n"), false);
+  assertEquals(seen[0].includes("~~~markdown"), false);
+  assertStringIncludes(seen[0], "```mdx");
 });

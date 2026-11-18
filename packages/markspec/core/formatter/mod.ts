@@ -1060,7 +1060,18 @@ function formatEntries(
     proseLines = prose.lines;
   }
 
-  const formattedBody = proseLines.join("\n");
+  let formattedBody = proseLines.join("\n");
+  // Whole-document mode ends a non-empty Markdown file with a final
+  // newline, as `.editorconfig` `insert_final_newline` and prim do. Extra
+  // trailing blank lines are left as they are: a refused tab-marker
+  // context (MSL-F013) must keep its bytes.
+  if (
+    proseFormat !== undefined && formattedBody !== "" &&
+    !formattedBody.endsWith("\n")
+  ) {
+    formattedBody += "\n";
+    changed = true;
+  }
 
   if (fm.hadFrontMatter) {
     const canonicalFm = renderFrontMatter(fm.attributes);
