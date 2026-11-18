@@ -49,21 +49,23 @@ small scenario index and leave room for it.
    shared splitter in `core/refs/split.ts` is used by the compiler, the
    validator, the formatter, the attribute parser, the lockfile resolver and the
    LSP reference scans. Four scanners keep their own copy of the grammar: the
-   `core/refs` rename-heal token regex, the LSP rename span regex, the
-   `MSL-A011` bracket-depth check in `core/validator/mod.ts`, and the `MSL-A011`
-   quick fix in `lsp/code_actions.ts` (which opens a locator on any `[`); the
-   lockfile resolver keeps its whitespace split for parts without a locator. An
-   unclosed `[` never protects commas: `A [x], B [z, C` gives `A [x]`, `B [z`
-   and `C`. A locator is normalized for comparison (Unicode NFC, trim, collapse
-   whitespace runs) and compared exactly and case-sensitively. An empty locator
-   (`A []`) is a locator with an empty name and names no scenario. A value
-   without a closed locator after whitespace is read exactly as before locators
-   existed, for every relation: `Derived-from` and `References` keep the leading
-   token, every other relation keeps the whole value, and when no value on the
-   line has a closed locator the line splits on every comma. A value with an
-   unclosed `[` after whitespace has no locator; `MSL-L009` reports it. An ID
-   inside a locator is not a reference: rename-heal, LSP rename, find
-   references, the incoming count and code lenses skip it.
+   `core/refs` rename-heal token regex, the LSP locator span regex in
+   `lsp/locators.ts`, the `MSL-A011` bracket-depth check in
+   `core/validator/mod.ts`, and the `MSL-A011` quick fix in
+   `lsp/code_actions.ts` (which opens a locator on any `[`); the lockfile
+   resolver keeps its whitespace split for parts without a locator. An unclosed
+   `[` never protects commas: `A [x], B [z, C` gives `A [x]`, `B [z` and `C`. A
+   locator is normalized for comparison (Unicode NFC, trim, collapse whitespace
+   runs) and compared exactly and case-sensitively. An empty locator (`A []`) is
+   a locator with an empty name and names no scenario. A value without a closed
+   locator after whitespace is read exactly as before locators existed, for
+   every relation: `Derived-from` and `References` keep the leading token, every
+   other relation keeps the whole value, and when no value on the line has a
+   closed locator the line splits on every comma. A value with an unclosed `[`
+   after whitespace has no locator; `MSL-L009` reports it. An ID inside a
+   locator is not a reference, on every trace relation key and `Verified-by`:
+   rename-heal, LSP rename, find references, hover, go-to-definition, document
+   highlights, semantic tokens, the incoming count and code lenses skip it.
 2. **Locator modes.** `RelationDef.locator` is `criterion` for `Satisfies` and
    `Verifies`, `free` for `References` and `Derived-from`, and absent for every
    other relation. The facet is core-only (option 4a): profiles cannot declare a
@@ -150,8 +152,10 @@ small scenario index and leave room for it.
 ## Consequences
 
 - One splitter defines how most surfaces read a trace value; a fix there applies
-  to the validator, formatter, lockfile and compiler together. The rename
-  regexes in `core/refs` and `lsp/rename.ts` must be kept in step with it.
+  to the validator, formatter, lockfile and compiler together. The locator
+  scanners in `core/refs` and `lsp/locators.ts` (shared by LSP hover,
+  definition, highlights, rename and semantic tokens; find references uses
+  `referenceTokens` from `core/refs/split.ts`) must be kept in step with it.
 - Compiled JSON, `fmt` output, the lockfile and the coverage report are
   unchanged for a project with no closed bracket locators and no feature blocks
   in Requirement or Contract entries. (Since the Gherkin AST slice, ADR-038, the

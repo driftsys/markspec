@@ -146,3 +146,15 @@ Deno.test("scanEntryTrailer: trims trailing whitespace from valueLength", () => 
   // Without the fix, valueLength would be 29 (26 ULID + 3 trailing spaces).
   assertEquals(result[0].valueLength, 26);
 });
+
+Deno.test("scanEntryTrailer: an ID inside a closed locator is not an ID range", () => {
+  const lines = ["- [REQ-001] T", "", "      Verifies: STK-001 [Scen STK-002]"];
+  const entry = {
+    location: { file: "t.md", line: 1, column: 1 },
+  } as unknown as Parameters<typeof scanEntryTrailer>[0];
+  const [tl] = scanEntryTrailer(entry, lines, lines.length);
+  assertEquals(tl.idRanges, [{
+    start: lines[2].indexOf("STK-001"),
+    length: 7,
+  }]);
+});

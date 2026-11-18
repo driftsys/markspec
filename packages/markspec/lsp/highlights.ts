@@ -26,6 +26,7 @@
  */
 
 import { DISPLAY_ID_CHAR_RE, walkProseLines } from "../core/mod.ts";
+import { locatorSpans } from "./locators.ts";
 
 /** LSP `DocumentHighlightKind` numeric constants (spec §). */
 export const DocumentHighlightKindText = 1;
@@ -49,22 +50,30 @@ export interface DocumentHighlight {
  *
  * Lines classified as fenced by the supplied set or CommonMark parser are skipped — an
  * illustrative example that happens to display the same ID as sample
- * text is not a real reference and must not be highlighted (#680).
+ * text is not a real reference and must not be highlighted (#680). An ID
+ * inside a closed scenario locator of a trailer line is scenario text and is
+ * not highlighted either; set `featureFile` for a `.feature` file.
  */
 export function findOccurrencesInFile(
   text: string,
   displayId: string,
   fencedLines?: ReadonlySet<number>,
+  featureFile = false,
 ): DocumentHighlight[] {
   // Skip the fence computation, which parses the document, when the text
   // cannot hold an occurrence.
   if (displayId.length === 0 || !text.includes(displayId)) return [];
   const out: DocumentHighlight[] = [];
   walkProseLines(text, (line, i) => {
+    const locators = locatorSpans(line, featureFile);
     let start = 0;
     while (true) {
       const idx = line.indexOf(displayId, start);
       if (idx < 0) break;
+      if (locators.some(([from, to]) => idx >= from && idx < to)) {
+        start = idx + displayId.length;
+        continue;
+      }
       const before = idx === 0 ? "" : line[idx - 1];
       const after = idx + displayId.length >= line.length
         ? ""

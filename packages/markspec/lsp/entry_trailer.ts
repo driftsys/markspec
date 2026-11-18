@@ -3,7 +3,8 @@
  *
  * Scan an entry's trailer block in document text. Returns one
  * `TrailerLine` per attribute line, with the key range, value
- * range, and any embedded display-ID ranges. Shared by both the
+ * range, and any embedded display-ID ranges (whole-token matches outside
+ * a closed scenario locator, see `locators.ts`). Shared by both the
  * semantic-tokens builder and the entry-ranges builder.
  *
  * The scanner walks document lines starting at the entry's
@@ -20,6 +21,7 @@ import {
   DISPLAY_ID_TOKEN_RE,
   type Entry,
 } from "../core/mod.ts";
+import { locatorSpans } from "./locators.ts";
 
 /** A single attribute line in an entry's trailer block. */
 export interface TrailerLine {
@@ -35,7 +37,8 @@ export interface TrailerLine {
   readonly valueStart: number;
   /** Length of the value in characters. */
   readonly valueLength: number;
-  /** Display-ID sub-ranges discovered inside the value (whole-token matches). */
+  /** Display-ID sub-ranges discovered inside the value (whole-token matches
+   * outside a closed scenario locator). */
   readonly idRanges: readonly { start: number; length: number }[];
 }
 
@@ -112,6 +115,11 @@ export function scanEntryTrailer(
     // (only treat as IDs when the key is a trace attribute) must
     // filter on tl.key themselves. Pre-existing limitation also
     // present in hover.ts and rename.ts.
+    //
+    // An ID inside a closed scenario locator is scenario text, not a
+    // reference (#915), so it is left out. Only Markdown trailers reach
+    // this scanner: a `.feature` `# Key:` line has no 4-space indent.
+    const locators = locatorSpans(line);
     DISPLAY_ID_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = DISPLAY_ID_RE.exec(valueText)) !== null) {
@@ -121,6 +129,10 @@ export function scanEntryTrailer(
       const boundedLeft = before === "" || !DISPLAY_ID_CHAR_RE.test(before);
       const boundedRight = after === "" || !DISPLAY_ID_CHAR_RE.test(after);
       if (!boundedLeft || !boundedRight) continue;
+      const column = valueStart + match.index;
+      if (locators.some(([from, to]) => column >= from && column < to)) {
+        continue;
+      }
       idRanges.push({
         start: valueStart + match.index,
         length: match[0].length,

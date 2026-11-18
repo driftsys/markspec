@@ -1241,7 +1241,11 @@ connection.onHover((params) => {
     }
   }
 
-  const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(
+    line,
+    params.position.character,
+    isFeatureFile(filePath),
+  );
   if (!id) return null;
   const entry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
@@ -1294,7 +1298,11 @@ connection.onDefinition((params) => {
     }
   }
 
-  const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(
+    line,
+    params.position.character,
+    isFeatureFile(filePath),
+  );
   if (!id) return null;
   const entry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
@@ -1329,7 +1337,11 @@ connection.onReferences((params) => {
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
 
-  const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(
+    line,
+    params.position.character,
+    isFeatureFile(filePath),
+  );
   if (!id) return null;
 
   const referencing = findReferencingEntries(ctx.index.getAllEntries(), id);
@@ -1414,7 +1426,11 @@ connection.onPrepareRename((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
-  const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(
+    line,
+    params.position.character,
+    isFeatureFile(filePath),
+  );
   if (id) {
     const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
     if (targetEntry && isCorpusEntry(targetEntry)) return null; // delivered corpus is read-only (ADR-030)
@@ -1423,6 +1439,7 @@ connection.onPrepareRename((params) => {
     line,
     params.position.character,
     params.position.line,
+    isFeatureFile(filePath),
   );
 });
 
@@ -1453,6 +1470,7 @@ connection.onRenameRequest(async (params) => {
     params.position.line,
     params.position.character,
     fencedLines,
+    isFeatureFile(filePath),
   );
   if (!oldId) return null;
   const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(oldId));
@@ -1706,10 +1724,20 @@ connection.onDocumentHighlight((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
-  const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(
+    line,
+    params.position.character,
+    isFeatureFile(filePath),
+  );
   if (!id) return null;
+  const highlights = findOccurrencesInFile(
+    documentText,
+    id,
+    fencedLines,
+    isFeatureFile(filePath),
+  );
   // deno-lint-ignore no-explicit-any
-  return findOccurrencesInFile(documentText, id, fencedLines) as any;
+  return highlights as any;
 });
 
 // ---------------------------------------------------------------------------

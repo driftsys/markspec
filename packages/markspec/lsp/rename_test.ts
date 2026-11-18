@@ -439,3 +439,48 @@ Deno.test("findIdOccurrencesInFile: an indented .feature '# Key:' trailer keeps 
   );
   assertEquals(edits.map((e) => e.range.start.character), [14]);
 });
+
+Deno.test("displayIdForRename: rejects an ID inside a .feature header locator", () => {
+  const line = "# Verifies: REQ_1 [Scenario REQ_2]";
+  const text = line;
+  assertEquals(
+    displayIdForRename(text, line, 0, line.indexOf("REQ_2"), undefined, true),
+    undefined,
+  );
+  assertEquals(
+    displayIdForRename(text, line, 0, line.indexOf("REQ_1"), undefined, true),
+    "REQ_1",
+  );
+});
+
+Deno.test("prepareRenameRange: rejects an ID inside a trailer locator", () => {
+  const line = "      Verifies: REQ_1 [Scenario REQ_2]";
+  assertEquals(prepareRenameRange(line, line.indexOf("REQ_2"), 0), null);
+  assertEquals(
+    prepareRenameRange(line, line.indexOf("REQ_1"), 0)?.placeholder,
+    "REQ_1",
+  );
+  const feature = "# Verifies: REQ_1 [Scenario REQ_2]";
+  assertEquals(
+    prepareRenameRange(feature, feature.indexOf("REQ_2"), 0, true),
+    null,
+  );
+});
+
+Deno.test("findIdOccurrencesInFile: passes featureFile to the locator gate", () => {
+  // Without a comment marker the line is not a .feature header trailer.
+  const text = "Verifies: REQ_1 [Scen REQ_2]";
+  assertEquals(
+    findIdOccurrencesInFile(text, "REQ_2", "REQ_9", undefined, true).length,
+    1,
+  );
+  assertEquals(
+    findIdOccurrencesInFile(text, "REQ_2", "REQ_9", undefined, false),
+    [],
+  );
+  assertEquals(
+    prepareRenameRange(text, text.indexOf("REQ_2"), 0, true)?.placeholder,
+    "REQ_2",
+  );
+  assertEquals(prepareRenameRange(text, text.indexOf("REQ_2"), 0, false), null);
+});

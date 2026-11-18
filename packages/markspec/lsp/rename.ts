@@ -19,12 +19,15 @@
  * re-implementing fence tracking. Markdown uses cached CommonMark boundaries;
  * the server supplies the original line-scanner boundaries for source files.
  * An ID inside a closed scenario locator on a trailer line is not
- * rewritten (#915), as in `core/refs` rename-heal.
+ * rewritten (#915), as in `core/refs` rename-heal; the trailer gate is in
+ * `locators.ts`, which lists how it differs from rename-heal.
  * `prepareRenameRange` stays
  * single-line and fence-unaware by design — the server gates
  * `onPrepareRename` against a fenced cursor position separately (via
  * `isLineFenced`) using the full document text it already has.
  * `displayIdForRename` applies the same guard to direct rename requests.
+ * A cursor on an ID inside a scenario locator is not renameable: both
+ * `prepareRenameRange` and `displayIdForRename` reject it.
  */
 
 import {
@@ -34,9 +37,11 @@ import {
   walkProseLines,
 } from "../core/mod.ts";
 import { displayIdAtPosition } from "./hover.ts";
+import { isInsideLocator, locatorSpans } from "./locators.ts";
 
 /**
- * Return the display ID at the cursor, or `undefined` inside a code fence.
+ * Return the display ID at the cursor, or `undefined` inside a code fence
+ * or a closed scenario locator (`featureFile` selects the `.feature` gate).
  * Direct rename requests must reject fenced cursors even when the client
  * has not called `prepareRename`.
  * The caller supplies the cursor line from the LSP document range and may
@@ -48,9 +53,10 @@ export function displayIdForRename(
   lspLine: number,
   column: number,
   fencedLines?: ReadonlySet<number>,
+  featureFile = false,
 ): string | undefined {
   if (isLineFenced(text, lspLine, fencedLines)) return undefined;
-  return displayIdAtPosition(line, column);
+  return displayIdAtPosition(line, column, featureFile);
 }
 
 /** A subset of the LSP `TextEdit` interface. */
@@ -79,6 +85,8 @@ export interface PrepareRenameResult {
  *
  * Returns `null` when:
  *   - the cursor lies on whitespace or past the line end, or
+ *   - the cursor lies inside a closed scenario locator of a trailer line
+ *     (`featureFile` selects the `.feature` gate), or
  *   - the token at that position doesn't satisfy the display-ID
  *     grammar (≥3 chars, alphanumeric start, valid ID chars only).
  *
@@ -89,9 +97,11 @@ export function prepareRenameRange(
   line: string,
   column: number,
   lspLine: number,
+  featureFile = false,
 ): PrepareRenameResult | null {
   if (column < 0 || column >= line.length) return null;
   if (/\s/.test(line[column])) return null;
+  if (isInsideLocator(line, column, featureFile)) return null;
   let start = column;
   while (start > 0 && DISPLAY_ID_CHAR_RE.test(line[start - 1])) start--;
   let end = column;
@@ -135,9 +145,8 @@ export function findIdOccurrencesInFile(
   // cannot hold an occurrence.
   if (oldId.length === 0 || !text.includes(oldId)) return [];
   const edits: TextEdit[] = [];
-  const trailerLine = featureFile ? FEATURE_TRAILER_LINE_RE : TRAILER_LINE_RE;
   walkProseLines(text, (line, i) => {
-    const locators = locatorSpans(line, trailerLine);
+    const locators = locatorSpans(line, featureFile);
     let start = 0;
     while (true) {
       const idx = line.indexOf(oldId, start);
@@ -167,27 +176,4 @@ export function findIdOccurrencesInFile(
     }
   }, fencedLines);
   return edits;
-}
-
-/** A trailer line: optional doc-comment prefix, at least 4 spaces of
- * indent, then `Key:`. */
-const TRAILER_LINE_RE = /^(?:\s*(?:\/\/[/!]?|\*|#))?\s{4,}[A-Z][A-Za-z-]*\s*:/;
-
-/** A `.feature` header trailer line: `#`, optional spaces, then `Key:`. */
-const FEATURE_TRAILER_LINE_RE = /^\s*#\s*[A-Z][A-Za-z-]*\s*:/;
-
-/** A closed bracket locator after whitespace, with escapes (same grammar
- * as `core/refs/split.ts`). */
-const LOCATOR_SPAN_RE = /\s\[(?:\\[\s\S]|[^\]\\])*\]/g;
-
-/** `[start, end)` column spans of the closed locators on a line that
- * `trailerLine` accepts; empty for any other line. */
-function locatorSpans(
-  line: string,
-  trailerLine: RegExp,
-): Array<[number, number]> {
-  if (!trailerLine.test(line)) return [];
-  return [...line.matchAll(LOCATOR_SPAN_RE)].map((
-    m,
-  ) => [m.index!, m.index! + m[0].length]);
 }

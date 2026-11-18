@@ -19,18 +19,24 @@ import {
   DISPLAY_ID_TOKEN_RE,
   type Entry,
 } from "../core/mod.ts";
+import { isInsideLocator } from "./locators.ts";
 
 /**
  * Return the display-ID token at the given column on `line`, or
  * `undefined` when the column lies on whitespace, past the line end,
- * or on a token that doesn't look like a display ID.
+ * on a token that doesn't look like a display ID, or inside a closed
+ * scenario locator of a trailer line (scenario text, not a reference).
+ * Set `featureFile` for a `.feature` file, whose trailers are `# Key:`
+ * comment lines.
  */
 export function displayIdAtPosition(
   line: string,
   column: number,
+  featureFile = false,
 ): string | undefined {
   if (column < 0 || column >= line.length) return undefined;
   if (/\s/.test(line[column])) return undefined;
+  if (isInsideLocator(line, column, featureFile)) return undefined;
   // Scan left and right for the token boundaries — anything in the
   // grammar's character set continues the token.
   let start = column;
