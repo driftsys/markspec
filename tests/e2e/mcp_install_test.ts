@@ -13,7 +13,12 @@
 
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { dirname, fromFileUrl, join } from "@std/path";
-import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
+import {
+  markspec,
+  markspecInDir,
+  markspecPersist,
+  realDenoDir,
+} from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Test 2: unknown client suggests correction
@@ -127,6 +132,7 @@ async function runMcpInstallE2e(
   for (const [k, v] of Object.entries(parentEnv)) {
     if (!k.startsWith("GIT_")) env[k] = v;
   }
+  env.DENO_DIR = realDenoDir(); // keep the module cache; see realDenoDir()
   env.HOME = homeDir;
   env.USERPROFILE = homeDir;
   env.APPDATA = join(homeDir, "AppData", "Roaming");

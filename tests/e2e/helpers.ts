@@ -7,6 +7,27 @@
 
 import { fromFileUrl, join } from "@std/path";
 
+let cachedDenoDir: string | undefined;
+
+/**
+ * The real Deno cache directory. A test that overrides `HOME` for a child
+ * `deno run` must also pass this as `DENO_DIR`: the default cache path is
+ * under `HOME`, so a temporary `HOME` gives the child an empty cache and it
+ * downloads every dependency again. Computed once per process.
+ */
+export function realDenoDir(): string {
+  if (cachedDenoDir !== undefined) return cachedDenoDir;
+  const fromEnv = Deno.env.get("DENO_DIR");
+  if (fromEnv) return cachedDenoDir = fromEnv;
+  const out = new Deno.Command(Deno.execPath(), {
+    args: ["info", "--json"],
+    stdout: "piped",
+    stderr: "null",
+  }).outputSync();
+  const info = JSON.parse(new TextDecoder().decode(out.stdout));
+  return cachedDenoDir = info.denoDir as string;
+}
+
 const CLI_ENTRY = fromFileUrl(
   new URL("../../packages/markspec/main.ts", import.meta.url),
 );
@@ -194,6 +215,8 @@ export async function markspecInDir(
   for (const [k, v] of Object.entries(envOverrides)) {
     safeEnv[k] = v;
   }
+  // A HOME override would otherwise move the Deno cache with it.
+  if ("HOME" in envOverrides) safeEnv.DENO_DIR = realDenoDir();
   const cmd = new Deno.Command("deno", {
     // --quiet: strip Deno's Download/Check progress from captured stderr —
     // see markspec() above.
