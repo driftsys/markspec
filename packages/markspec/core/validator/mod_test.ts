@@ -671,6 +671,7 @@ Deno.test("validate: an Id-like trailer line is MSL-I009 and names the line (#93
     );
     assertEquals(found.length, 1, spelling);
     assertEquals(found[0].location?.line, 5, spelling);
+    // The entry has no column for the line, so it is reported at line start.
     assertEquals(found[0].location?.column, 1, spelling);
     assertEquals(found[0].message.includes(spelling.slice(0, 3)), true);
   }

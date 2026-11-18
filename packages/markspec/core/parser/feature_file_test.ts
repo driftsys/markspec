@@ -1285,6 +1285,10 @@ for (
       "Id : after an empty comment",
       "# [REQ_A_0001] Title\n#\n# Id : 01HGW2Q8MNP3RSTVWXYZABCDEA",
     ],
+    [
+      "ID: after an empty comment",
+      "# [REQ_A_0001] Title\n#\n# ID: 01HGW2Q8MNP3RSTVWXYZABCDEA",
+    ],
   ] as const
 ) {
   Deno.test(`parseFile: a .feature header with ${name} reports MSL-I009 (#935)`, async () => {

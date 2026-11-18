@@ -188,10 +188,10 @@ function trailerKey(line: string): string | undefined {
  *   blank line above it, as before #916.
  * - The trailer paragraph: the trailing `Key: Value` lines, indented or not,
  *   that start the content or follow an empty line, when they hold an `Id:`
- *   line or use only keys in {@linkcode RECOGNIZED_TRAILER_KEYS} (#916, rule
+ *   line (the key `ID` counts as `Id`) or use only keys in {@linkcode RECOGNIZED_TRAILER_KEYS} (#916, rule
  *   of #914).
  * - The Id run under prose: trailing `Key: Value` lines directly under a
- *   prose line, with no blank line between, that hold an `Id:` line on any
+ *   prose line, with no blank line between, that hold an `Id:` line (or `ID:`) on any
  *   of their lines, indented or not.
  *   The `Id:` line shows that the author meant a trailer; reading it as
  *   prose would make `markspec fmt` stamp a new Id.
@@ -341,8 +341,9 @@ const ID_LIKE_RE = /^id\s*:/i;
  * Find a line in the run of `Key: value` lines at the end of the body of
  * `entry` that reads as an `Id:` attribute but is not read as one: `id:` and
  * `Id :` fail the attribute grammar, so they stay in the body. (`ID:` in
- * Markdown or source parses as an attribute, and `markspec fmt` canonicalises
- * its key to `Id:`; a `.feature` header has no such rule.) Only the run at the
+ * Markdown or source parses as an attribute; in Markdown `markspec fmt`
+ * canonicalises its key to `Id:`, and in source it stays as written. A
+ * `.feature` header flags `ID:` too, in `findIdLikeIndex`.) Only the run at the
  * end of the body counts: an `ID: text` line inside earlier prose is not
  * flagged.
  * Returns the first such line, or `undefined`. `markspec check` reports it

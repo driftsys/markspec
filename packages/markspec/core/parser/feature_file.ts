@@ -269,7 +269,7 @@ export function headerEntry(
   );
   const entry = entries[0];
   const kept = diagnostics.filter((d) => !IGNORED_CODES.has(d.code));
-  // An `Id:`-like header line (`# id:`, `# Id :`) is not read as an attribute:
+  // An `Id:`-like header line (`# id:`, `# Id :`, `# ID:`) is not read as an attribute:
   // right under the title it joins the title, and otherwise it joins the
   // body. MSL-I009 names it, and `fmt` stamps no Id (the Markdown rule).
   const idLike = findIdLikeIndex(header.lines);

@@ -647,7 +647,7 @@ export interface Entry {
   readonly endLine?: number;
   /**
    * 1-based file line of an `Id:`-like header line of a `.feature` entry
-   * (`# id:`, `# Id :`; MSL-I009), or absent. The header parser sets it,
+   * (`# id:`, `# Id :`, `# ID:`; MSL-I009), or absent. The header parser sets it,
    * because such a line joins the title or the body and is not an attribute.
    * Markdown and source entries do not set it: the validator reads their body.
    */

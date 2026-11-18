@@ -150,6 +150,7 @@ function checkStructural(
         message: `${entry.displayId}: trailer line "${idLike.text}" reads ` +
           `as an Id: attribute but is not spelled 'Id:'; correct the key ` +
           `by hand, fmt stamps no Id: on this entry (spec section 4.2)`,
+        // The entry has no column for the line: report at line start.
         location: { ...entry.location, line: idLike.line, column: 1 },
       });
     }

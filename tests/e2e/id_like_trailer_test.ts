@@ -114,6 +114,7 @@ for (
   const header of [
     `# [STK_0001] A\n# id: ${FEATURE_ULID}`,
     `# [STK_0001] A\n#\n# Id : ${FEATURE_ULID}`,
+    `# [STK_0001] A\n#\n# ID: ${FEATURE_ULID}`,
   ]
 ) {
   Deno.test(`id-like trailer: ${JSON.stringify(header.split("\n").at(-1))} in a .feature header`, async () => {

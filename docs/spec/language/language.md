@@ -363,20 +363,22 @@ does not rewrite source files, so a source doc comment keeps its git-style
 trailer.
 
 - **Git-style trailer.** The final paragraph of the entry, after a blank line,
-  when every line is `Key: Value` and the paragraph holds an `Id:` line or uses
-  only core trailer keys (Part 2 §2.1 universal attributes and the core trace
-  relations). This is the shape that `git interpret-trailers` reads. The parser
-  has no profile, so a key that only a profile declares qualifies only through
-  the `Id:` line. In Markdown, `check` reports `MSL-P023` (warning) at the first
-  line of the block when any trailer line is indented less than 4 columns past
-  the list-item content. `MSL-P023` is not reported when a trailer line ends
-  with the legacy trailing `\` (that shape has its own diagnostic). In a source
-  doc comment the git-style trailer is a valid alternative to the indented
-  block; the parser reports no parse diagnostic (`MSL-P0xx`) for source files.
+  when every line is `Key: Value` and the paragraph holds an `Id:` line (the key
+  `ID` counts as `Id`; `fmt` canonicalises it) or uses only core trailer keys
+  (Part 2 §2.1 universal attributes and the core trace relations). This is the
+  shape that `git interpret-trailers` reads. The parser has no profile, so a key
+  that only a profile declares qualifies only through the `Id:` line. In
+  Markdown, `check` reports `MSL-P023` (warning) at the first line of the block
+  when any trailer line is indented less than 4 columns past the list-item
+  content. `MSL-P023` is not reported when a trailer line ends with the legacy
+  trailing `\` (that shape has its own diagnostic). In a source doc comment the
+  git-style trailer is a valid alternative to the indented block; the parser
+  reports no parse diagnostic (`MSL-P0xx`) for source files.
 - **Run under prose.** A run of `Key: Value` lines directly under body prose,
-  with no blank line, when any line of the run is an `Id:` line, indented or
-  not. The `Id:` line shows that the run is a trailer, so the entry keeps its
-  identity. `check` reports it as `MSL-P020` (warning), and not as `MSL-P023`.
+  with no blank line, when any line of the run is an `Id:` line (or `ID:`),
+  indented or not. The `Id:` line shows that the run is a trailer, so the entry
+  keeps its identity. `check` reports it as `MSL-P020` (warning), and not as
+  `MSL-P023`.
 
 A git-style trailer in Markdown. This is not the canonical layout: `check`
 reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
@@ -444,16 +446,21 @@ leaves such a trailer unchanged, so the author fixes `MSL-P021` by hand; the
 line whose key is `id` in any case, with any spacing before the colon, and that
 the parser does not read as an `Id:` attribute is an Id-like line. In Markdown
 and source entries these are `id:` and `Id :`: a key starts with an uppercase
-letter and has no space before the colon, so `ID:` is an attribute line, in the
-indented block and in a git-style block, and `markspec fmt` canonicalises its
-key to `Id:` (the entry then gets `MSL-P023` when git-style, never `MSL-I009`).
-In a `.feature` header, a git-style trailer needs an `Id:` line (ADR-038), so
-`# ID:` is an Id-like line too, and `fmt` does not canonicalise it. An Id-like
-line is not an identity: `check` reports it as `MSL-I009` (error) at the line,
-and `markspec fmt` leaves the whole entry unchanged until the key is fixed, so
-no `Id:` is stamped and the line is not hidden behind a second identity. The
-author corrects the key to `Id:` by hand. An `ID: text` line in earlier body
-prose is not in the final run and is not reported.
+letter and has no space before the colon, so `ID:` is an attribute line. In a
+Markdown file, `markspec fmt` canonicalises the `ID:` key to `Id:`, in the
+indented block and in a git-style block (the latter also gets `MSL-P023`), and
+`check` never reports `MSL-I009` for it. In a source doc comment `fmt` rewrites
+nothing, so `ID:` stays as written: it is an attribute with an unknown key, and
+`check` reports the missing `Id:` (`MSL-R003`, `MSL-I003`) and the unknown key
+(`MSL-R010`, `MSL-A005`), not `MSL-I009`. In a `.feature` header, `# ID:` is an
+Id-like line too: `findIdLikeIndex` flags every non-`Id:` spelling of the key,
+and the line also parses as the attribute `ID` (`MSL-R010`, `MSL-A005`). `fmt`
+does not canonicalise it. An Id-like line is not an identity: `check` reports it
+as `MSL-I009` (error) at the line, and `markspec fmt` leaves the whole entry
+unchanged until the key is fixed, so no `Id:` is stamped and the line is not
+hidden behind a second identity. The author corrects the key to `Id:` by hand.
+An `ID: text` line in earlier body prose is not in the final run and is not
+reported.
 
 Any other trailing `Key: value` line is body prose: for example `Status: draft`
 directly under a prose line, or a final paragraph of `Rationale:` and `Note:`
