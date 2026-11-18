@@ -230,3 +230,10 @@ Deno.test("findOccurrencesInFile: .feature gate does not apply to Markdown", () 
   assertEquals(findOccurrencesInFile(text, "REQ_2").length, 1);
   assertEquals(findOccurrencesInFile(text, "REQ_2", undefined, true).length, 1);
 });
+
+Deno.test("findOccurrencesInFile: passes featureFile to the locator gate", () => {
+  // Without a comment marker the line is not a .feature header trailer.
+  const text = "Verifies: REQ_1 [Scen REQ_2]";
+  assertEquals(findOccurrencesInFile(text, "REQ_2", undefined, true).length, 1);
+  assertEquals(findOccurrencesInFile(text, "REQ_2", undefined, false), []);
+});

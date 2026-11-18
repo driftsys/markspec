@@ -63,9 +63,9 @@ small scenario index and leave room for it.
    other relation keeps the whole value, and when no value on the line has a
    closed locator the line splits on every comma. A value with an unclosed `[`
    after whitespace has no locator; `MSL-L009` reports it. An ID inside a
-   locator is not a reference: rename-heal, LSP rename, find references, hover,
-   go-to-definition, document highlights, semantic tokens, the incoming count
-   and code lenses skip it.
+   locator is not a reference, on every trace relation key and `Verified-by`:
+   rename-heal, LSP rename, find references, hover, go-to-definition, document
+   highlights, semantic tokens, the incoming count and code lenses skip it.
 2. **Locator modes.** `RelationDef.locator` is `criterion` for `Satisfies` and
    `Verifies`, `free` for `References` and `Derived-from`, and absent for every
    other relation. The facet is core-only (option 4a): profiles cannot declare a
@@ -154,8 +154,8 @@ small scenario index and leave room for it.
 - One splitter defines how most surfaces read a trace value; a fix there applies
   to the validator, formatter, lockfile and compiler together. The locator
   scanners in `core/refs` and `lsp/locators.ts` (shared by LSP hover,
-  definition, references, highlights, rename and semantic tokens) must be kept
-  in step with it.
+  definition, highlights, rename and semantic tokens; find references uses
+  `referenceTokens` from `core/refs/split.ts`) must be kept in step with it.
 - Compiled JSON, `fmt` output, the lockfile and the coverage report are
   unchanged for a project with no closed bracket locators and no feature blocks
   in Requirement or Contract entries. (Since the Gherkin AST slice, ADR-038, the

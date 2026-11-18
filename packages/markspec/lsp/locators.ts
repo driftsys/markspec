@@ -6,30 +6,31 @@
  * scenario text and not a reference (#915). Hover, go-to-definition, find
  * references, document highlights, rename and semantic tokens share these
  * helpers.
+ * Hover, go-to-definition, document highlights, rename and semantic tokens
+ * use them. Find references does not: `references.ts` reads parsed
+ * attributes through core `referenceTokens`.
  *
  * The gate keys on the relation, not the indent: a line is a locator line
  * when, after an optional doc-comment marker and any whitespace (none at all
- * for a git-style trailer), it starts with `Key:` and the key is a core
- * relation that accepts a locator (`relationLocatorMode`: `Satisfies`,
- * `Verifies`, `References`, `Derived-from`, plus the generated `Verified-by`).
- * Other lines, including prose
- * lines, have no locators.
+ * for a git-style trailer), it starts with `Key:` and the key is a trace
+ * attribute key (core `TRACE_ATTRIBUTE_KEYS`: every core relation plus the
+ * generated `Verified-by`). The key set is the one `core/refs` rename-heal
+ * and `referenceTokens` use. Other lines, including prose lines, have no
+ * locators.
  *
- * Known difference: the `core/refs` rename-heal scanner still requires at
- * least 4 spaces of indent, so on a 1-3 space or unindented trailer it
- * rewrites an ID inside a locator that the LSP leaves alone.
+ * Differences from the `core/refs` rename-heal scanner, which rewrites
+ * trace values in Markdown text:
+ * - rename-heal reads only trailer lines with at least 4 spaces of indent
+ *   and skips every other line, so it leaves a 1-3 space or unindented
+ *   trailer alone entirely; this gate also accepts those lines;
+ * - rename-heal has no comment-marker handling, so a `///`, `*` or `#`
+ *   line is not a trailer line for it; this gate accepts the marker;
+ * - rename-heal reads a locator with `+` (at least one character) after one
+ *   whitespace character; this gate accepts an empty `[]` and one or more
+ *   whitespace characters.
  */
 
-import { relationLocatorMode } from "../core/mod.ts";
-
-/**
- * The relation keys whose values can hold a locator: the core relations with
- * a locator mode, plus `Verified-by`, the generated inverse of `Verifies`,
- * which carries the same locator text.
- */
-function acceptsLocator(key: string): boolean {
-  return relationLocatorMode(key) !== undefined || key === "Verified-by";
-}
+import { TRACE_ATTRIBUTE_KEYS } from "../core/mod.ts";
 
 /** Optional doc-comment marker, any whitespace, then the `Key:` of a line. */
 const TRAILER_KEY_RE = /^(?:\s*(?:\/\/[/!]?|\*|#))?\s*([A-Z][A-Za-z-]*)\s*:/;
@@ -58,7 +59,7 @@ export function locatorSpans(
 ): Array<[number, number]> {
   const gate = (featureFile ? FEATURE_TRAILER_KEY_RE : TRAILER_KEY_RE)
     .exec(line);
-  if (!gate || !acceptsLocator(gate[1])) return [];
+  if (!gate || !TRACE_ATTRIBUTE_KEYS.has(gate[1])) return [];
   const valueStart = gate[0].length;
   return [...line.slice(valueStart).matchAll(LOCATOR_SPAN_RE)].map((
     m,

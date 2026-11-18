@@ -34,9 +34,30 @@ Deno.test("isInsideLocator: free-text locator relations", () => {
   assertEquals(isInsideLocator(line, at(line, "REQ_2")), true);
 });
 
-Deno.test("isInsideLocator: a relation without a locator mode has no locator", () => {
-  const line = "      Allocated-to: REQ_1 [REQ_2]";
+Deno.test("isInsideLocator: every trace relation key and Verified-by gates a locator", () => {
+  for (
+    const key of [
+      "Allocated-to",
+      "Derived-from",
+      "References",
+      "Satisfies",
+      "Verifies",
+      "Verified-by",
+    ]
+  ) {
+    const line = `      ${key}: REQ_1 [REQ_2]`;
+    assertEquals(isInsideLocator(line, at(line, "REQ_2")), true, key);
+  }
+});
+
+Deno.test("isInsideLocator: a key that is not a trace relation has no locator", () => {
+  const line = "      Labels: REQ_1 [REQ_2]";
   assertEquals(isInsideLocator(line, at(line, "REQ_2")), false);
+});
+
+Deno.test("isInsideLocator: two or more spaces before the bracket", () => {
+  const line = "      Verifies: REQ_1   [Scen REQ_2]";
+  assertEquals(isInsideLocator(line, at(line, "REQ_2")), true);
 });
 
 Deno.test("isInsideLocator: prose line is never a locator line", () => {
@@ -67,6 +88,11 @@ Deno.test("isInsideLocator: the .feature gate stays out of Markdown", () => {
   const note = "# Note: REQ_1 [REQ_2]";
   assertEquals(isInsideLocator(note, at(note, "REQ_2"), false), false);
   assertEquals(isInsideLocator(note, at(note, "REQ_2"), true), false);
+  // A real relation key: a `.feature` header line is a locator line only
+  // under the .feature gate.
+  assertEquals(isInsideLocator(line, at(line, "REQ_2"), false), true);
+  const indented = "    # Verifies: REQ_1 [Scen REQ_2]";
+  assertEquals(isInsideLocator(indented, at(indented, "REQ_2"), true), true);
   // A bare `Key:` line with no `#` is not a .feature header trailer.
   const bare = "Verifies: REQ_1 [Scen REQ_2]";
   assertEquals(locatorSpans(bare, true), []);

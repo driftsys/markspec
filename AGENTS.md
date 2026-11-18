@@ -112,9 +112,9 @@ markspec/
 │       │   ├── references.ts        ← find-all-references: walks entry
 │       │   │                          attributes for whole-token matches
 │       │   ├── locators.ts          ← scenario-locator spans on trailer lines
-│       │   │                          (ADR-037); hover, definition, references,
-│       │   │                          highlights, rename, semantic tokens skip
-│       │   │                          an ID inside one
+│       │   │                          (ADR-037); hover, definition, highlights,
+│       │   │                          rename, semantic tokens skip an ID
+│       │   │                          inside one (references.ts uses core)
 │       │   ├── rename.ts            ← project-scoped rename + prepareRename:
 │       │   │                          whole-token text edits across the files
 │       │   │                          of the owning project

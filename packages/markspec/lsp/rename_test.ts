@@ -466,3 +466,21 @@ Deno.test("prepareRenameRange: rejects an ID inside a trailer locator", () => {
     null,
   );
 });
+
+Deno.test("findIdOccurrencesInFile: passes featureFile to the locator gate", () => {
+  // Without a comment marker the line is not a .feature header trailer.
+  const text = "Verifies: REQ_1 [Scen REQ_2]";
+  assertEquals(
+    findIdOccurrencesInFile(text, "REQ_2", "REQ_9", undefined, true).length,
+    1,
+  );
+  assertEquals(
+    findIdOccurrencesInFile(text, "REQ_2", "REQ_9", undefined, false),
+    [],
+  );
+  assertEquals(
+    prepareRenameRange(text, text.indexOf("REQ_2"), 0, true)?.placeholder,
+    "REQ_2",
+  );
+  assertEquals(prepareRenameRange(text, text.indexOf("REQ_2"), 0, false), null);
+});

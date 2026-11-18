@@ -171,3 +171,13 @@ Deno.test("displayIdAtPosition: git-style and 1-space doc-comment trailers", () 
     assertEquals(displayIdAtPosition(line, line.indexOf("REQ_1")), "REQ_1");
   }
 });
+
+Deno.test("displayIdAtPosition: passes featureFile to the locator gate", () => {
+  // Without a comment marker the line is not a .feature header trailer.
+  const line = "Verifies: REQ_1 [Scen REQ_2]";
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2"), true), "REQ_2");
+  assertEquals(
+    displayIdAtPosition(line, line.indexOf("REQ_2"), false),
+    undefined,
+  );
+});

@@ -20,7 +20,7 @@
  * the server supplies the original line-scanner boundaries for source files.
  * An ID inside a closed scenario locator on a trailer line is not
  * rewritten (#915), as in `core/refs` rename-heal; the trailer gate is in
- * `locators.ts`, which also lists the one difference from rename-heal.
+ * `locators.ts`, which lists how it differs from rename-heal.
  * `prepareRenameRange` stays
  * single-line and fence-unaware by design — the server gates
  * `onPrepareRename` against a fenced cursor position separately (via
