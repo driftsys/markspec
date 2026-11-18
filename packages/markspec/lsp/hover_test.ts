@@ -133,3 +133,29 @@ Deno.test("formatHoverContent: includes body excerpt (first paragraph)", () => {
   // Hover only previews first paragraph.
   assertEquals(md.includes("Second paragraph."), false);
 });
+
+Deno.test("displayIdAtPosition: ID inside a locator of a trailer line is no reference", () => {
+  const line = "      Verifies: REQ_1 [Scenario REQ_2]";
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_1")), "REQ_1");
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2")), undefined);
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2") + 2), undefined);
+});
+
+Deno.test("displayIdAtPosition: ID inside a doc-comment trailer locator is no reference", () => {
+  const line = "///     Verifies: REQ_1 [Scenario REQ_2]";
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2")), undefined);
+});
+
+Deno.test("displayIdAtPosition: ID inside a .feature header locator is no reference", () => {
+  const line = "# Verifies: REQ_1 [Scenario REQ_2]";
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_1"), true), "REQ_1");
+  assertEquals(
+    displayIdAtPosition(line, line.indexOf("REQ_2"), true),
+    undefined,
+  );
+});
+
+Deno.test("displayIdAtPosition: bracketed ID on a prose line is still an ID", () => {
+  const line = "See REQ_1 [REQ_2] for details";
+  assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2")), "REQ_2");
+});

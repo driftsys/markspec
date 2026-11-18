@@ -177,3 +177,24 @@ Deno.test("findOccurrencesInFile: a bracketed ID on a # comment line is a Write 
     [[0, DocumentHighlightKindWrite], [1, DocumentHighlightKindRead]],
   );
 });
+
+Deno.test("findOccurrencesInFile: ID inside a trailer locator is not highlighted", () => {
+  const text = [
+    "- [REQ_2] Title",
+    "",
+    "      Verifies: REQ_1 [Scenario REQ_2]",
+    "      Satisfies: REQ_2",
+  ].join("\n");
+  const lines = findOccurrencesInFile(text, "REQ_2").map((h) =>
+    h.range.start.line
+  );
+  assertEquals(lines, [0, 3]);
+});
+
+Deno.test("findOccurrencesInFile: ID inside a .feature header locator is not highlighted", () => {
+  const text = "# Verifies: REQ_1 [Scenario REQ_2]\n# Satisfies: REQ_2";
+  const lines = findOccurrencesInFile(text, "REQ_2", undefined, true).map((h) =>
+    h.range.start.line
+  );
+  assertEquals(lines, [1]);
+});

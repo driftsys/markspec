@@ -947,3 +947,22 @@ Deno.test("integration: parser bodyTokens drive LSP body keyword tokens (Markdow
   assertEquals(strings.length, 1);
   assertEquals(strings[0].length, "$Sensor".length);
 });
+
+Deno.test("buildSemanticTokens: ID inside a trailer locator gets no enumMember token", () => {
+  const text = [
+    "- [REQ-001] Brake response time",
+    "",
+    "      Verifies: STK-001 [Scenario STK-002]",
+  ].join("\n");
+  const tokens = buildSemanticTokens(
+    [makeEntry()],
+    makeProfile([]),
+    text.split("\n"),
+  );
+  const ids = tokens.filter((t) =>
+    t.line === 2 && t.tokenType === "enumMember"
+  );
+  assertEquals(ids.map((t) => t.startChar), [
+    text.split("\n")[2].indexOf("STK-001"),
+  ]);
+});

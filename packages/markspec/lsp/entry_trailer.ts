@@ -20,6 +20,10 @@ import {
   DISPLAY_ID_TOKEN_RE,
   type Entry,
 } from "../core/mod.ts";
+import {
+  locatorSpans,
+  TRAILER_LINE_RE as LOCATOR_TRAILER_LINE_RE,
+} from "./locators.ts";
 
 /** A single attribute line in an entry's trailer block. */
 export interface TrailerLine {
@@ -112,6 +116,9 @@ export function scanEntryTrailer(
     // (only treat as IDs when the key is a trace attribute) must
     // filter on tl.key themselves. Pre-existing limitation also
     // present in hover.ts and rename.ts.
+    // An ID inside a closed scenario locator is scenario text, not a
+    // reference (#915).
+    const locators = locatorSpans(line, LOCATOR_TRAILER_LINE_RE);
     DISPLAY_ID_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = DISPLAY_ID_RE.exec(valueText)) !== null) {
@@ -121,6 +128,10 @@ export function scanEntryTrailer(
       const boundedLeft = before === "" || !DISPLAY_ID_CHAR_RE.test(before);
       const boundedRight = after === "" || !DISPLAY_ID_CHAR_RE.test(after);
       if (!boundedLeft || !boundedRight) continue;
+      const column = valueStart + match.index;
+      if (locators.some(([from, to]) => column >= from && column < to)) {
+        continue;
+      }
       idRanges.push({
         start: valueStart + match.index,
         length: match[0].length,
