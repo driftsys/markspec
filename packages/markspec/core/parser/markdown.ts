@@ -363,13 +363,26 @@ function extractEntry(
   // Extract body content and attributes.
   // A nested entry-shaped item is not an entry (MSL-P024). Its lines are
   // outside this entry, so its trailer is never read as this entry's.
-  const nested = findNestedEntryItems(
+  let nested = findNestedEntryItems(
     item,
     markdownLines,
     file,
     definitions,
     isReferencesDoc,
   );
+  // A parent trailer written below a nested item counts only when the
+  // parent has no trailer of its own above the first nested item.
+  if (nested.length > 0 && !hasTrailerAbove(item, markdownLines, nested[0])) {
+    nested = findNestedEntryItems(
+      item,
+      markdownLines,
+      file,
+      definitions,
+      isReferencesDoc,
+      itemContentIndent(item),
+      true,
+    );
+  }
   const { text: bodyContent, fileLines: contentFileLines } = extractBodyContent(
     item,
     markdownLines,
@@ -387,9 +400,9 @@ function extractEntry(
       code: "MSL-P024",
       severity: "warning",
       message: `${displayId}: a nested entry is not supported; the list ` +
-        `item at line ${range.start} is not an entry and its text is not ` +
+        `item at line ${range.line} is not an entry and its text is not ` +
         `part of this entry, move it to the top level (spec section 4.1)`,
-      location: { file, line: range.start, column: range.column },
+      location: { file, line: range.line, column: range.column },
     });
   }
 
@@ -791,7 +804,10 @@ function extractEntry(
     ...(endLine !== undefined ? { endLine } : {}),
     ...(nested.length > 0
       ? {
-        nestedEntryLines: nested.map(({ start, end }) => ({ start, end })),
+        nestedEntryLines: nested.map(({ start, end }) => ({ start, end }))
+          .filter((range, i, all) =>
+            all.findIndex((r) => r.start === range.start) === i
+          ),
       }
       : {}),
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
@@ -820,14 +836,37 @@ function itemContentIndent(item: ListItem): number {
 interface NestedEntryRange {
   readonly start: number;
   readonly end: number;
-  /** 1-based column of the item's list marker. */
+  /** 1-based column of the nested entry's list marker. */
   readonly column: number;
+  /** 1-based line of the nested entry's title, where MSL-P024 is reported.
+   * Differs from `start` when a plain list item wraps the nested entry. */
+  readonly line: number;
 }
 
 /** `true` when every non-blank line of `text` is a `Key: Value` line. */
 function isKeyValueText(text: string): boolean {
   const rows = text.split("\n").map((l) => l.trim()).filter((l) => l !== "");
   return rows.length > 0 && rows.every((l) => ATTR_LINE_RE.test(l));
+}
+
+/**
+ * `true` when the content of `item` above its first nested entry holds a
+ * trailer of the entry's own.
+ */
+function hasTrailerAbove(
+  item: ListItem,
+  lines: string[],
+  firstNested: NestedEntryRange,
+): boolean {
+  const startLine = item.children[1]?.position?.start.line;
+  if (startLine === undefined || startLine >= firstNested.start) return false;
+  const indent = itemContentIndent(item);
+  const indentStr = " ".repeat(indent);
+  const above = lines.slice(startLine - 1, firstNested.start - 1).map((l) =>
+    l.startsWith(indentStr) ? l.slice(indent) : l
+  );
+  while (above.length > 0 && above.at(-1)!.trim() === "") above.pop();
+  return findTrailerStart(above) < above.length;
 }
 
 /**
@@ -844,6 +883,8 @@ function findNestedEntryItems(
   definitions: Set<string>,
   isReferencesDoc: boolean,
   entryIndent = itemContentIndent(item),
+  parentTrailerBelow = false,
+  wrap = true,
 ): NestedEntryRange[] {
   const found: NestedEntryRange[] = [];
   for (const child of item.children.slice(1)) {
@@ -870,6 +911,7 @@ function findNestedEntryItems(
         const before = nestedItem.children.at(-2);
         let end = position.end.line;
         if (
+          parentTrailerBelow &&
           last?.type === "paragraph" && before?.type === "code" &&
           before.position && last.position &&
           last.position.start.column - 1 === entryIndent + 4 &&
@@ -884,17 +926,31 @@ function findNestedEntryItems(
           start: position.start.line,
           end,
           column: position.start.column,
+          line: position.start.line,
         });
       } else {
+        const inner = findNestedEntryItems(
+          nestedItem,
+          lines,
+          file,
+          definitions,
+          isReferencesDoc,
+          entryIndent,
+          parentTrailerBelow,
+          false,
+        );
+        // A plain list item that wraps a nested entry leaves nothing but
+        // its marker behind when only the entry is removed, which would cut
+        // the entry's own trailer off the end of the content. The whole
+        // wrapper is removed.
         found.push(
-          ...findNestedEntryItems(
-            nestedItem,
-            lines,
-            file,
-            definitions,
-            isReferencesDoc,
-            entryIndent,
-          ),
+          ...(wrap && position
+            ? inner.map((range) => ({
+              ...range,
+              start: position.start.line,
+              end: position.end.line,
+            }))
+            : inner),
         );
       }
     }

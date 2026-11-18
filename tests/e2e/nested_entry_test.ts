@@ -68,6 +68,22 @@ const CASES: Case[] = [
     absent: ["MSL-P020", "MSL-P023", "MSL-I003", "MSL-R003"],
   },
   {
+    name: "parent trailer above, paragraph at the parent trailer indent below",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n${CHILD}        Id: ${CHILD_ID}\n\n      Satisfies: REQ-009\n`,
+    parentId: PARENT_ID,
+    nestedLines: [7],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "same at depth 2",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n\n      Satisfies: REQ-009\n`,
+    parentId: PARENT_ID,
+    nestedLines: [9],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
     name: "parent without an Id, child canonical trailer",
     text: `${PARENT}${CHILD}        Id: ${CHILD_ID}\n`,
     parentId: undefined,
