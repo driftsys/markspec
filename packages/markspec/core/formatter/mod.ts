@@ -739,10 +739,21 @@ function formatEntries(
   if (
     allEntries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined
   ) {
-    // No entries and no front matter — nothing to format. Returning the
-    // original `markdown` preserves the source's exact byte sequence,
-    // including its line-ending convention.
-    return { output: markdown, diagnostics, changed: false };
+    // No entries and no front matter — nothing to format except the final
+    // newline of a Markdown file. Otherwise returning the original
+    // `markdown` preserves the source's exact byte sequence, including its
+    // line-ending convention.
+    const withNewline = isMarkdownFile
+      ? ensureFinalNewline(normalisedMarkdown)
+      : normalisedMarkdown;
+    if (withNewline === normalisedMarkdown) {
+      return { output: markdown, diagnostics, changed: false };
+    }
+    return {
+      output: applyLineEnding(withNewline, sourceLineEnding),
+      diagnostics,
+      changed: true,
+    };
   }
 
   const lines = body.split("\n");
@@ -1061,15 +1072,14 @@ function formatEntries(
   }
 
   let formattedBody = proseLines.join("\n");
-  // Whole-document mode ends a non-empty Markdown file with a final
-  // newline, as `.editorconfig` `insert_final_newline` and prim do. Extra
-  // trailing blank lines are left as they are: a refused tab-marker
-  // context (MSL-F013) must keep its bytes.
-  if (
-    proseFormat !== undefined && formattedBody !== "" &&
-    !formattedBody.endsWith("\n")
-  ) {
-    formattedBody += "\n";
+  // A Markdown file ends with a final newline, as `.editorconfig`
+  // `insert_final_newline` and prim do. `collapseBlankLines` already collapses trailing blank lines; only a
+  // refused tab-marker context (MSL-F013) keeps them.
+  const withNewline = isMarkdownFile
+    ? ensureFinalNewline(formattedBody)
+    : formattedBody;
+  if (withNewline !== formattedBody) {
+    formattedBody = withNewline;
     changed = true;
   }
 
@@ -1083,6 +1093,19 @@ function formatEntries(
 
   const output = applyLineEnding(formattedBody, sourceLineEnding);
   return { output, diagnostics, changed };
+}
+
+/**
+ * End a non-empty LF text with exactly one final newline. When the text has
+ * no final newline, trailing spaces and tabs of the last line are removed
+ * first, so a whitespace-only last line disappears. A text that already
+ * ends with a newline is returned unchanged.
+ */
+function ensureFinalNewline(text: string): string {
+  if (text === "" || text.endsWith("\n")) return text;
+  const trimmed = text.replace(/[ \t]+$/, "");
+  if (trimmed === "") return "";
+  return trimmed.endsWith("\n") ? trimmed : `${trimmed}\n`;
 }
 
 /**

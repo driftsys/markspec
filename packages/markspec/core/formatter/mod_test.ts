@@ -1245,3 +1245,28 @@ Deno.test("format: whole-document mode leaves an empty file empty", () => {
   assertEquals(result.output, "");
   assertEquals(result.changed, false);
 });
+
+Deno.test("format: whole-document mode removes a whitespace-only last line", () => {
+  const identity = (md: string): string => md;
+  const result = format("Text.\n\t", {
+    file: "t.md",
+    formatMarkdownProse: identity,
+  });
+  assertEquals(result.output, "Text.\n");
+});
+
+Deno.test("format: adds the final newline without the prose formatter", () => {
+  // The LSP falls back to this mode when the WASM formatter cannot load.
+  assertEquals(format("Just prose.", { file: "t.md" }).output, "Just prose.\n");
+  assertEquals(
+    format(
+      "- [STK_0001] Entry\n\n  Body.\n\n      Id: 01JADYKACKQKGVGHT9K7Y6PBPA",
+      { file: "t.md" },
+    ).output.endsWith("PBPA\n"),
+    true,
+  );
+});
+
+Deno.test("format: does not add a final newline outside Markdown files", () => {
+  assertEquals(format("Just prose.", { file: "t.rs" }).output, "Just prose.");
+});

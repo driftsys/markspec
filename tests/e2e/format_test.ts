@@ -1433,6 +1433,7 @@ Deno.test("check: reports a missing final newline as MSL-F010", async () => {
       stderr: "piped",
     }).output();
     const stderr = new TextDecoder().decode(result.stderr);
+    assertEquals(result.code, 1);
     assertStringIncludes(stderr, "MSL-F010");
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -1450,4 +1451,26 @@ Deno.test("format: keeps md fence content and formats the prose around it", asyn
   assertStringIncludes(out, "\n*  item\n\nSome   text.\n");
   assertStringIncludes(out, "```md\n*  b\n```");
   assertEquals(stderr.includes("MSL-F012"), false);
+});
+
+Deno.test("check: is clean after fmt adds the final newline", async () => {
+  const dir = await Deno.makeTempDir();
+  const run = (sub: string) =>
+    new Deno.Command("deno", {
+      args: ["run", "--allow-read", "--allow-write", CLI_ENTRY, sub],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+  try {
+    await Deno.writeTextFile(join(dir, ".markspec.yaml"), "");
+    await Deno.writeTextFile(join(dir, "doc.md"), "# Title\n\nText.\t");
+    assertEquals((await run("fmt")).code, 0);
+    const check = await run("check");
+    const stderr = new TextDecoder().decode(check.stderr);
+    assertEquals(check.code, 0, stderr);
+    assertEquals(stderr.includes("MSL-F010"), false);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
 });

@@ -21,6 +21,8 @@
  * smoke test placed elsewhere.
  */
 
+import { processor } from "../parser/remark.ts";
+
 /** Per-call options for a {@linkcode ProseFormatter}. */
 export interface ProseFormatOptions {
   /** Override the effective line width for this fragment. Used by the
@@ -113,16 +115,48 @@ async function instantiate(): Promise<ProseFormatter> {
   );
 }
 
-/**
- * An opening code fence whose info string starts with the `md` or
- * `markdown` tag (any case). Group 1 is the text before the tag, group 2 is
- * the tag. A list marker or a `>` before the fence is allowed.
- */
-const MARKDOWN_FENCE_TAG_RE =
-  /^([ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+)?[ \t>]*(?:`{3,}|~{3,})[ \t]*)(md|markdown)(?=[ \t]|$)/gim;
-
-/** Prefix of the placeholder tag that replaces a hidden fence tag. */
+/** Prefix of the placeholder tag that replaces a hidden fence tag. The
+ * full placeholder is `<prefix><nonce>-<index>`. */
 const HIDDEN_TAG_PREFIX = "markspec-hidden-fence-tag-";
+
+/** Matches a placeholder tag; group 1 is the nonce, group 2 the index. */
+const HIDDEN_TAG_RE = /markspec-hidden-fence-tag-(\d+)-(\d+)/g;
+
+/** The fence tags whose content dprint-markdown would format. */
+const MARKDOWN_TAG_RE = /^(?:md|markdown)$/i;
+
+/** A CommonMark AST node, reduced to what the fence walk reads. */
+interface AstNode {
+  readonly type: string;
+  readonly lang?: string | null;
+  readonly position?: { readonly start: { readonly offset?: number } };
+  readonly children?: readonly AstNode[];
+}
+
+/** Source offsets of the `md` / `markdown` tags of every fenced code
+ * block, at any nesting depth, found with the CommonMark parser. */
+function markdownFenceTagOffsets(markdown: string): number[] {
+  const offsets: number[] = [];
+  const visit = (node: AstNode): void => {
+    if (node.type === "code" && node.lang && MARKDOWN_TAG_RE.test(node.lang)) {
+      const start = node.position?.start.offset;
+      if (start !== undefined) {
+        // The node starts at the fence characters; the tag follows them
+        // and optional spaces or tabs. An indented code block has no tag.
+        const match = /^(?:`{3,}|~{3,})[ \t]*/.exec(markdown.slice(start));
+        const at = match ? start + match[0].length : -1;
+        if (
+          at >= 0 &&
+          markdown.slice(at, at + node.lang.length).toLowerCase() ===
+            node.lang.toLowerCase()
+        ) offsets.push(at);
+      }
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(processor.parse(markdown) as unknown as AstNode);
+  return offsets;
+}
 
 /**
  * Wrap `format` so that it does not format the content of a code fence
@@ -130,25 +164,35 @@ const HIDDEN_TAG_PREFIX = "markspec-hidden-fence-tag-";
  * Markdown; the CommonMark-semantic gate then rejects the change and the
  * whole prose segment stays unformatted (MSL-F012). The wrapper replaces
  * each tag with a placeholder tag that dprint does not know, calls
- * `format`, and puts the original tags back. prim does the same.
+ * `format`, and puts the original tags back. prim does the same. The
+ * placeholder carries a nonce that does not occur in the input, so text
+ * the author wrote is never replaced.
  */
 export function withHiddenMarkdownFenceTags(
   format: ProseFormatter,
 ): ProseFormatter {
   return (markdown, options) => {
+    if (!/```|~~~/.test(markdown)) return format(markdown, options);
+    const offsets = markdownFenceTagOffsets(markdown);
+    if (offsets.length === 0) return format(markdown, options);
+    let nonce = 0;
+    while (markdown.includes(`${HIDDEN_TAG_PREFIX}${nonce}-`)) nonce++;
     const tags: string[] = [];
-    const hidden = markdown.replace(
-      MARKDOWN_FENCE_TAG_RE,
-      (_match, before: string, tag: string) => {
-        tags.push(tag);
-        return `${before}${HIDDEN_TAG_PREFIX}${tags.length - 1}`;
-      },
-    );
-    if (tags.length === 0) return format(markdown, options);
+    let hidden = "";
+    let cursor = 0;
+    for (const at of offsets.sort((a, b) => a - b)) {
+      const tag = /^[A-Za-z]+/.exec(markdown.slice(at))![0];
+      hidden += markdown.slice(cursor, at) +
+        `${HIDDEN_TAG_PREFIX}${nonce}-${tags.length}`;
+      tags.push(tag);
+      cursor = at + tag.length;
+    }
+    hidden += markdown.slice(cursor);
     const formatted = format(hidden, options);
     return formatted.replace(
-      new RegExp(`${HIDDEN_TAG_PREFIX}(\\d+)`, "g"),
-      (match, index: string) => tags[Number(index)] ?? match,
+      HIDDEN_TAG_RE,
+      (match, found: string, index: string) =>
+        Number(found) === nonce ? tags[Number(index)] ?? match : match,
     );
   };
 }
