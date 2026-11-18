@@ -90,6 +90,7 @@ for (
     try {
       assertEquals(run.code, 1);
       assertStringIncludes(run.stderr, "MSL-I009");
+      assertStringIncludes(run.stderr, "correct the Id-like line");
       await markspecInDir(run.dir, ["fmt", "a.feature"], PERMISSIONS);
       const first = await Deno.readTextFile(join(run.dir, "a.feature"));
       assertEquals(first, text);
@@ -100,3 +101,19 @@ for (
     }
   });
 }
+
+Deno.test("id-like trailer: '# id:' above Feature and '# Id :' above a Scenario, fmt twice (#935)", async () => {
+  const text =
+    `# [STK_0001] A\n# id: ${FEATURE_ULID}\nFeature: A\n  Scenario: s\n    Given x\n\n# [STK_0002] B\n# Id : ${FEATURE_ULID}\n  Scenario: t\n    Given y\n`;
+  const run = await markspecPersist(["fmt", "a.feature"], {
+    files: { ...PROJECT, "a.feature": text },
+    permissions: PERMISSIONS,
+  });
+  try {
+    assertEquals(await Deno.readTextFile(join(run.dir, "a.feature")), text);
+    await markspecInDir(run.dir, ["fmt", "a.feature"], PERMISSIONS);
+    assertEquals(await Deno.readTextFile(join(run.dir, "a.feature")), text);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

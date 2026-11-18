@@ -257,7 +257,7 @@ const IGNORED_CODES: ReadonlySet<string> = new Set([
 export function headerEntry(
   header: FeatureHeader,
   file: string,
-): { entry?: Entry; diagnostics: Diagnostic[] } {
+): { entry?: Entry; diagnostics: Diagnostic[]; idLikeLine?: number } {
   const lineMap = buildBlockLineMap({
     startLine: header.startLine,
     startColumn: header.column,
@@ -273,6 +273,9 @@ export function headerEntry(
   // right under the title it joins the title, and otherwise it joins the
   // body. MSL-I009 names it, and `fmt` stamps no Id (the Markdown rule).
   const idLike = findIdLikeIndex(header.lines);
+  const idLikeLine = entry && idLike > 0
+    ? header.startLine + idLike
+    : undefined;
   if (entry && idLike > 0) {
     kept.push({
       code: "MSL-I009",
@@ -289,7 +292,7 @@ export function headerEntry(
       },
     });
   }
-  return { entry, diagnostics: kept };
+  return { entry, diagnostics: kept, idLikeLine };
 }
 
 /** Node kinds that a header turns into an entry. */
@@ -585,6 +588,7 @@ export function parseFeatureFile(
     };
     entries.push({
       ...base,
+      ...(result.idLikeLine !== undefined && { idLikeLine: result.idLikeLine }),
       body,
       bodyAst: [...(base.bodyAst ?? []), ...description.blocks, block],
       bodyTokens: [...base.bodyTokens, ...description.tokens],

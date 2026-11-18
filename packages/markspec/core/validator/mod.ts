@@ -137,9 +137,11 @@ function checkStructural(
     const idAttrs = entry.rawAttributes.filter((a) => a.key === IDENTITY_KEY);
     // A `.feature` entry gets MSL-I009 from the header parser.
     const idLike = entry.source.kind === "feature-file"
-      ? undefined
+      ? entry.idLikeLine === undefined
+        ? undefined
+        : { line: entry.idLikeLine, text: "" }
       : findIdLikeLine(entry);
-    if (idLike) {
+    if (idLike && entry.source.kind !== "feature-file") {
       // MSL-I009: a line that reads as `Id:` but is not spelled so. `fmt`
       // leaves the entry unchanged, so the author corrects the key by hand.
       diagnostics.push({
