@@ -676,8 +676,10 @@ export function format(
 
 /**
  * `false` for an entry that holds a nested entry-shaped item (MSL-P024): no
- * formatter pass changes such an entry, because its lines would then move or
- * lose the nested item's text.
+ * entry-level formatter pass changes such an entry, because its lines would
+ * then move or lose the nested item's text. Tab-marker normalization of its
+ * own list marker and the ADR-026 trace-value canonicalization of `fmt` still
+ * apply.
  */
 function formattable(entry: Entry): boolean {
   return entry.nestedEntryLines === undefined;

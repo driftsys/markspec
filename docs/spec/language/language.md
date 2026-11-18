@@ -393,9 +393,11 @@ reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
 **Nested entry.** In a Markdown file, a list item inside an entry that is itself
 entry-shaped, at any depth, is not an entry: nested entries are not supported. A
 list item, bullet or ordered, is entry-shaped when its title is a display ID as
-in the entry header and it has body content or a trailer; a title-only item is
-not. Only the outermost entry-shaped item of a branch counts: an entry-shaped
-item inside it is part of it.
+in the entry header and it has body content or a trailer. A title-only item is
+not, except in a references document, where a title-only item with a slug
+display ID is a Reference-shape entry and so entry-shaped. Only the outermost
+entry-shaped item of a branch counts: an entry-shaped item inside it is part of
+it.
 
 The parser removes the lines of each such item from the entry's content before
 it reads the body and the trailer, so the item's text, including its `Id:`, is
@@ -403,11 +405,15 @@ not part of the entry, and the entry keeps its own trailer and `Id:` when that
 trailer is the last content of the entry, ignoring the removed lines. A plain
 list item that holds the nested item keeps its other content as body of the
 entry, and that content after the entry's trailer is content after the trailer
-(`MSL-P020`). The wrapping item is removed with the nested item only when
-nothing but its list marker would remain. A `Key: Value` paragraph below the
-nested item at the entry's trailer indent (content indent plus 4, and not the
-nested item's own content indent) is the entry's trailer, but only when the
-entry has no trailer above its first nested item.
+(`MSL-P020`). The marker line of a wrapping item is removed with its nested
+items only when the item holds nothing else: a bare marker line and lists whose
+items are all nested entries. Plain items next to a nested entry stay in the
+body. A `Key: Value` paragraph at the end of the nested item, at the entry's
+trailer indent (content indent plus 4), is the entry's trailer, but only when
+the entry has no trailer above its first nested item and the nested item's own
+content indent differs from that indent. When they are equal, which is the case
+for a nested entry inside a plain list item, the placement is ambiguous and the
+paragraph belongs to the nested item.
 
 `check` reports `MSL-P024` (warning) once for each outermost nested item, at the
 item, in Markdown files only: a source doc comment gets no parse diagnostic (see
@@ -1791,11 +1797,12 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
   entry stays byte-for-byte unchanged, no `Id:` is stamped, and `fmt` emits
   `MSL-F013` (warning). Other entries are formatted as usual. A parent that
   holds the refused child as a nested entry (`MSL-P024`) is left unformatted and
-  unstamped too; child attributes are not copied to the parent. The surrounding
-  list layout and following indented blocks, including paragraphs outside the
-  list item, are preserved where needed to keep refusal stable on repeated runs.
-  Later indented trailers associated with the refused entry are also preserved,
-  including their trace reference values.
+  unstamped too (except for the exceptions of the nested-entry rule); child
+  attributes are not copied to the parent. The surrounding list layout and
+  following indented blocks, including paragraphs outside the list item, are
+  preserved where needed to keep refusal stable on repeated runs. Later indented
+  trailers associated with the refused entry are also preserved, including their
+  trace reference values.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.

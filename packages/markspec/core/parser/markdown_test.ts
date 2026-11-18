@@ -1564,7 +1564,7 @@ Deno.test("parseMarkdown: a wrapper item keeps its prose in the parent body (#92
   assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 1);
 });
 
-Deno.test("parseMarkdown: a marker-only wrapper holding two nested entries gives one range (#928)", () => {
+Deno.test("parseMarkdown: a marker-only wrapper holding two nested entries gives both ranges (#928)", () => {
   const text = `- [REQ-001] Parent
 
   Body.
@@ -1579,8 +1579,16 @@ Deno.test("parseMarkdown: a marker-only wrapper holding two nested entries gives
       B body.
 `;
   const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
-  assertEquals(entries[0].nestedEntryLines?.length, 1);
-  assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 2);
+  assertEquals(entries[0].nestedEntryLines, [
+    { start: 5, end: 8 },
+    { start: 10, end: 12 },
+  ]);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "MSL-P024").map((d) =>
+      d.location?.line
+    ),
+    [6, 10],
+  );
 });
 
 Deno.test("parseMarkdown: only the outermost nested entry is reported (#928)", () => {
@@ -1597,7 +1605,12 @@ Deno.test("parseMarkdown: only the outermost nested entry is reported (#928)", (
       Grandchild body.
 `;
   const { diagnostics } = parseMarkdown(text, { file: "n.md" });
-  assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 1);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "MSL-P024").map((d) =>
+      d.location?.line
+    ),
+    [5],
+  );
 });
 
 Deno.test("parseMarkdown: a title-only parent with only a nested entry reports P030 and P024 (#928)", () => {
@@ -1648,4 +1661,102 @@ Deno.test("parseMarkdown: a body paragraph that is not Key: Value stays the chil
   const { entries } = parseMarkdown(text, { file: "n.md" });
   assertEquals(entries[0].rawAttributes, []);
   assertEquals(entries[0].body, "Body.");
+});
+
+Deno.test("parseMarkdown: plain items next to a nested entry stay in the body (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  -
+    - plain before
+
+    - [REQ-003] A
+
+      A body.
+
+    - plain after
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].nestedEntryLines, [{ start: 8, end: 10 }]);
+  assertStringIncludes(entries[0].body, "plain before");
+  assertStringIncludes(entries[0].body, "plain after");
+});
+
+Deno.test("parseMarkdown: a marker-only ordered wrapper goes with its nested entry (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  1.
+     - [REQ-003] A
+
+       A body.
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].nestedEntryLines, [{ start: 5, end: 8 }]);
+});
+
+Deno.test("parseMarkdown: a wrapper with a paragraph keeps its marker and text (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  -
+    wrapper text
+
+    - [REQ-003] A
+
+      A body.
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].nestedEntryLines, [{ start: 8, end: 10 }]);
+  assertStringIncludes(entries[0].body, "wrapper text");
+});
+
+Deno.test("parseMarkdown: body tokens keep their line when the body starts with the nested entry (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  - [REQ-003] Child
+
+    Child body.
+
+        Id: ${ID_CHILD}
+
+  The system SHALL react.
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  const modal = entries[0].bodyTokens.find((t) => t.kind === "modal");
+  assertEquals(modal?.location.line, 9);
+});
+
+Deno.test("parseMarkdown: typl diagnostics after a nested entry report file lines (#928)", () => {
+  const typl = ["  ```typl", "  $X : blah int[0..]", "  ```", ""];
+  const plain = [
+    "- [REQ_0003] Bad typl",
+    "",
+    "  Body.",
+    "",
+    ...typl,
+  ].join("\n");
+  const nested = [
+    "- [REQ_0003] Bad typl",
+    "",
+    "  Body.",
+    "",
+    "  - [REQ_0004] Child",
+    "",
+    "    Child body.",
+    "",
+    "        Id: 01HZZZ0000000000000000000D",
+    "",
+    ...typl,
+  ].join("\n");
+  const base = parseMarkdown(plain, { file: "t.md" }).diagnostics.find((d) =>
+    d.code === "TYPL-007"
+  );
+  const moved = parseMarkdown(nested, { file: "t.md" }).diagnostics.find((d) =>
+    d.code === "TYPL-007"
+  );
+  assertEquals(moved?.location?.line, (base?.location?.line ?? 0) + 6);
 });

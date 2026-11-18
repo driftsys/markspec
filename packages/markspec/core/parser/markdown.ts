@@ -364,6 +364,9 @@ function extractEntry(
   // Extract body content and attributes.
   // A nested entry-shaped item is not an entry (MSL-P024). Its lines are
   // outside this entry, so its trailer is never read as this entry's.
+  // `skipNestedScan` is set only by `findNestedEntryItems` when it probes
+  // whether an item is entry-shaped. The probe must not scan again, because
+  // each level would then probe all deeper levels (exponential in depth).
   let nested = skipNestedScan ? [] : findNestedEntryItems(
     item,
     markdownLines,
@@ -782,24 +785,38 @@ function extractEntry(
     bodyIndent,
     mdastTree,
   );
-  // The body skips the lines of nested entries, so a token's line counted
-  // from the body start is an index into `contentFileLines`.
+  // The body skips the lines of nested entries, so a line counted from the
+  // body start is an index into `contentFileLines`, after the blank lines
+  // that `trimStart` removed from the front of the body.
+  const trimmedLines = rawBody.slice(0, rawBody.length - body.length)
+    .split("\n").length - 1;
+  const toFileLine = (line: number): number =>
+    nested.length === 0 ? line : contentFileLines[
+      line - bodyStartLine + trimmedLines
+    ] ?? line;
   const fileBodyTokens: typeof bodyTokens = nested.length === 0
     ? bodyTokens
     : bodyTokens.map((token) => ({
       ...token,
-      location: {
-        ...token.location,
-        line: contentFileLines[token.location.line - bodyStartLine] ??
-          token.location.line,
-      },
+      location: { ...token.location, line: toFileLine(token.location.line) },
     })) as typeof bodyTokens;
 
   // Extract + resolve typl declarations from all three surfaces (#723):
   // published names resolve to absolute dotted form at parse time, so
   // Entry.types carries absolute names only. See typl/assemble.ts.
   const typl = assembleTyplTypes(bodyAst, bodyTokens, file, bodyStartLine);
-  diagnostics.push(...typl.diagnostics);
+  diagnostics.push(
+    ...(nested.length === 0
+      ? typl.diagnostics
+      : typl.diagnostics.map((d) =>
+        d.location
+          ? {
+            ...d,
+            location: { ...d.location, line: toFileLine(d.location.line) },
+          }
+          : d
+      )),
+  );
   const types = typl.types;
 
   return {
@@ -817,10 +834,7 @@ function extractEntry(
     ...(endLine !== undefined ? { endLine } : {}),
     ...(nested.length > 0
       ? {
-        nestedEntryLines: nested.map(({ start, end }) => ({ start, end }))
-          .filter((range, i, all) =>
-            all.findIndex((r) => r.start === range.start) === i
-          ),
+        nestedEntryLines: nested.map(({ start, end }) => ({ start, end })),
       }
       : {}),
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
@@ -961,16 +975,25 @@ function findNestedEntryItems(
           parentTrailerBelow,
           false,
         );
-        const markerOnly = position !== undefined &&
+        // The wrapper's marker line goes with the first nested entry only
+        // when the wrapper holds nothing else: its first line is a bare
+        // marker, it has only lists, and every item of those lists is a
+        // nested entry. Otherwise only the nested entries are removed.
+        const items = nestedItem.children.flatMap((c) =>
+          c.type === "list" ? (c as List).children : []
+        );
+        const onlyNestedEntries = position !== undefined &&
           MARKER_ONLY_RE.test(lines[position.start.line - 1] ?? "") &&
-          nestedItem.children.every((c) => c.type === "list");
+          nestedItem.children.every((c) => c.type === "list") &&
+          inner.length === items.length &&
+          items.every((it) =>
+            inner.some((r) => r.line === it.position?.start.line)
+          );
         found.push(
-          ...(wrap && position && markerOnly
-            ? inner.map((range) => ({
-              ...range,
-              start: position.start.line,
-              end: range.end,
-            }))
+          ...(wrap && onlyNestedEntries
+            ? inner.map((range, i) =>
+              i === 0 ? { ...range, start: position.start.line } : range
+            )
             : inner),
         );
       }

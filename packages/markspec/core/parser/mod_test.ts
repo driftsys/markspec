@@ -28,3 +28,19 @@ document-id: DOC-1
   assertEquals(p021.length, 1);
   assertEquals(p021[0].location, { file: "a.md", line: 11, column: 7 });
 });
+
+Deno.test("parseFile: a nested entry in a source doc comment gets no MSL-P024 (#928)", async () => {
+  const rust = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+///
+/// - [SRS_BRK_0002] Inner
+///
+///   Inner body.
+///
+///       Id: SRS_01HGW2Q8MNP3
+fn foo() {}
+`;
+  const { diagnostics } = await parseFile(rust, { file: "a.rs" });
+  assertEquals(diagnostics.some((d) => d.code === "MSL-P024"), false);
+});

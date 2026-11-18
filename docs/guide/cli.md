@@ -374,12 +374,13 @@ containment, and existing entry identities. If normalization would change that
 structure, `fmt` emits `MSL-F013` (warning), preserves the entry byte-for-byte,
 and does not stamp an `Id:` into it. Other entries are formatted as usual. A
 parent that holds the refused child as a nested entry (`MSL-P024`) is left
-unformatted and unstamped too. A child's attributes are not copied into its
-parent. The surrounding list layout and following indented blocks are preserved
-where needed so that repeated formatting gives the same result. This includes
-paragraphs that CommonMark places outside the refused list item, and later
-indented trailers associated with that entry. Trace reference canonicalisation
-also preserves those trailers.
+unformatted and unstamped too, apart from the tab marker rule above and the
+trace-value canonicalization that `fmt` does for the whole file. A child's
+attributes are not copied into its parent. The surrounding list layout and
+following indented blocks are preserved where needed so that repeated formatting
+gives the same result. This includes paragraphs that CommonMark places outside
+the refused list item, and later indented trailers associated with that entry.
+Trace reference canonicalisation also preserves those trailers.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
 to the files a bare invocation of its project finds below that directory, so
