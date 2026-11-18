@@ -1410,3 +1410,67 @@ Deno.test("format: refusal retains differently indented neighbouring context twi
     await Deno.remove(first.dir, { recursive: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Final newline and `md` fences (#984)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: adds a missing final newline", async () => {
+  const { code, readFile } = await runFormat({ "doc.md": "# Title\n\nText." });
+  assertEquals(code, 0);
+  assertEquals(await readFile("doc.md"), "# Title\n\nText.\n");
+});
+
+Deno.test("check: reports a missing final newline as MSL-F010", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(join(dir, ".markspec.yaml"), "");
+    await Deno.writeTextFile(join(dir, "doc.md"), "# Title\n\nText.");
+    const result = await new Deno.Command("deno", {
+      args: ["run", "--allow-read", "--allow-write", CLI_ENTRY, "check"],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const stderr = new TextDecoder().decode(result.stderr);
+    assertEquals(result.code, 1);
+    assertStringIncludes(stderr, "MSL-F010");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("format: keeps md fence content and formats the prose around it", async () => {
+  const fence = "~~~Markdown title=x\n*  item\n\nSome   text.\n~~~";
+  const input = `Para   one\nwrapped.\n\n${fence}\n\n\`\`\`md\n*  b\n\`\`\`\n`;
+  const { code, readFile, stderr } = await runFormat({ "doc.md": input });
+  assertEquals(code, 0);
+  const out = await readFile("doc.md");
+  assertStringIncludes(out, "Para one wrapped.");
+  // dprint may normalize the fence delimiters; the content stays.
+  assertStringIncludes(out, "\n*  item\n\nSome   text.\n");
+  assertStringIncludes(out, "```md\n*  b\n```");
+  assertEquals(stderr.includes("MSL-F012"), false);
+});
+
+Deno.test("check: is clean after fmt adds the final newline", async () => {
+  const dir = await Deno.makeTempDir();
+  const run = (sub: string) =>
+    new Deno.Command("deno", {
+      args: ["run", "--allow-read", "--allow-write", CLI_ENTRY, sub],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+  try {
+    await Deno.writeTextFile(join(dir, ".markspec.yaml"), "");
+    await Deno.writeTextFile(join(dir, "doc.md"), "# Title\n\nText.\t");
+    assertEquals((await run("fmt")).code, 0);
+    const check = await run("check");
+    const stderr = new TextDecoder().decode(check.stderr);
+    assertEquals(check.code, 0, stderr);
+    assertEquals(stderr.includes("MSL-F010"), false);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
