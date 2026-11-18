@@ -196,6 +196,7 @@ jobs:
           if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -q 'MSL-L102' lock.err; then exit 1; fi
           if grep -Eq '^hash *= "sha256:0"' markspec.lock; then exit 1; fi
+          grep -Eq '^hash *= "sha256:[0-9a-f]{64}"' markspec.lock
       - name: Smoke test — desk serves and stops when stdin closes
         run: bash scripts/check_desk_binary.sh dist/markspec tests/fixtures/desk-project
       - name: Smoke test — doc build renders a PDF
