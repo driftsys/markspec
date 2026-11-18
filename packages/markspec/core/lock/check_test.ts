@@ -135,6 +135,8 @@ Deno.test("checkDrift: old identity-only profile hash → MSL-L210 with a remedi
   };
   const d = checkDrift(locked, resolved, []);
   const l210 = d.find((x) => x.code === "MSL-L210");
+  assertEquals(l210?.message.includes("sha256:0"), true);
+  assertEquals(l210?.message.includes("sha256:abc"), true);
   assertEquals(
     l210?.message.includes(
       "Run `markspec lock --update=@markspec/profile-default`.",

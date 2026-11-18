@@ -449,8 +449,8 @@ async function runLock(options: LockOptions): Promise<void> {
   //     L216, from `refResult`/`depResult`) → 2, so CI running a bare
   //     `markspec lock` sees the dropped pin.
   // Benign resolution advisories in `resolved.diagnostics` (e.g. MSL-L102
-  // "recording identity-only hash" when a bundled profile manifest is
-  // unresolvable) are surfaced in output but deliberately do NOT gate the
+  // "recording identity-only hash" when a local profile manifest cannot be
+  // read) are surfaced in output but deliberately do NOT gate the
   // exit code — they are not a locking failure.
   const hasError = allUpstreamDiags.some((d) => d.severity === "error");
   const upstreamAcquisitionWarned =

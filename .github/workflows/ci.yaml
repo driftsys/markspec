@@ -183,16 +183,19 @@ jobs:
           cp tests/fixtures/in-code-tsx.tsx /tmp/smoke-project/component.tsx
           cp tests/fixtures/requirement-block.md /tmp/smoke-project/requirements.md
           ./dist/markspec compile --format json /tmp/smoke-project
-      - name: Smoke test — lock does not warn about the bundled profile
+      - name: Smoke test — lock hashes the bundled default profile (no MSL-L102)
         run: |
           set -e
           root="$(mktemp -d)"
           cd "$root"
           printf 'name: t\nversion: 0.1.0\n' > project.yaml
           printf '# T\n' > t.md
-          "$GITHUB_WORKSPACE/dist/markspec" lock 2> lock.err
+          status=0
+          "$GITHUB_WORKSPACE/dist/markspec" lock 2> lock.err || status=$?
           cat lock.err
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -q 'MSL-L102' lock.err; then exit 1; fi
+          if grep -Eq '^hash *= "sha256:0"' markspec.lock; then exit 1; fi
       - name: Smoke test — desk serves and stops when stdin closes
         run: bash scripts/check_desk_binary.sh dist/markspec tests/fixtures/desk-project
       - name: Smoke test — doc build renders a PDF
