@@ -6,6 +6,19 @@ default:
 check: lint test
     deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts packages/markspec/desk/server.ts
 
+# Fast gates for the pre-push hook; set MARKSPEC_FULL_PREPUSH=1 for the full check
+pre-push:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "${MARKSPEC_FULL_PREPUSH:-}" = "1" ]; then
+        just check
+        exit 0
+    fi
+    deno lint
+    deno fmt --check
+    prim fmt --check .
+    deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts packages/markspec/desk/server.ts
+
 # Run tests
 test:
     deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi --allow-net

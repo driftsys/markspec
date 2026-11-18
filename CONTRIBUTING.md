@@ -38,7 +38,11 @@ Squash work into one conventional commit per task.
    `42-fix-tag-detection`.
 2. Implement the change with tests.
 3. One conventional commit per PR. Squash cleanup commits before pushing.
-4. Make sure all checks pass before opening the PR.
+4. Make sure all checks pass before opening the PR. The pre-push hook runs only
+   the fast gates (`just pre-push`: `deno lint`, `deno fmt --check`,
+   `prim fmt --check .`, and `deno check`). The full test suite runs in CI and
+   in `just build`. Set `MARKSPEC_FULL_PREPUSH=1` to run the full `just check`
+   in the hook.
 5. Reference the related issue in the PR description.
 6. Every PR ships implementation, tests, and documentation together.
 7. Merge with `--merge`, not `--squash`.

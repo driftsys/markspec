@@ -271,11 +271,19 @@ just check                      # lint + test + type-check (all three)
 just test                       # test only
 just lint                       # deno lint + prim format check
 just build                      # check (lint+test+typecheck) + compile binary → dist/markspec
+just pre-push                   # fast gates the pre-push hook runs (see below)
 just fmt                        # deno fmt (TS) + prim fmt (MD/JSON/YAML/TOML)
 just tokens                     # regenerate Typst + CSS from theme/tokens.yaml
 just compile                    # compile CLI binary → dist/markspec
 just clean                      # remove build artifacts
 ```
+
+**The pre-push hook runs only the fast gates.** `.githooks/pre-push.hooks` calls
+`just pre-push`, which runs `deno lint`, `deno fmt --check`,
+`prim fmt --check .`, and `deno check` on the entry points above. It does not
+run the test suite. The full test suite runs in CI and in `just build` (and
+`just check`). Set `MARKSPEC_FULL_PREPUSH=1` to make the hook run the full
+`just check` instead.
 
 **`just verify` does not exist.** Use `just build` before opening a PR.
 
@@ -1021,9 +1029,9 @@ severity/effort/priority, and review flow.
   `set -euo
   pipefail`, so it can exit before its grammar-fetch step if an
   earlier step fails — leaving the worktree grammar-less. Without the grammars
-  the pre-push hook's `just check` fails on the source-file parsing e2e tests
-  (`source_body_tokens_test.ts`, `source_jsfamily_test.ts`). Fetch them with
-  `deno task fetch-grammars`, or copy from the main checkout:
+  the source-file parsing e2e tests (`source_body_tokens_test.ts`,
+  `source_jsfamily_test.ts`) fail in `just check` and `just build`. Fetch them
+  with `deno task fetch-grammars`, or copy from the main checkout:
   `cp <main-checkout>/grammars/*.wasm grammars/`.
 - **Working memory is worktree-first.** Create the story worktree _before_
   writing any `docs/wip/` file (Superpowers specs and plans). Specs and plans
