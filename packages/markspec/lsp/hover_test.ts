@@ -159,3 +159,15 @@ Deno.test("displayIdAtPosition: bracketed ID on a prose line is still an ID", ()
   const line = "See REQ_1 [REQ_2] for details";
   assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2")), "REQ_2");
 });
+
+Deno.test("displayIdAtPosition: git-style and 1-space doc-comment trailers", () => {
+  for (
+    const line of [
+      "Verifies: REQ_1 [Scen REQ_2]",
+      "/// Verifies: REQ_1 [Scen REQ_2]",
+    ]
+  ) {
+    assertEquals(displayIdAtPosition(line, line.indexOf("REQ_2")), undefined);
+    assertEquals(displayIdAtPosition(line, line.indexOf("REQ_1")), "REQ_1");
+  }
+});

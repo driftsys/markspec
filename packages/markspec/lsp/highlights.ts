@@ -26,11 +26,7 @@
  */
 
 import { DISPLAY_ID_CHAR_RE, walkProseLines } from "../core/mod.ts";
-import {
-  FEATURE_TRAILER_LINE_RE,
-  locatorSpans,
-  TRAILER_LINE_RE,
-} from "./locators.ts";
+import { locatorSpans } from "./locators.ts";
 
 /** LSP `DocumentHighlightKind` numeric constants (spec §). */
 export const DocumentHighlightKindText = 1;
@@ -68,9 +64,8 @@ export function findOccurrencesInFile(
   // cannot hold an occurrence.
   if (displayId.length === 0 || !text.includes(displayId)) return [];
   const out: DocumentHighlight[] = [];
-  const trailerLine = featureFile ? FEATURE_TRAILER_LINE_RE : TRAILER_LINE_RE;
   walkProseLines(text, (line, i) => {
-    const locators = locatorSpans(line, trailerLine);
+    const locators = locatorSpans(line, featureFile);
     let start = 0;
     while (true) {
       const idx = line.indexOf(displayId, start);

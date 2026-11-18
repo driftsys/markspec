@@ -19,7 +19,8 @@
  * re-implementing fence tracking. Markdown uses cached CommonMark boundaries;
  * the server supplies the original line-scanner boundaries for source files.
  * An ID inside a closed scenario locator on a trailer line is not
- * rewritten (#915), as in `core/refs` rename-heal.
+ * rewritten (#915), as in `core/refs` rename-heal; the trailer gate is in
+ * `locators.ts`, which also lists the one difference from rename-heal.
  * `prepareRenameRange` stays
  * single-line and fence-unaware by design — the server gates
  * `onPrepareRename` against a fenced cursor position separately (via
@@ -36,15 +37,11 @@ import {
   walkProseLines,
 } from "../core/mod.ts";
 import { displayIdAtPosition } from "./hover.ts";
-import {
-  FEATURE_TRAILER_LINE_RE,
-  isInsideLocator,
-  locatorSpans,
-  TRAILER_LINE_RE,
-} from "./locators.ts";
+import { isInsideLocator, locatorSpans } from "./locators.ts";
 
 /**
- * Return the display ID at the cursor, or `undefined` inside a code fence.
+ * Return the display ID at the cursor, or `undefined` inside a code fence
+ * or a closed scenario locator (`featureFile` selects the `.feature` gate).
  * Direct rename requests must reject fenced cursors even when the client
  * has not called `prepareRename`.
  * The caller supplies the cursor line from the LSP document range and may
@@ -88,6 +85,8 @@ export interface PrepareRenameResult {
  *
  * Returns `null` when:
  *   - the cursor lies on whitespace or past the line end, or
+ *   - the cursor lies inside a closed scenario locator of a trailer line
+ *     (`featureFile` selects the `.feature` gate), or
  *   - the token at that position doesn't satisfy the display-ID
  *     grammar (≥3 chars, alphanumeric start, valid ID chars only).
  *
@@ -146,9 +145,8 @@ export function findIdOccurrencesInFile(
   // cannot hold an occurrence.
   if (oldId.length === 0 || !text.includes(oldId)) return [];
   const edits: TextEdit[] = [];
-  const trailerLine = featureFile ? FEATURE_TRAILER_LINE_RE : TRAILER_LINE_RE;
   walkProseLines(text, (line, i) => {
-    const locators = locatorSpans(line, trailerLine);
+    const locators = locatorSpans(line, featureFile);
     let start = 0;
     while (true) {
       const idx = line.indexOf(oldId, start);

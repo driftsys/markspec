@@ -198,3 +198,35 @@ Deno.test("findOccurrencesInFile: ID inside a .feature header locator is not hig
   );
   assertEquals(lines, [1]);
 });
+
+Deno.test("findOccurrencesInFile: a real reference and a locator copy of the ID on one line", () => {
+  const text = "      Verifies: REQ_2 [Scenario REQ_2]";
+  const columns = findOccurrencesInFile(text, "REQ_2").map((h) =>
+    h.range.start.character
+  );
+  assertEquals(columns, [text.indexOf("REQ_2")]);
+});
+
+Deno.test("findOccurrencesInFile: an unclosed locator stays a reference", () => {
+  const text = "      Verifies: REQ_1 [Scenario REQ_2";
+  assertEquals(findOccurrencesInFile(text, "REQ_2").length, 1);
+});
+
+Deno.test("findOccurrencesInFile: escaped bracket inside a locator", () => {
+  const text = "      Verifies: REQ_1 [Scen \\] REQ_2]";
+  assertEquals(findOccurrencesInFile(text, "REQ_2"), []);
+});
+
+Deno.test("findOccurrencesInFile: doc-comment trailer locator", () => {
+  const text = "///   Verifies: REQ_1 [Scenario REQ_2]\n/// Satisfies: REQ_2";
+  const lines = findOccurrencesInFile(text, "REQ_2").map((h) =>
+    h.range.start.line
+  );
+  assertEquals(lines, [1]);
+});
+
+Deno.test("findOccurrencesInFile: .feature gate does not apply to Markdown", () => {
+  const text = "# Note: REQ_1 [REQ_2]";
+  assertEquals(findOccurrencesInFile(text, "REQ_2").length, 1);
+  assertEquals(findOccurrencesInFile(text, "REQ_2", undefined, true).length, 1);
+});

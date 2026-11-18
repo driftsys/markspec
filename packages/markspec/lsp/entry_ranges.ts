@@ -3,7 +3,8 @@
  *
  * Build the payload returned by the `markspec/entryRanges` custom
  * LSP request: per-entry title range, trailer-dim ranges that
- * exclude embedded display IDs, and label ranges with a validity
+ * exclude embedded display IDs (an ID inside a closed scenario locator is
+ * not one, so it stays dimmed), and label ranges with a validity
  * flag and optional diagnostic message.
  *
  * Pure function — deterministic on its inputs. The server's
