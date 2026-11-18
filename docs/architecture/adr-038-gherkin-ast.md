@@ -289,8 +289,9 @@ of #584 is superseded by this amendment.
    that `check`, `lint`, `fmt` and `lock` find. `compile` does no discovery; it
    reads the `.feature` files named in its paths. `fmt` inserts a missing
    `# Id:` line into a header (`core/formatter/feature_file.ts`) and changes
-   nothing else; a file that does not parse is unchanged. `MSL-F010` for a
-   `.feature` file means only a missing `Id:`.
+   nothing else, unless the header holds an Id-like line (`# id:`, `# Id :`,
+   `# ID:`; `MSL-I009`), where it stamps nothing; a file that does not parse is
+   unchanged. `MSL-F010` for a `.feature` file means only a missing `Id:`.
 10. **Existing Cucumber projects.** A `.feature` file with no header gives no
     entries, no diagnostics, no lockfile drift and the same `compile` and
     `check` output as before. The scope line of a bare `check` or `fmt` counts
@@ -398,8 +399,9 @@ Case B slice 2 (epic #915). The decisions below close the gap of item 11 above.
    parser lazily, and `loadGherkin` caches the loaded parser for later parses.
    There is no per-text parse cache.
 9. **Formatting.** `onDocumentFormatting` calls `formatFeatureText` for a
-   `.feature` file. It stamps missing `# Id:` lines and returns no edits for a
-   file with no header, a file that does not parse, or a stamped file.
+   `.feature` file. It stamps missing `# Id:` lines (none for a header with an
+   Id-like line) and returns no edits for a file with no header, a file that
+   does not parse, or a stamped file.
 10. **Parse diagnostics (#939).** `WorkspaceIndex` stores the parse diagnostics
     of each file, and the cross-file publish merges them in, so they persist.
     This applies to all file types.
@@ -559,7 +561,7 @@ indented doc-string line.
    value-bearing `# Id:` line. When every header had an Id, the fixed text gives
    `formatFeatureText(fixed).changed === false`. The `MSL-P021` fix can remove
    an empty `# Id:` line, because that line carries no value; Format Document
-   then stamps a new Id.
+   then stamps a new Id (unless the header holds an Id-like line, `MSL-I009`).
 6. **`MSL-P021` (D6).** Only an empty `# Key:` line gets a fix. The fix removes
    every empty key line of the trailer block, and the `#`-only line above the
    block when the whole block is empty. This restores a trailer that the empty
@@ -582,7 +584,8 @@ indented doc-string line.
    `MSL-T020` fix replaces the `# Type:` value with the closest core type within
    an edit distance of 3.
 10. **Missing Id (D10).** There is no quick fix for `MSL-R003` or `MSL-I003`.
-    Format Document stamps the Id, as for Markdown.
+    Format Document stamps the Id, as for Markdown, except for a header with an
+    Id-like line (`MSL-I009`).
 
 Out of scope: `MSL-B062`, `MSL-P030`, `MSL-B060` to `MSL-B068`, `MSL-R003` with
 `MSL-I004` (multiple Id), `MSL-P022`, a non-empty malformed `MSL-P021`,

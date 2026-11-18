@@ -63,34 +63,18 @@ export function formatFeatureFile(
 ): FeatureFormatResult {
   const ending = detectLineEnding(text);
   const lines = normalizeLineEndings(text).split("\n");
-  let changed = false;
-  // `# ID: <value>` is the identity with its key in another case: the key
-  // becomes `Id`, and no second `Id:` is stamped. An entry whose header holds
-  // an `Id:`-like line that is not read as an attribute (`# id:`, `# Id :`,
-  // MSL-I009) is left as it is, and gets no stamp either.
-  for (const entry of entries) {
-    if (entry.source.kind !== "feature-file") continue;
-    const at = entry.rawAttributes.findIndex((a) =>
-      a.key !== "Id" && a.key.toLowerCase() === "id"
-    );
-    const lineNo = at < 0 ? undefined : entry.attributeLines?.[at];
-    if (lineNo === undefined) continue;
-    const fixed = lines[lineNo - 1].replace(/^(\s*#[ \t]*)ID(\s*:)/i, "$1Id$2");
-    if (fixed !== lines[lineNo - 1]) {
-      lines[lineNo - 1] = fixed;
-      changed = true;
-    }
-  }
+  // An entry whose header holds an `Id:`-like line (`# id:`, `# Id :`,
+  // `# ID:`, MSL-I009) gets no stamp, and the line is not corrected.
   const missing = entries
     .filter((e) =>
       e.source.kind === "feature-file" && e.id === undefined &&
       e.shape === "Authored" &&
-      !e.rawAttributes.some((a) => a.key.toLowerCase() === "id") &&
       !hasIdLikeHeaderLine(lines, e)
     )
     .sort((a, b) => b.location.line - a.location.line);
-  if (missing.length === 0 && !changed) return { output: text, changed: false };
+  if (missing.length === 0) return { output: text, changed: false };
 
+  let changed = false;
   for (const entry of missing) {
     const titleIdx = entry.location.line - 1;
     if (!isComment(lines[titleIdx])) continue;

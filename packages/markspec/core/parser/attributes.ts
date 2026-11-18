@@ -250,7 +250,7 @@ function locateTrailer(
   const keysOf = (from: number, to: number): string[] =>
     lines.slice(from, to).map((l) => trailerKey(l)).filter(
       (k): k is string => k !== undefined,
-    );
+    ).map((k) => k.toLowerCase() === "id" ? "Id" : k); // `ID:` is the Id key
   if (runStart < indentedStart) {
     const ownParagraph = runStart === 0 || lines[runStart - 1].trim() === "";
     const keys = keysOf(runStart, end);
@@ -340,8 +340,11 @@ const ID_LIKE_RE = /^id\s*:/i;
 /**
  * Find a line in the run of `Key: value` lines at the end of the body of
  * `entry` that reads as an `Id:` attribute but is not read as one: `id:` and
- * `Id :` fail the attribute grammar, so they stay in the body. (`ID:` parses
- * as an attribute, and `markspec fmt` canonicalises its key to `Id:`.)
+ * `Id :` fail the attribute grammar, so they stay in the body. (`ID:` in
+ * Markdown or source parses as an attribute, and `markspec fmt` canonicalises
+ * its key to `Id:`; a `.feature` header has no such rule.) Only the run at the
+ * end of the body counts: an `ID: text` line inside earlier prose is not
+ * flagged.
  * Returns the first such line, or `undefined`. `markspec check` reports it
  * (MSL-I009) and `markspec fmt` leaves the entry unchanged, so no second
  * `Id:` is stamped.

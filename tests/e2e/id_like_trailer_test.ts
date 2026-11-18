@@ -23,56 +23,91 @@ const markdown = (line: string) =>
 const source = (line: string) =>
   `/// [STK_0001] Title\n///\n/// The system shall act.\n///\n///     ${line}\n///     Labels: a\nfn act() {}\n`;
 
-for (
-  const [file, build] of [["doc.md", markdown], ["doc.rs", source]] as const
-) {
-  for (const spelling of SPELLINGS) {
-    Deno.test(`id-like trailer: '${spelling.slice(0, 5)}' in ${file}`, async () => {
-      const text = build(spelling);
-      const run = await markspecPersist(["check", file], {
-        files: { ...PROJECT, [file]: text },
-        permissions: PERMISSIONS,
-      });
-      try {
-        assertEquals(run.code, 1);
-        assertStringIncludes(run.stderr, "MSL-I009");
-        assertStringIncludes(run.stderr, spelling.slice(0, 3));
-        await markspecInDir(run.dir, ["fmt", file], PERMISSIONS);
-        const first = await Deno.readTextFile(join(run.dir, file));
-        assertEquals(first.match(/\bId: /g)?.length ?? 0, 0);
-        assertEquals(first, text);
-        await markspecInDir(run.dir, ["fmt", file], PERMISSIONS);
-        assertEquals(await Deno.readTextFile(join(run.dir, file)), first);
-      } finally {
-        await Deno.remove(run.dir, { recursive: true });
-      }
-    });
-  }
-}
+/** Number of reports of `code` (the I003 hint also names MSL-I009). */
+const count = (text: string, code: string) =>
+  text.match(new RegExp(`\\[${code}\\]`, "g"))?.length ?? 0;
 
-for (const file of ["doc.md", "doc.rs"]) {
-  Deno.test(`id-like trailer: 'ID:' in ${file} is canonicalised, no second Id`, async () => {
-    const text = file === "doc.md"
-      ? markdown(`ID: ${ULID}`)
-      : source(`ID: ${ULID}`);
-    const run = await markspecPersist(["fmt", file], {
-      files: { ...PROJECT, [file]: text },
+// Markdown: `check` reports the line and `fmt` leaves the entry unchanged.
+for (const spelling of SPELLINGS) {
+  Deno.test(`id-like trailer: '${spelling.slice(0, 5)}' in Markdown`, async () => {
+    const text = markdown(spelling);
+    const run = await markspecPersist(["check", "doc.md"], {
+      files: { ...PROJECT, "doc.md": text },
       permissions: PERMISSIONS,
     });
     try {
-      const first = await Deno.readTextFile(join(run.dir, file));
-      assertEquals(
-        first.match(/\bId: /g)?.length ?? 0,
-        file === "doc.md" ? 1 : 0,
-      );
-      assertEquals(first.includes(`Id: ${ULID}`), file === "doc.md");
-      await markspecInDir(run.dir, ["fmt", file], PERMISSIONS);
-      assertEquals(await Deno.readTextFile(join(run.dir, file)), first);
+      assertEquals(run.code, 1);
+      assertEquals(count(run.stderr, "MSL-I009"), 1);
+      assertStringIncludes(run.stderr, "doc.md:5");
+      assertStringIncludes(run.stderr, spelling.slice(0, 3));
+      await markspecInDir(run.dir, ["fmt", "doc.md"], PERMISSIONS);
+      const first = await Deno.readTextFile(join(run.dir, "doc.md"));
+      assertEquals(first, text);
+      await markspecInDir(run.dir, ["fmt", "doc.md"], PERMISSIONS);
+      assertEquals(await Deno.readTextFile(join(run.dir, "doc.md")), first);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  });
+
+  // `fmt` never edits a source file, so only `check` is observable there.
+  Deno.test(`id-like trailer: '${spelling.slice(0, 5)}' in a source doc comment`, async () => {
+    const run = await markspecPersist(["check", "doc.rs"], {
+      files: { ...PROJECT, "doc.rs": source(spelling) },
+      permissions: PERMISSIONS,
+    });
+    try {
+      assertEquals(run.code, 1);
+      assertEquals(count(run.stderr, "MSL-I009"), 1);
+      assertStringIncludes(run.stderr, "doc.rs:5");
     } finally {
       await Deno.remove(run.dir, { recursive: true });
     }
   });
 }
+
+// `ID:` is an attribute line in Markdown and source: never MSL-I009. In
+// Markdown, `fmt` canonicalises the key and stamps no second Id.
+const GIT_STYLE = (line: string) =>
+  `- [STK_0001] Title\n\n  The system shall act.\n\n  ${line}\n  Labels: a\n`;
+for (
+  const [layout, build] of [
+    ["indented", markdown],
+    ["git-style", GIT_STYLE],
+  ] as const
+) {
+  Deno.test(`id-like trailer: ${layout} 'ID:' in Markdown is canonicalised`, async () => {
+    const text = build(`ID: ${ULID}`);
+    const run = await markspecPersist(["check", "doc.md"], {
+      files: { ...PROJECT, "doc.md": text },
+      permissions: PERMISSIONS,
+    });
+    try {
+      assertEquals(count(run.stderr, "MSL-I009"), 0);
+      await markspecInDir(run.dir, ["fmt", "doc.md"], PERMISSIONS);
+      const first = await Deno.readTextFile(join(run.dir, "doc.md"));
+      assertEquals(first.match(/\bId: /g)?.length, 1);
+      assertEquals(first.includes(`Id: ${ULID}`), true);
+      assertEquals(first.includes("ID:"), false);
+      await markspecInDir(run.dir, ["fmt", "doc.md"], PERMISSIONS);
+      assertEquals(await Deno.readTextFile(join(run.dir, "doc.md")), first);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  });
+}
+
+Deno.test("id-like trailer: 'ID:' in a source doc comment is not MSL-I009", async () => {
+  const run = await markspecPersist(["check", "doc.rs"], {
+    files: { ...PROJECT, "doc.rs": source(`ID: ${ULID}`) },
+    permissions: PERMISSIONS,
+  });
+  try {
+    assertEquals(count(run.stderr, "MSL-I009"), 0);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
 
 const FEATURE_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 for (
@@ -89,7 +124,7 @@ for (
     });
     try {
       assertEquals(run.code, 1);
-      assertStringIncludes(run.stderr, "MSL-I009");
+      assertEquals(count(run.stderr, "MSL-I009"), 1);
       assertStringIncludes(run.stderr, "correct the Id-like line");
       await markspecInDir(run.dir, ["fmt", "a.feature"], PERMISSIONS);
       const first = await Deno.readTextFile(join(run.dir, "a.feature"));

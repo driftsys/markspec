@@ -372,3 +372,19 @@ Deno.test("formatFeatureFile: '# ID:' in a header is an Id-like line and gets no
   assertEquals(result.changed, false);
   assertEquals(result.output, text);
 });
+
+Deno.test("formatFeatureFile: an indented '# ID:' line stays as it is (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] Title\n#\n#     ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, text);
+});
+
+Deno.test("formatFeatureFile: '# Id:' next to '# ID:' stays as it is (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] Title\n#\n# Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n# ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, text);
+});

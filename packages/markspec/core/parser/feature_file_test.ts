@@ -1294,5 +1294,6 @@ for (
     const found = diagnostics.filter((d) => d.code === "MSL-I009");
     assertEquals(found.length, 1);
     assertEquals(found[0].location?.line, header.split("\n").length);
+    assertEquals(found[0].location?.column, 3);
   });
 }
