@@ -25,6 +25,54 @@ import {
 const MOCK_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const MOCK_ULID_2 = "01HGW2Q8MNP3RSTVWXYZABCDEG";
 
+const PRESERVE_CONVENTIONS = new Map([
+  ["modal-keywords", {
+    value: { name: "modal-keywords", settings: { casing: "preserve" } },
+    origin: "@test/legacy",
+  }],
+]);
+
+Deno.test("format: preserves profile-declared modal casing throughout the body", () => {
+  const md = `- [REQ-001] Legacy wording
+
+  The system SHALL act When requested.
+
+  - The value MUST remain While enabled.
+
+  > The component SHOULD wait Unless released.
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: PRESERVE_CONVENTIONS });
+  assertEquals(result.output, md);
+  assertFalse(result.changed);
+  assertEquals(
+    format(result.output, { conventions: PRESERVE_CONVENTIONS }).output,
+    md,
+  );
+  assertStringIncludes(
+    format(md).output,
+    "The system shall act when requested.",
+  );
+});
+
+Deno.test("format: other casing conventions keep the canonical casing", () => {
+  const md =
+    `- [REQ-001] Wording\n\n  The system SHALL act.\n\n      Id: ${MOCK_ULID}\n`;
+  for (const casing of ["rfc2119", "iso"]) {
+    const conventions = new Map([
+      ["modal-keywords", {
+        value: { name: "modal-keywords", settings: { casing } },
+        origin: "@test/profile",
+      }],
+    ]);
+    assertStringIncludes(
+      format(md, { conventions }).output,
+      "The system shall act.",
+    );
+  }
+});
+
 function mockUlid(): () => string {
   const stack = [MOCK_ULID_2, MOCK_ULID];
   return () => stack.pop() ?? MOCK_ULID;

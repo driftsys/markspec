@@ -405,3 +405,43 @@ Deno.test("check: MSL-F011 clears after fmt canonicalizes the reference", async 
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+Deno.test("fmt and check: a profile with modal-keywords.casing: preserve keeps the casing", async () => {
+  const document = `# Requirements
+
+- [REQ-0001] Legacy wording
+
+  The system SHALL act When requested.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+`;
+  const files = {
+    "project.yaml": "name: casing-e2e\nversion: 0.1.0\n",
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `markspec-schema: "1"
+id: "@acme/legacy"
+version: 0.1.0
+profile:
+  conventions:
+    modal-keywords:
+      casing: preserve
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    "docs/req.md": document,
+  };
+  const fmt = await markspecPersist(["fmt", "--check"], files);
+  try {
+    assertEquals(fmt.code, 0, fmt.stderr);
+    const check = await markspecInDir(fmt.dir, ["check", "--format", "json"]);
+    const codes = (JSON.parse(check.stdout) as Array<{ code: string }>)
+      .map((diagnostic) => diagnostic.code);
+    assertEquals(codes.includes("MSL-F010"), false, check.stdout);
+    assertEquals(codes.includes("MSL-M060"), false, check.stdout);
+  } finally {
+    await Deno.remove(fmt.dir, { recursive: true });
+  }
+});

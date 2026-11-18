@@ -356,6 +356,9 @@ profile:
 The only recognised convention is `modal-keywords`; unknown convention names are
 accepted with a `PROFILE-LOAD-003` warning (forward compatibility). For
 `modal-keywords`, the `casing` setting must be `rfc2119`, `iso`, or `preserve`.
+With `preserve`, `markspec fmt`, the `MSL-F010` drift gate and the editor
+formatter keep the source casing of modal and EARS keywords, and `MSL-M060` does
+not warn on uppercase keywords.
 
 ## B.9 Prose lexicons (`profile.prose`)
 

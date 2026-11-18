@@ -28,6 +28,7 @@
 
 import {
   type Diagnostic,
+  type EffectiveProfile,
   type EntryBodyRefusal,
   format,
   type ProseFormatter,
@@ -120,6 +121,7 @@ export type DocumentFormatter = (
     readonly file: string;
     readonly formatMarkdownProse: ProseFormatter;
     readonly lineWidth?: number;
+    readonly conventions?: EffectiveProfile["conventions"];
   },
 ) => { readonly output: string; readonly diagnostics: readonly Diagnostic[] };
 
@@ -134,12 +136,14 @@ function formatText(
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter,
   lineWidth: number | undefined,
+  conventions: EffectiveProfile["conventions"] | undefined,
 ): { output: string; diagnostics: readonly Diagnostic[] } | undefined {
   try {
     const result = formatDocument(text, {
       file,
       formatMarkdownProse: formatProse,
       lineWidth,
+      ...(conventions === undefined ? {} : { conventions }),
     });
     return { output: result.output, diagnostics: result.diagnostics };
   } catch {
@@ -207,6 +211,7 @@ async function checkProposal(
   withCurrent: boolean,
   formatDocument: DocumentFormatter,
   lineWidth: number | undefined,
+  conventions: EffectiveProfile["conventions"] | undefined,
 ): Promise<ProposalOutcome<CheckedProposal>> {
   if (proposed.length > MAX_PROPOSAL_CHARS) {
     return refuse("proposal-too-large");
@@ -224,6 +229,7 @@ async function checkProposal(
     formatProse,
     formatDocument,
     lineWidth,
+    conventions,
   );
   if (
     formattedCandidate === undefined ||
@@ -246,6 +252,7 @@ async function checkProposal(
       formatProse,
       formatDocument,
       lineWidth,
+      conventions,
     );
     if (formattedCurrent === undefined) return refuse("format-failed");
     const formattedBody = await readEntryBody(
@@ -277,6 +284,8 @@ async function checkProposal(
  * @param lineWidth - Line width resolved from `.editorconfig` for `file`,
  *   as `markspec fmt` resolves it (#984). Default 80. The line ending is
  *   not changed: only the target body is spliced into `text`.
+ * @param conventions - The profile conventions (`modal-keywords.casing`), as
+ *   `markspec fmt` applies them.
  */
 export async function previewBody(
   text: string,
@@ -286,6 +295,7 @@ export async function previewBody(
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter = format,
   lineWidth?: number,
+  conventions?: EffectiveProfile["conventions"],
 ): Promise<ProposalOutcome<BodyPreview>> {
   const checked = await checkProposal(
     text,
@@ -296,6 +306,7 @@ export async function previewBody(
     true,
     formatDocument,
     lineWidth,
+    conventions,
   );
   if (!checked.ok) return checked;
   const { body, currentBody } = checked.value;
@@ -328,6 +339,7 @@ export async function applyBody(
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter = format,
   lineWidth?: number,
+  conventions?: EffectiveProfile["conventions"],
 ): Promise<ProposalOutcome<string>> {
   const checked = await checkProposal(
     text,
@@ -338,6 +350,7 @@ export async function applyBody(
     false,
     formatDocument,
     lineWidth,
+    conventions,
   );
   if (!checked.ok) return checked;
   return { ok: true, value: checked.value.text };

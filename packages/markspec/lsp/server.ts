@@ -1667,6 +1667,8 @@ connection.onDocumentFormatting(async (params) => {
   const style = await editorConfigResolver()(filePath);
   const result = format(currentText, {
     file: filePath,
+    // The profile's casing conventions, as `markspec fmt`.
+    conventions: ctx.profile?.conventions,
     formatMarkdownProse,
     lineWidth: style.lineWidth,
   });

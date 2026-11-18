@@ -69,6 +69,7 @@ export async function fmtDriftGate(
   ledger: readonly LockEdge[],
   formatMarkdownProse: ProseFormatter | undefined,
   resolveStyle?: EditorConfigResolver,
+  conventions?: EffectiveProfile["conventions"],
 ): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
   // Corpus-blind by design (ADR-030): `markspec fmt` never loads the delivered
@@ -103,6 +104,7 @@ export async function fmtDriftGate(
       formatMarkdownProse,
       lineWidth: style?.lineWidth,
       endOfLine: style?.endOfLine,
+      conventions,
     });
     if (formatted.changed) {
       // Say so when only the line endings differ: the file looks formatted

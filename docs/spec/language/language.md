@@ -2126,6 +2126,13 @@ allowedKeys = ["layout", "permalink", "sidebar_position", "draft", "aliases"]
 All formatting rules are fixed. There is no formatter choice — dprint is the
 formatter.
 
+The effective profile convention `modal-keywords.casing: preserve` keeps the
+source casing of modal and EARS keywords in entry bodies during formatting. The
+CLI formatter, the project-wide format-drift gate (`MSL-F010`) and the editor
+formatter use the same effective convention. Without `preserve`, the core casing
+rules apply. The `MSL-M060` lowercase warning also respects `preserve`; the
+missing-modal hint `MSL-M061` and unrelated prose findings remain active.
+
 ### 9.2 CI
 
 ```yaml
