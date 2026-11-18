@@ -654,3 +654,34 @@ Deno.test("repeatableAttributeValues: splits by the attribute's value type", () 
   assertEquals(repeatableAttributeValues("Type", "x"), undefined);
   assertEquals(repeatableAttributeValues("Unknown-key", "x"), undefined);
 });
+
+Deno.test("validate: an Id-like trailer line is MSL-I009 and names the line (#935)", async () => {
+  const { parseFile } = await import("../parser/mod.ts");
+  for (
+    const spelling of [
+      "id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "Id : 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    ]
+  ) {
+    const text =
+      `- [STK_0001] Title\n\n  The system shall act.\n\n      ${spelling}\n      Labels: a\n`;
+    const { entries } = await parseFile(text, { file: "a.md" });
+    const found = validate(entries).diagnostics.filter((d) =>
+      d.code === "MSL-I009"
+    );
+    assertEquals(found.length, 1, spelling);
+    assertEquals(found[0].location?.line, 5, spelling);
+    assertEquals(found[0].message.includes(spelling.slice(0, 3)), true);
+  }
+});
+
+Deno.test("validate: a canonical Id line gets no MSL-I009 (#935)", async () => {
+  const { parseFile } = await import("../parser/mod.ts");
+  const text =
+    "- [STK_0001] Title\n\n  The system shall act.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n      Labels: a\n";
+  const { entries } = await parseFile(text, { file: "a.md" });
+  assertEquals(
+    validate(entries).diagnostics.some((d) => d.code === "MSL-I009"),
+    false,
+  );
+});

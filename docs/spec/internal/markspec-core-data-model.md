@@ -897,6 +897,7 @@ invariants).
 | `MSL-I006` | error    | Reference-shape display ID does not match the slug pattern in §1.7.                                                                                                                                                                    |
 | `MSL-I007` | error    | Duplicate `Id:` value across the project (same ULID or same URI on two entries).                                                                                                                                                       |
 | `MSL-I008` | warning  | Duplicate display ID within the same shape. Cross-references resolve by `Id:` (ADR-002), so this is style-only — distinct entries should still have distinct human-readable aliases.                                                   |
+| `MSL-I009` | error    | A trailer line reads as `Id:` but is not spelled so (`id:`, `Id :`). It is not an attribute line, so it is not an identity. `fmt` leaves the entry unchanged and stamps no `Id:`; the author corrects the key by hand.                 |
 
 ### 4.3 Type (T)
 

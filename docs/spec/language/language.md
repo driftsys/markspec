@@ -440,6 +440,13 @@ attribute values are not part of the trailer rule. The `MSL-P023` quick fix also
 leaves such a trailer unchanged, so the author fixes `MSL-P021` by hand; the
 `MSL-P023` message then says so instead of suggesting `markspec fmt`.
 
+**Id-like line.** A trailer line whose key is `id` in any case, with any spacing
+before the colon (`id:`, `ID:`, `Id :`), is not an `Id:` attribute. The entry
+has no identity from it. `check` reports it as `MSL-I009` (error) at the line,
+and `markspec fmt` leaves the entry unchanged: it stamps no `Id:`, so the line
+is not hidden behind a second identity. The author corrects the key to `Id:` by
+hand.
+
 Any other trailing `Key: value` line is body prose: for example `Status: draft`
 directly under a prose line, or a final paragraph of `Rationale:` and `Note:`
 lines. Only `Id:` and core trace relation keys (`Satisfies:`, `Verifies:`, ...)

@@ -43,11 +43,12 @@ interpreted.
 
 Emitted during identity validation (uniqueness, ULID format).
 
-| Code     | Message pattern      | Fix                                                                                        |
-| -------- | -------------------- | ------------------------------------------------------------------------------------------ |
-| MSL-I010 | Duplicate display ID | Two entries share the same display ID; delete or renumber one                              |
-| MSL-I020 | Duplicate ULID       | Two entries share the same `Id:` ULID; delete the hand-written copy and run `markspec fmt` |
-| MSL-I030 | Malformed ULID       | The `Id:` value is not a valid ULID; delete it and run `markspec fmt`                      |
+| Code     | Message pattern                                            | Fix                                                                                        |
+| -------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| MSL-I010 | Duplicate display ID                                       | Two entries share the same display ID; delete or renumber one                              |
+| MSL-I020 | Duplicate ULID                                             | Two entries share the same `Id:` ULID; delete the hand-written copy and run `markspec fmt` |
+| MSL-I030 | Malformed ULID                                             | The `Id:` value is not a valid ULID; delete it and run `markspec fmt`                      |
+| MSL-I009 | Trailer line reads as `Id:` but is spelled `id:` or `Id :` | Correct the key to `Id:` by hand; `markspec fmt` stamps no `Id:` on this entry             |
 
 ### M0xx — Modal language
 

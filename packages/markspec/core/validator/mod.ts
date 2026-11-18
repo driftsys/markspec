@@ -28,6 +28,7 @@ import {
 } from "../model/mod.ts";
 import { HTTP_URL_RE } from "./value_types.ts";
 import { splitTraceValues } from "../refs/split.ts";
+import { findIdLikeLine } from "../parser/attributes.ts";
 import { validateTypl } from "../typl/mod.ts";
 
 /** Universal attribute keys the core recognizes. */
@@ -134,6 +135,19 @@ function checkStructural(
     // Dual-emit: MSL-I002 (Reference missing Id), MSL-I003 (Authored missing
     // Id), MSL-I004 (multiple Id) — nextgen §4.2 codes alongside legacy.
     const idAttrs = entry.rawAttributes.filter((a) => a.key === IDENTITY_KEY);
+    const idLike = findIdLikeLine(entry);
+    if (idLike) {
+      // MSL-I009: a line that reads as `Id:` but is not spelled so. `fmt`
+      // leaves the entry unchanged, so the author corrects the key by hand.
+      diagnostics.push({
+        code: "MSL-I009",
+        severity: "error",
+        message: `${entry.displayId}: trailer line "${idLike.text}" reads ` +
+          `as an Id: attribute but is not spelled 'Id:'; correct the key ` +
+          `by hand, fmt stamps no Id: on this entry (spec section 4.2)`,
+        location: { ...entry.location, line: idLike.line, column: 1 },
+      });
+    }
     if (idAttrs.length === 0) {
       diagnostics.push({
         code: "MSL-R003",
@@ -159,6 +173,10 @@ function checkStructural(
               // fmt leaves an entry that holds a nested entry unchanged.
               ? `move the nested entry to the top level, then run fmt to ` +
                 `mint a ULID (spec section 4.2)`
+              : idLike
+              // fmt leaves an entry with an Id-like line unchanged.
+              ? `correct the Id-like line (MSL-I009); fmt mints no ULID ` +
+                `for this entry (spec section 4.2)`
               : `run fmt to mint a ULID (spec section 4.2)`),
           location: entry.location,
         });

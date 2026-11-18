@@ -6,7 +6,7 @@
  * trailing attribute blocks from body prose.
  */
 
-import type { Attribute, TypedAttributes } from "../model/mod.ts";
+import type { Attribute, Entry, TypedAttributes } from "../model/mod.ts";
 import { attributeSpec, CSV_SPLITTABLE_TYPES } from "../model/attributes.ts";
 import { splitTraceValues } from "../refs/split.ts";
 import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/attributes.ts";
@@ -324,4 +324,41 @@ export function splitBodyAndAttributes(
     .filter((l) => l !== "");
 
   return [body, filteredAttrLines];
+}
+
+/** An `Id:`-like trailer line that is not spelled `Id:`. */
+export interface IdLikeLine {
+  /** 1-based file line of the line. */
+  readonly line: number;
+  /** The line, trimmed. */
+  readonly text: string;
+}
+
+/** A line whose key is `id` in any case, with any spacing before the colon. */
+const ID_LIKE_RE = /^id\s*:/i;
+
+/**
+ * Find a line in the run of `Key: value` lines at the end of the body of
+ * `entry` that reads as an `Id:` attribute but is not read as one: `id:` and
+ * `Id :` fail the attribute grammar, so they stay in the body. (`ID:` parses
+ * as an attribute, and `markspec fmt` canonicalises its key to `Id:`.)
+ * Returns the first such line, or `undefined`. `markspec check` reports it
+ * (MSL-I009) and `markspec fmt` leaves the entry unchanged, so no second
+ * `Id:` is stamped.
+ */
+export function findIdLikeLine(
+  entry: Pick<Entry, "body" | "bodyStartLine">,
+): IdLikeLine | undefined {
+  const lines = entry.body.split("\n");
+  let found: IdLikeLine | undefined;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const text = lines[i].trim();
+    if (text === "") continue;
+    if (!/^[A-Za-z][A-Za-z0-9-]*\s*:/.test(text)) break;
+    // `Id:` is the canonical spelling; the formatter drops an empty one.
+    if (ID_LIKE_RE.test(text) && !text.startsWith("Id:")) {
+      found = { line: (entry.bodyStartLine ?? 1) + i, text };
+    }
+  }
+  return found;
 }
