@@ -18,6 +18,7 @@ import type { BodyBlock, FeatureNode } from "../ast/nodes.ts";
 import type { GherkinApi } from "../gherkin/load.ts";
 import { parseFeature } from "../gherkin/parse.ts";
 import { projectFeature } from "../gherkin/project.ts";
+import { findIdLikeIndex } from "./attributes.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap } from "./line_map.ts";
 import { wrapAsListItem } from "./source.ts";
@@ -267,10 +268,28 @@ export function headerEntry(
     { file, lineMap, allowTitleOnly: true },
   );
   const entry = entries[0];
-  return {
-    entry,
-    diagnostics: diagnostics.filter((d) => !IGNORED_CODES.has(d.code)),
-  };
+  const kept = diagnostics.filter((d) => !IGNORED_CODES.has(d.code));
+  // An `Id:`-like header line (`# id:`, `# Id :`) is not read as an attribute:
+  // right under the title it joins the title, and otherwise it joins the
+  // body. MSL-I009 names it, and `fmt` stamps no Id (the Markdown rule).
+  const idLike = findIdLikeIndex(header.lines);
+  if (entry && idLike > 0) {
+    kept.push({
+      code: "MSL-I009",
+      severity: "error",
+      message:
+        `${entry.displayId}: header line "${
+          header.lines[idLike].trim()
+        }" reads as an Id: attribute but is not spelled 'Id:'; correct the ` +
+        `key by hand, fmt stamps no Id: on this entry (spec section 4.2)`,
+      location: {
+        file,
+        line: header.startLine + idLike,
+        column: header.prefixWidths[idLike] + 1,
+      },
+    });
+  }
+  return { entry, diagnostics: kept };
 }
 
 /** Node kinds that a header turns into an entry. */

@@ -73,3 +73,30 @@ for (const file of ["doc.md", "doc.rs"]) {
     }
   });
 }
+
+const FEATURE_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+for (
+  const header of [
+    `# [STK_0001] A\n# id: ${FEATURE_ULID}`,
+    `# [STK_0001] A\n#\n# Id : ${FEATURE_ULID}`,
+  ]
+) {
+  Deno.test(`id-like trailer: ${JSON.stringify(header.split("\n").at(-1))} in a .feature header`, async () => {
+    const text = `${header}\nFeature: A\n  Scenario: s\n    Given x\n`;
+    const run = await markspecPersist(["check", "a.feature"], {
+      files: { ...PROJECT, "a.feature": text },
+      permissions: PERMISSIONS,
+    });
+    try {
+      assertEquals(run.code, 1);
+      assertStringIncludes(run.stderr, "MSL-I009");
+      await markspecInDir(run.dir, ["fmt", "a.feature"], PERMISSIONS);
+      const first = await Deno.readTextFile(join(run.dir, "a.feature"));
+      assertEquals(first, text);
+      await markspecInDir(run.dir, ["fmt", "a.feature"], PERMISSIONS);
+      assertEquals(await Deno.readTextFile(join(run.dir, "a.feature")), first);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  });
+}

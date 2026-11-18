@@ -345,3 +345,30 @@ Feature: F
   const { entries } = await parseFile(result.output, { file: "a.feature" });
   assertEquals(entries.map((e) => [e.displayId, e.id]), [["REQ_A_0001", ID_A]]);
 });
+
+for (
+  const header of [
+    "# [REQ_A_0001] Title\n# id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "# [REQ_A_0001] Title\n#\n# Id : 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  ]
+) {
+  Deno.test(
+    `formatFeatureFile: an Id-like header line gets no second Id (#935): ${
+      JSON.stringify(header.split("\n").at(-1))
+    }`,
+    async () => {
+      const text = `${header}\nFeature: F\n  Scenario: s\n    Given x\n`;
+      const result = await stamp(text, ID_A);
+      assertEquals(result.changed, false);
+      assertEquals(result.output, text);
+    },
+  );
+}
+
+Deno.test("formatFeatureFile: '# ID:' in a header is an Id-like line and gets no second Id (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] Title\n#\n# ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, text);
+});

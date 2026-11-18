@@ -1274,3 +1274,25 @@ Deno.test("featureHeaderRunEnd: stops at a non-comment line and at the end", () 
   assertEquals(featureHeaderRunEnd(["# [SC_A_0001] A", "  Given x"], 0), 1);
   assertEquals(featureHeaderRunEnd(["# [SC_A_0001] A", "# Id: X"], 0), 2);
 });
+
+for (
+  const [name, header] of [
+    [
+      "id: directly under the title",
+      "# [REQ_A_0001] Title\n# id: 01HGW2Q8MNP3RSTVWXYZABCDEA",
+    ],
+    [
+      "Id : after an empty comment",
+      "# [REQ_A_0001] Title\n#\n# Id : 01HGW2Q8MNP3RSTVWXYZABCDEA",
+    ],
+  ] as const
+) {
+  Deno.test(`parseFile: a .feature header with ${name} reports MSL-I009 (#935)`, async () => {
+    const { parseFile } = await import("./mod.ts");
+    const text = `${header}\nFeature: F\n  Scenario: s\n    Given x\n`;
+    const { diagnostics } = await parseFile(text, { file: "a.feature" });
+    const found = diagnostics.filter((d) => d.code === "MSL-I009");
+    assertEquals(found.length, 1);
+    assertEquals(found[0].location?.line, header.split("\n").length);
+  });
+}

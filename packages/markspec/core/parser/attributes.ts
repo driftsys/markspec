@@ -350,15 +350,24 @@ export function findIdLikeLine(
   entry: Pick<Entry, "body" | "bodyStartLine">,
 ): IdLikeLine | undefined {
   const lines = entry.body.split("\n");
-  let found: IdLikeLine | undefined;
+  const at = findIdLikeIndex(lines);
+  return at < 0
+    ? undefined
+    : { line: (entry.bodyStartLine ?? 1) + at, text: lines[at].trim() };
+}
+
+/**
+ * Index of the first `Id:`-like line (see {@linkcode findIdLikeLine}) in the
+ * run of `Key: value` lines at the end of `lines`, or -1.
+ */
+export function findIdLikeIndex(lines: readonly string[]): number {
+  let found = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
     const text = lines[i].trim();
     if (text === "") continue;
     if (!/^[A-Za-z][A-Za-z0-9-]*\s*:/.test(text)) break;
     // `Id:` is the canonical spelling; the formatter drops an empty one.
-    if (ID_LIKE_RE.test(text) && !text.startsWith("Id:")) {
-      found = { line: (entry.bodyStartLine ?? 1) + i, text };
-    }
+    if (ID_LIKE_RE.test(text) && !text.startsWith("Id:")) found = i;
   }
   return found;
 }

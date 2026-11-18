@@ -135,7 +135,10 @@ function checkStructural(
     // Dual-emit: MSL-I002 (Reference missing Id), MSL-I003 (Authored missing
     // Id), MSL-I004 (multiple Id) — nextgen §4.2 codes alongside legacy.
     const idAttrs = entry.rawAttributes.filter((a) => a.key === IDENTITY_KEY);
-    const idLike = findIdLikeLine(entry);
+    // A `.feature` entry gets MSL-I009 from the header parser.
+    const idLike = entry.source.kind === "feature-file"
+      ? undefined
+      : findIdLikeLine(entry);
     if (idLike) {
       // MSL-I009: a line that reads as `Id:` but is not spelled so. `fmt`
       // leaves the entry unchanged, so the author corrects the key by hand.
