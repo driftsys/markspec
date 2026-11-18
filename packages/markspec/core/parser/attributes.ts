@@ -6,7 +6,7 @@
  * trailing attribute blocks from body prose.
  */
 
-import type { Attribute, TypedAttributes } from "../model/mod.ts";
+import type { Attribute, Entry, TypedAttributes } from "../model/mod.ts";
 import { attributeSpec, CSV_SPLITTABLE_TYPES } from "../model/attributes.ts";
 import { splitTraceValues } from "../refs/split.ts";
 import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/attributes.ts";
@@ -188,10 +188,10 @@ function trailerKey(line: string): string | undefined {
  *   blank line above it, as before #916.
  * - The trailer paragraph: the trailing `Key: Value` lines, indented or not,
  *   that start the content or follow an empty line, when they hold an `Id:`
- *   line or use only keys in {@linkcode RECOGNIZED_TRAILER_KEYS} (#916, rule
+ *   line (the key `ID` counts as `Id`) or use only keys in {@linkcode RECOGNIZED_TRAILER_KEYS} (#916, rule
  *   of #914).
  * - The Id run under prose: trailing `Key: Value` lines directly under a
- *   prose line, with no blank line between, that hold an `Id:` line on any
+ *   prose line, with no blank line between, that hold an `Id:` line (or `ID:`) on any
  *   of their lines, indented or not.
  *   The `Id:` line shows that the author meant a trailer; reading it as
  *   prose would make `markspec fmt` stamp a new Id.
@@ -250,7 +250,7 @@ function locateTrailer(
   const keysOf = (from: number, to: number): string[] =>
     lines.slice(from, to).map((l) => trailerKey(l)).filter(
       (k): k is string => k !== undefined,
-    );
+    ).map((k) => k.toLowerCase() === "id" ? "Id" : k); // `ID:` is the Id key
   if (runStart < indentedStart) {
     const ownParagraph = runStart === 0 || lines[runStart - 1].trim() === "";
     const keys = keysOf(runStart, end);
@@ -324,4 +324,54 @@ export function splitBodyAndAttributes(
     .filter((l) => l !== "");
 
   return [body, filteredAttrLines];
+}
+
+/** An `Id:`-like trailer line that is not spelled `Id:`. */
+export interface IdLikeLine {
+  /** 1-based file line of the line. */
+  readonly line: number;
+  /** The line, trimmed. */
+  readonly text: string;
+}
+
+/** A line whose key is `id` in any case, with any spacing before the colon. */
+const ID_LIKE_RE = /^id\s*:/i;
+
+/**
+ * Find a line in the run of `Key: value` lines at the end of the body of
+ * `entry` that reads as an `Id:` attribute but is not read as one: `id:` and
+ * `Id :` fail the attribute grammar, so they stay in the body. (`ID:` in
+ * Markdown or source parses as an attribute; in Markdown `markspec fmt`
+ * canonicalises its key to `Id:`, and in source it stays as written. A
+ * `.feature` header flags `ID:` too, in `findIdLikeIndex`.) Only the run at the
+ * end of the body counts: an `ID: text` line inside earlier prose is not
+ * flagged.
+ * Returns the first such line, or `undefined`. `markspec check` reports it
+ * (MSL-I009) and `markspec fmt` leaves the entry unchanged, so no second
+ * `Id:` is stamped.
+ */
+export function findIdLikeLine(
+  entry: Pick<Entry, "body" | "bodyStartLine">,
+): IdLikeLine | undefined {
+  const lines = entry.body.split("\n");
+  const at = findIdLikeIndex(lines);
+  return at < 0
+    ? undefined
+    : { line: (entry.bodyStartLine ?? 1) + at, text: lines[at].trim() };
+}
+
+/**
+ * Index of the first `Id:`-like line (see {@linkcode findIdLikeLine}) in the
+ * run of `Key: value` lines at the end of `lines`, or -1.
+ */
+export function findIdLikeIndex(lines: readonly string[]): number {
+  let found = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const text = lines[i].trim();
+    if (text === "") continue;
+    if (!/^[A-Za-z][A-Za-z0-9-]*\s*:/.test(text)) break;
+    // `Id:` is the canonical spelling; the formatter drops an empty one.
+    if (ID_LIKE_RE.test(text) && !text.startsWith("Id:")) found = i;
+  }
+  return found;
 }

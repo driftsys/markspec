@@ -345,3 +345,67 @@ Feature: F
   const { entries } = await parseFile(result.output, { file: "a.feature" });
   assertEquals(entries.map((e) => [e.displayId, e.id]), [["REQ_A_0001", ID_A]]);
 });
+
+for (
+  const header of [
+    "# [REQ_A_0001] Title\n# id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "# [REQ_A_0001] Title\n#\n# Id : 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  ]
+) {
+  Deno.test(
+    `formatFeatureFile: an Id-like header line gets no second Id (#935): ${
+      JSON.stringify(header.split("\n").at(-1))
+    }`,
+    async () => {
+      const text = `${header}\nFeature: F\n  Scenario: s\n    Given x\n`;
+      const result = await stamp(text, ID_A);
+      assertEquals(result.changed, false);
+      assertEquals(result.output, text);
+    },
+  );
+}
+
+Deno.test("formatFeatureFile: '# ID:' in a header is an Id-like line and gets no second Id (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] Title\n#\n# ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, text);
+});
+
+Deno.test("formatFeatureFile: an indented '# ID:' line stays as it is (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] Title\n#\n#     ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, text);
+});
+
+Deno.test("formatFeatureFile: a canonical '# Id:' next to '# ID:' stays as it is, and MSL-I009 names the ID line (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] Title\n#\n# Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n# ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, text);
+  const { diagnostics } = await parseFile(text, { file: "a.feature" });
+  assertEquals(
+    diagnostics.filter((d) => d.code === "MSL-I009").map((d) =>
+      d.location?.line
+    ),
+    [4],
+  );
+});
+
+Deno.test("formatFeatureFile: an Id-like header of one entry does not stop the stamp of another (#935)", async () => {
+  const text =
+    "# [REQ_A_0001] A\n# id: 01HGW2Q8MNP3RSTVWXYZABCDEF\nFeature: F\n  Scenario: s\n    Given x\n\n# [REQ_A_0002] B\n  Scenario: t\n    Given y\n";
+  const result = await stamp(text, ID_A);
+  assertEquals(result.changed, true);
+  assertEquals(
+    result.output,
+    text.replace(
+      "# [REQ_A_0002] B\n",
+      `# [REQ_A_0002] B\n#\n# Id: ${ID_A}\n`,
+    ),
+  );
+});

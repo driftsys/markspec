@@ -417,7 +417,7 @@ Deno.test("parseAttributes: lines without Key: Value pattern are skipped", () =>
 // collateAttributes — ADR-002 §2.6 repeatable attribute handling
 // ---------------------------------------------------------------------------
 
-import { collateAttributes } from "./attributes.ts";
+import { collateAttributes, findIdLikeIndex } from "./attributes.ts";
 
 Deno.test("collateAttributes: single-valued attribute is kept as-is", () => {
   const collated = collateAttributes([
@@ -626,3 +626,50 @@ Deno.test("parseAttributeLine: lines that are not Key: lines are rejected", () =
   assertEquals(parseAttributeLine("key: x"), undefined);
   assertEquals(parseAttributeLine("plain prose"), undefined);
 });
+
+Deno.test("findIdLikeIndex: flags the first non-canonical Id line of the trailing run (#935)", () => {
+  assertEquals(findIdLikeIndex(["Text.", "", "id: a", "Id : b"]), 2);
+  assertEquals(findIdLikeIndex(["Text.", "", "ID: a"]), 2);
+});
+
+Deno.test("findIdLikeIndex: a canonical Id line is not flagged (#935)", () => {
+  assertEquals(findIdLikeIndex(["Text.", "", "Id: a"]), -1);
+});
+
+Deno.test("findIdLikeIndex: only the run at the end counts (#935)", () => {
+  assertEquals(
+    findIdLikeIndex(["ID: some prose", "", "Closing sentence."]),
+    -1,
+  );
+  assertEquals(findIdLikeIndex(["id: a", "Labels: x", "", "Closing."]), -1);
+});
+
+// The key `ID` is the Id key in every trailer layout (#935): the entry keeps
+// its identity as the attribute `ID`, and no line is left in the body.
+for (
+  const [layout, text] of [
+    [
+      "git-style after a blank line",
+      "- [STK_0001] T\n\n  Body.\n\n  ID: U1\n  Labels: a\n",
+    ],
+    [
+      "directly under prose (MSL-P020)",
+      "- [STK_0001] T\n\n  Body.\n  ID: U1\n  Labels: a\n",
+    ],
+    [
+      "unindented above an indented run",
+      "- [STK_0001] T\n\n  Body.\n\n  ID: U1\n      Labels: a\n",
+    ],
+  ] as const
+) {
+  Deno.test(`parse: 'ID:' ${layout} is a trailer attribute (#935)`, async () => {
+    const { entries, diagnostics } = await parseFile(text, { file: "a.md" });
+    assertEquals(entries.length, 1);
+    assertEquals(entries[0].rawAttributes.some((a) => a.key === "ID"), true);
+    assertEquals(entries[0].body.includes("ID:"), false);
+    assertEquals(
+      diagnostics.some((d) => d.code === "MSL-P020"),
+      layout.includes("MSL-P020"),
+    );
+  });
+}

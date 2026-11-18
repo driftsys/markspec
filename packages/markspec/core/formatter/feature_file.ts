@@ -12,6 +12,7 @@ import { ulid as defaultUlid } from "@std/ulid";
 import type { Entry } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
 import { featureHeaderRunEnd } from "../parser/feature_file.ts";
+import { findIdLikeIndex } from "../parser/attributes.ts";
 import {
   applyLineEnding,
   detectLineEnding,
@@ -20,6 +21,15 @@ import {
 
 /** Leading whitespace, `#`, and the spaces after it. */
 const COMMENT_PREFIX_RE = /^(\s*#[ \t]*)/;
+
+/** `true` when the header of `entry` holds an `Id:`-like line (MSL-I009). */
+function hasIdLikeHeaderLine(lines: readonly string[], entry: Entry): boolean {
+  const titleIdx = entry.location.line - 1;
+  if (!isComment(lines[titleIdx])) return false;
+  const run = lines.slice(titleIdx, featureHeaderRunEnd(lines, titleIdx))
+    .map((l) => l.replace(COMMENT_PREFIX_RE, ""));
+  return findIdLikeIndex(run) > 0;
+}
 
 /** Result of {@linkcode formatFeatureFile}. */
 export interface FeatureFormatResult {
@@ -53,10 +63,13 @@ export function formatFeatureFile(
 ): FeatureFormatResult {
   const ending = detectLineEnding(text);
   const lines = normalizeLineEndings(text).split("\n");
+  // An entry whose header holds an `Id:`-like line (`# id:`, `# Id :`,
+  // `# ID:`, MSL-I009) gets no stamp, and the line is not corrected.
   const missing = entries
     .filter((e) =>
       e.source.kind === "feature-file" && e.id === undefined &&
-      e.shape === "Authored"
+      e.shape === "Authored" &&
+      !hasIdLikeHeaderLine(lines, e)
     )
     .sort((a, b) => b.location.line - a.location.line);
   if (missing.length === 0) return { output: text, changed: false };

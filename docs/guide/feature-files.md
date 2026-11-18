@@ -214,9 +214,10 @@ What works in a `.feature` file:
   locator text. An ID in a step, a doc string or a table is not a reference and
   is not rewritten, and highlights and rename ignore it.
 - **Formatting.** Format document stamps a missing `# Id:` line, as
-  `markspec fmt` does, and changes nothing else. It returns no edits for a file
-  with no header, a file that does not parse, and a file whose headers all have
-  an Id. The Markdown formatter is not used.
+  `markspec fmt` does, and changes nothing else. It stamps none for a header
+  with an Id-like line (`# id:`, `# Id :`, `# ID:`, `MSL-I009`). It returns no
+  edits for a file with no header, a file that does not parse, and a file whose
+  headers all have an Id. The Markdown formatter is not used.
 - **Quick fixes.** The editor offers fixes for these codes. The attribute fixes
   edit only the trailer lines of the header that the diagnostic points at (the
   `MSL-P021` fix also deletes the `#`-only line above an all-empty trailer), and
@@ -262,7 +263,8 @@ What works in a `.feature` file:
     because removing the blank lines would join the comment to the header and
     void its trailer.
   - Parse errors (`MSL-B062`) and the other body diagnostics.
-  - A missing `# Id:` line. Format Document stamps it.
+  - A missing `# Id:` line. Format Document stamps it, unless the header holds
+    an Id-like line (`MSL-I009`).
 - A headed `Scenario` that holds only steps, with no header prose and no
   description, gets `MSL-Q401` (body is too short) from `markspec lint`. Two
   more gaps are open: nested lists in a Gherkin description are flattened into
@@ -353,6 +355,7 @@ The link from the test to the requirement keeps the locator:
 | `MSL-B069` | warning  | A `# [ID]` header stands above a `Background`, an `Examples` table or a step, or is not directly above a node.            |
 | `MSL-P030` | error    | An entry has no header prose, no node description and no content (no owned scenario, or a scenario with no step).         |
 | `MSL-F010` | error    | A `.feature` header has no `# Id:` line (project-wide `check` only).                                                      |
+| `MSL-I009` | error    | A header line reads as `Id:` but is spelled `# id:`, `# Id :` or `# ID:`. `fmt` stamps no Id; correct the key by hand.    |
 
 A header above a `Background`, a header separated from its node by a blank line,
 and a file that does not parse give these messages (the `<root>/` prefix is

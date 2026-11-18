@@ -654,3 +654,25 @@ Deno.test("repeatableAttributeValues: splits by the attribute's value type", () 
   assertEquals(repeatableAttributeValues("Type", "x"), undefined);
   assertEquals(repeatableAttributeValues("Unknown-key", "x"), undefined);
 });
+
+Deno.test("validate: an Id-like trailer line is MSL-I009 and names the line (#935)", async () => {
+  const { parseFile } = await import("../parser/mod.ts");
+  for (
+    const spelling of [
+      "id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "Id : 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    ]
+  ) {
+    const text =
+      `- [STK_0001] Title\n\n  The system shall act.\n\n      ${spelling}\n      Labels: a\n`;
+    const { entries } = await parseFile(text, { file: "a.md" });
+    const found = validate(entries).diagnostics.filter((d) =>
+      d.code === "MSL-I009"
+    );
+    assertEquals(found.length, 1, spelling);
+    assertEquals(found[0].location?.line, 5, spelling);
+    // The entry has no column for the line, so it is reported at line start.
+    assertEquals(found[0].location?.column, 1, spelling);
+    assertEquals(found[0].message.includes(spelling.slice(0, 3)), true);
+  }
+});

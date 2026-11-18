@@ -28,6 +28,7 @@ import {
 } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
+import { findIdLikeLine } from "../parser/attributes.ts";
 import { fencedCodeLines } from "../util/fence.ts";
 import { splitTraceValues } from "../refs/split.ts";
 import {
@@ -245,7 +246,7 @@ function emitBodyViaAst(
     entries = parseMarkdown(lines.join("\n"), { file }).entries;
   }
   // An entry with a nested entry-shaped item (MSL-P024) is left as it is.
-  entries = entries.filter((entry) => entry.nestedEntryLines === undefined);
+  entries = entries.filter(formattable);
   if (entries.length === 0) return false;
 
   let bodyChanged = false;
@@ -682,7 +683,10 @@ export function format(
  * apply.
  */
 function formattable(entry: Entry): boolean {
-  return entry.nestedEntryLines === undefined;
+  // An `Id:`-like line (`id:`, `Id :`, MSL-I009) is the author's
+  // identity written wrongly: stamping a second `Id:` would hide it.
+  return entry.nestedEntryLines === undefined &&
+    findIdLikeLine(entry) === undefined;
 }
 
 /** Run the entry and prose passes after tab-marker admission. */
@@ -864,7 +868,9 @@ function formatEntries(
       )
     ) continue;
 
-    const hasIdentity = attrs.some((a) => a.key === IDENTITY_KEY);
+    // `ID:` is the same key in another case: the key pass below
+    // canonicalises it, so no second `Id:` is stamped.
+    const hasIdentity = attrs.some((a) => a.key.toLowerCase() === "id");
     if (!hasIdentity && entry.shape === "Authored") {
       const origin = attrs.find((a) => a.key === "Origin")?.value.trim();
       const source = attrs.find((a) => a.key === "Source")?.value.trim();

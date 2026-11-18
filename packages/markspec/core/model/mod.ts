@@ -646,6 +646,13 @@ export interface Entry {
    */
   readonly endLine?: number;
   /**
+   * 1-based file line of an `Id:`-like header line of a `.feature` entry
+   * (`# id:`, `# Id :`, `# ID:`; MSL-I009), or absent. The header parser sets it,
+   * because such a line joins the title or the body and is not an attribute.
+   * Markdown and source entries do not set it: the validator reads their body.
+   */
+  readonly idLikeLine?: number;
+  /**
    * 1-based first and last file line of the lines that this entry's
    * trailer search skips because of nested entry-shaped list items
    * (MSL-P024), merged and sorted, or absent when there is none. The ranges

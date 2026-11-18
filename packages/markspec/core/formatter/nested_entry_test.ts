@@ -98,3 +98,31 @@ Deno.test("findAttributeBlockRange: a nested item that splits the trailer gives 
     undefined,
   );
 });
+
+const ID_LIKE_SPELLINGS = [
+  "id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  "Id : 01HGW2Q8MNP3RSTVWXYZABCDEF",
+];
+
+for (const spelling of ID_LIKE_SPELLINGS) {
+  Deno.test(`format: an entry with the Id-like line '${spelling.slice(0, 5)}' gets no second Id (#935)`, () => {
+    const text =
+      `- [STK_0001] Title\n\n  The system shall act.\n\n      ${spelling}\n      Labels: a\n`;
+    const result = format(text, { file: "a.md" });
+    assertEquals(result.output, text);
+    assertEquals(result.diagnostics.some((d) => d.code === "MSL-F001"), false);
+    assertEquals(format(result.output, { file: "a.md" }).output, text);
+  });
+}
+
+Deno.test("format: an `ID:` line is canonicalised to `Id:` and gets no second Id (#935)", () => {
+  const text =
+    "- [STK_0001] Title\n\n  The system shall act.\n\n      ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\n      Labels: a\n";
+  const result = format(text, { file: "a.md" });
+  assertEquals(
+    result.output,
+    text.replace("ID: ", "Id: "),
+  );
+  assertEquals(result.diagnostics.some((d) => d.code === "MSL-F001"), false);
+  assertEquals(format(result.output, { file: "a.md" }).output, result.output);
+});

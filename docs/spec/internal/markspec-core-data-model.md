@@ -380,11 +380,15 @@ AttributeNode {
 
 #### 2.3.1 Key casing
 
-Attribute keys are **case-insensitive on input** and **TitleCase-Hyphenated on
-output** (ADR-002 §Part 1 examples are uniformly TitleCase-Hyphenated): `Id`,
-`Type`, `Derived-from`, `Reference-url`, `Bus-protocol`. The formatter rewrites
-to canonical form (§3.3.4). Mismatched casing on input is silently normalized;
-it is not an error.
+An attribute key starts with an uppercase letter (`[A-Z][A-Za-z-]*`), and the
+rest of the key may use any case. Keys are **TitleCase-Hyphenated on output**
+(ADR-002 §Part 1 examples are uniformly TitleCase-Hyphenated): `Id`, `Type`,
+`Derived-from`, `Reference-url`, `Bus-protocol`. In a Markdown file, the
+formatter rewrites a key such as `ID` or `LABELS` to canonical form (§3.3.4);
+that is not an error. It rewrites no key in a source file or a `.feature`
+header. A line whose key starts with a lowercase letter (`id:`) or has a space
+before the colon (`Id :`) is not an attribute line. For an `Id` spelled that
+way, `check` reports `MSL-I009`.
 
 #### 2.3.2 Repeatable attributes
 
@@ -887,16 +891,17 @@ invariants).
 
 ### 4.2 Identity & shape (I)
 
-| Code       | Severity | Meaning                                                                                                                                                                                                                                |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-I001` | error    | `Id:` value is neither a ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) nor an RFC 3986 URI.                                                                                                                                                        |
-| `MSL-I002` | error    | Reference-shape entry without `Id:`. `fmt` cannot mint URIs (ADR-002 §Identity).                                                                                                                                                       |
-| `MSL-I003` | error    | Authored-shape entry without `Id:`. The message says to run `fmt`, which mints one, except for an entry that holds a nested entry (`MSL-P024`): `fmt` leaves that entry unchanged, so the message says to move the nested entry first. |
-| `MSL-I004` | error    | Multiple `Id:` trailers on the same entry.                                                                                                                                                                                             |
-| `MSL-I005` | error    | Display ID is empty.                                                                                                                                                                                                                   |
-| `MSL-I006` | error    | Reference-shape display ID does not match the slug pattern in §1.7.                                                                                                                                                                    |
-| `MSL-I007` | error    | Duplicate `Id:` value across the project (same ULID or same URI on two entries).                                                                                                                                                       |
-| `MSL-I008` | warning  | Duplicate display ID within the same shape. Cross-references resolve by `Id:` (ADR-002), so this is style-only — distinct entries should still have distinct human-readable aliases.                                                   |
+| Code       | Severity | Meaning                                                                                                                                                                                                                                                                                                                                                           |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-I001` | error    | `Id:` value is neither a ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) nor an RFC 3986 URI.                                                                                                                                                                                                                                                                                   |
+| `MSL-I002` | error    | Reference-shape entry without `Id:`. `fmt` cannot mint URIs (ADR-002 §Identity).                                                                                                                                                                                                                                                                                  |
+| `MSL-I003` | error    | Authored-shape entry without `Id:`. The message says to run `fmt`, which mints one, except for an entry that holds a nested entry (`MSL-P024`): `fmt` leaves that entry unchanged, so the message says to move the nested entry first. For an entry with an Id-like line (`MSL-I009`), `fmt` also leaves it unchanged, so the message says to correct that line.  |
+| `MSL-I004` | error    | Multiple `Id:` trailers on the same entry.                                                                                                                                                                                                                                                                                                                        |
+| `MSL-I005` | error    | Display ID is empty.                                                                                                                                                                                                                                                                                                                                              |
+| `MSL-I006` | error    | Reference-shape display ID does not match the slug pattern in §1.7.                                                                                                                                                                                                                                                                                               |
+| `MSL-I007` | error    | Duplicate `Id:` value across the project (same ULID or same URI on two entries).                                                                                                                                                                                                                                                                                  |
+| `MSL-I008` | warning  | Duplicate display ID within the same shape. Cross-references resolve by `Id:` (ADR-002), so this is style-only — distinct entries should still have distinct human-readable aliases.                                                                                                                                                                              |
+| `MSL-I009` | error    | A trailer line reads as `Id:` but is not spelled so (`id:`, `Id :`) in a Markdown or source entry, or in a `.feature` header, where `# ID:` also counts (`fmt` does not canonicalise it there, and it also parses as the attribute `ID`). The line is not an identity. `fmt` leaves the entry unchanged and stamps no `Id:`; the author corrects the key by hand. |
 
 ### 4.3 Type (T)
 
