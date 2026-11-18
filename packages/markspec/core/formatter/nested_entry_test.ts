@@ -66,11 +66,8 @@ Deno.test("findAttributeBlockRange: a marker-only wrapper with two nested entrie
 `;
   const lines = text.split("\n");
   const [entry] = parseMarkdown(text, { file: "n.md" }).entries;
-  assertEquals(entry.nestedEntryLines, [
-    { start: 5, end: 8 },
-    { start: 10, end: 14 },
-  ]);
-  // Without both ranges, B's trailer would be read as the parent's.
+  assertEquals(entry.nestedEntryLines, [{ start: 5, end: 14 }]);
+  // Without the range, B's trailer would be read as the parent's.
   assertEquals(
     findAttributeBlockRange(
       lines,

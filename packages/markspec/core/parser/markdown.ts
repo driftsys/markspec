@@ -387,10 +387,24 @@ function extractEntry(
       true,
     );
   }
+  // A list that holds a nested entry is transparent to the trailer search:
+  // its remaining text stays in the body, but it does not end the content,
+  // so a trailer above it stays the entry's own.
+  const transparent = item.children.filter((child) =>
+    child.type === "list" && child.position !== undefined &&
+    nested.some((range) =>
+      range.line >= child.position!.start.line &&
+      range.line <= child.position!.end.line
+    )
+  ).map((child) => ({
+    start: child.position!.start.line,
+    end: child.position!.end.line,
+  }));
   const { text: bodyContent, fileLines: contentFileLines } = extractBodyContent(
     item,
     markdownLines,
     nested,
+    transparent,
   );
   const [rawBody, attrLines] = splitBodyAndAttributes(bodyContent);
   const body = rawBody.trimStart();
@@ -834,7 +848,10 @@ function extractEntry(
     ...(endLine !== undefined ? { endLine } : {}),
     ...(nested.length > 0
       ? {
-        nestedEntryLines: nested.map(({ start, end }) => ({ start, end })),
+        nestedEntryLines: mergeRanges([
+          ...nested.map(({ start, end }) => ({ start, end })),
+          ...transparent,
+        ]),
       }
       : {}),
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
@@ -857,6 +874,23 @@ function itemContentIndent(item: ListItem): number {
   const title = item.children[0]?.position?.start.column;
   if (title !== undefined) return title - 1;
   return (item.position?.start.column ?? 1) - 1 + 2;
+}
+
+/** Sort line ranges and merge those that overlap or touch. */
+function mergeRanges(
+  ranges: readonly { start: number; end: number }[],
+): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = [];
+  for (const r of [...ranges].sort((a, b) => a.start - b.start)) {
+    const last = out.at(-1);
+    if (last && r.start <= last.end + 1) {
+      out[out.length - 1] = {
+        start: last.start,
+        end: Math.max(last.end, r.end),
+      };
+    } else out.push({ ...r });
+  }
+  return out;
 }
 
 /** The lines of one nested entry-shaped list item (1-based, inclusive). */
@@ -1013,6 +1047,7 @@ function extractBodyContent(
   item: ListItem,
   lines: string[],
   nested: readonly NestedEntryRange[] = [],
+  transparent: readonly { start: number; end: number }[] = [],
 ): { text: string; fileLines: number[] } {
   const children = item.children.slice(1); // Skip title paragraph
   if (!children.length) return { text: "", fileLines: [] };
@@ -1036,6 +1071,42 @@ function extractBodyContent(
     const line = lines[n - 1];
     stripped.push(line.startsWith(indentStr) ? line.slice(indent) : line);
     fileLines.push(n);
+  }
+
+  // Trailer detection skips the transparent lists. A trailer found above
+  // them is moved below their text, so that the trailer is the last block
+  // and the text stays in the body.
+  if (transparent.length > 0) {
+    const isTransparent = (n: number) =>
+      transparent.some((r) => n >= r.start && n <= r.end);
+    const kept = stripped.map((_, i) => i).filter((i) =>
+      !isTransparent(fileLines[i])
+    );
+    const at = findTrailerStart(kept.map((i) => stripped[i]));
+    if (at < kept.length) {
+      const trailerIdx = kept.slice(at);
+      const first = trailerIdx[0];
+      const inTrailer = new Set(trailerIdx);
+      const order = [
+        ...stripped.map((_, i) => i).filter((i) =>
+          i < first && !inTrailer.has(i)
+        ),
+        ...stripped.map((_, i) => i).filter((i) =>
+          i > first && !inTrailer.has(i)
+        ),
+      ];
+      const text = [
+        ...order.map((i) => stripped[i]),
+        "",
+        ...trailerIdx.map((i) => stripped[i]),
+      ];
+      const files = [
+        ...order.map((i) => fileLines[i]),
+        fileLines[first] - 1,
+        ...trailerIdx.map((i) => fileLines[i]),
+      ];
+      return { text: text.join("\n").trimEnd(), fileLines: files };
+    }
   }
 
   // Keep the first line's own indent: it marks an indented trailer in a

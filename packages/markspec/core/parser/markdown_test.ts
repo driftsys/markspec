@@ -1440,10 +1440,8 @@ Deno.test("parseMarkdown: every nested entry is excluded, one MSL-P024 each (#92
   assertEquals(entries.length, 1);
   assertEquals(entries[0].id, undefined);
   assertEquals(entries[0].rawAttributes, []);
-  assertEquals(entries[0].nestedEntryLines, [
-    { start: 5, end: 9 },
-    { start: 11, end: 15 },
-  ]);
+  // The ranges merge with the list that holds both items.
+  assertEquals(entries[0].nestedEntryLines, [{ start: 5, end: 15 }]);
   assertEquals(
     diagnostics.filter((d) => d.code === "MSL-P024").map((d) =>
       d.location?.line
@@ -1579,10 +1577,7 @@ Deno.test("parseMarkdown: a marker-only wrapper holding two nested entries gives
       B body.
 `;
   const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
-  assertEquals(entries[0].nestedEntryLines, [
-    { start: 5, end: 8 },
-    { start: 10, end: 12 },
-  ]);
+  assertEquals(entries[0].nestedEntryLines, [{ start: 5, end: 12 }]);
   assertEquals(
     diagnostics.filter((d) => d.code === "MSL-P024").map((d) =>
       d.location?.line
@@ -1678,7 +1673,7 @@ Deno.test("parseMarkdown: plain items next to a nested entry stay in the body (#
     - plain after
 `;
   const { entries } = parseMarkdown(text, { file: "n.md" });
-  assertEquals(entries[0].nestedEntryLines, [{ start: 8, end: 10 }]);
+  assertEquals(entries[0].nestedEntryLines, [{ start: 5, end: 12 }]);
   assertStringIncludes(entries[0].body, "plain before");
   assertStringIncludes(entries[0].body, "plain after");
 });
@@ -1710,7 +1705,7 @@ Deno.test("parseMarkdown: a wrapper with a paragraph keeps its marker and text (
       A body.
 `;
   const { entries } = parseMarkdown(text, { file: "n.md" });
-  assertEquals(entries[0].nestedEntryLines, [{ start: 8, end: 10 }]);
+  assertEquals(entries[0].nestedEntryLines, [{ start: 5, end: 10 }]);
   assertStringIncludes(entries[0].body, "wrapper text");
 });
 

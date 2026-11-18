@@ -78,14 +78,36 @@ const CASES: Case[] = [
     absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
   },
   {
-    // The wrapping `- note` item keeps its text in the parent body, so the
-    // trailer above it is not the last content of the parent (MSL-P020).
-    name: "parent trailer above a wrapper item with text",
+    name: "parent trailer above a wrapper item with text (r.md)",
     text:
       `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n`,
-    parentId: undefined,
+    parentId: PARENT_ID,
     nestedLines: [9],
-    present: ["MSL-P020"],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "same with a paragraph at the child's trailer indent (m.md)",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n\n      Satisfies: REQ-009\n`,
+    parentId: PARENT_ID,
+    nestedLines: [9],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "plain items before and after the nested entry (t.md)",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - plain before\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n\n    - plain after\n`,
+    parentId: PARENT_ID,
+    nestedLines: [10],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "wrapper with two nested entries (u.md)",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] A\n\n      A body.\n\n          Id: ${CHILD_ID}\n\n    - [REQ-004] B\n\n      B body.\n\n          Id: ${OTHER_CHILD_ID}\n`,
+    parentId: PARENT_ID,
+    nestedLines: [9, 15],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
   },
   {
     name: "parent trailer below a child without a trailer",
@@ -101,14 +123,6 @@ const CASES: Case[] = [
     parentId: PARENT_ID,
     nestedLines: [7],
     absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
-  },
-  {
-    name: "wrapper item with prose next to a nested entry",
-    text:
-      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n\n    More note text.\n`,
-    parentId: undefined,
-    nestedLines: [9],
-    present: ["MSL-P020"],
   },
   {
     name: "parent without an Id, child canonical trailer",

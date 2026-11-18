@@ -404,16 +404,18 @@ it reads the body and the trailer, so the item's text, including its `Id:`, is
 not part of the entry, and the entry keeps its own trailer and `Id:` when that
 trailer is the last content of the entry, ignoring the removed lines. A plain
 list item that holds the nested item keeps its other content as body of the
-entry, and that content after the entry's trailer is content after the trailer
-(`MSL-P020`). The marker line of a wrapping item is removed with its nested
-items only when the item holds nothing else: a bare marker line and lists whose
-items are all nested entries. Plain items next to a nested entry stay in the
-body. A `Key: Value` paragraph at the end of the nested item, at the entry's
-trailer indent (content indent plus 4), is the entry's trailer, but only when
-the entry has no trailer above its first nested item and the nested item's own
-content indent differs from that indent. When they are equal, which is the case
-for a nested entry inside a plain list item, the placement is ambiguous and the
-paragraph belongs to the nested item.
+entry. A list that holds a nested entry is transparent to the trailer search:
+the entry's trailer above it stays the entry's own, although that list text
+follows it. (For a list without a nested entry the usual rule applies: content
+after the trailer is `MSL-P020`.) The marker line of a wrapping item is removed
+with its nested items only when the item holds nothing else: a bare marker line
+and lists whose items are all nested entries. Plain items next to a nested entry
+stay in the body. A `Key: Value` paragraph at the end of the nested item, at the
+entry's trailer indent (content indent plus 4), is the entry's trailer, but only
+when the entry has no trailer above its first nested item and the nested item's
+own content indent differs from that indent. When they are equal, which is the
+case for a nested entry inside a plain list item, the placement is ambiguous and
+the paragraph belongs to the nested item.
 
 `check` reports `MSL-P024` (warning) once for each outermost nested item, at the
 item, in Markdown files only: a source doc comment gets no parse diagnostic (see

@@ -646,15 +646,16 @@ export interface Entry {
    */
   readonly endLine?: number;
   /**
-   * 1-based first and last file line of the lines removed from this entry
-   * for each outermost entry-shaped list item nested in it (MSL-P024), or
-   * absent when there is none. A nested entry is not supported: its lines
-   * are not part of this entry, so its body and trailer detection skip them,
-   * and `markspec fmt` leaves the entry unchanged (except for tab-marker
-   * normalization and ADR-026 trace-value canonicalization). The marker line
-   * of a plain list item that holds the nested items goes with the first
-   * range only when the item holds nothing but those items. The formatter reads the ranges so that it finds the same
-   * trailer as the parser.
+   * 1-based first and last file line of the lines that this entry's
+   * trailer search skips because of nested entry-shaped list items
+   * (MSL-P024), merged and sorted, or absent when there is none. The ranges
+   * cover each nested item and each list of this entry that holds one. The
+   * nested items' lines are not part of the entry. The other text of such a
+   * list stays in the body, but it does not end the entry's content, so a
+   * trailer above it stays the entry's own. `markspec fmt` leaves the entry
+   * unchanged (except for tab-marker normalization and ADR-026 trace-value
+   * canonicalization). The formatter reads the ranges so that it finds the
+   * same trailer as the parser.
    */
   readonly nestedEntryLines?: readonly {
     readonly start: number;
