@@ -242,8 +242,10 @@ function emitBodyViaAst(
   } else {
     // Diagnostics from this re-parse are intentionally discarded: the
     // input is already canonical (post-collapse) output.
-    ({ entries } = parseMarkdown(lines.join("\n"), { file }));
+    entries = parseMarkdown(lines.join("\n"), { file }).entries;
   }
+  // An entry with a nested entry-shaped item (MSL-P024) is left as it is.
+  entries = entries.filter((entry) => entry.nestedEntryLines === undefined);
   if (entries.length === 0) return false;
 
   let bodyChanged = false;
@@ -672,6 +674,17 @@ export function format(
   };
 }
 
+/**
+ * `false` for an entry that holds a nested entry-shaped item (MSL-P024): no
+ * entry-level formatter pass changes such an entry, because its lines would
+ * then move or lose the nested item's text. Tab-marker normalization of its
+ * own list marker and the ADR-026 trace-value canonicalization of `fmt` still
+ * apply.
+ */
+function formattable(entry: Entry): boolean {
+  return entry.nestedEntryLines === undefined;
+}
+
 /** Run the entry and prose passes after tab-marker admission. */
 function formatEntries(
   markdown: string,
@@ -702,11 +715,13 @@ function formatEntries(
   // pass; left in place they demote the whole trailer block to body code.
   const repaired = removeEmptyTrailerLines(
     rawBody,
-    parseMarkdown(rawBody, { file }).entries,
+    parseMarkdown(rawBody, { file }).entries.filter(formattable),
     diagnostics,
   );
   const body = repaired ?? rawBody;
-  const { entries } = parseMarkdown(body, { file });
+  const { entries: allEntries } = parseMarkdown(body, { file });
+  const entries = allEntries.filter(formattable);
+  const hasNestedEntries = allEntries.length !== entries.length;
 
   // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
   // file extension HERE so the invariant has one home — a caller that wires
@@ -717,7 +732,9 @@ function formatEntries(
   // CLI/LSP call-site guards remain as defense-in-depth.
   const isMarkdownFile = MARKDOWN_EXTENSIONS.has(extname(file).toLowerCase());
   const proseFormat = isMarkdownFile ? options?.formatMarkdownProse : undefined;
-  if (entries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined) {
+  if (
+    allEntries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined
+  ) {
     // No entries and no front matter — nothing to format. Returning the
     // original `markdown` preserves the source's exact byte sequence,
     // including its line-ending convention.
@@ -942,7 +959,17 @@ function formatEntries(
   // stay aligned with parser-reported positions. Operates inside
   // fenced code regions only outside-code; verbatim regions keep
   // their blank-line counts.
-  const collapsedLines = collapseBlankLines(lines);
+  const collapsedLines = collapseBlankLines(
+    lines,
+    hasNestedEntries
+      ? parseMarkdown(lines.join("\n"), { file }).entries
+        .filter((entry) => !formattable(entry))
+        .map((entry) => ({
+          start: entry.location.line - 1,
+          end: entry.endLine ?? entry.location.line,
+        }))
+      : [],
+  );
   if (collapsedLines.length !== lines.length) changed = true;
 
   // SP3 §5.2-via-AST cutover: route each entry's body through the
@@ -977,7 +1004,7 @@ function formatEntries(
   if (proseFormat !== undefined) {
     const proseEntries = changed
       ? parseMarkdown(collapsedLines.join("\n"), { file }).entries
-      : entries;
+      : allEntries;
     const extents = proseEntries.map((e) => {
       const start = e.location.line - 1;
       const entryIndent = contentColumn(
@@ -1075,7 +1102,10 @@ function renderFrontMatter(attrs: DocumentAttributes): string {
  * regions are preserved verbatim — blank-line counts inside fenced
  * blocks are author intent, not noise.
  */
-function collapseBlankLines(lines: readonly string[]): string[] {
+function collapseBlankLines(
+  lines: readonly string[],
+  keptRanges: readonly EntryExtent[] = [],
+): string[] {
   const out: string[] = [];
   const fencedLines = fencedCodeLines(lines.join("\n"));
   const protectedRanges = protectedTabRanges(lines, true);
@@ -1083,7 +1113,8 @@ function collapseBlankLines(lines: readonly string[]): string[] {
   for (const [i, line] of lines.entries()) {
     if (
       fencedLines.has(i) ||
-      protectedRanges.some((range) => i >= range.start && i < range.end)
+      protectedRanges.some((range) => i >= range.start && i < range.end) ||
+      keptRanges.some((range) => i >= range.start && i < range.end)
     ) {
       out.push(line);
       prevBlank = false;
@@ -1348,9 +1379,14 @@ function removeEmptyTrailerLines(
  *   the item end scan starts no earlier than this line index, so a lazy
  *   continuation line does not end the item early (see `findItemEnd`).
  * @param preservedRanges - Ranges inside the entry that are kept verbatim
- *   (nested entries); the trailer is searched below the last one.
+ *   (children whose tab marker was refused); the trailer is searched below
+ *   the last one.
+ * @param nestedEntryLines - The parser's `Entry.nestedEntryLines`: 1-based
+ *   line ranges of nested entry-shaped items (MSL-P024). Their lines are not
+ *   part of the entry, so the search skips them, as the parser does.
  * @returns The 0-based, half-open line range `[start, end)` of the trailer
- *   over `lines`, or `undefined` when the entry has no trailer.
+ *   over `lines`, or `undefined` when the entry has no trailer, or when a
+ *   nested item splits the trailer lines.
  */
 export function findAttributeBlockRange(
   lines: readonly string[],
@@ -1358,6 +1394,10 @@ export function findAttributeBlockRange(
   indent: number,
   itemEndFloor = 0,
   preservedRanges: readonly EntryExtent[] = [],
+  nestedEntryLines?: readonly {
+    readonly start: number;
+    readonly end: number;
+  }[],
 ): { start: number; end: number } | undefined {
   const startIdx = entryStartLine - 1;
   const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
@@ -1380,14 +1420,29 @@ export function findAttributeBlockRange(
     }
   }
   const indentStr = " ".repeat(indent);
-  const content = lines.slice(floor, scanEnd).map((l) =>
-    l.startsWith(indentStr) ? l.slice(indent) : l
-  );
-  const attrStart = floor + findTrailerStart(content);
-
-  if (attrStart >= scanEnd) return undefined;
-
-  return { start: attrStart, end: scanEnd };
+  const lineAt = (i: number) =>
+    lines[i].startsWith(indentStr) ? lines[i].slice(indent) : lines[i];
+  // The lines of a nested entry-shaped item are not part of this entry
+  // (MSL-P024), as in the parser: its trailer is never this entry's.
+  const kept: number[] = [];
+  for (let i = floor; i < scanEnd; i++) {
+    if (nestedEntryLines?.some((r) => i >= r.start - 1 && i <= r.end - 1)) {
+      continue;
+    }
+    kept.push(i);
+  }
+  const content = kept.map(lineAt);
+  let contentEnd = content.length;
+  while (contentEnd > 0 && content[contentEnd - 1].trim() === "") {
+    contentEnd--;
+  }
+  const trailerAt = findTrailerStart(content);
+  if (trailerAt >= contentEnd) return undefined;
+  const start = kept[trailerAt];
+  const end = kept[contentEnd - 1] + 1;
+  // A trailer that a nested item splits cannot be rewritten in place.
+  if (end - start !== contentEnd - trailerAt) return undefined;
+  return { start, end };
 }
 
 /**

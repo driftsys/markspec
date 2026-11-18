@@ -237,6 +237,7 @@ function extractEntry(
   diagnostics: Diagnostic[],
   _hasLineMap = false,
   allowTitleOnly = false,
+  skipNestedScan = false,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -361,13 +362,67 @@ function extractEntry(
   }
 
   // Extract body content and attributes.
-  const bodyContent = extractBodyContent(item, markdownLines);
+  // A nested entry-shaped item is not an entry (MSL-P024). Its lines are
+  // outside this entry, so its trailer is never read as this entry's.
+  // `skipNestedScan` is set only by `findNestedEntryItems` when it probes
+  // whether an item is entry-shaped. The probe must not scan again, because
+  // each level would then probe all deeper levels (exponential in depth).
+  let nested = skipNestedScan ? [] : findNestedEntryItems(
+    item,
+    markdownLines,
+    file,
+    definitions,
+    isReferencesDoc,
+  );
+  // A parent trailer written below a nested item counts only when the
+  // parent has no trailer of its own above the first nested item.
+  if (nested.length > 0 && !hasTrailerAbove(item, markdownLines, nested[0])) {
+    nested = findNestedEntryItems(
+      item,
+      markdownLines,
+      file,
+      definitions,
+      isReferencesDoc,
+      itemContentIndent(item),
+      true,
+    );
+  }
+  // A list that holds a nested entry is transparent to the trailer search:
+  // its remaining text stays in the body, but it does not end the content,
+  // so a trailer above it stays the entry's own.
+  const transparent = item.children.filter((child) =>
+    child.type === "list" && child.position !== undefined &&
+    nested.some((range) =>
+      range.line >= child.position!.start.line &&
+      range.line <= child.position!.end.line
+    )
+  ).map((child) => ({
+    start: child.position!.start.line,
+    end: child.position!.end.line,
+  }));
+  const { text: bodyContent, fileLines: contentFileLines } = extractBodyContent(
+    item,
+    markdownLines,
+    nested,
+    transparent,
+  );
   const [rawBody, attrLines] = splitBodyAndAttributes(bodyContent);
   const body = rawBody.trimStart();
   const attributes = parseAttributes(attrLines);
   const { blocks: bodyAst, tree: mdastTree } = buildBodyAstWithTree(body);
 
   const entryLine = item.position?.start.line ?? 1;
+
+  for (const range of nested) {
+    diagnostics.push({
+      code: "MSL-P024",
+      severity: "warning",
+      message: `${displayId}: a nested entry is not supported; the list ` +
+        `item at line ${range.line} is not an entry and its text is not ` +
+        `part of this entry, move it to the top level (spec section 4.1)`,
+      location: { file, line: range.line, column: range.column },
+    });
+  }
 
   // MSL-P020: a body line that would carry identity or a trace link.
   // Only `Id:` and the core trace relation keys count. Other recognized
@@ -465,7 +520,8 @@ function extractEntry(
   const contentStartLine = item.children[1]?.position?.start.line ??
     entryLine + 1;
   const trailerLineLocation = (contentIndex: number) => {
-    const line = contentStartLine + contentIndex;
+    const line = contentFileLines[contentIndex] ??
+      contentStartLine + contentIndex;
     const firstNonBlank = (markdownLines[line - 1] ?? "").search(/\S/);
     return { file, line, column: firstNonBlank >= 0 ? firstNonBlank + 1 : 1 };
   };
@@ -743,12 +799,38 @@ function extractEntry(
     bodyIndent,
     mdastTree,
   );
+  // The body skips the lines of nested entries, so a line counted from the
+  // body start is an index into `contentFileLines`, after the blank lines
+  // that `trimStart` removed from the front of the body.
+  const trimmedLines = rawBody.slice(0, rawBody.length - body.length)
+    .split("\n").length - 1;
+  const toFileLine = (line: number): number =>
+    nested.length === 0 ? line : contentFileLines[
+      line - bodyStartLine + trimmedLines
+    ] ?? line;
+  const fileBodyTokens: typeof bodyTokens = nested.length === 0
+    ? bodyTokens
+    : bodyTokens.map((token) => ({
+      ...token,
+      location: { ...token.location, line: toFileLine(token.location.line) },
+    })) as typeof bodyTokens;
 
   // Extract + resolve typl declarations from all three surfaces (#723):
   // published names resolve to absolute dotted form at parse time, so
   // Entry.types carries absolute names only. See typl/assemble.ts.
   const typl = assembleTyplTypes(bodyAst, bodyTokens, file, bodyStartLine);
-  diagnostics.push(...typl.diagnostics);
+  diagnostics.push(
+    ...(nested.length === 0
+      ? typl.diagnostics
+      : typl.diagnostics.map((d) =>
+        d.location
+          ? {
+            ...d,
+            location: { ...d.location, line: toFileLine(d.location.line) },
+          }
+          : d
+      )),
+  );
   const types = typl.types;
 
   return {
@@ -764,10 +846,18 @@ function extractEntry(
     location: entryLocation,
     bodyStartLine,
     ...(endLine !== undefined ? { endLine } : {}),
+    ...(nested.length > 0
+      ? {
+        nestedEntryLines: mergeRanges([
+          ...nested.map(({ start, end }) => ({ start, end })),
+          ...transparent,
+        ]),
+      }
+      : {}),
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
-    bodyTokens,
+    bodyTokens: fileBodyTokens,
     ...(types ? { types } : {}),
   };
 }
@@ -786,6 +876,166 @@ function itemContentIndent(item: ListItem): number {
   return (item.position?.start.column ?? 1) - 1 + 2;
 }
 
+/** Sort line ranges and merge those that overlap or touch. */
+function mergeRanges(
+  ranges: readonly { start: number; end: number }[],
+): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = [];
+  for (const r of [...ranges].sort((a, b) => a.start - b.start)) {
+    const last = out.at(-1);
+    if (last && r.start <= last.end + 1) {
+      out[out.length - 1] = {
+        start: last.start,
+        end: Math.max(last.end, r.end),
+      };
+    } else out.push({ ...r });
+  }
+  return out;
+}
+
+/** The lines of one nested entry-shaped list item (1-based, inclusive). */
+interface NestedEntryRange {
+  readonly start: number;
+  readonly end: number;
+  /** 1-based column of the nested entry's list marker. */
+  readonly column: number;
+  /** 1-based line of the nested entry's title, where MSL-P024 is reported.
+   * Differs from `start` when a plain list item wraps the nested entry. */
+  readonly line: number;
+}
+
+/** `true` when every non-blank line of `text` is a `Key: Value` line. */
+function isKeyValueText(text: string): boolean {
+  const rows = text.split("\n").map((l) => l.trim()).filter((l) => l !== "");
+  return rows.length > 0 && rows.every((l) => ATTR_LINE_RE.test(l));
+}
+
+/**
+ * `true` when the content of `item` above its first nested entry holds a
+ * trailer of the entry's own.
+ */
+function hasTrailerAbove(
+  item: ListItem,
+  lines: string[],
+  firstNested: NestedEntryRange,
+): boolean {
+  const startLine = item.children[1]?.position?.start.line;
+  if (startLine === undefined || startLine >= firstNested.start) return false;
+  const indent = itemContentIndent(item);
+  const indentStr = " ".repeat(indent);
+  const above = lines.slice(startLine - 1, firstNested.start - 1).map((l) =>
+    l.startsWith(indentStr) ? l.slice(indent) : l
+  );
+  while (above.length > 0 && above.at(-1)!.trim() === "") above.pop();
+  return findTrailerStart(above) < above.length;
+}
+
+/** Marker-only text of a list item's first line: `-`, `*`, `+`, `1.`, `1)`. */
+const MARKER_ONLY_RE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*$/;
+
+/**
+ * Every outermost list item nested in `item`, at any depth, that is itself
+ * entry-shaped: bullet or ordered, with a display ID title that
+ * {@linkcode extractEntry} accepts (body content or a trailer, so a title-only
+ * item is not entry-shaped). An item inside such an item is part of it.
+ *
+ * The range of an entry-shaped item is its own list item, from the mdast
+ * position. With `parentTrailerBelow`, one exception applies: a paragraph of
+ * `Key: Value` lines at the end of the item, written at the enclosing entry's
+ * canonical trailer indent (its content indent plus 4) and not at the item's
+ * own content indent, is that entry's trailer, and the range stops above it.
+ *
+ * A plain list item that holds the nested entry is kept, with its other
+ * content, as body of `item`. It is removed too only when nothing but its
+ * marker would be left, because that marker would otherwise end the content
+ * and cut the entry's trailer off.
+ */
+function findNestedEntryItems(
+  item: ListItem,
+  lines: string[],
+  file: string,
+  definitions: Set<string>,
+  isReferencesDoc: boolean,
+  entryIndent = itemContentIndent(item),
+  parentTrailerBelow = false,
+  wrap = true,
+): NestedEntryRange[] {
+  const found: NestedEntryRange[] = [];
+  for (const child of item.children) {
+    if (child.type !== "list") continue;
+    for (const nestedItem of (child as List).children) {
+      const position = nestedItem.position;
+      if (
+        position &&
+        extractEntry(
+          nestedItem,
+          lines,
+          file,
+          definitions,
+          isReferencesDoc,
+          [],
+          false,
+          false,
+          true,
+        )
+      ) {
+        const last = nestedItem.children.at(-1);
+        let end = position.end.line;
+        if (
+          parentTrailerBelow &&
+          last?.type === "paragraph" && nestedItem.children.length > 1 &&
+          last.position &&
+          last.position.start.column - 1 === entryIndent + 4 &&
+          last.position.start.column - 1 !== itemContentIndent(nestedItem) &&
+          isKeyValueText(
+            lines.slice(last.position.start.line - 1, last.position.end.line)
+              .join("\n"),
+          )
+        ) end = last.position.start.line - 1;
+        found.push({
+          start: position.start.line,
+          end,
+          column: position.start.column,
+          line: position.start.line,
+        });
+      } else {
+        const inner = findNestedEntryItems(
+          nestedItem,
+          lines,
+          file,
+          definitions,
+          isReferencesDoc,
+          entryIndent,
+          parentTrailerBelow,
+          false,
+        );
+        // The wrapper's marker line goes with the first nested entry only
+        // when the wrapper holds nothing else: its first line is a bare
+        // marker, it has only lists, and every item of those lists is a
+        // nested entry. Otherwise only the nested entries are removed.
+        const items = nestedItem.children.flatMap((c) =>
+          c.type === "list" ? (c as List).children : []
+        );
+        const onlyNestedEntries = position !== undefined &&
+          MARKER_ONLY_RE.test(lines[position.start.line - 1] ?? "") &&
+          nestedItem.children.every((c) => c.type === "list") &&
+          inner.length === items.length &&
+          items.every((it) =>
+            inner.some((r) => r.line === it.position?.start.line)
+          );
+        found.push(
+          ...(wrap && onlyNestedEntries
+            ? inner.map((range, i) =>
+              i === 0 ? { ...range, start: position.start.line } : range
+            )
+            : inner),
+        );
+      }
+    }
+  }
+  return found;
+}
+
 /**
  * Extract body content from a list item's children (excluding the first paragraph
  * which contains the display ID and title).
@@ -793,27 +1043,73 @@ function itemContentIndent(item: ListItem): number {
  * Reconstructs the text content from the source markdown using position info.
  * Accepts a pre-split lines array to avoid redundant splits across entries.
  */
-function extractBodyContent(item: ListItem, lines: string[]): string {
+function extractBodyContent(
+  item: ListItem,
+  lines: string[],
+  nested: readonly NestedEntryRange[] = [],
+  transparent: readonly { start: number; end: number }[] = [],
+): { text: string; fileLines: number[] } {
   const children = item.children.slice(1); // Skip title paragraph
-  if (!children.length) return "";
+  if (!children.length) return { text: "", fileLines: [] };
 
   // Get the range from the second child's start to the last child's end
   const startLine = children[0].position?.start.line;
   const endLine = children[children.length - 1].position?.end.line;
 
-  if (!startLine || !endLine) return "";
+  if (!startLine || !endLine) return { text: "", fileLines: [] };
 
   const indent = itemContentIndent(item);
   const indentStr = " ".repeat(indent);
 
-  // Extract the raw lines and strip the list item continuation indent
-  const rawLines = lines.slice(startLine - 1, endLine);
-  const stripped = rawLines.map((line) => {
-    if (line.startsWith(indentStr)) return line.slice(indent);
-    return line;
-  });
+  // Extract the raw lines and strip the list item continuation indent. The
+  // lines of a nested entry-shaped item (MSL-P024) are not part of this
+  // entry: its trailer is never read as this entry's.
+  const stripped: string[] = [];
+  const fileLines: number[] = [];
+  for (let n = startLine; n <= endLine; n++) {
+    if (nested.some((range) => n >= range.start && n <= range.end)) continue;
+    const line = lines[n - 1];
+    stripped.push(line.startsWith(indentStr) ? line.slice(indent) : line);
+    fileLines.push(n);
+  }
+
+  // Trailer detection skips the transparent lists. A trailer found above
+  // them is moved below their text, so that the trailer is the last block
+  // and the text stays in the body.
+  if (transparent.length > 0) {
+    const isTransparent = (n: number) =>
+      transparent.some((r) => n >= r.start && n <= r.end);
+    const kept = stripped.map((_, i) => i).filter((i) =>
+      !isTransparent(fileLines[i])
+    );
+    const at = findTrailerStart(kept.map((i) => stripped[i]));
+    if (at < kept.length) {
+      const trailerIdx = kept.slice(at);
+      const first = trailerIdx[0];
+      const inTrailer = new Set(trailerIdx);
+      const order = [
+        ...stripped.map((_, i) => i).filter((i) =>
+          i < first && !inTrailer.has(i)
+        ),
+        ...stripped.map((_, i) => i).filter((i) =>
+          i > first && !inTrailer.has(i)
+        ),
+      ];
+      const text = [
+        ...order.map((i) => stripped[i]),
+        "",
+        ...trailerIdx.map((i) => stripped[i]),
+      ];
+      const files = [
+        ...order.map((i) => fileLines[i]),
+        fileLines[first] - 1,
+        ...trailerIdx.map((i) => fileLines[i]),
+      ];
+      return { text: text.join("\n").trimEnd(), fileLines: files };
+    }
+  }
 
   // Keep the first line's own indent: it marks an indented trailer in a
   // body-less entry, and `markspec fmt` sees the same text (#916).
-  return stripped.join("\n").trimEnd();
+  return { text: stripped.join("\n").trimEnd(), fileLines };
 }

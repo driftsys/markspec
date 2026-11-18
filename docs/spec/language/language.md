@@ -390,6 +390,41 @@ reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
   Satisfies: SYS_BRK_0042
 ```
 
+**Nested entry.** In a Markdown file, a list item inside an entry that is itself
+entry-shaped, at any depth, is not an entry: nested entries are not supported. A
+list item, bullet or ordered, is entry-shaped when its title is a display ID as
+in the entry header and it has body content or a trailer. A title-only item is
+not, except in a references document, where a title-only item with a slug
+display ID is a Reference-shape entry and so entry-shaped. Only the outermost
+entry-shaped item of a branch counts: an entry-shaped item inside it is part of
+it.
+
+The parser removes the lines of each such item from the entry's content before
+it reads the body and the trailer, so the item's text, including its `Id:`, is
+not part of the entry, and the entry keeps its own trailer and `Id:` when that
+trailer is the last content of the entry, ignoring the removed lines. A plain
+list item that holds the nested item keeps its other content as body of the
+entry. A list that holds a nested entry is transparent to the trailer search:
+the entry's trailer above it stays the entry's own, although that list text
+follows it. (For a list without a nested entry the usual rule applies: content
+after the trailer is `MSL-P020`.) The marker line of a wrapping item is removed
+with its nested items only when the item holds nothing else: a bare marker line
+and lists whose items are all nested entries. Plain items next to a nested entry
+stay in the body. A `Key: Value` paragraph at the end of the nested item, at the
+entry's trailer indent (content indent plus 4), is the entry's trailer, but only
+when the entry has no trailer above its first nested item and the nested item's
+own content indent differs from that indent. When they are equal, which is the
+case for a nested entry inside a plain list item, the placement is ambiguous and
+the paragraph belongs to the nested item.
+
+`check` reports `MSL-P024` (warning) once for each outermost nested item, at the
+item, in Markdown files only: a source doc comment gets no parse diagnostic (see
+above). `markspec fmt` leaves an entry that holds a nested item unchanged and
+stamps no `Id:` on it. Two things still apply to such an entry: tab-marker
+normalization of the entry's own list marker, when it does not change the list
+structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
+the whole file. Move each item to the top level, as a separate entry.
+
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both
 unindented shapes, and emits a deprecation diagnostic
@@ -1762,12 +1797,14 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
   the ADR-029 semantic equivalence comparator. List hierarchy, body and trailer
   containment, and existing entry identities must be preserved. Otherwise the
   entry stays byte-for-byte unchanged, no `Id:` is stamped, and `fmt` emits
-  `MSL-F013` (warning). Other entries, including a parent's own body prose and
-  trailer, are formatted as usual; child attributes are not copied to the
-  parent. The surrounding list layout and following indented blocks, including
-  paragraphs outside the list item, are preserved where needed to keep refusal
-  stable on repeated runs. Later indented trailers associated with the refused
-  entry are also preserved, including their trace reference values.
+  `MSL-F013` (warning). Other entries are formatted as usual. A parent that
+  holds the refused child as a nested entry (`MSL-P024`) is left unformatted and
+  unstamped too (except for the exceptions of the nested-entry rule); child
+  attributes are not copied to the parent. The surrounding list layout and
+  following indented blocks, including paragraphs outside the list item, are
+  preserved where needed to keep refusal stable on repeated runs. Later indented
+  trailers associated with the refused entry are also preserved, including their
+  trace reference values.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.

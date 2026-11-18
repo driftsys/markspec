@@ -646,6 +646,22 @@ export interface Entry {
    */
   readonly endLine?: number;
   /**
+   * 1-based first and last file line of the lines that this entry's
+   * trailer search skips because of nested entry-shaped list items
+   * (MSL-P024), merged and sorted, or absent when there is none. The ranges
+   * cover each nested item and each list of this entry that holds one. The
+   * nested items' lines are not part of the entry. The other text of such a
+   * list stays in the body, but it does not end the entry's content, so a
+   * trailer above it stays the entry's own. `markspec fmt` leaves the entry
+   * unchanged (except for tab-marker normalization and ADR-026 trace-value
+   * canonicalization). The formatter reads the ranges so that it finds the
+   * same trailer as the parser.
+   */
+  readonly nestedEntryLines?: readonly {
+    readonly start: number;
+    readonly end: number;
+  }[];
+  /**
    * 1-based file line of each element of {@linkcode Entry.rawAttributes},
    * in the same order. Diagnostics about one trailer value point at its
    * line. Optional: entries built without the parser leave it unset, and

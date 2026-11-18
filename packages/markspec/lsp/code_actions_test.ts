@@ -1727,3 +1727,36 @@ Deno.test("buildCodeActions: MSL-A030 looks for the comment close after the key 
   assertEquals(actions.length, 1);
   assertEquals(actions[0].edit!.changes!["file:///x.rs"][0].newText, "");
 });
+
+Deno.test("buildCodeActions: MSL-A011 on an entry with a nested entry rewrites the parent's line (#928)", () => {
+  const doc = `- [REQ-001] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: ISO-1, ISO-2
+
+  - [REQ-003] Child
+
+    Child body.
+
+        Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+        References: ISO-8, ISO-9
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A011",
+      message:
+        "REQ-001: 'References' is citation-typed and must use multi-line form",
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edit = actions[0].edit!.changes!["file:///x.md"][0];
+  assertEquals(edit.range.start.line, 5);
+  assertEquals(
+    edit.newText,
+    "      References: ISO-1\n      References: ISO-2\n",
+  );
+});
