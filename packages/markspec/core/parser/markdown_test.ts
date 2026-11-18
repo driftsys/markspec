@@ -1463,3 +1463,189 @@ Deno.test("parseMarkdown: the parent trailer below a nested entry stays the pare
   const { entries } = parseMarkdown(text, { file: "n.md" });
   assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEH");
 });
+
+// ---------------------------------------------------------------------------
+// Nested entry-shaped item: review follow-ups (#928)
+// ---------------------------------------------------------------------------
+
+const ID_PARENT = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+const ID_CHILD = "01HGW2Q8MNP3RSTVWXYZABCDEG";
+
+Deno.test("parseMarkdown: body tokens after a nested entry keep their file line (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  - [REQ-003] Child
+
+    Child body.
+
+        Id: ${ID_CHILD}
+
+  The system SHALL react.
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  const modal = entries[0].bodyTokens.find((t) => t.kind === "modal");
+  assertEquals(modal?.location.line, 11);
+});
+
+Deno.test("parseMarkdown: attribute lines after a nested entry are file lines (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  - [REQ-003] Child
+
+    Child body.
+
+        Id: ${ID_CHILD}
+
+      Id: ${ID_PARENT}
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].id, ID_PARENT);
+  assertEquals(entries[0].attributeLines, [11]);
+});
+
+Deno.test("parseMarkdown: MSL-P024 names the move and the marker column (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+    - [REQ-003] Child
+
+      Child body.
+`;
+  const { diagnostics } = parseMarkdown(text, { file: "n.md" });
+  const found = diagnostics.filter((d) => d.code === "MSL-P024");
+  assertEquals(found.length, 1);
+  assertStringIncludes(found[0].message, "move it to the top level");
+  assertEquals(found[0].location?.column, 5);
+});
+
+Deno.test("parseMarkdown: a nested entry in an ordered list is excluded too (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: ${ID_PARENT}
+
+  1. [REQ-003] Child
+
+     Child body.
+
+         Id: ${ID_CHILD}
+`;
+  const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].id, ID_PARENT);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 1);
+});
+
+Deno.test("parseMarkdown: a wrapper item keeps its prose in the parent body (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  - note about it
+
+    - [REQ-003] Child
+
+      Child body.
+
+          Id: ${ID_CHILD}
+
+    More note.
+`;
+  const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
+  assertStringIncludes(entries[0].body, "note about it");
+  assertStringIncludes(entries[0].body, "More note.");
+  assertEquals(entries[0].body.includes("Child body."), false);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 1);
+});
+
+Deno.test("parseMarkdown: a marker-only wrapper holding two nested entries gives one range (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  -
+    - [REQ-003] A
+
+      A body.
+
+    - [REQ-004] B
+
+      B body.
+`;
+  const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].nestedEntryLines?.length, 1);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 2);
+});
+
+Deno.test("parseMarkdown: only the outermost nested entry is reported (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  - [REQ-003] Child
+
+    Child body.
+
+    - [REQ-004] Grandchild
+
+      Grandchild body.
+`;
+  const { diagnostics } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P024").length, 1);
+});
+
+Deno.test("parseMarkdown: a title-only parent with only a nested entry reports P030 and P024 (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  - [REQ-003] Child
+
+    Child body.
+
+        Id: ${ID_CHILD}
+`;
+  const { entries, diagnostics } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].id, undefined);
+  const codes = diagnostics.map((d) => d.code);
+  assertEquals(codes.includes("MSL-P030"), true);
+  assertEquals(codes.filter((c) => c === "MSL-P024").length, 1);
+});
+
+Deno.test("parseMarkdown: a paragraph at the nested item's own indent is not the parent trailer (#928)", () => {
+  // The marker `-   ` puts the child's content at column 6, the parent's
+  // canonical trailer column.
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  -   [REQ-003] Child
+
+      Child body.
+
+      Satisfies: REQ-009
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].rawAttributes, []);
+});
+
+Deno.test("parseMarkdown: a body paragraph that is not Key: Value stays the child's (#928)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+  - [REQ-003] Child
+
+    Child body.
+
+      Some text here.
+`;
+  const { entries } = parseMarkdown(text, { file: "n.md" });
+  assertEquals(entries[0].rawAttributes, []);
+  assertEquals(entries[0].body, "Body.");
+});

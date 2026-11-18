@@ -31,6 +31,8 @@ interface Case {
   readonly nestedLines: number[];
   /** Diagnostic codes that must not be reported. */
   readonly absent?: string[];
+  /** Diagnostic codes that must be reported. */
+  readonly present?: string[];
 }
 
 const CASES: Case[] = [
@@ -76,12 +78,37 @@ const CASES: Case[] = [
     absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
   },
   {
-    name: "same at depth 2",
+    // The wrapping `- note` item keeps its text in the parent body, so the
+    // trailer above it is not the last content of the parent (MSL-P020).
+    name: "parent trailer above a wrapper item with text",
     text:
-      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n\n      Satisfies: REQ-009\n`,
-    parentId: PARENT_ID,
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n`,
+    parentId: undefined,
     nestedLines: [9],
+    present: ["MSL-P020"],
+  },
+  {
+    name: "parent trailer below a child without a trailer",
+    text: `${PARENT}${CHILD}      Id: ${PARENT_ID}\n`,
+    parentId: PARENT_ID,
+    nestedLines: [5],
     absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "nested entry in an ordered list",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  1. [REQ-003] Child\n\n     Child body.\n\n         Id: ${CHILD_ID}\n`,
+    parentId: PARENT_ID,
+    nestedLines: [7],
+    absent: ["MSL-P020", "MSL-I003", "MSL-R003"],
+  },
+  {
+    name: "wrapper item with prose next to a nested entry",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n  - note\n\n    - [REQ-003] Child\n\n      Child body.\n\n          Id: ${CHILD_ID}\n\n    More note text.\n`,
+    parentId: undefined,
+    nestedLines: [9],
+    present: ["MSL-P020"],
   },
   {
     name: "parent without an Id, child canonical trailer",
@@ -144,6 +171,9 @@ for (const lineEnding of ["\n", "\r\n"]) {
       assertEquals(nested, testCase.nestedLines, stderr);
       for (const code of testCase.absent ?? []) {
         assertEquals(stderr.includes(code), false, `${code}: ${stderr}`);
+      }
+      for (const code of testCase.present ?? []) {
+        assertStringIncludes(stderr, code);
       }
     });
 

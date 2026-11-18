@@ -237,6 +237,7 @@ function extractEntry(
   diagnostics: Diagnostic[],
   _hasLineMap = false,
   allowTitleOnly = false,
+  skipNestedScan = false,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -363,7 +364,7 @@ function extractEntry(
   // Extract body content and attributes.
   // A nested entry-shaped item is not an entry (MSL-P024). Its lines are
   // outside this entry, so its trailer is never read as this entry's.
-  let nested = findNestedEntryItems(
+  let nested = skipNestedScan ? [] : findNestedEntryItems(
     item,
     markdownLines,
     file,
@@ -781,6 +782,18 @@ function extractEntry(
     bodyIndent,
     mdastTree,
   );
+  // The body skips the lines of nested entries, so a token's line counted
+  // from the body start is an index into `contentFileLines`.
+  const fileBodyTokens: typeof bodyTokens = nested.length === 0
+    ? bodyTokens
+    : bodyTokens.map((token) => ({
+      ...token,
+      location: {
+        ...token.location,
+        line: contentFileLines[token.location.line - bodyStartLine] ??
+          token.location.line,
+      },
+    })) as typeof bodyTokens;
 
   // Extract + resolve typl declarations from all three surfaces (#723):
   // published names resolve to absolute dotted form at parse time, so
@@ -813,7 +826,7 @@ function extractEntry(
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
-    bodyTokens,
+    bodyTokens: fileBodyTokens,
     ...(types ? { types } : {}),
   };
 }
@@ -869,12 +882,25 @@ function hasTrailerAbove(
   return findTrailerStart(above) < above.length;
 }
 
+/** Marker-only text of a list item's first line: `-`, `*`, `+`, `1.`, `1)`. */
+const MARKER_ONLY_RE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*$/;
+
 /**
- * Every list item nested in `item`, at any depth, that is itself
- * entry-shaped: a display ID title with body content. An item inside such an
- * item is part of it. The range of an item ends at its own trailer: a
- * paragraph of `Key: Value` lines after its trailer code block is not the
- * item's (it is the enclosing entry's trailer, written below the item).
+ * Every outermost list item nested in `item`, at any depth, that is itself
+ * entry-shaped: bullet or ordered, with a display ID title that
+ * {@linkcode extractEntry} accepts (body content or a trailer, so a title-only
+ * item is not entry-shaped). An item inside such an item is part of it.
+ *
+ * The range of an entry-shaped item is its own list item, from the mdast
+ * position. With `parentTrailerBelow`, one exception applies: a paragraph of
+ * `Key: Value` lines at the end of the item, written at the enclosing entry's
+ * canonical trailer indent (its content indent plus 4) and not at the item's
+ * own content indent, is that entry's trailer, and the range stops above it.
+ *
+ * A plain list item that holds the nested entry is kept, with its other
+ * content, as body of `item`. It is removed too only when nothing but its
+ * marker would be left, because that marker would otherwise end the content
+ * and cut the entry's trailer off.
  */
 function findNestedEntryItems(
   item: ListItem,
@@ -887,8 +913,8 @@ function findNestedEntryItems(
   wrap = true,
 ): NestedEntryRange[] {
   const found: NestedEntryRange[] = [];
-  for (const child of item.children.slice(1)) {
-    if (child.type !== "list" || (child as List).ordered) continue;
+  for (const child of item.children) {
+    if (child.type !== "list") continue;
     for (const nestedItem of (child as List).children) {
       const position = nestedItem.position;
       if (
@@ -900,28 +926,24 @@ function findNestedEntryItems(
           definitions,
           isReferencesDoc,
           [],
+          false,
+          false,
+          true,
         )
       ) {
-        // The range is the list item's own, from the mdast position. One
-        // exception: a `Key: Value` paragraph below the item's trailer code
-        // block, written at the enclosing entry's canonical trailer indent
-        // (its content indent plus 4) and not at the item's own content
-        // indent, is that entry's trailer.
         const last = nestedItem.children.at(-1);
-        const before = nestedItem.children.at(-2);
         let end = position.end.line;
         if (
           parentTrailerBelow &&
-          last?.type === "paragraph" && before?.type === "code" &&
-          before.position && last.position &&
+          last?.type === "paragraph" && nestedItem.children.length > 1 &&
+          last.position &&
           last.position.start.column - 1 === entryIndent + 4 &&
           last.position.start.column - 1 !== itemContentIndent(nestedItem) &&
           isKeyValueText(
             lines.slice(last.position.start.line - 1, last.position.end.line)
               .join("\n"),
-          ) &&
-          isKeyValueText(before.value)
-        ) end = before.position.end.line;
+          )
+        ) end = last.position.start.line - 1;
         found.push({
           start: position.start.line,
           end,
@@ -939,16 +961,15 @@ function findNestedEntryItems(
           parentTrailerBelow,
           false,
         );
-        // A plain list item that wraps a nested entry leaves nothing but
-        // its marker behind when only the entry is removed, which would cut
-        // the entry's own trailer off the end of the content. The whole
-        // wrapper is removed.
+        const markerOnly = position !== undefined &&
+          MARKER_ONLY_RE.test(lines[position.start.line - 1] ?? "") &&
+          nestedItem.children.every((c) => c.type === "list");
         found.push(
-          ...(wrap && position
+          ...(wrap && position && markerOnly
             ? inner.map((range) => ({
               ...range,
               start: position.start.line,
-              end: position.end.line,
+              end: range.end,
             }))
             : inner),
         );

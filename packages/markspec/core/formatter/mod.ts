@@ -1377,9 +1377,14 @@ function removeEmptyTrailerLines(
  *   the item end scan starts no earlier than this line index, so a lazy
  *   continuation line does not end the item early (see `findItemEnd`).
  * @param preservedRanges - Ranges inside the entry that are kept verbatim
- *   (nested entries); the trailer is searched below the last one.
+ *   (children whose tab marker was refused); the trailer is searched below
+ *   the last one.
+ * @param nestedEntryLines - The parser's `Entry.nestedEntryLines`: 1-based
+ *   line ranges of nested entry-shaped items (MSL-P024). Their lines are not
+ *   part of the entry, so the search skips them, as the parser does.
  * @returns The 0-based, half-open line range `[start, end)` of the trailer
- *   over `lines`, or `undefined` when the entry has no trailer.
+ *   over `lines`, or `undefined` when the entry has no trailer, or when a
+ *   nested item splits the trailer lines.
  */
 export function findAttributeBlockRange(
   lines: readonly string[],
