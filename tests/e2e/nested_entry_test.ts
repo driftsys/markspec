@@ -60,6 +60,14 @@ const CASES: Case[] = [
     absent: ["MSL-I003", "MSL-R003"],
   },
   {
+    name: "parent trailer above the child, child paragraph after its trailer",
+    text:
+      `${PARENT}      Id: ${PARENT_ID}\n\n${CHILD}        Id: ${CHILD_ID}\n\n    Satisfies: REQ-009\n`,
+    parentId: PARENT_ID,
+    nestedLines: [7],
+    absent: ["MSL-P020", "MSL-P023", "MSL-I003", "MSL-R003"],
+  },
+  {
     name: "parent without an Id, child canonical trailer",
     text: `${PARENT}${CHILD}        Id: ${CHILD_ID}\n`,
     parentId: undefined,
@@ -161,4 +169,16 @@ Deno.test("check: the issue input keeps the parent Id and warns once", async () 
   assertEquals(stderr.match(/MSL-P024/g)?.length, 1, stderr);
   assertStringIncludes(stderr, "doc.md:5");
   assertEquals(stderr.includes("error["), false, stderr);
+});
+
+Deno.test("check: a parent without an Id is told to move the nested entry first", async () => {
+  const { stderr } = await markspec(["check", "doc.md"], {
+    files: {
+      ...PROJECT,
+      "doc.md": `${PARENT}${CHILD}        Id: ${CHILD_ID}\n`,
+    },
+  });
+  assertStringIncludes(stderr, "MSL-I003");
+  assertStringIncludes(stderr, "move the nested entry to the top level");
+  assertEquals(stderr.includes("without Id: run fmt"), false, stderr);
 });

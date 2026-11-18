@@ -155,7 +155,11 @@ function checkStructural(
           code: "MSL-I003",
           severity: "error",
           message: `${entry.displayId}: Authored-shape entry without Id: ` +
-            `run fmt to mint a ULID (spec section 4.2)`,
+            (entry.nestedEntryLines
+              // fmt leaves an entry that holds a nested entry unchanged.
+              ? `move the nested entry to the top level, then run fmt to ` +
+                `mint a ULID (spec section 4.2)`
+              : `run fmt to mint a ULID (spec section 4.2)`),
           location: entry.location,
         });
       }

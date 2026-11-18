@@ -397,8 +397,10 @@ the entry's content before it reads the body and the trailer, so the entry keeps
 its own trailer and `Id:`, wherever the trailer is, and the nested item's text,
 including its `Id:`, is not part of the entry. `check` reports `MSL-P024`
 (warning) once for each nested item, at the item. `markspec fmt` leaves an entry
-that holds a nested item unchanged, byte for byte, and stamps no `Id:` on it.
-Move each item to the top level, as a separate entry.
+that holds a nested item unchanged and stamps no `Id:` on it. The one exception
+is tab-marker normalization: a tab after the list marker of an entry is still
+replaced by spaces when that does not change the list structure. Move each item
+to the top level, as a separate entry.
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both

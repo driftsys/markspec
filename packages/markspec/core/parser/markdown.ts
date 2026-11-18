@@ -843,6 +843,7 @@ function findNestedEntryItems(
   file: string,
   definitions: Set<string>,
   isReferencesDoc: boolean,
+  entryIndent = itemContentIndent(item),
 ): NestedEntryRange[] {
   const found: NestedEntryRange[] = [];
   for (const child of item.children.slice(1)) {
@@ -860,17 +861,22 @@ function findNestedEntryItems(
           [],
         )
       ) {
+        // The range is the list item's own, from the mdast position. One
+        // exception: a `Key: Value` paragraph below the item's trailer code
+        // block, written at the enclosing entry's canonical trailer indent
+        // (its content indent plus 4) and not at the item's own content
+        // indent, is that entry's trailer.
         const last = nestedItem.children.at(-1);
         const before = nestedItem.children.at(-2);
         let end = position.end.line;
         if (
           last?.type === "paragraph" && before?.type === "code" &&
-          before.position &&
+          before.position && last.position &&
+          last.position.start.column - 1 === entryIndent + 4 &&
+          last.position.start.column - 1 !== itemContentIndent(nestedItem) &&
           isKeyValueText(
-            lines.slice(
-              last.position!.start.line - 1,
-              last.position!.end.line,
-            ).join("\n"),
+            lines.slice(last.position.start.line - 1, last.position.end.line)
+              .join("\n"),
           ) &&
           isKeyValueText(before.value)
         ) end = before.position.end.line;
@@ -887,6 +893,7 @@ function findNestedEntryItems(
             file,
             definitions,
             isReferencesDoc,
+            entryIndent,
           ),
         );
       }
