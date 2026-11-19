@@ -384,7 +384,8 @@ Deno.test("validateAttributesForEntry: core-reserved attributes are never unknow
 Deno.test("validateAttributesForEntry: core relation keys are never unknown (#971)", () => {
   const p = profile({});
   const attrs: Record<string, string[]> = {};
-  // Literal keys too, so a row removed from CORE_RELATIONS is caught.
+  // Three literal keys too, so removing one of these rows from
+  // CORE_RELATIONS is caught; the e2e test lists every relation key.
   const keys = [
     "Satisfies",
     "Verifies",

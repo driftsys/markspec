@@ -258,6 +258,8 @@ Deno.test("profile attributes e2e: relation keys on an undeclared type give no M
     "Requires",
     "Generated-from",
     "Supersedes",
+    "Mitigated-by",
+    "Affects",
   ];
   const trailer = relations.map((k) => `      ${k}: REQ-0001`).join("\n");
   const { stderr } = await markspec(["check", "req.md"], {
@@ -280,11 +282,17 @@ Deno.test("profile attributes e2e: relation keys on an undeclared type give no M
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
 ${trailer}
+      Bogus-key: x
 `,
     },
   });
+  // Positive control: the profile is loaded, so the unknown key is flagged.
+  const a005 = stderr.split("\n").filter((l) => l.includes("MSL-A005"));
+  assertEquals(a005.length, 1, stderr);
+  assertStringIncludes(a005[0], "'Bogus-key'");
   const flagged = stderr.split("\n").filter((l) =>
-    l.includes("MSL-R010") || l.includes("MSL-A005")
+    (l.includes("MSL-R010") || l.includes("MSL-A005")) &&
+    !l.includes("'Bogus-key'")
   );
   assertEquals(flagged, [], stderr);
 });

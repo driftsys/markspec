@@ -48,8 +48,9 @@ Feature: Emergency braking
     Then the brake command is sent within 200 ms
 `;
 
-// The profile types the entries by display-ID prefix. Core relation keys
-// such as `Verifies` need no declaration (#971).
+// The profile types the entries by display-ID prefix. Its traceability
+// rules check the link targets; core relation keys such as `Verifies` would
+// need no declaration without them (#971).
 const PROFILE_YAML = `id: "@acme/brk"
 version: 0.1.0
 markspec-schema: "1"
