@@ -1755,3 +1755,45 @@ Deno.test("parseMarkdown: typl diagnostics after a nested entry report file line
   );
   assertEquals(moved?.location?.line, (base?.location?.line ?? 0) + 6);
 });
+
+// ---------------------------------------------------------------------------
+// Content after the trailer (#985, MSL-P025)
+// ---------------------------------------------------------------------------
+
+const AFTER_TRAILER = `- [REQ-001] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  - sibling plain
+`;
+
+Deno.test("parseMarkdown: a plain list item after the trailer raises MSL-P025 at its line (#985)", () => {
+  const { entries, diagnostics } = parseMarkdown(AFTER_TRAILER, {
+    file: "a.md",
+  });
+  const found = diagnostics.filter((d) => d.code === "MSL-P025");
+  assertEquals(found.length, 1);
+  assertEquals(found[0].severity, "warning");
+  assertEquals(found[0].location?.line, 7);
+  assertEquals(found[0].location?.column, 3);
+  assertStringIncludes(found[0].message, "content after the trailer");
+  assertStringIncludes(found[0].message, "above the trailer");
+  assertEquals(diagnostics.some((d) => d.code === "MSL-P020"), false);
+  assertEquals(entries[0].contentAfterTrailerLine, 7);
+});
+
+Deno.test("parseMarkdown: a paragraph after the trailer raises MSL-P025 (#985)", () => {
+  const text = AFTER_TRAILER.replace("  - sibling plain", "  More prose.");
+  const { diagnostics } = parseMarkdown(text, { file: "a.md" });
+  const found = diagnostics.filter((d) => d.code === "MSL-P025");
+  assertEquals(found.map((d) => d.location?.line), [7]);
+});
+
+Deno.test("parseMarkdown: a canonical entry raises no MSL-P025 (#985)", () => {
+  const text = AFTER_TRAILER.replace("\n  - sibling plain\n", "");
+  const { entries, diagnostics } = parseMarkdown(text, { file: "a.md" });
+  assertEquals(diagnostics.some((d) => d.code === "MSL-P025"), false);
+  assertEquals(entries[0].contentAfterTrailerLine, undefined);
+});

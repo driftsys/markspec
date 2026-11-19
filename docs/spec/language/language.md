@@ -409,7 +409,7 @@ list item that holds the nested item keeps its other content as body of the
 entry. A list that holds a nested entry is transparent to the trailer search:
 the entry's trailer above it stays the entry's own, although that list text
 follows it. (For a list without a nested entry the usual rule applies: content
-after the trailer is `MSL-P020`.) The marker line of a wrapping item is removed
+after the trailer is `MSL-P025`.) The marker line of a wrapping item is removed
 with its nested items only when the item holds nothing else: a bare marker line
 and lists whose items are all nested entries. Plain items next to a nested entry
 stay in the body. A `Key: Value` paragraph at the end of the nested item, at the
@@ -426,6 +426,16 @@ stamps no `Id:` on it. Two things still apply to such an entry: tab-marker
 normalization of the entry's own list marker, when it does not change the list
 structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
 the whole file. Move each item to the top level, as a separate entry.
+
+**Content after the trailer.** The trailer is the last block of the entry. When
+an indented block of `Key: Value` lines with an `Id:` or core trace relation key
+is followed by any other block in the same list item (a plain list item, a
+paragraph, a fenced code block, a block quote), the block is not the trailer:
+its lines are body text and the entry has no attributes. In Markdown files,
+`check` reports `MSL-P025` (warning) at the first line after the block, instead
+of the `MSL-P020` error, and the `MSL-I003` message names `MSL-P025`.
+`markspec fmt` leaves such an entry unchanged and stamps no `Id:` on it. Move
+the content above the trailer.
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both

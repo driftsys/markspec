@@ -44,3 +44,18 @@ fn foo() {}
   const { diagnostics } = await parseFile(rust, { file: "a.rs" });
   assertEquals(diagnostics.some((d) => d.code === "MSL-P024"), false);
 });
+
+Deno.test("parseFile: content after the trailer in a source doc comment is not MSL-P025 (#985)", async () => {
+  const rust = `/// [REQ-002] Parent
+///
+/// Body text.
+///
+///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+///
+/// - sib
+fn foo() {}
+`;
+  const { entries, diagnostics } = await parseFile(rust, { file: "a.rs" });
+  assertEquals(diagnostics.some((d) => d.code === "MSL-P025"), false);
+  assertEquals(entries[0].contentAfterTrailerLine, undefined);
+});

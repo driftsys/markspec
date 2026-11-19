@@ -126,3 +126,19 @@ Deno.test("format: an `ID:` line is canonicalised to `Id:` and gets no second Id
   assertEquals(result.diagnostics.some((d) => d.code === "MSL-F001"), false);
   assertEquals(format(result.output, { file: "a.md" }).output, result.output);
 });
+
+Deno.test("format: an entry with content after its trailer is left unchanged (#985)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: ${ID}
+
+  - sibling plain
+`;
+  const result = format(text, {
+    file: "a.md",
+    generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+  });
+  assertEquals(result.output, text);
+});

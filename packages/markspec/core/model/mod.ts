@@ -669,6 +669,14 @@ export interface Entry {
     readonly end: number;
   }[];
   /**
+   * 1-based file line of the first content that follows a trailer-shaped
+   * indented block of this Markdown entry (MSL-P025), or absent. The trailer
+   * must be the last block of the entry, so such a block is not read as the
+   * trailer and the entry has no attributes. `markspec fmt` leaves the entry
+   * unchanged, so it stamps no second `Id:`.
+   */
+  readonly contentAfterTrailerLine?: number;
+  /**
    * 1-based file line of each element of {@linkcode Entry.rawAttributes},
    * in the same order. Diagnostics about one trailer value point at its
    * line. Optional: entries built without the parser leave it unset, and

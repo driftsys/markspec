@@ -685,7 +685,10 @@ export function format(
 function formattable(entry: Entry): boolean {
   // An `Id:`-like line (`id:`, `Id :`, MSL-I009) is the author's
   // identity written wrongly: stamping a second `Id:` would hide it.
+  // Content after the trailer (MSL-P025): the trailer was not read, so
+  // stamping an `Id:` would add a second one.
   return entry.nestedEntryLines === undefined &&
+    entry.contentAfterTrailerLine === undefined &&
     findIdLikeLine(entry) === undefined;
 }
 
