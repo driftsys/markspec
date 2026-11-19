@@ -40,8 +40,8 @@ two scenarios.
 Run `markspec fmt` to stamp the `Id:` lines.
 
 The profile must map the prefixes to core types: `REQ_` to Requirement and
-`TST_` to Test. The test type must also declare the `Verifies` attribute, or
-`markspec check` reports `MSL-A005`.
+`TST_` to Test. `Verifies` is a core relation, so the test type does not need to
+declare it.
 
 The locator has these properties:
 

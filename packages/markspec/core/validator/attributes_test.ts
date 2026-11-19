@@ -14,7 +14,7 @@ import type {
   EntryShape,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
-import { makeDisplayId } from "../model/mod.ts";
+import { CORE_RELATIONS, makeDisplayId } from "../model/mod.ts";
 
 const ORIGIN = "@test/p";
 
@@ -379,6 +379,15 @@ Deno.test("validateAttributesForEntry: core-reserved attributes are never unknow
   const diags = validateAttributesForEntry(e, p);
   const a005 = diags.filter((d) => d.code === "MSL-A005");
   assertEquals(a005, []);
+});
+
+Deno.test("validateAttributesForEntry: core relation keys are never unknown (#971)", () => {
+  const p = profile({});
+  const attrs: Record<string, string[]> = {};
+  for (const { attr } of CORE_RELATIONS) attrs[attr] = ["REQ-0002"];
+  const e = entry({ shape: "Authored", attrs });
+  const diags = validateAttributesForEntry(e, p);
+  assertEquals(diags.filter((d) => d.code === "MSL-A005"), []);
 });
 
 Deno.test("validateAttributesForEntry: value-type mismatch → MSL-A004", () => {

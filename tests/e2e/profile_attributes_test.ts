@@ -211,3 +211,34 @@ Deno.test("profile attributes e2e: no profile → no MSL-A diagnostics (core-onl
   const msl_a = stderr.split("\n").filter((l) => l.includes("MSL-A"));
   assertEquals(msl_a, []);
 });
+
+Deno.test("profile attributes e2e: core relation keys give no MSL-A005 (#971)", async () => {
+  const { stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/bare\n`,
+      "profiles/bare/markspec.yaml": `id: "@acme/bare"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+      "req.md": `# Example
+
+- [REQ-0001] A requirement
+
+  The system shall log events.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Generated-from: REQ-0001
+      Satisfies: REQ-0001
+      Bogus-key: x
+`,
+    },
+  });
+  const a005 = stderr.split("\n").filter((l) => l.includes("MSL-A005"));
+  assertEquals(a005.length, 1, stderr);
+  assertStringIncludes(a005[0], "'Bogus-key'");
+});
