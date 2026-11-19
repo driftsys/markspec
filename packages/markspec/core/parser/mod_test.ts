@@ -45,7 +45,7 @@ fn foo() {}
   assertEquals(diagnostics.some((d) => d.code === "MSL-P024"), false);
 });
 
-Deno.test("parseFile: content after the trailer in a source doc comment is not MSL-P025 (#985)", async () => {
+Deno.test("parseFile: content after the trailer in a source doc comment sets no contentAfterTrailerLine (#985)", async () => {
   const rust = `/// [REQ-002] Parent
 ///
 /// Body text.
@@ -55,7 +55,6 @@ Deno.test("parseFile: content after the trailer in a source doc comment is not M
 /// - sib
 fn foo() {}
 `;
-  const { entries, diagnostics } = await parseFile(rust, { file: "a.rs" });
-  assertEquals(diagnostics.some((d) => d.code === "MSL-P025"), false);
+  const { entries } = await parseFile(rust, { file: "a.rs" });
   assertEquals(entries[0].contentAfterTrailerLine, undefined);
 });

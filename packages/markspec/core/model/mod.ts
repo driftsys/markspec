@@ -669,11 +669,13 @@ export interface Entry {
     readonly end: number;
   }[];
   /**
-   * 1-based file line of the first content that follows a trailer-shaped
-   * indented block of this Markdown entry (MSL-P025), or absent. The trailer
-   * must be the last block of the entry, so such a block is not read as the
-   * trailer and the entry has no attributes. `markspec fmt` leaves the entry
-   * unchanged, so it stamps no second `Id:`.
+   * 1-based file line of the first content that follows an indented
+   * `Key: Value` block with an `Id:` line in this Markdown entry (MSL-P025),
+   * or absent. The trailer must be the last block of the entry, so such a
+   * block is not read as the trailer and the entry has no `Id:` attribute.
+   * `markspec fmt` leaves the entry unchanged, so it stamps no second `Id:`
+   * (except for tab-marker normalization and ADR-026 trace-value
+   * canonicalization).
    */
   readonly contentAfterTrailerLine?: number;
   /**

@@ -33,7 +33,10 @@ Deno.test("e2e: check reports MSL-P025 for content after the trailer, fmt change
     assertStringIncludes(stderr, "MSL-P025]: doc.md:7");
     assertStringIncludes(stderr, "above the trailer");
     assert(!stderr.includes("MSL-P020"), stderr);
-    assertStringIncludes(stderr, "move the content after the trailer");
+    assertStringIncludes(
+      stderr,
+      "move the content after the trailer above it (MSL-P025)",
+    );
     await markspecInDir(dir, ["fmt", "doc.md"]);
     assertEquals(await Deno.readTextFile(join(dir, "doc.md")), DOC);
   } finally {
@@ -57,7 +60,6 @@ Deno.test("e2e: a source doc comment with content after the trailer keeps the ba
     "s.rs": RUST,
   });
   try {
-    assert(!stderr.includes("MSL-P025"), stderr);
     // As before #985: a source file gets no parse diagnostic, so no MSL-P020.
     assert(!stderr.includes("MSL-P020"), stderr);
     assertStringIncludes(stderr, "MSL-R003");

@@ -424,13 +424,14 @@ function extractEntry(
     });
   }
 
-  // MSL-P025: a trailer-shaped indented block followed by more content in
-  // the same list item (#985). The trailer must be the last block, so the
-  // block was not read as the trailer and the entry has no attributes.
-  // Markdown files only: a source doc comment (`hasLineMap`) gets no parse
-  // diagnostic, so it keeps the MSL-P020 error and the default MSL-I003.
-  const afterTrailer = !hasLineMap && attributes.length === 0 &&
-      nested.length === 0
+  // MSL-P025: an indented `Key: Value` block with an `Id:` line, followed by
+  // more content in the same list item (#985). The trailer must be the last
+  // block, so the block was not read as the trailer and the entry has no
+  // `Id:` attribute (it may have a later trailer without one). Markdown files
+  // only: `parseSource` (source.ts) discards the parse diagnostics of a
+  // source doc comment (`hasLineMap`), so P025 would never be shown there.
+  const afterTrailer = !hasLineMap && nested.length === 0 &&
+      !attributes.some((a) => a.key === IDENTITY_KEY)
     ? findContentAfterTrailer(item, markdownLines)
     : undefined;
   if (afterTrailer !== undefined) {
@@ -890,9 +891,10 @@ function extractEntry(
 /**
  * The first content after a trailer-shaped indented code block among the
  * children of `item` (#985), or `undefined`. A block is trailer-shaped when
- * every line is a `Key: Value` line and one key is `Id` or a core trace
- * relation. Fenced code blocks are examples and never count. Returns the
- * 1-based line and column of the first child after the last such block.
+ * every line is a `Key: Value` line and one line is an `Id:` line. Fenced
+ * code blocks are examples and never count. The last child is never such a
+ * block: it would be the trailer. Returns the 1-based line and column of the
+ * first child after the last such block.
  */
 function findContentAfterTrailer(
   item: ListItem,
@@ -909,12 +911,7 @@ function findContentAfterTrailer(
     );
     if (lines.length === 0) continue;
     if (!lines.every((l) => ATTR_LINE_RE.test(l))) continue;
-    const keyed = lines.some((l) => {
-      const key = l.match(/^([A-Z][A-Za-z-]*):/)?.[1];
-      return key === IDENTITY_KEY ||
-        (key !== undefined && TRACE_RELATION_KEYS.has(key));
-    });
-    if (!keyed) continue;
+    if (!lines.some((l) => l.startsWith(`${IDENTITY_KEY}:`))) continue;
     const next = children[i + 1].position;
     if (next === undefined) return undefined;
     return { line: next.start.line, column: next.start.column };

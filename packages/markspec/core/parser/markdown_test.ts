@@ -1797,3 +1797,109 @@ Deno.test("parseMarkdown: a canonical entry raises no MSL-P025 (#985)", () => {
   assertEquals(diagnostics.some((d) => d.code === "MSL-P025"), false);
   assertEquals(entries[0].contentAfterTrailerLine, undefined);
 });
+
+/** Codes of the parse diagnostics of `text`, and its first entry. */
+function p025(text: string) {
+  const { entries, diagnostics } = parseMarkdown(text, { file: "a.md" });
+  return {
+    entry: entries[0],
+    lines: diagnostics.filter((d) => d.code === "MSL-P025").map((d) =>
+      d.location?.line
+    ),
+    codes: diagnostics.map((d) => d.code),
+  };
+}
+
+Deno.test("parseMarkdown: a fenced Id: example followed by prose is not MSL-P025 (#985)", () => {
+  const text =
+    "- [REQ-001] Parent\n\n  Body.\n\n  ```\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n  ```\n\n  More prose.\n";
+  const { lines, entry } = p025(text);
+  assertEquals(lines, []);
+  assertEquals(entry.contentAfterTrailerLine, undefined);
+});
+
+Deno.test("parseMarkdown: a Note:-only indented block followed by prose is not MSL-P025 (#985)", () => {
+  const text = AFTER_TRAILER.replace(
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "Note: some note text",
+  ).replace("  - sibling plain", "  More prose.");
+  assertEquals(p025(text).lines, []);
+});
+
+Deno.test("parseMarkdown: a trace-only Satisfies: block followed by prose keeps MSL-P020 (#985)", () => {
+  const text = AFTER_TRAILER.replace(
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "Satisfies: STK-001",
+  ).replace("  - sibling plain", "  More prose.");
+  const { lines, codes, entry } = p025(text);
+  assertEquals(lines, []);
+  assertEquals(codes.includes("MSL-P020"), true);
+  assertEquals(entry.contentAfterTrailerLine, undefined);
+});
+
+Deno.test("parseMarkdown: an entry whose read trailer has an Id gets no MSL-P025 (#985)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  More prose.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+  const { lines, entry } = p025(text);
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEG");
+  assertEquals(lines, []);
+});
+
+Deno.test("parseMarkdown: an Id: block, content, then a trailer without Id is MSL-P025 (#985)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  More prose.
+
+      Labels: a
+`;
+  const { lines, entry } = p025(text);
+  assertEquals(entry.id, undefined);
+  assertEquals(lines, [7]);
+  assertEquals(entry.contentAfterTrailerLine, 7);
+});
+
+Deno.test("parseMarkdown: a block with a non-Key line is not MSL-P025 (#985)", () => {
+  const text = AFTER_TRAILER.replace(
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n      plain code line",
+  );
+  assertEquals(p025(text).lines, []);
+});
+
+Deno.test("parseMarkdown: content after the trailer plus a nested entry reports MSL-P024 only (#985)", () => {
+  const text = AFTER_TRAILER.replace(
+    "  - sibling plain\n",
+    "  More prose.\n\n  - [REQ-003] Child\n\n    Child body.\n",
+  );
+  const { lines, codes } = p025(text);
+  assertEquals(lines, []);
+  assertEquals(codes.includes("MSL-P024"), true);
+});
+
+Deno.test("parseMarkdown: with two Id: blocks, MSL-P025 is at the content after the last one (#985)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  Middle prose.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+  Last prose.
+`;
+  assertEquals(p025(text).lines, [11]);
+});

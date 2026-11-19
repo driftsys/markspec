@@ -408,16 +408,17 @@ trailer is the last content of the entry, ignoring the removed lines. A plain
 list item that holds the nested item keeps its other content as body of the
 entry. A list that holds a nested entry is transparent to the trailer search:
 the entry's trailer above it stays the entry's own, although that list text
-follows it. (For a list without a nested entry the usual rule applies: content
-after the trailer is `MSL-P025`.) The marker line of a wrapping item is removed
-with its nested items only when the item holds nothing else: a bare marker line
-and lists whose items are all nested entries. Plain items next to a nested entry
-stay in the body. A `Key: Value` paragraph at the end of the nested item, at the
-entry's trailer indent (content indent plus 4), is the entry's trailer, but only
-when the entry has no trailer above its first nested item and the nested item's
-own content indent differs from that indent. When they are equal, which is the
-case for a nested entry inside a plain list item, the placement is ambiguous and
-the paragraph belongs to the nested item.
+follows it. (For a list without a nested entry the usual rule applies: an `Id:`
+block followed by it is `MSL-P025`, other content after the trailer is
+`MSL-P020`.) The marker line of a wrapping item is removed with its nested items
+only when the item holds nothing else: a bare marker line and lists whose items
+are all nested entries. Plain items next to a nested entry stay in the body. A
+`Key: Value` paragraph at the end of the nested item, at the entry's trailer
+indent (content indent plus 4), is the entry's trailer, but only when the entry
+has no trailer above its first nested item and the nested item's own content
+indent differs from that indent. When they are equal, which is the case for a
+nested entry inside a plain list item, the placement is ambiguous and the
+paragraph belongs to the nested item.
 
 `check` reports `MSL-P024` (warning) once for each outermost nested item, at the
 item, in Markdown files only: a source doc comment gets no parse diagnostic (see
@@ -428,14 +429,20 @@ structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
 the whole file. Move each item to the top level, as a separate entry.
 
 **Content after the trailer.** The trailer is the last block of the entry. When
-an indented block of `Key: Value` lines with an `Id:` or core trace relation key
-is followed by any other block in the same list item (a plain list item, a
-paragraph, a fenced code block, a block quote), the block is not the trailer:
-its lines are body text and the entry has no attributes. In Markdown files,
-`check` reports `MSL-P025` (warning) at the first line after the block, instead
-of the `MSL-P020` error, and the `MSL-I003` message names `MSL-P025`.
-`markspec fmt` leaves such an entry unchanged and stamps no `Id:` on it. Move
-the content above the trailer.
+a non-fenced indented block whose lines are all `Key: Value` lines, one of them
+an `Id:` line, is followed by any other block in the same list item (a plain
+list item, a paragraph, a fenced code block, a block quote), the block is not
+the trailer: its lines are body text and the entry has no `Id:`. This also holds
+when a later trailer without `Id:` is read. In Markdown files, when the entry
+has no `Id:` attribute and holds no nested entry (`MSL-P024`), `check` reports
+`MSL-P025` (warning) at the first line after the last such block, instead of the
+`MSL-P020` error, and the `MSL-I003` message names `MSL-P025`. A block without
+an `Id:` line (for example `Satisfies:` only) keeps the `MSL-P020` rule.
+`markspec fmt` leaves such an entry unchanged and stamps no `Id:` on it. Two
+things still apply, as for `MSL-P024`: tab-marker normalization of the entry's
+own list marker, when it does not change the list structure, and the trace-value
+canonicalization of ADR-026 that `fmt` does for the whole file. Move the content
+above the trailer.
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both
@@ -478,7 +485,9 @@ lines. Only `Id:` and core trace relation keys (`Satisfies:`, `Verifies:`, ...)
 in body prose raise `MSL-P020`, because such a line does not create a trace
 link:
 
-- error, when other body content or the trailer block follows the line;
+- error, when other body content or the trailer block follows the line (an `Id:`
+  block followed by content is `MSL-P025` instead, see "Content after the
+  trailer");
 - warning, when the line is in the trailing `Key: Value` run of an entry that
   has no trailer.
 
