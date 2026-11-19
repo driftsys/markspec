@@ -21,6 +21,59 @@ async function collect(
   return out;
 }
 
+Deno.test("discovery: a project scope stops at nested project boundaries without changing CLI defaults", async () => {
+  const directory = await makeTree({
+    "project.yaml": "name: parent\nversion: 0.1.0\n",
+    ".markspec.yaml": "profiles: []\n",
+    "parent.md": "",
+    "child/project.yaml": "name: child\nversion: 0.1.0\n",
+    "child/requirements.md": "",
+    "other/.markspec.yaml": "profiles: []\n",
+    "other/requirements.md": "",
+  });
+  try {
+    // `child/` holds a project.yaml: its own root. `other/` holds only a
+    // .markspec.yaml below the parent's project.yaml, so a document there
+    // resolves to the parent (core resolveConfigRoot) and stays in scope.
+    assertEquals(await collect(directory, { excludeNestedProjects: true }), [
+      "other/requirements.md",
+      "parent.md",
+    ]);
+    assertEquals(await collect(directory), [
+      "child/requirements.md",
+      "other/requirements.md",
+      "parent.md",
+    ]);
+    assertEquals(
+      await collect(join(directory, "child"), { excludeNestedProjects: true }),
+      ["requirements.md"],
+    );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("discovery: a .markspec.yaml below a project.yaml stays in that project's scope", async () => {
+  const directory = await makeTree({
+    "project.yaml": "name: parent\nversion: 0.1.0\n",
+    "req.md": "",
+    "sub/.markspec.yaml": "profiles: []\n",
+    "sub/req.md": "",
+    "child/project.yaml": "name: child\nversion: 0.1.0\n",
+    "child/req.md": "",
+  });
+  try {
+    // `sub/` resolves to the parent project (core resolveConfigRoot), so its
+    // files are not skipped as a nested project; `child/` is its own root.
+    assertEquals(await collect(directory, { excludeNestedProjects: true }), [
+      "req.md",
+      "sub/req.md",
+    ]);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
 Deno.test("discovery: yields relevant extensions, skips others", async () => {
   const dir = await makeTree({
     "a.md": "",

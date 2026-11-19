@@ -1021,3 +1021,134 @@ Deno.test("getCompiled: a malformed project.yaml does not stop the compile (#950
   const compiled = await proj.getCompiled();
   assertEquals(compiled.entries.size, 1);
 });
+
+Deno.test("defaultEnv: empty discovery boundary compiles no descendant entries", async () => {
+  const directory = await Deno.makeTempDir({
+    prefix: "markspec-mcp-boundary-",
+  });
+  try {
+    await Deno.writeTextFile(
+      join(directory, ".markspec.yaml"),
+      'profiles: []\nexclude: ["**"]\n',
+    );
+    await Deno.writeTextFile(join(directory, "req.md"), REQ_DOC);
+    const project = await createProject(defaultEnv([directory]));
+    assertEquals((await project.getCompiled()).entries.size, 0);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("defaultEnv: discovery respects ignore rules and nested project boundaries", async () => {
+  const directory = await Deno.makeTempDir({
+    prefix: "markspec-mcp-discovery-",
+  });
+  try {
+    await Deno.writeTextFile(
+      join(directory, ".markspec.yaml"),
+      "profiles: []\nexclude: [excluded.md]\n",
+    );
+    await Deno.writeTextFile(join(directory, ".gitignore"), "ignored.md\n");
+    await Deno.writeTextFile(join(directory, "req.md"), REQ_DOC);
+    for (const filename of ["ignored.md", "excluded.md"]) {
+      await Deno.writeTextFile(join(directory, filename), REQ_DOC);
+    }
+    await Deno.mkdir(join(directory, "nested"));
+    await Deno.writeTextFile(
+      join(directory, "nested", ".markspec.yaml"),
+      "profiles: []\n",
+    );
+    await Deno.writeTextFile(join(directory, "nested", "req.md"), REQ_DOC);
+    const environment = defaultEnv([directory]);
+    const discovered = [];
+    for await (const filename of environment.walk(directory)) {
+      discovered.push(filename);
+    }
+    assertEquals(discovered, [join(directory, "req.md")]);
+    const project = await createProject(environment);
+    assertEquals((await project.getCompiled()).entries.size, 1);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("defaultEnv: a malformed .markspec.yaml does not stop the compile or the staleness check", async () => {
+  const directory = await Deno.makeTempDir({
+    prefix: "markspec-mcp-malformed-",
+  });
+  try {
+    await Deno.writeTextFile(join(directory, ".markspec.yaml"), "exclude: 5\n");
+    await Deno.writeTextFile(join(directory, "req.md"), REQ_DOC);
+    const project = await createProject(defaultEnv([directory]));
+    assertEquals((await project.getCompiled()).entries.size, 1);
+    await Deno.writeTextFile(join(directory, "other.md"), REQ_DOC);
+    await project.forceRefresh();
+    assertEquals((await project.getCompiled()).entries.size >= 1, true);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("defaultEnv: a nested project inherits the outermost project's .gitignore", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "markspec-mcp-inherit-" });
+  try {
+    await Deno.writeTextFile(join(directory, ".gitignore"), "*.gen.md\n");
+    await Deno.writeTextFile(
+      join(directory, ".markspec.yaml"),
+      "profiles: []\n",
+    );
+    const child = join(directory, "child");
+    const grand = join(child, "grand");
+    await Deno.mkdir(grand, { recursive: true });
+    for (const folder of [child, grand]) {
+      await Deno.writeTextFile(
+        join(folder, "project.yaml"),
+        "name: nested\nversion: 0.1.0\n",
+      );
+      await Deno.writeTextFile(join(folder, "req.md"), REQ_DOC);
+      await Deno.writeTextFile(join(folder, "x.gen.md"), REQ_DOC);
+    }
+    // Started inside child/: the .gitignore above the start folder applies,
+    // as `markspec check` run from child/ resolves it.
+    const environment = defaultEnv([child]);
+    for (const folder of [child, grand]) {
+      const found = [];
+      for await (const path of environment.walk(folder)) {
+        if (path.endsWith(".md")) found.push(path);
+      }
+      assertEquals(found, [join(folder, "req.md")]);
+    }
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("defaultEnv: a configuration added above a project later is followed by the next walk", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "markspec-mcp-later-" });
+  try {
+    await Deno.writeTextFile(join(directory, ".gitignore"), "*.gen.md\n");
+    const child = join(directory, "child");
+    await Deno.mkdir(child);
+    await Deno.writeTextFile(
+      join(child, "project.yaml"),
+      "name: a\nversion: 0.1.0\n",
+    );
+    await Deno.writeTextFile(join(child, "x.gen.md"), REQ_DOC);
+    const environment = defaultEnv([child]);
+    const walked = async () => {
+      const found = [];
+      for await (const path of environment.walk(child)) {
+        if (path.endsWith(".md")) found.push(path);
+      }
+      return found;
+    };
+    assertEquals(await walked(), [join(child, "x.gen.md")]);
+    await Deno.writeTextFile(
+      join(directory, ".markspec.yaml"),
+      "profiles: []\n",
+    );
+    assertEquals(await walked(), []);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});

@@ -163,3 +163,33 @@ test("expandVariables: expands multiple occurrences in one arg", () => {
   );
   assert.deepEqual(result, ["/ws/a:/ws/b"]);
 });
+
+test("resolveServerOptions: expands the configured executable path from the workspace", () => {
+  const resolved = resolveServerOptions({
+    extensionPath: EXT_PATH,
+    workspaceFolder: WORKSPACE,
+    configuredServerPath: "${workspaceFolder}/tools/markspec/markspec",
+    configuredServerArgs: undefined,
+    logPath: undefined,
+    platform: "linux",
+  }) as { command: string };
+  assert.equal(
+    resolved.command,
+    `${WORKSPACE}/tools/markspec/markspec`,
+  );
+});
+
+test("resolveServerOptions: a workspace-relative path without an open folder fails clearly", () => {
+  assert.throws(
+    () =>
+      resolveServerOptions({
+        extensionPath: EXT_PATH,
+        workspaceFolder: undefined,
+        configuredServerPath: "${workspaceFolder}/bin/markspec",
+        configuredServerArgs: undefined,
+        logPath: undefined,
+        platform: "linux",
+      }),
+    /no workspace folder is open/,
+  );
+});
