@@ -1270,3 +1270,39 @@ Deno.test("format: adds the final newline without the prose formatter", () => {
 Deno.test("format: does not add a final newline outside Markdown files", () => {
   assertEquals(format("Just prose.", { file: "t.rs" }).output, "Just prose.");
 });
+
+// ---------------------------------------------------------------------------
+// Style options from .editorconfig (#984)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: lineWidth widens prose and entry-body wrapping", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const sentence = "The system shall keep this sentence on one line when " +
+    "the configured line width is one hundred.";
+  const input =
+    `# Doc\n\n${sentence}\n\n- [REQ-0001] Title\n\n  ${sentence}\n\n` +
+    `      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
+  const wide = format(input, {
+    file: "a.md",
+    formatMarkdownProse,
+    lineWidth: 100,
+  });
+  assertEquals(wide.output, input);
+  const narrow = format(input, { file: "a.md", formatMarkdownProse });
+  assertEquals(narrow.changed, true);
+});
+
+Deno.test("format: endOfLine overrides the detected line ending", () => {
+  assertEquals(
+    format("# Doc\n\nText.\n", { file: "a.md", endOfLine: "crlf" }).output,
+    "# Doc\r\n\r\nText.\r\n",
+  );
+  assertEquals(
+    format("# Doc\r\n\r\nText.\r\n", { file: "a.md", endOfLine: "lf" }).output,
+    "# Doc\n\nText.\n",
+  );
+  assertEquals(
+    format("# Doc\r\n\r\nText.\r\n", { file: "a.md" }).output,
+    "# Doc\r\n\r\nText.\r\n",
+  );
+});

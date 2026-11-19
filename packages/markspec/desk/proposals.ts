@@ -119,6 +119,7 @@ export type DocumentFormatter = (
   options: {
     readonly file: string;
     readonly formatMarkdownProse: ProseFormatter;
+    readonly lineWidth?: number;
   },
 ) => { readonly output: string; readonly diagnostics: readonly Diagnostic[] };
 
@@ -132,11 +133,13 @@ function formatText(
   file: string,
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter,
+  lineWidth: number | undefined,
 ): { output: string; diagnostics: readonly Diagnostic[] } | undefined {
   try {
     const result = formatDocument(text, {
       file,
       formatMarkdownProse: formatProse,
+      lineWidth,
     });
     return { output: result.output, diagnostics: result.diagnostics };
   } catch {
@@ -203,6 +206,7 @@ async function checkProposal(
   formatProse: ProseFormatter,
   withCurrent: boolean,
   formatDocument: DocumentFormatter,
+  lineWidth: number | undefined,
 ): Promise<ProposalOutcome<CheckedProposal>> {
   if (proposed.length > MAX_PROPOSAL_CHARS) {
     return refuse("proposal-too-large");
@@ -219,6 +223,7 @@ async function checkProposal(
     file,
     formatProse,
     formatDocument,
+    lineWidth,
   );
   if (
     formattedCandidate === undefined ||
@@ -240,6 +245,7 @@ async function checkProposal(
       file,
       formatProse,
       formatDocument,
+      lineWidth,
     );
     if (formattedCurrent === undefined) return refuse("format-failed");
     const formattedBody = await readEntryBody(
@@ -268,6 +274,9 @@ async function checkProposal(
  * @param proposed - Proposed body, as the assistant returned it.
  * @param formatProse - The Markdown prose formatter (`loadMarkdownFormatter()`).
  * @param formatDocument - Test seam (internal); defaults to {@linkcode format}.
+ * @param lineWidth - Line width resolved from `.editorconfig` for `file`,
+ *   as `markspec fmt` resolves it (#984). Default 80. The line ending is
+ *   not changed: only the target body is spliced into `text`.
  */
 export async function previewBody(
   text: string,
@@ -276,6 +285,7 @@ export async function previewBody(
   proposed: string,
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter = format,
+  lineWidth?: number,
 ): Promise<ProposalOutcome<BodyPreview>> {
   const checked = await checkProposal(
     text,
@@ -285,6 +295,7 @@ export async function previewBody(
     formatProse,
     true,
     formatDocument,
+    lineWidth,
   );
   if (!checked.ok) return checked;
   const { body, currentBody } = checked.value;
@@ -306,8 +317,8 @@ export async function previewBody(
  * can drop a tab at a wrap point, or raise `MSL-F900` on a wrapped ordered
  * list item), so a preview body sent back here can be written differently
  * or refused. Apply refuses everything the preview refuses. Writes nothing;
- * the caller writes the returned text. `formatDocument` is the same test
- * seam as in {@linkcode previewBody}.
+ * the caller writes the returned text. `formatDocument` and `lineWidth`
+ * are as in {@linkcode previewBody}.
  */
 export async function applyBody(
   text: string,
@@ -316,6 +327,7 @@ export async function applyBody(
   proposed: string,
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter = format,
+  lineWidth?: number,
 ): Promise<ProposalOutcome<string>> {
   const checked = await checkProposal(
     text,
@@ -325,6 +337,7 @@ export async function applyBody(
     formatProse,
     false,
     formatDocument,
+    lineWidth,
   );
   if (!checked.ok) return checked;
   return { ok: true, value: checked.value.text };

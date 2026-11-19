@@ -1,3 +1,12 @@
+# Check text files out with LF on every platform, so `markspec fmt` and
+# `prim fmt` (which write the `end_of_line` of .editorconfig, LF here) do
+# not report every file as drift on a Windows checkout with
+# core.autocrlf=true.
+* text=auto eol=lf
+
+# Vendored font licenses are stored with CRLF; keep their bytes unchanged.
+**/fonts/OFL.txt -text
+
 # Files compared byte-for-byte against generator output on every CI
 # platform must use a stable line ending. Pin to LF so a Windows
 # checkout doesn't surprise the snapshot tests.

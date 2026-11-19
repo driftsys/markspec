@@ -4,7 +4,7 @@
  * `markspec check` — check broken refs, missing Ids, duplicates.
  */
 
-import { extname, join } from "@std/path";
+import { extname, join, resolve as resolvePath } from "@std/path";
 import { Command } from "@cliffy/command";
 import {
   deriveUpstreamId,
@@ -276,8 +276,12 @@ async function checkGroup(
   // own, fixable choice, unlike corpus-attributed findings).
   let pinDiagnostics: Diagnostic[] = [];
   if (projectWide) {
-    const { dependencyPinAssurance, fmtDriftGate, lockfileDriftGate } =
-      await import("../../core/mod.ts");
+    const {
+      createEditorConfigResolver,
+      dependencyPinAssurance,
+      fmtDriftGate,
+      lockfileDriftGate,
+    } = await import("../../core/mod.ts");
     pinDiagnostics = dependencyPinAssurance(lockParse?.lockfile);
 
     const formatMarkdownProse = await loadMarkdownFormatterOrExit();
@@ -294,6 +298,11 @@ async function checkGroup(
       allEntries,
       ledger,
       formatMarkdownProse,
+      // The same `.editorconfig` resolution as `markspec fmt` (#984).
+      // Paths are made absolute here: core never reads the current directory.
+      ((resolveStyle) => (path: string) => resolveStyle(resolvePath(path)))(
+        createEditorConfigResolver(readFile),
+      ),
     );
 
     if (

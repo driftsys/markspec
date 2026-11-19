@@ -742,3 +742,34 @@ Deno.test("previewBody and applyBody: a CRLF file keeps CRLF line endings", asyn
     ).replaceAll("\n", "\r\n"),
   );
 });
+
+Deno.test("applyBody: the written file passes the MSL-F010 check at the .editorconfig width (#984)", async () => {
+  // A project with `max_line_length = 100`: the file on disk is formatted
+  // at 100, and the applied file must stay formatted at 100.
+  const formatted100 =
+    format(SYSTEM, { file: FILE, formatMarkdownProse: prose, lineWidth: 100 })
+      .output;
+  const words: string[] = [];
+  for (let i = 0; words.join(" ").length < 200; i++) words.push(`word${i}`);
+  const proposed = `The system shall ${words.join(" ")}.`;
+  const r = await applyBody(
+    formatted100,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+    format,
+    100,
+  );
+  assert(r.ok);
+  const lines = r.value.split("\n");
+  assert(lines.some((line) => line.length > 80), "body wrapped at 100");
+  // `check` MSL-F010 fires exactly when `format` at the resolved style
+  // changes the file.
+  const again = format(r.value, {
+    file: FILE,
+    formatMarkdownProse: prose,
+    lineWidth: 100,
+  });
+  assertEquals(again.changed, false, again.output);
+});

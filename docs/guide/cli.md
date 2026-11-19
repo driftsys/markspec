@@ -343,13 +343,28 @@ header, or one that does not parse, is left unchanged (see
 
 **Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
 formats the entire Markdown document — headings, lists, tables, and prose —
-through an embedded dprint-markdown plugin, with one fixed, zero-config style:
-80-column line width, always-wrap prose, underscore emphasis, asterisk strong,
-dash bullet lists, and the file's own line-ending convention preserved.
+through an embedded dprint-markdown plugin, with one fixed style: always-wrap
+prose, underscore emphasis, asterisk strong, and dash bullet lists. The line
+width and the line ending come from `.editorconfig`, with the same rules as
+`prim fmt`.
 
-- **80 columns is a soft target, not a hard cap.** Table rows, links and
+- **Line width: `max_line_length`, default 80.** `fmt` reads the `.editorconfig`
+  files from the file's directory upward, until a file with `root = true`;
+  nearer files override farther ones. `max_line_length = off`, or no value,
+  gives 80. Entry bodies wrap at the line width minus their indent.
+- **Line ending: `end_of_line`.** `lf` or `crlf` sets the line ending that `fmt`
+  writes (`cr` gives `lf`). When `end_of_line` is not set, or there is no
+  `.editorconfig`, `fmt` writes LF, so a CRLF file becomes LF. `check` uses the
+  same values, and when the only difference is the line ending, its `MSL-F010`
+  message says so. Editor formatting through `markspec lsp` uses the line width
+  but keeps the line ending of the buffer; set the editor line ending (VS Code
+  `files.eol`) to match, or run `markspec fmt`.
+- **Recommended: `* text=auto eol=lf` in `.gitattributes`.** Without it, a
+  Windows checkout with `core.autocrlf=true` has CRLF files, and unless
+  `end_of_line = crlf` is set, every file is reported as drift.
+- **The line width is a soft target, not a hard cap.** Table rows, links and
   reference definitions, and inline code spans are never split to fit — they may
-  exceed 80 columns when they can't be broken.
+  exceed the line width when they can't be broken.
 - **`<!-- dprint-ignore -->` and `<!-- dprint-ignore-start/end -->`** work as a
   per-block opt-out, same as external dprint. An ignore-start/end pair MUST NOT
   span an entry block — entry blocks and surrounding prose format as separate

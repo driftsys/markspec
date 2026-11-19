@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { isLockfileOnlyChange, relevantWatchedUris } from "./watched_files.ts";
+import {
+  isEditorConfigUri,
+  isLockfileOnlyChange,
+  relevantWatchedUris,
+} from "./watched_files.ts";
 
 Deno.test("isLockfileOnlyChange: lock-only batch → true", () => {
   assertEquals(isLockfileOnlyChange(["file:///proj/markspec.lock"]), true);
@@ -42,4 +46,11 @@ Deno.test("relevantWatchedUris: drops .md and other unowned files, keeps the thr
 
 Deno.test("relevantWatchedUris: all-unowned batch → empty", () => {
   assertEquals(relevantWatchedUris(["file:///proj/a.md"]), []);
+});
+
+Deno.test("isEditorConfigUri: an .editorconfig is not a profile-reload file (#984)", () => {
+  const uri = "file:///p/docs/.editorconfig";
+  assertEquals(isEditorConfigUri(uri), true);
+  assertEquals(isEditorConfigUri("file:///p/editorconfig.md"), false);
+  assertEquals(relevantWatchedUris([uri]), []);
 });

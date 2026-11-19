@@ -35,6 +35,9 @@ import {
   verifyUpstreamCache,
 } from "../lock/mod.ts";
 import { runLint } from "../lint/mod.ts";
+import type { EditorConfigResolver } from "../config/editorconfig.ts";
+import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
+import { normalizeLineEndings } from "../util/line_endings.ts";
 
 /**
  * Format-drift gate — the `MSL-F010` (formatter drift) and `MSL-F011`
@@ -56,12 +59,16 @@ import { runLint } from "../lint/mod.ts";
  *   `[]` when there is no lockfile), threaded into `canonicalizeRefs`.
  * @param formatMarkdownProse The loaded ADR-029 whole-document Markdown
  *   formatter, or `undefined` to degrade to entry-only formatting.
+ * @param resolveStyle Resolves the line width and line ending of a Markdown
+ *   file from `.editorconfig`, the same resolver `markspec fmt` uses. When
+ *   absent, the defaults apply (width 80, the file's own line ending).
  */
 export async function fmtDriftGate(
   mdContents: ReadonlyMap<string, string>,
   entries: readonly Entry[],
   ledger: readonly LockEdge[],
   formatMarkdownProse: ProseFormatter | undefined,
+  resolveStyle?: EditorConfigResolver,
 ): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
   // Corpus-blind by design (ADR-030): `markspec fmt` never loads the delivered
@@ -86,15 +93,32 @@ export async function fmtDriftGate(
       }
       continue;
     }
+    const style = resolveStyle && MARKDOWN_EXTENSIONS.has(
+        extname(filePath).toLowerCase(),
+      )
+      ? await resolveStyle(filePath)
+      : undefined;
     const formatted = format(content, {
       file: filePath,
       formatMarkdownProse,
+      lineWidth: style?.lineWidth,
+      endOfLine: style?.endOfLine,
     });
     if (formatted.changed) {
+      // Say so when only the line endings differ: the file looks formatted
+      // in an editor, so the generic message would not explain the drift.
+      const endingsOnly = normalizeLineEndings(formatted.output) ===
+        normalizeLineEndings(content);
       diagnostics.push({
         code: "MSL-F010",
         severity: "error",
-        message: "file is not formatted (run `markspec fmt`)",
+        message: !endingsOnly
+          ? "file is not formatted (run `markspec fmt`)"
+          : style?.endOfLineSet
+          ? "file has line endings that differ from the `end_of_line` " +
+            "set in .editorconfig (run `markspec fmt`)"
+          : "file does not use LF line endings; `markspec fmt` writes LF " +
+            "unless .editorconfig sets `end_of_line = crlf` (run `markspec fmt`)",
         location: { file: filePath, line: 1, column: 1 },
       });
     }

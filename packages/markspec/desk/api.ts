@@ -77,8 +77,10 @@
 import { join } from "@std/path";
 import {
   type CompileResult,
+  createEditorConfigResolver,
   type EffectiveProfile,
   type Entry,
+  format,
   formatEntryOrigin,
   isCorpusEntry,
   loadMarkdownFormatter,
@@ -730,6 +732,11 @@ export function createDeskHandler(
       return refusalResponse("format-failed");
     }
 
+    // The line width of `markspec fmt` for this file (#984), so the
+    // written body passes the `check` MSL-F010 gate.
+    const { lineWidth } = await createEditorConfigResolver(source.readFile)(
+      realTarget,
+    );
     if (!apply) {
       const outcome = await previewBody(
         text,
@@ -737,6 +744,8 @@ export function createDeskHandler(
         entry.displayId,
         change.body,
         formatProse,
+        format,
+        lineWidth,
       );
       if (!outcome.ok) return refusalResponse(outcome.refusal);
       const body: ProposalPreview = {
@@ -757,6 +766,8 @@ export function createDeskHandler(
       entry.displayId,
       change.body,
       formatProse,
+      format,
+      lineWidth,
     );
     if (!outcome.ok) return refusalResponse(outcome.refusal);
     // The pipeline formats the whole file, which takes time on a large

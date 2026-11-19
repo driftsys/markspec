@@ -204,8 +204,12 @@ for (const lineEnding of ["\n", "\r\n"]) {
     });
 
     Deno.test(`fmt (${label}): ${testCase.name} stays unchanged`, async () => {
+      // Without `end_of_line = crlf`, `fmt` writes LF (#984).
+      const editorconfig: Record<string, string> = lineEnding === "\r\n"
+        ? { ".editorconfig": "root = true\n[*]\nend_of_line = crlf\n" }
+        : {};
       const run = await markspecPersist(["fmt", "doc.md"], {
-        files: { ...PROJECT, "doc.md": text },
+        files: { ...PROJECT, ...editorconfig, "doc.md": text },
       });
       try {
         assertEquals(run.code, 0, run.stderr);
