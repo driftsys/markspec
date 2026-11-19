@@ -375,7 +375,9 @@ structure, `fmt` emits `MSL-F013` (warning), preserves the entry byte-for-byte,
 and does not stamp an `Id:` into it. Other entries are formatted as usual. A
 parent that holds the refused child as a nested entry (`MSL-P024`) is left
 unformatted and unstamped too, apart from the tab marker rule above and the
-trace-value canonicalization that `fmt` does for the whole file. A child's
+trace-value canonicalization that `fmt` does for the whole file. An entry with
+content after an `Id:` trailer block (`MSL-P025`) is left unformatted and
+unstamped in the same way: move the content above the trailer. A child's
 attributes are not copied into its parent. The surrounding list layout and
 following indented blocks are preserved where needed so that repeated formatting
 gives the same result. This includes paragraphs that CommonMark places outside

@@ -173,6 +173,10 @@ function checkStructural(
               // fmt leaves an entry that holds a nested entry unchanged.
               ? `move the nested entry to the top level, then run fmt to ` +
                 `mint a ULID (spec section 4.2)`
+              : entry.contentAfterTrailerLine !== undefined
+              // fmt leaves an entry with content after its trailer unchanged.
+              ? `move the content after the trailer above it (MSL-P025); ` +
+                `the trailer's Id: is then read (spec section 4.2)`
               : idLike
               // fmt leaves an entry with an Id-like line unchanged.
               ? `correct the Id-like line (MSL-I009); fmt mints no ULID ` +

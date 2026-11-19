@@ -235,7 +235,7 @@ function extractEntry(
   definitions: Set<string>,
   isReferencesDoc: boolean,
   diagnostics: Diagnostic[],
-  _hasLineMap = false,
+  hasLineMap = false,
   allowTitleOnly = false,
   skipNestedScan = false,
 ): Entry | undefined {
@@ -424,6 +424,28 @@ function extractEntry(
     });
   }
 
+  // MSL-P025: an indented `Key: Value` block with an `Id:` line, followed by
+  // more content in the same list item (#985). The trailer must be the last
+  // block, so the block was not read as the trailer and the entry has no
+  // `Id:` attribute (it may have a later trailer without one). Markdown files
+  // only: `parseSource` (source.ts) discards the parse diagnostics of a
+  // source doc comment (`hasLineMap`), so P025 would never be shown there.
+  const afterTrailer = !hasLineMap && nested.length === 0 &&
+      !attributes.some((a) => a.key === IDENTITY_KEY)
+    ? findContentAfterTrailer(item, markdownLines)
+    : undefined;
+  if (afterTrailer !== undefined) {
+    diagnostics.push({
+      code: "MSL-P025",
+      severity: "warning",
+      message: `${displayId}: content after the trailer at line ` +
+        `${afterTrailer.line}; the trailer must be the last block of the ` +
+        `entry, so its attributes, including Id:, are not read; move the ` +
+        `content above the trailer (spec section 4.1)`,
+      location: { file, line: afterTrailer.line, column: afterTrailer.column },
+    });
+  }
+
   // MSL-P020: a body line that would carry identity or a trace link.
   // Only `Id:` and the core trace relation keys count. Other recognized
   // keys (`Rationale:`, `Labels:`, `Type:`) and any other capitalized
@@ -440,7 +462,8 @@ function extractEntry(
   //   lines of an entry with no trailer. The run was not accepted as the
   //   trailer (no blank line above it, or a key outside the core set), so
   //   the line is body text and does not create a trace link.
-  if (body.length > 0) {
+  // MSL-P025 already names the cause of a misplaced trailer.
+  if (body.length > 0 && afterTrailer === undefined) {
     const bodyLines = body.split("\n");
     const fencedLines =
       parseCodeRegions(normalizeLineEndings(body), mdastTree).fencedLines;
@@ -854,12 +877,46 @@ function extractEntry(
         ]),
       }
       : {}),
+    ...(afterTrailer !== undefined
+      ? { contentAfterTrailerLine: afterTrailer.line }
+      : {}),
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
     bodyTokens: fileBodyTokens,
     ...(types ? { types } : {}),
   };
+}
+
+/**
+ * The first content after a trailer-shaped indented code block among the
+ * children of `item` (#985), or `undefined`. A block is trailer-shaped when
+ * every line is a `Key: Value` line and one line is an `Id:` line. Fenced
+ * code blocks are examples and never count. The last child is never such a
+ * block: it would be the trailer. Returns the 1-based line and column of the
+ * first child after the last such block.
+ */
+function findContentAfterTrailer(
+  item: ListItem,
+  markdownLines: readonly string[],
+): { line: number; column: number } | undefined {
+  const children = item.children;
+  for (let i = children.length - 2; i >= 1; i--) {
+    const child = children[i];
+    if (child.type !== "code" || child.position === undefined) continue;
+    const opener = markdownLines[child.position.start.line - 1]?.trimStart();
+    if (opener === undefined || /^(```|~~~)/.test(opener)) continue;
+    const lines = child.value.split("\n").map((l) => l.trim()).filter((l) =>
+      l !== ""
+    );
+    if (lines.length === 0) continue;
+    if (!lines.every((l) => ATTR_LINE_RE.test(l))) continue;
+    if (!lines.some((l) => l.startsWith(`${IDENTITY_KEY}:`))) continue;
+    const next = children[i + 1].position;
+    if (next === undefined) return undefined;
+    return { line: next.start.line, column: next.start.column };
+  }
+  return undefined;
 }
 
 /**

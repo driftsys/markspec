@@ -126,3 +126,58 @@ Deno.test("format: an `ID:` line is canonicalised to `Id:` and gets no second Id
   assertEquals(result.diagnostics.some((d) => d.code === "MSL-F001"), false);
   assertEquals(format(result.output, { file: "a.md" }).output, result.output);
 });
+
+Deno.test("format: an entry with content after its trailer is left unchanged (#985)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: ${ID}
+
+  - sibling plain
+`;
+  const result = format(text, {
+    file: "a.md",
+    generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+  });
+  assertEquals(result.output, text);
+});
+
+Deno.test("format: an Id: block, content, then a trailer without Id is left unchanged (#985)", () => {
+  const text = `- [REQ-001] Parent
+
+  Body.
+
+      Id: ${ID}
+
+  More prose.
+
+      Labels: a
+`;
+  const result = format(text, {
+    file: "a.md",
+    generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+  });
+  assertEquals(result.output, text);
+  assertEquals(result.output.match(/Id:/g)?.length, 1);
+});
+
+Deno.test("format: a fenced Id: example followed by prose still gets an Id (#985)", () => {
+  const text =
+    "- [REQ-001] Parent\n\n  Body.\n\n  ```\n  Id: x\n  ```\n\n  More prose.\n";
+  const result = format(text, {
+    file: "a.md",
+    generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+  });
+  assertStringIncludes(result.output, "Id: 01HGW2Q8MNP3RSTVWXYZABCDEZ");
+});
+
+Deno.test("format: a trace-only Satisfies: block followed by prose still gets an Id (#985)", () => {
+  const text =
+    "- [REQ-001] Parent\n\n  Body.\n\n      Satisfies: STK-001\n\n  More prose.\n";
+  const result = format(text, {
+    file: "a.md",
+    generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+  });
+  assertStringIncludes(result.output, "Id: 01HGW2Q8MNP3RSTVWXYZABCDEZ");
+});

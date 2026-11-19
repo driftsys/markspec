@@ -79,10 +79,10 @@ Deno.test("validate: unterminated bracket → MSL-P003", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// MSL-P020: trailers block is not the final indented code block
+// MSL-P025: trailers block is not the final block (content after it, #985)
 // ---------------------------------------------------------------------------
 
-Deno.test("validate: trailers not final indented block → MSL-P020", async () => {
+Deno.test("validate: trailers not final indented block → MSL-P025", async () => {
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
@@ -96,7 +96,7 @@ Deno.test("validate: trailers not final indented block → MSL-P020", async () =
     },
   });
   assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
-  assertStringIncludes(stderr, "MSL-P020");
+  assertStringIncludes(stderr, "MSL-P025]: req.md:7");
 });
 
 // ---------------------------------------------------------------------------
