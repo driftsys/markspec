@@ -564,10 +564,11 @@ docs/
   folder, labelled and selectable with a `project` argument
 - `adr-029-whole-document-markdown-formatting.md` — `markspec fmt` formats the
   entire Markdown document by default via an embedded, exact-pinned
-  dprint-markdown WASM plugin; fixed zero-config style (80-column soft limit,
-  `textWrap: always`); dprint rewrites are gated by a CommonMark-semantic
-  equivalence comparator with an MSL-F012 fallback; `check`'s MSL-F010 now
-  covers prose drift
+  dprint-markdown WASM plugin; fixed style (`textWrap: always`), with the line
+  width (`max_line_length`, default 80) and line ending (`end_of_line`) read
+  from `.editorconfig` as `prim fmt` does (#984); dprint rewrites are gated by a
+  CommonMark-semantic equivalence comparator with an MSL-F012 fallback;
+  `check`'s MSL-F010 now covers prose drift
 - `adr-030-profile-delivered-documents.md` — `profile.delivers:` lets a profile
   ship document files to consumers, per file flagged as a traceable corpus
   (joins the graph, provenance via `Entry.origin`) or docs-only; one core loader

@@ -152,6 +152,16 @@ export type {
   ToolConfig,
 } from "./config/markspec.ts";
 
+export {
+  createEditorConfigResolver,
+  DEFAULT_MARKDOWN_LINE_WIDTH,
+  resolveEditorConfigStyle,
+} from "./config/editorconfig.ts";
+export type {
+  EditorConfigResolver,
+  EditorConfigStyle,
+} from "./config/editorconfig.ts";
+
 // Profile system (ADR-008)
 export {
   computeCacheKey,

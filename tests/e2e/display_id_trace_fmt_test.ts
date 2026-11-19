@@ -189,6 +189,8 @@ Deno.test(
     const run = await markspecPersist(["fmt", "swe.md", "sys.md"], {
       files: {
         "project.yaml": PROJECT_YAML,
+        // Without it `fmt` writes LF (#984).
+        ".editorconfig": "root = true\n[*]\nend_of_line = crlf\n",
         "sys.md": SYS.replace(/\n/g, "\r\n"),
         "swe.md": SWE_ULID.replace(/\n/g, "\r\n"),
       },

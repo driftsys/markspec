@@ -11,6 +11,12 @@ const CLI_ENTRY = fromFileUrl(
   new URL("../../packages/markspec/main.ts", import.meta.url),
 );
 
+/** `.editorconfig` that asks for CRLF. Without it `fmt` writes LF (#984),
+ * so the CRLF tests below set it. */
+const CRLF_EDITORCONFIG = {
+  ".editorconfig": "root = true\n[*]\nend_of_line = crlf\n",
+};
+
 /** Run markspec fmt in a temp dir, return result + file contents. */
 async function runFormat(
   files: Record<string, string>,
@@ -27,7 +33,8 @@ async function runFormat(
   for (const [name, content] of Object.entries(files)) {
     const fullPath = join(dir, name);
     await Deno.writeTextFile(fullPath, content);
-    filePaths.push(fullPath);
+    // A config file such as `.editorconfig` is written but not formatted.
+    if (!name.startsWith(".")) filePaths.push(fullPath);
   }
 
   const cmd = new Deno.Command("deno", {
@@ -936,7 +943,10 @@ Deno.test(
     ].join("\n");
     const crlfInput = lfInput.replace(/\n/g, "\r\n");
 
-    const { code, readFile } = await runFormat({ "req.md": crlfInput });
+    const { code, readFile } = await runFormat({
+      ...CRLF_EDITORCONFIG,
+      "req.md": crlfInput,
+    });
     assertEquals(code, 0);
 
     const out = await readFile("req.md");
@@ -996,7 +1006,10 @@ Deno.test(
     ].join("\n");
     const crlfInput = lfInput.replace(/\n/g, "\r\n");
 
-    const { code, readFile } = await runFormat({ "req.md": crlfInput });
+    const { code, readFile } = await runFormat({
+      ...CRLF_EDITORCONFIG,
+      "req.md": crlfInput,
+    });
     assertEquals(code, 0);
 
     const out = await readFile("req.md");
@@ -1022,7 +1035,10 @@ Deno.test(
       "",
     ].join("\r\n");
 
-    const { code, readFile } = await runFormat({ "req.md": crlfInput });
+    const { code, readFile } = await runFormat({
+      ...CRLF_EDITORCONFIG,
+      "req.md": crlfInput,
+    });
     assertEquals(code, 0);
 
     const out = await readFile("req.md");
@@ -1089,7 +1105,10 @@ Deno.test("fmt: soft-limit contract — wide tables and long URLs stay single-li
 
 Deno.test("fmt: preserves CRLF line endings through the markdown pass", async () => {
   const input = "Ragged\r\nprose line that is short.\r\n";
-  const { code, readFile } = await runFormat({ "t.md": input });
+  const { code, readFile } = await runFormat({
+    ...CRLF_EDITORCONFIG,
+    "t.md": input,
+  });
   assertEquals(code, 0);
   const out = await readFile("t.md");
   assertStringIncludes(out, "\r\n");

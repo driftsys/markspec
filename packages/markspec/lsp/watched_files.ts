@@ -43,3 +43,12 @@ export function isLockfileOnlyChange(uris: readonly string[]): boolean {
   return uris.length > 0 &&
     uris.every((uri) => uri.split("/").pop() === "markspec.lock");
 }
+
+/**
+ * `true` when `uri` names an `.editorconfig` file. Such a change drops the
+ * cached formatting style only (#984); {@linkcode relevantWatchedUris}
+ * excludes it, so it never reloads a profile.
+ */
+export function isEditorConfigUri(uri: string): boolean {
+  return uri.split("/").pop() === ".editorconfig";
+}

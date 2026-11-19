@@ -181,3 +181,66 @@ Deno.test("lsp formatting: returns empty edits for non-MarkSpec file", async () 
     await client.shutdown();
   }
 });
+
+Deno.test("lsp formatting: uses max_line_length from .editorconfig (#984)", async () => {
+  // One 93-column paragraph: unchanged at width 100, wrapped at 80.
+  const md = "# Doc\n\nThis paragraph is long enough to pass eighty columns " +
+    "but it stays shorter than one hundred cols.\n";
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    ".editorconfig": "root = true\n[*.md]\nmax_line_length = 100\n",
+    "doc.md": md,
+  });
+  try {
+    await client.initialize();
+    const fileUri = toFileUrl(join(client.workDir, "doc.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+    const edits = await client.request("textDocument/formatting", {
+      textDocument: { uri: fileUri },
+      options: { tabSize: 2, insertSpaces: true },
+    }) as Array<unknown>;
+    assertExists(edits);
+    assertEquals(edits.length, 0, "width 100 must keep the paragraph as is");
+  } finally {
+    await client.shutdown();
+  }
+});
+
+Deno.test("lsp formatting: a formatted CRLF buffer yields no edits (#984)", async () => {
+  // No `end_of_line` anywhere: `markspec fmt` would write LF, but the LSP
+  // leaves the buffer's line ending to the editor, so formatting converges.
+  const md = "# Doc\r\n\r\nShort line.\r\n";
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "doc.md": md,
+  });
+  try {
+    await client.initialize();
+    const fileUri = toFileUrl(join(client.workDir, "doc.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+    for (let i = 0; i < 2; i++) {
+      const edits = await client.request("textDocument/formatting", {
+        textDocument: { uri: fileUri },
+        options: { tabSize: 2, insertSpaces: true },
+      }) as Array<unknown>;
+      assertExists(edits);
+      assertEquals(edits.length, 0, `request ${i + 1}`);
+    }
+  } finally {
+    await client.shutdown();
+  }
+});

@@ -605,3 +605,21 @@ Deno.test("tab marker: preceding parent prose stays outside the child's preserve
   assertStringIncludes(first.output, child);
   assertEquals(format(first.output, opts).output, first.output);
 });
+
+Deno.test("tab marker: a nested entry body stays within the line width (#984)", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ");
+  const input = `- Parent\n\n  -\t[REQ-001] Nested\n\n    ${words}\n\n` +
+    `        Id: ${ID}\n\n- Sibling\n`;
+  for (const lineWidth of [80, 100]) {
+    const output = format(input, {
+      file: "n.md",
+      formatMarkdownProse,
+      lineWidth: lineWidth === 80 ? undefined : lineWidth,
+    }).output;
+    const longest = Math.max(...output.split("\n").map((l) => l.length));
+    assertEquals(longest <= lineWidth, true, `${lineWidth}:\n${output}`);
+    // The body was wrapped close to the width, so the check is not vacuous.
+    assertEquals(longest > lineWidth - 10, true, `${lineWidth}:\n${output}`);
+  }
+});

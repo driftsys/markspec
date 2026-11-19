@@ -40,7 +40,9 @@ import { isAbsolute, join } from "@std/path";
 import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
+  createEditorConfigResolver,
   type Diagnostic as CoreDiagnostic,
+  type EditorConfigResolver,
   filterEntriesByTraceTargets,
   format,
   formatEntryOrigin,
@@ -128,7 +130,7 @@ import {
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
-import { relevantWatchedUris } from "./watched_files.ts";
+import { isEditorConfigUri, relevantWatchedUris } from "./watched_files.ts";
 import {
   createSerialRunner,
   debounce,
@@ -223,6 +225,16 @@ let primaryRootWatchWarningLogged = false;
 const runWatcherRegistration = createSerialRunner();
 /** Set by `onShutdown`, so no watcher registration starts afterwards. */
 let serverShuttingDown = false;
+
+/** `.editorconfig` resolver for document formatting, kept for the session
+ * so a format request does not re-read every ancestor config. Dropped when
+ * a watched `.editorconfig` changes. */
+let editorConfigCache: EditorConfigResolver | undefined;
+
+function editorConfigResolver(): EditorConfigResolver {
+  editorConfigCache ??= createEditorConfigResolver(readFile);
+  return editorConfigCache;
+}
 
 /** Connection-facing I/O shared by every {@linkcode ProjectContext}. */
 const contextHost: ProjectContextHost = {
@@ -683,6 +695,10 @@ connection.onInitialized(async () => {
               globPattern: "**/markspec.lock",
               kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
             },
+            {
+              globPattern: "**/.editorconfig",
+              kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+            },
           ],
         },
       );
@@ -713,6 +729,11 @@ connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
   // every Markdown file), so filter first: without it every .md save
   // escalated to a full profile reload (#799 review). Debounce 500ms
   // (design doc §4.1).
+  // An `.editorconfig` change only drops the cached formatting style; it
+  // never reloads a project.
+  if (params.changes.some((c) => isEditorConfigUri(c.uri))) {
+    editorConfigCache = undefined;
+  }
   const relevant = new Set(
     relevantWatchedUris(params.changes.map((c) => c.uri)),
   );
@@ -1638,7 +1659,17 @@ connection.onDocumentFormatting(async (params) => {
     );
     formatMarkdownProse = undefined;
   }
-  const result = format(currentText, { file: filePath, formatMarkdownProse });
+  // Line width from `.editorconfig`, as in `markspec fmt` (#984). The line
+  // ending is left as it is in the buffer: editors convert inserted text
+  // to the document's own ending (VS Code `files.eol`), so an LF rewrite of
+  // a CRLF buffer would come back on every request without converging.
+  // `markspec fmt` and `check` apply `end_of_line`.
+  const style = await editorConfigResolver()(filePath);
+  const result = format(currentText, {
+    file: filePath,
+    formatMarkdownProse,
+    lineWidth: style.lineWidth,
+  });
 
   // Surface Markdown-pass fallbacks (MSL-F012, info): a body or prose
   // segment whose dprint output was rejected/errored and kept as-is. The

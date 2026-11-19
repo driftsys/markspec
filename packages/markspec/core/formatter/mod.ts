@@ -231,6 +231,7 @@ function emitBodyViaAst(
   diagnostics: Diagnostic[],
   cachedEntries: Entry[] | undefined,
   proseFormat: ProseFormatter | undefined,
+  lineWidth: number = MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth,
 ): boolean {
   // When the caller supplies pre-parsed entries whose line numbers are still
   // valid in `lines` (i.e., no line-count-changing operations occurred before
@@ -293,7 +294,14 @@ function emitBodyViaAst(
         );
       }
       const nestedDiagnostics: Diagnostic[] = [];
-      emitBodyViaAst(fragment, file, nestedDiagnostics, undefined, proseFormat);
+      emitBodyViaAst(
+        fragment,
+        file,
+        nestedDiagnostics,
+        undefined,
+        proseFormat,
+        lineWidth,
+      );
       for (const { token, original } of replacements) {
         const at = fragment.findIndex((line) => line.trim() === token);
         if (at < 0) throw new Error("Preserved child placeholder was lost");
@@ -383,17 +391,14 @@ function emitBodyViaAst(
     if (proseFormat !== undefined) {
       // The body is formatted DEDENTED and re-indented afterwards, so the
       // width budget must shrink by the indent — otherwise a wrap point
-      // landing near 80 columns dedented exceeds 80 re-indented, and an
+      // landing near the line width dedented exceeds it re-indented, and an
       // external whole-file dprint view (which sees the indent) re-wraps
       // it: a formatter ping-pong. Floor of 20 keeps a pathological indent
       // from degenerating into one-word-per-line output.
       let polished: string | undefined;
       try {
         polished = proseFormat(emittedBody, {
-          lineWidth: Math.max(
-            20,
-            MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth - indent,
-          ),
+          lineWidth: Math.max(20, lineWidth - indent),
         }).replace(/\n$/, "");
       } catch {
         // The dprint WASM formatter can throw on a pathological body.
@@ -488,6 +493,20 @@ export interface FormatOptions {
    * must therefore pass a `.md`-suffixed `file`.
    */
   readonly formatMarkdownProse?: ProseFormatter;
+  /**
+   * Line width of the Markdown pass, in columns. Default 80. The CLI and
+   * the LSP resolve it from the `max_line_length` key of the nearest
+   * `.editorconfig` files (see `resolveEditorConfigStyle`). An entry body
+   * is formatted at this width minus its indent.
+   */
+  readonly lineWidth?: number;
+  /**
+   * Line ending of the output. When absent, the output keeps the line
+   * ending detected in the input. The CLI and the LSP always pass it,
+   * resolved from the `end_of_line` key of the nearest `.editorconfig`
+   * files (LF when the key is not set or there is no `.editorconfig`).
+   */
+  readonly endOfLine?: "lf" | "crlf";
 }
 
 /** Result of a format operation. */
@@ -618,7 +637,16 @@ function normalizeTabMarkers(
           line.startsWith(prefix) ? line.slice(prefix.length) : line
         )
         .join("\n");
-      const nested = formatEntries(fragment, options);
+      // The fragment is dedented by the marker column and re-indented
+      // afterwards, so it is formatted at the line width minus that column:
+      // re-indented lines then stay within the line width (floor 20, as for
+      // entry bodies).
+      const width = options?.lineWidth ??
+        MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth;
+      const nested = formatEntries(fragment, {
+        ...options,
+        lineWidth: Math.max(20, width - marker.column),
+      });
       const replacement = nested.output.split("\n")
         .map((line) => line === "" ? "" : prefix + line);
       lines.splice(marker.start, marker.end - marker.start, ...replacement);
@@ -664,7 +692,7 @@ export function format(
     diagnostics,
   );
   const result = formatEntries(prepared, options);
-  const output = applyLineEnding(result.output, ending);
+  const output = applyLineEnding(result.output, options?.endOfLine ?? ending);
   return {
     output,
     diagnostics: [...diagnostics, ...result.diagnostics],
@@ -738,7 +766,17 @@ function formatEntries(
   // gate cannot catch that class, so it must be prevented, not detected. The
   // CLI/LSP call-site guards remain as defense-in-depth.
   const isMarkdownFile = MARKDOWN_EXTENSIONS.has(extname(file).toLowerCase());
-  const proseFormat = isMarkdownFile ? options?.formatMarkdownProse : undefined;
+  const lineWidth = options?.lineWidth ??
+    MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth;
+  const rawProseFormat = isMarkdownFile
+    ? options?.formatMarkdownProse
+    : undefined;
+  // Prose segments are formatted at the resolved line width; an entry body
+  // passes its own, smaller width (see `emitBodyViaAst`).
+  const proseFormat: ProseFormatter | undefined = rawProseFormat === undefined
+    ? undefined
+    : (text, opts) =>
+      rawProseFormat(text, { lineWidth: opts?.lineWidth ?? lineWidth });
   if (
     allEntries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined
   ) {
@@ -1013,6 +1051,7 @@ function formatEntries(
       diagnostics,
       changed ? undefined : entries,
       proseFormat,
+      lineWidth,
     )
   ) changed = true;
 

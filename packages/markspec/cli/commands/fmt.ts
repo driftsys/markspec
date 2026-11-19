@@ -5,7 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { extname } from "@std/path";
+import { extname, resolve } from "@std/path";
 import type { LockEdge, RefIndex } from "../../core/mod.ts";
 import {
   assertNotDeliveredTarget,
@@ -87,6 +87,17 @@ export const fmtCmd = new Command()
       let totalFormatted = 0;
       let totalUnchanged = 0;
 
+      // Line width and line ending of each Markdown file come from its
+      // `.editorconfig` chain, with the rules of `prim fmt` (#984).
+      const { createEditorConfigResolver } = await import(
+        "../../core/mod.ts"
+      );
+      const resolveStyle = createEditorConfigResolver(readFile);
+      const markdownStyle = async (path: string) => {
+        const style = await resolveStyle(resolve(path));
+        return { lineWidth: style.lineWidth, endOfLine: style.endOfLine };
+      };
+
       let hasErrors = false;
       const resolver = await cliProjectRootResolver();
 
@@ -161,6 +172,7 @@ export const fmtCmd = new Command()
           const result = format(content, {
             file: filePath,
             formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
+            ...(isMarkdown ? await markdownStyle(filePath) : {}),
           });
           let output = result.output;
           let changed = result.changed;

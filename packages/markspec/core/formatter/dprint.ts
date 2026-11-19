@@ -2,8 +2,8 @@
  * @module formatter/dprint
  *
  * Loader for the embedded dprint-markdown WASM plugin (ADR-029).
- * `markspec fmt` formats whole Markdown documents with one canonical,
- * zero-config style; this module owns that style and the (cached)
+ * `markspec fmt` formats whole Markdown documents with one canonical
+ * style; this module owns that style and the (cached)
  * WASM instantiation. Dynamic imports keep the plugin off every code
  * path except formatting (`fmt`, the `check` MSL-F010 drift gate, LSP
  * documentFormatting).
@@ -22,6 +22,7 @@
  */
 
 import { processor } from "../parser/remark.ts";
+import { DEFAULT_MARKDOWN_LINE_WIDTH } from "../config/editorconfig.ts";
 
 /** Per-call options for a {@linkcode ProseFormatter}. */
 export interface ProseFormatOptions {
@@ -39,16 +40,17 @@ export type ProseFormatter = (
 ) => string;
 
 /**
- * The fixed MarkSpec Markdown style (ADR-029). Zero configuration by
- * design — one canonical form across every project. `newLineKind` is
- * "lf" because `format()` operates on a pure-LF buffer and re-applies
- * the file's detected line ending on output.
+ * The default MarkSpec Markdown style (ADR-029). `lineWidth` is the
+ * default only: `format()` passes the width resolved from `.editorconfig`
+ * (`FormatOptions.lineWidth`) on every call. `newLineKind` is "lf" because
+ * `format()` operates on a pure-LF buffer and applies the line ending on
+ * output (`FormatOptions.endOfLine`, else the file's detected one).
  */
 export const MARKSPEC_MARKDOWN_GLOBAL_CONFIG: Readonly<{
   lineWidth: number;
   newLineKind: "lf";
 }> = Object.freeze({
-  lineWidth: 80,
+  lineWidth: DEFAULT_MARKDOWN_LINE_WIDTH,
   newLineKind: "lf",
 });
 
