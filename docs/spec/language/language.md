@@ -432,17 +432,18 @@ the whole file. Move each item to the top level, as a separate entry.
 a non-fenced indented block whose lines are all `Key: Value` lines, one of them
 an `Id:` line, is followed by any other block in the same list item (a plain
 list item, a paragraph, a fenced code block, a block quote), the block is not
-the trailer: its lines are body text and the entry has no `Id:`. This also holds
-when a later trailer without `Id:` is read. In Markdown files, when the entry
-has no `Id:` attribute and holds no nested entry (`MSL-P024`), `check` reports
-`MSL-P025` (warning) at the first line after the last such block, instead of the
-`MSL-P020` error, and the `MSL-I003` message names `MSL-P025`. A block without
-an `Id:` line (for example `Satisfies:` only) keeps the `MSL-P020` rule.
-`markspec fmt` leaves such an entry unchanged and stamps no `Id:` on it. Two
-things still apply, as for `MSL-P024`: tab-marker normalization of the entry's
-own list marker, when it does not change the list structure, and the trace-value
-canonicalization of ADR-026 that `fmt` does for the whole file. Move the content
-above the trailer.
+the trailer: its lines are body text, and its `Id:` is not the entry's. The
+entry has an `Id:` only when a later trailer that holds one is read; when no
+trailer is read, or the later trailer has no `Id:`, the entry has none. In
+Markdown files, when the entry has no `Id:` attribute and holds no nested entry
+(`MSL-P024`), `check` reports `MSL-P025` (warning) at the first line after the
+last such block, instead of the `MSL-P020` error, and the `MSL-I003` message
+names `MSL-P025`. A block without an `Id:` line (for example `Satisfies:` only)
+keeps the `MSL-P020` rule. `markspec fmt` leaves such an entry unchanged and
+stamps no `Id:` on it. Two things still apply, as for `MSL-P024`: tab-marker
+normalization of the entry's own list marker, when it does not change the list
+structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
+the whole file. Move the content above the trailer.
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both
@@ -485,8 +486,9 @@ lines. Only `Id:` and core trace relation keys (`Satisfies:`, `Verifies:`, ...)
 in body prose raise `MSL-P020`, because such a line does not create a trace
 link:
 
-- error, when other body content or the trailer block follows the line (an `Id:`
-  block followed by content is `MSL-P025` instead, see "Content after the
+- error, when other body content or the trailer block follows the line (in a
+  Markdown file, an `Id:` block followed by content is `MSL-P025` instead when
+  the entry has no read `Id:` and no nested entry, see "Content after the
   trailer");
 - warning, when the line is in the trailing `Key: Value` run of an entry that
   has no trailer.
@@ -1841,11 +1843,12 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
   `MSL-F013` (warning). Other entries are formatted as usual. A parent that
   holds the refused child as a nested entry (`MSL-P024`) is left unformatted and
   unstamped too (except for the exceptions of the nested-entry rule); child
-  attributes are not copied to the parent. The surrounding list layout and
-  following indented blocks, including paragraphs outside the list item, are
-  preserved where needed to keep refusal stable on repeated runs. Later indented
-  trailers associated with the refused entry are also preserved, including their
-  trace reference values.
+  attributes are not copied to the parent. An entry with content after an `Id:`
+  trailer block (`MSL-P025`) is left unformatted and unstamped in the same way.
+  The surrounding list layout and following indented blocks, including
+  paragraphs outside the list item, are preserved where needed to keep refusal
+  stable on repeated runs. Later indented trailers associated with the refused
+  entry are also preserved, including their trace reference values.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.

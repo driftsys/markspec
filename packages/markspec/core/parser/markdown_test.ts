@@ -1798,7 +1798,8 @@ Deno.test("parseMarkdown: a canonical entry raises no MSL-P025 (#985)", () => {
   assertEquals(entries[0].contentAfterTrailerLine, undefined);
 });
 
-/** Codes of the parse diagnostics of `text`, and its first entry. */
+/** For `text`: its first entry, the lines of its MSL-P025 diagnostics, and
+ * the codes of all its parse diagnostics. */
 function p025(text: string) {
   const { entries, diagnostics } = parseMarkdown(text, { file: "a.md" });
   return {
@@ -1864,9 +1865,10 @@ Deno.test("parseMarkdown: an Id: block, content, then a trailer without Id is MS
 
       Labels: a
 `;
-  const { lines, entry } = p025(text);
+  const { lines, entry, codes } = p025(text);
   assertEquals(entry.id, undefined);
   assertEquals(lines, [7]);
+  assertEquals(codes.includes("MSL-P020"), false);
   assertEquals(entry.contentAfterTrailerLine, 7);
 });
 
@@ -1902,4 +1904,14 @@ Deno.test("parseMarkdown: with two Id: blocks, MSL-P025 is at the content after 
   Last prose.
 `;
   assertEquals(p025(text).lines, [11]);
+});
+
+Deno.test("parseMarkdown: only an exact Id: key makes a block trailer-shaped for MSL-P025 (#985)", () => {
+  for (const line of ["Ticket-Id: 42", "Note: see Id: x"]) {
+    const text = AFTER_TRAILER.replace(
+      "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      line,
+    ).replace("  - sibling plain", "  More prose.");
+    assertEquals(p025(text).lines, [], line);
+  }
 });
