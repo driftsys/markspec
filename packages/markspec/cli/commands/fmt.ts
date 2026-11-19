@@ -38,6 +38,7 @@ export const fmtCmd = new Command()
         verb: options.check ? "checking format of" : "formatting",
         extensions: new Set([...MARKDOWN_EXTENSIONS, ...FEATURE_EXTENSIONS]),
         quiet: options.quiet === true,
+        silent: options.quiet === true,
       });
       const { format } = await import("../../core/mod.ts");
 

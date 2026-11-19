@@ -405,3 +405,87 @@ Deno.test("check: MSL-F011 clears after fmt canonicalizes the reference", async 
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+Deno.test("check: an explicit file under a hidden project config warns once (#845)", async () => {
+  const files = {
+    ".markspec.yaml": 'profiles: []\nexclude:\n  - "**"\n',
+    "child/.markspec.yaml": "profiles: []\n",
+    "child/req.md": "# Child\n",
+    "child/other.md": "# Other\n",
+  };
+  const run = await markspec(
+    ["check", "child/req.md", "child/other.md"],
+    files,
+  );
+  assertStringIncludes(run.stderr, "the project config in child/ is ignored");
+  assertStringIncludes(run.stderr, '"!child/" and "!child/**"');
+  assertEquals(run.stderr.split("is ignored, because").length - 1, 1);
+
+  const visible = await markspec(["check", "child/req.md"], {
+    ...files,
+    ".markspec.yaml":
+      'profiles: []\nexclude:\n  - "**"\n  - "!child/"\n  - "!child/**"\n',
+  });
+  assertEquals(
+    visible.stderr.includes("is ignored, because"),
+    false,
+    visible.stderr,
+  );
+});
+
+Deno.test("check: a hidden folder's ignored config suggests renaming it (#845)", async () => {
+  const run = await markspec(["check", ".sub/req.md"], {
+    ".markspec.yaml": 'profiles: []\nexclude:\n  - "!.sub/"\n  - "!.sub/**"\n',
+    ".sub/.markspec.yaml": "profiles: []\n",
+    ".sub/req.md": "# Sub\n",
+  });
+  assertStringIncludes(run.stderr, "the project config in .sub/ is ignored");
+  assertStringIncludes(run.stderr, 'rename the hidden folder ".sub"');
+  assertEquals(run.stderr.includes('"!.sub/"'), false, run.stderr);
+  assertStringIncludes(
+    run.stderr,
+    "the enclosing project (the current directory)",
+  );
+});
+
+Deno.test("check: -q silences the hidden config warning, --format json keeps it (#845)", async () => {
+  const files = {
+    ".markspec.yaml": 'profiles: []\nexclude:\n  - "**"\n',
+    "child/.markspec.yaml": "profiles: []\n",
+    "child/req.md": "# Child\n",
+  };
+  for (const command of ["check", "fmt"]) {
+    const quiet = await markspec([command, "-q", "child/req.md"], files);
+    assertEquals(
+      quiet.stderr.includes("is ignored, because"),
+      false,
+      quiet.stderr,
+    );
+  }
+  const json = await markspec(
+    ["check", "--format", "json", "child/req.md"],
+    files,
+  );
+  assertStringIncludes(json.stderr, "is ignored, because");
+  JSON.parse(json.stdout);
+});
+
+Deno.test("check: the suggested negations re-include every excluded parent (#845)", async () => {
+  const files = {
+    ".markspec.yaml": 'profiles: []\nexclude:\n  - "**"\n',
+    "a/b/.markspec.yaml": "profiles: []\n",
+    "a/b/req.md": "# Nested\n",
+  };
+  const run = await markspec(["check", "a/b/req.md"], files);
+  assertStringIncludes(run.stderr, '"!a/", "!a/b/" and "!a/b/**"');
+  const fixed = await markspec(["check", "a/b/req.md"], {
+    ...files,
+    ".markspec.yaml":
+      'profiles: []\nexclude:\n  - "**"\n  - "!a/"\n  - "!a/b/"\n  - "!a/b/**"\n',
+  });
+  assertEquals(
+    fixed.stderr.includes("is ignored, because"),
+    false,
+    fixed.stderr,
+  );
+});
