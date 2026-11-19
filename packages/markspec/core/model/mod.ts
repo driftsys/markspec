@@ -39,6 +39,7 @@ export {
 export type { CoreTypeDef } from "./type_hierarchy.ts";
 
 export {
+  CORE_RELATION_KEYS,
   CORE_RELATIONS,
   LOCK_EXTRA_INVERSE_KEYS,
   relationLocatorMode,

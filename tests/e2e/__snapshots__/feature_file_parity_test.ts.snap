@@ -203,16 +203,6 @@ snapshot[`headerless .feature: compile --format json is unchanged 1`] = `
         "line": 3,
         "column": 1
       }
-    },
-    {
-      "code": "MSL-A005",
-      "severity": "warning",
-      "message": "SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope",
-      "location": {
-        "file": "docs/srs.md",
-        "line": 3,
-        "column": 1
-      }
     }
   ],
   "typeRegistry": {
@@ -226,7 +216,6 @@ snapshot[`headerless .feature: compile --format json is unchanged 1`] = `
 
 snapshot[`compile stderr 1`] = `
 "warning[MSL-T024]: docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)
-warning[MSL-A005]: docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope
 "
 `;
 
@@ -238,16 +227,6 @@ snapshot[`headerless .feature: check --format json is unchanged 1`] = `
     "code": "MSL-T024",
     "severity": "warning",
     "message": "SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)",
-    "location": {
-      "file": "<dir>/docs/srs.md",
-      "line": 3,
-      "column": 1
-    }
-  },
-  {
-    "code": "MSL-A005",
-    "severity": "warning",
-    "message": "SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope",
     "location": {
       "file": "<dir>/docs/srs.md",
       "line": 3,
@@ -292,7 +271,6 @@ snapshot[`check after lock 1`] = `
 {
   code: 2,
   stderr: "warning[MSL-T024]: <dir>/docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)
-warning[MSL-A005]: <dir>/docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope
 ",
 }
 `;

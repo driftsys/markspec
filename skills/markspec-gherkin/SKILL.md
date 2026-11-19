@@ -122,9 +122,10 @@ scenarios belong in separate entries.
 A test entry carries `Verifies: <requirement-display-ID>`. The requirement does
 not list its tests: MarkSpec generates the inverse `Verified-by:` link, and an
 author never writes it. The profile types the entries by their display-ID prefix
-(here `SWE_` is a software requirement and `SWT_` a unit test that extends Test)
-and declares `Verifies` on the test type, so no `Type:` trailer is needed. Run
-`markspec fmt` to stamp the `Id:` lines.
+(here `SWE_` is a software requirement and `SWT_` a unit test that extends
+Test), so no `Type:` trailer is needed. `Verifies` is a core relation, so the
+test type does not need to declare it. Run `markspec fmt` to stamp the `Id:`
+lines.
 
 **Requirement entry:**
 

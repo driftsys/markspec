@@ -17,15 +17,18 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
-import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/mod.ts";
+import { CORE_RELATION_KEYS, UNIVERSAL_ATTRIBUTE_KEYS } from "../model/mod.ts";
 import { validateValue } from "./value_types.ts";
 import { traceTarget } from "../refs/split.ts";
 
-/** Core-reserved attribute keys that are always permitted regardless of profile. */
+/** Core-reserved attribute keys that are always permitted regardless of
+ * profile: `Id`, `Type`, the universal keys and the trailer keys of the core
+ * relations ({@linkcode CORE_RELATION_KEYS}, the set MSL-R010 exempts). */
 const CORE_RESERVED_KEYS: ReadonlySet<string> = new Set([
   "Id",
   "Type",
   ...UNIVERSAL_ATTRIBUTE_KEYS,
+  ...CORE_RELATION_KEYS,
 ]);
 
 /**
@@ -141,7 +144,8 @@ export function validateAttributesForEntry(
     const decl = scope.attributes.get(name);
 
     if (decl === undefined) {
-      // MSL-A005: unknown attribute (warn). Skip core-reserved keys.
+      // MSL-A005: unknown attribute (warn). Skip core-reserved keys,
+      // which include the core relation keys (#971).
       if (!CORE_RESERVED_KEYS.has(name)) {
         diagnostics.push({
           code: "MSL-A005",

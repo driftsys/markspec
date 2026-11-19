@@ -14,7 +14,7 @@ import type {
   EntryShape,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
-import { makeDisplayId } from "../model/mod.ts";
+import { CORE_RELATIONS, makeDisplayId } from "../model/mod.ts";
 
 const ORIGIN = "@test/p";
 
@@ -379,6 +379,23 @@ Deno.test("validateAttributesForEntry: core-reserved attributes are never unknow
   const diags = validateAttributesForEntry(e, p);
   const a005 = diags.filter((d) => d.code === "MSL-A005");
   assertEquals(a005, []);
+});
+
+Deno.test("validateAttributesForEntry: core relation keys are never unknown (#971)", () => {
+  const p = profile({});
+  const attrs: Record<string, string[]> = {};
+  // Three literal keys too, so removing one of these rows from
+  // CORE_RELATIONS is caught; the e2e test lists every relation key.
+  const keys = [
+    "Satisfies",
+    "Verifies",
+    "Generated-from",
+    ...CORE_RELATIONS.map((r) => r.attr),
+  ];
+  for (const key of keys) attrs[key] = ["REQ-0002"];
+  const e = entry({ shape: "Authored", attrs });
+  const diags = validateAttributesForEntry(e, p);
+  assertEquals(diags.filter((d) => d.code === "MSL-A005"), []);
 });
 
 Deno.test("validateAttributesForEntry: value-type mismatch → MSL-A004", () => {
