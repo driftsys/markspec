@@ -2169,7 +2169,7 @@ Prettier's `proseWrap` defaults to `"preserve"`. MarkSpec requires `"always"`.
     "CHANGELOG.md"
   ],
   "plugins": [
-    "https://plugins.dprint.dev/markdown-0.20.0.wasm"
+    "https://plugins.dprint.dev/markdown-0.22.1.wasm"
   ]
 }
 ```

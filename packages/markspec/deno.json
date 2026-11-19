@@ -10,7 +10,7 @@
   "imports": {
     "@cliffy/command": "jsr:@cliffy/command@^1",
     "@dprint/formatter": "npm:@dprint/formatter@0.5.1",
-    "@dprint/markdown": "npm:@dprint/markdown@0.20.0",
+    "@dprint/markdown": "npm:@dprint/markdown@0.22.1",
     "@cucumber/gherkin": "npm:@cucumber/gherkin@42.0.1",
     "@cucumber/messages": "npm:@cucumber/messages@34.2.1",
     "@std/assert": "jsr:@std/assert@^1",
