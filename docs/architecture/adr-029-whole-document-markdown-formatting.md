@@ -17,7 +17,7 @@ required for the prose.
 
 `markspec fmt` formats the entire Markdown document by default, Markdown files
 only, with a fixed zero-config style, via the embedded dprint-markdown WASM
-plugin (`@dprint/formatter` host, exact-pinned `@dprint/markdown@0.20.0`),
+plugin (`@dprint/formatter` host, exact-pinned `@dprint/markdown@0.22.1`),
 lazily loaded on the fmt code path.
 
 Style: `lineWidth` 80 (soft target — table rows, links/references, and inline
@@ -52,7 +52,9 @@ MSL-F010 depends on it.
   `check`'s MSL-F010 now covers prose drift.
 - Deliberately-unformatted files use `project.yaml` `exclude:`.
 - A future `@dprint/markdown` bump changes the canonical form — version bumps
-  are release-notes-worthy events, pins are exact.
+  are release-notes-worthy events, pins are exact. The pin moved from 0.20.0 to
+  0.22.1 to match the version that `prim` pins, so both tools format Markdown
+  with the same plugin.
 - Semantic line breaks (one sentence per line) do not survive
   `textWrap: always`.
 

@@ -24,7 +24,7 @@ async function dprintPluginPath(): Promise<string> {
     "registry.npmjs.org",
     "@dprint",
     "markdown",
-    "0.20.0",
+    "0.22.1",
     "plugin.wasm",
   );
 }
