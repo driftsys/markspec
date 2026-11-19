@@ -48,8 +48,8 @@ Feature: Emergency braking
     Then the brake command is sent within 200 ms
 `;
 
-// Trace attributes must be declared by a profile, or every entry that uses
-// one gets an MSL-A005 warning.
+// The profile types the entries by display-ID prefix. Core relation keys
+// such as `Verifies` need no declaration (#971).
 const PROFILE_YAML = `id: "@acme/brk"
 version: 0.1.0
 markspec-schema: "1"

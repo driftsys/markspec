@@ -17,18 +17,18 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
-import { CORE_RELATIONS, UNIVERSAL_ATTRIBUTE_KEYS } from "../model/mod.ts";
+import { CORE_RELATION_KEYS, UNIVERSAL_ATTRIBUTE_KEYS } from "../model/mod.ts";
 import { validateValue } from "./value_types.ts";
 import { traceTarget } from "../refs/split.ts";
 
 /** Core-reserved attribute keys that are always permitted regardless of
  * profile: `Id`, `Type`, the universal keys and the trailer keys of the core
- * relations (the same relation list MSL-R010 exempts). */
+ * relations ({@linkcode CORE_RELATION_KEYS}, the set MSL-R010 exempts). */
 const CORE_RESERVED_KEYS: ReadonlySet<string> = new Set([
   "Id",
   "Type",
   ...UNIVERSAL_ATTRIBUTE_KEYS,
-  ...CORE_RELATIONS.map((r) => r.attr),
+  ...CORE_RELATION_KEYS,
 ]);
 
 /**

@@ -242,3 +242,49 @@ profile:
   assertEquals(a005.length, 1, stderr);
   assertStringIncludes(a005[0], "'Bogus-key'");
 });
+
+Deno.test("profile attributes e2e: relation keys on an undeclared type give no MSL-R010 or MSL-A005 (#971)", async () => {
+  const relations = [
+    "Satisfies",
+    "Derived-from",
+    "Verifies",
+    "References",
+    "Tests",
+    "Depends-on",
+    "Part-of",
+    "Allocated-to",
+    "Realizes",
+    "Provides",
+    "Requires",
+    "Generated-from",
+    "Supersedes",
+  ];
+  const trailer = relations.map((k) => `      ${k}: REQ-0001`).join("\n");
+  const { stderr } = await markspec(["check", "req.md"], {
+    files: {
+      ...BASE_FILES,
+      "req.md": `# Example
+
+- [REQ-0001] A requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Rationale: Needed for safety
+      Owners: alice
+      Owners: bob
+
+- [XYZ-0001] An entry of no declared type
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+${trailer}
+`,
+    },
+  });
+  const flagged = stderr.split("\n").filter((l) =>
+    l.includes("MSL-R010") || l.includes("MSL-A005")
+  );
+  assertEquals(flagged, [], stderr);
+});

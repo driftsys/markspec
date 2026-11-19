@@ -17,7 +17,7 @@
 import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
 import {
   attributeSpec,
-  CORE_RELATIONS,
+  CORE_RELATION_KEYS,
   CORE_TYPE_SCOPED_ATTRS,
   CSV_SPLITTABLE_TYPES,
   emittableEntries,
@@ -33,12 +33,6 @@ import { validateTypl } from "../typl/mod.ts";
 
 /** Universal attribute keys the core recognizes. */
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
-
-/** Trailer keys of the core relations. Core recognizes them without a
- * profile, so MSL-R010 never applies to them. */
-const CORE_RELATION_KEYS: ReadonlySet<string> = new Set(
-  CORE_RELATIONS.map((r) => r.attr),
-);
 
 /**
  * Value-type set that's repeatable per spec §1.8 — these attributes

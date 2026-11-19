@@ -116,6 +116,13 @@ export function relationLocatorMode(
   return CORE_RELATIONS.find((r) => r.attr === attr)?.locator;
 }
 
+/** Trailer keys of the core relations, derived from {@linkcode CORE_RELATIONS}.
+ * The core recognizes them without a profile, so neither MSL-R010 nor
+ * MSL-A005 applies to them. */
+export const CORE_RELATION_KEYS: ReadonlySet<string> = new Set(
+  CORE_RELATIONS.map((r) => r.attr),
+);
+
 /**
  * Lock-edge keys that are NOT forward relations. The lockfile tracks the
  * verification edge by its inverse name `Verified-by` (not `Verifies`), so it is

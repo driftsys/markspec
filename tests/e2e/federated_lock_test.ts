@@ -284,7 +284,7 @@ Deno.test(
 // into its own pipeline so the reference resolves — no MSL-L006. Each
 // project declares its own small profile so the entries classify cleanly
 // (an unclassified entry authoring `Satisfies:` would otherwise trip
-// unrelated MSL-T024/MSL-A005 attribute-scope warnings that have nothing to
+// unrelated MSL-T024 warnings that have nothing to
 // do with this scenario) — mirrors `tests/e2e/check_project_test.ts`'s
 // requirement / system-requirement fixture.
 // ---------------------------------------------------------------------------

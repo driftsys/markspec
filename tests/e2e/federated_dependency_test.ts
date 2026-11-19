@@ -86,8 +86,8 @@ async function git(args: string[], cwd: string): Promise<string> {
  * repo, so `STK_ICD_0001` classifies cleanly. Mirrors the fixture
  * pattern in `federated_lock_test.ts`'s cross-repo `Satisfies` scenario
  * — without a declared type, an unclassified entry authoring a
- * `Satisfies:`/being the target of one trips unrelated MSL-T024/MSL-A005
- * attribute-scope warnings that have nothing to do with this scenario.
+ * `Satisfies:`/being the target of one trips unrelated MSL-T024
+ * warnings that have nothing to do with this scenario.
  * This profile travels IN the git tree (committed + tagged), so
  * `compileAcquiredTree` resolves it from the acquired snapshot exactly
  * as the real producer repo would.
