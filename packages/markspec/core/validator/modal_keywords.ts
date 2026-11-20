@@ -13,7 +13,12 @@
  * not emit tokens inside verbatim regions.
  */
 
-import type { BodyToken, Diagnostic, Entry } from "../model/mod.ts";
+import type {
+  BodyToken,
+  Diagnostic,
+  EffectiveProfile,
+  Entry,
+} from "../model/mod.ts";
 import { resolvedCoreType } from "./type_resolution.ts";
 
 type ModalToken = Extract<BodyToken, { kind: "modal" }>;
@@ -26,7 +31,10 @@ type ModalToken = Extract<BodyToken, { kind: "modal" }>;
  * MSL-M061: report when a Requirement-type entry contains no modal
  * keyword at all (info severity; style hint to add an obligation verb).
  */
-export function validateModalKeywords(entry: Entry): readonly Diagnostic[] {
+export function validateModalKeywords(
+  entry: Entry,
+  conventions?: EffectiveProfile["conventions"],
+): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   const modalTokens = entry.bodyTokens.filter(
@@ -34,9 +42,11 @@ export function validateModalKeywords(entry: Entry): readonly Diagnostic[] {
   );
 
   const anyModalSeen = modalTokens.length > 0;
+  const preserveCasing =
+    conventions?.get("modal-keywords")?.value.settings["casing"] === "preserve";
 
   for (const t of modalTokens) {
-    if (t.case !== "upper") continue;
+    if (t.case !== "upper" || preserveCasing) continue;
     diagnostics.push({
       code: "MSL-M060",
       severity: "warning",

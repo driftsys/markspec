@@ -37,6 +37,18 @@
         "enum": ["Figure", "Table", "Listing", "Feature", "Equation", "List"]
       },
       "additionalProperties": { "enum": ["above", "below"] }
+    },
+    "format": {
+      "type": ["object", "null"],
+      "description": "Prose wrapping of markspec fmt (ADR-029). Null or an empty YAML key uses the default. The line width is .editorconfig max_line_length, not a key here.",
+      "additionalProperties": false,
+      "properties": {
+        "text-wrap": {
+          "enum": ["always", "maintain", "never"],
+          "default": "always",
+          "description": "always hard-wraps prose at the .editorconfig line width (the canonical style); maintain keeps the author's line breaks; never puts each paragraph on one line. maintain and never have no prim equivalent: exclude those files from prim fmt in .primignore."
+        }
+      }
     }
   }
 }

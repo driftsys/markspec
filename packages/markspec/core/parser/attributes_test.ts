@@ -64,6 +64,22 @@ Deno.test("parseAttributes: reference entry attributes (Document, URL)", () => {
 // Whitespace handling
 // ---------------------------------------------------------------------------
 
+Deno.test("parseAttributes: preserves native Unicode characters at value boundaries", () => {
+  for (
+    const value of [
+      "\ufeffnative-value\ufeff",
+      "\ufeff",
+      "\u00a0native-value\u00a0",
+    ]
+  ) {
+    assertEquals(parseAttributes([`Foo: ${value}  `]), [{ key: "Foo", value }]);
+    const [, attributes] = splitBodyAndAttributes(
+      `Body.\n\n    Foo: ${value}\n`,
+    );
+    assertEquals(parseAttributes(attributes), [{ key: "Foo", value }]);
+  }
+});
+
 Deno.test("parseAttributes: trims leading/trailing whitespace from values", () => {
   const lines = ["Id:   SRS_01HGW2Q8MNP3  \\", "Labels:  ASIL-B  "];
   const attrs = parseAttributes(lines);

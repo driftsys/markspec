@@ -44,6 +44,101 @@ export const CLEAN_REQ = `# Requirements
       Type: requirement
 `;
 
+Deno.test("check and fmt: under native-content preserve, native values, body links and literal table code survive together", async () => {
+  const content = CLEAN_REQ.replace(
+    "The system shall respond within 200 ms.",
+    "The system shall preserve the following values.\n\n" +
+      "  | Value | Meaning |\n  | --- | --- |\n  | ` native ` | Keep padding |\n\n" +
+      "  [ticket](https://example.test/ref)",
+  ) + "      Foo: \ufeffnative-value\ufeff\n";
+  const run = await markspecPersist(["fmt"], {
+    ...BASE_FILES,
+    "profiles/p/markspec.yaml": PROFILE_YAML.replace(
+      "profile:\n",
+      "profile:\n  conventions:\n    native-content:\n      mode: preserve\n" +
+        "  attributes:\n    - name: Foo\n      type: text\n      cardinality: 0..1\n",
+    ),
+    "docs/req.md": content,
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const formatted = await Deno.readTextFile(`${run.dir}/docs/req.md`);
+    assertStringIncludes(formatted, "` native `");
+    assertStringIncludes(formatted, "Foo: \ufeffnative-value\ufeff\n");
+    assertStringIncludes(formatted, "[ticket](https://example.test/ref)");
+    const drift = await markspecInDir(run.dir, ["fmt", "--check"]);
+    assertEquals(drift.code, 0, drift.stderr);
+    const checked = await markspecInDir(run.dir, ["check", "--format", "json"]);
+    assertEquals(checked.code, 0, checked.stderr + checked.stdout);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("check and fmt: inherited preserve casing keeps imported prose lossless", async () => {
+  const content = CLEAN_REQ.replace(
+    "The system shall respond within 200 ms.",
+    `The system SHALL retain the original value When requested.
+  The continuation stays in this paragraph.
+  The final sentence includes an example
+  &#58; using punctuation and **markup**.`,
+  );
+  const run = await markspecPersist(["fmt"], {
+    ...BASE_FILES,
+    "profiles/p/markspec.yaml": PROFILE_YAML.replace(
+      "profile:\n",
+      "extends: ../parent\nprofile:\n",
+    ),
+    "profiles/parent/markspec.yaml": `id: "@acme/legacy-parent"
+version: 0.1.0
+profile:
+  conventions:
+    modal-keywords:
+      casing: preserve
+    native-content:
+      mode: preserve
+`,
+    "docs/req.md": content,
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const formatted = await Deno.readTextFile(`${run.dir}/docs/req.md`);
+    for (
+      const wording of [
+        "SHALL retain the original value When requested",
+        "The continuation stays in this paragraph.",
+        "The final sentence includes an example",
+        "**markup**",
+      ]
+    ) {
+      assertStringIncludes(formatted.replace(/\s+/g, " "), wording);
+    }
+    const drift = await markspecInDir(run.dir, ["fmt", "--check"]);
+    assertEquals(drift.code, 0, drift.stderr);
+    const checked = await markspecInDir(run.dir, ["check", "--format", "json"]);
+    assertEquals(checked.code, 2, `${checked.stderr}\n${checked.stdout}`);
+    const diagnostics = JSON.parse(checked.stdout);
+    assertEquals(
+      diagnostics.map((diagnostic: { code: string }) => diagnostic.code),
+      ["MSL-Q500"],
+    );
+    assertEquals(
+      diagnostics.some((diagnostic: { code: string }) =>
+        diagnostic.code === "MSL-F010"
+      ),
+      false,
+    );
+    assertEquals(
+      diagnostics.some((diagnostic: { code: string }) =>
+        diagnostic.code === "MSL-M060"
+      ),
+      false,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
 /**
  * A system requirement whose `Satisfies:` value is the *ULID* of REQ-0001,
  * not its display ID. The file is formatter-clean (`markspec fmt` makes no

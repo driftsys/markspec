@@ -1,6 +1,30 @@
 import { assertEquals } from "@std/assert";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
 
+Deno.test("md_equiv: verbatimInlineCode compares literal inline-code spelling, including table cells", () => {
+  for (
+    const [original, rewritten] of [
+      ["` native `", "`native`"],
+      ["``native``", "`native`"],
+      ["`line\nbreak`", "`line break`"],
+      [
+        "| Value |\n| --- |\n| ` native ` |",
+        "| Value |\n| --- |\n| `native` |",
+      ],
+    ]
+  ) {
+    const verbatim = { verbatimInlineCode: true };
+    assertEquals(
+      markdownSemanticallyEquivalent(original, rewritten, verbatim),
+      false,
+    );
+    assertEquals(
+      markdownSemanticallyEquivalent(original, original, verbatim),
+      true,
+    );
+  }
+});
+
 Deno.test("md_equiv: re-wrapped prose is equivalent", () => {
   assertEquals(
     markdownSemanticallyEquivalent(
@@ -79,4 +103,8 @@ Deno.test("md_equiv: inline code content is verbatim — whitespace change NOT e
     markdownSemanticallyEquivalent("a `x  y` b", "a `x y` b"),
     false,
   );
+});
+
+Deno.test("md_equiv: by default, inline-code delimiters and padding are presentation", () => {
+  assertEquals(markdownSemanticallyEquivalent("``native``", "`native`"), true);
 });

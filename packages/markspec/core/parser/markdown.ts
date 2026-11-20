@@ -606,7 +606,7 @@ function extractEntry(
   // Check lines that DID end up in attrLines but might have key issues
   for (const [attrIndex, rawLine] of attrLines.entries()) {
     const trailerLocation = trailerLineLocation(attrContentStart + attrIndex);
-    const trimmed = rawLine.trim();
+    const trimmed = rawLine.replace(/^[ \t\r]+|[ \t\r]+$/g, "");
     if (!trimmed) continue;
     if (!ATTR_LINE_RE.test(trimmed)) {
       const colonMatch = COLON_SPLIT_RE.exec(trimmed);
@@ -1167,6 +1167,8 @@ function extractBodyContent(
   }
 
   // Keep the first line's own indent: it marks an indented trailer in a
-  // body-less entry, and `markspec fmt` sees the same text (#916).
-  return { text: stripped.join("\n").trimEnd(), fileLines };
+  // body-less entry, and `markspec fmt` sees the same text (#916). Trim only
+  // ASCII whitespace at the end: native Unicode characters (U+FEFF, NBSP) are
+  // data.
+  return { text: stripped.join("\n").replace(/[ \t\r\n]+$/, ""), fileLines };
 }

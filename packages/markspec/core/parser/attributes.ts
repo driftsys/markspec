@@ -47,7 +47,7 @@ export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
  * are recognized (and subsequently skipped as empty-value lines) rather than
  * silently ignored.
  */
-const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
+const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):[ \t]*(.*?)\\?$/;
 
 /**
  * Parse one attribute line: the line is trimmed, one trailing continuation
@@ -60,9 +60,21 @@ const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
 export function parseAttributeLine(
   line: string,
 ): { key: string; value: string } | undefined {
-  const match = ATTRIBUTE_RE.exec(line.trim());
+  const match = ATTRIBUTE_RE.exec(trimAsciiWhitespace(line));
   if (!match) return undefined;
-  return { key: match[1], value: (match[2] ?? "").trim() };
+  return {
+    key: match[1],
+    value: (match[2] ?? "").replace(/^[ \t]+|[ \t]+$/g, ""),
+  };
+}
+
+/**
+ * Remove ASCII spaces, tabs and carriage returns at both ends. Unlike
+ * `String.prototype.trim`, it keeps native Unicode characters such as U+FEFF
+ * and nonbreaking spaces, which are data in an attribute value.
+ */
+export function trimAsciiWhitespace(text: string): string {
+  return text.replace(/^[ \t\r]+|[ \t\r]+$/g, "");
 }
 
 /**
@@ -161,7 +173,7 @@ export function isIndented(line: string): boolean {
 
 /** The key of a `Key: Value` line, or `undefined` for any other line. */
 function trailerKey(line: string): string | undefined {
-  const trimmed = line.trim();
+  const trimmed = trimAsciiWhitespace(line);
   return ATTR_LINE_RE.test(trimmed)
     ? /^([A-Z][A-Za-z-]*):/.exec(trimmed)?.[1]
     : undefined;
@@ -216,7 +228,7 @@ function locateTrailer(
   lines: readonly string[],
 ): { start: number; underProse: boolean } {
   let end = lines.length;
-  while (end > 0 && lines[end - 1].trim() === "") end--;
+  while (end > 0 && trimAsciiWhitespace(lines[end - 1]) === "") end--;
 
   // The trailing run of `Key: Value` lines and continuation lines.
   const continuation: boolean[] = [];
@@ -252,7 +264,8 @@ function locateTrailer(
       (k): k is string => k !== undefined,
     ).map((k) => k.toLowerCase() === "id" ? "Id" : k); // `ID:` is the Id key
   if (runStart < indentedStart) {
-    const ownParagraph = runStart === 0 || lines[runStart - 1].trim() === "";
+    const ownParagraph = runStart === 0 ||
+      trimAsciiWhitespace(lines[runStart - 1]) === "";
     const keys = keysOf(runStart, end);
     if (
       ownParagraph &&
@@ -275,7 +288,7 @@ function locateTrailer(
     keysOf(idRunStart, end).includes("Id")
   ) {
     const ownParagraph = idRunStart === 0 ||
-      lines[idRunStart - 1].trim() === "";
+      trimAsciiWhitespace(lines[idRunStart - 1]) === "";
     return { start: idRunStart, underProse: !ownParagraph };
   }
   return {
@@ -292,7 +305,9 @@ function locateTrailer(
  * the trailer keeps the trailer's `Id:` and attributes.
  */
 function isContinuation(lines: readonly string[], i: number): boolean {
-  if (i === 0 || !/^\s/.test(lines[i]) || lines[i].trim() === "") {
+  if (
+    i === 0 || !/^[ \t]/.test(lines[i]) || trimAsciiWhitespace(lines[i]) === ""
+  ) {
     return false;
   }
   return /[\\,]$/.test(lines[i - 1].trimEnd());
@@ -320,7 +335,7 @@ export function splitBodyAndAttributes(
   // Trim trailing empty lines from body
   const body = bodyLines.join("\n").replace(/\n+$/, "");
   const filteredAttrLines = attrLines
-    .map((l) => l.trim())
+    .map((line) => line.replace(/^[ \t\r]+|[ \t\r]+$/g, ""))
     .filter((l) => l !== "");
 
   return [body, filteredAttrLines];

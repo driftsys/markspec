@@ -14,6 +14,7 @@ import {
   denoDiscoveryIO,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
+  loadToolConfigOrExit,
   projectCollectOptions,
   readFile,
   resolveScope,
@@ -101,7 +102,12 @@ export const fmtCmd = new Command()
       let hasErrors = false;
       const resolver = await cliProjectRootResolver();
 
-      for (const group of scope.groups) {
+      for (const [index, group] of scope.groups.entries()) {
+        // Prose wrapping of the group's project, `.markspec.yaml`
+        // `format.text-wrap` (ADR-029 amendment).
+        const textWrap = group.projectRoot !== undefined
+          ? (await loadToolConfigOrExit(group.projectRoot)).textWrap
+          : undefined;
         // Project-aware reference canonicalisation/healing (issue #593,
         // Slice 4). Built once per project group and reused for every file
         // of the group. A group without a project root leaves refIndex
@@ -171,8 +177,11 @@ export const fmtCmd = new Command()
           );
           const result = format(content, {
             file: filePath,
+            // Inherited casing conventions of this group's own profile.
+            conventions: chains[index]?.effective.conventions,
             formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
             ...(isMarkdown ? await markdownStyle(filePath) : {}),
+            textWrap,
           });
           let output = result.output;
           let changed = result.changed;

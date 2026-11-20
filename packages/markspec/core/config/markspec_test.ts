@@ -434,6 +434,62 @@ Deno.test("parseMarkspecYaml: non-mapping caption-conventions emits MARKSPEC-YAM
 });
 
 // ---------------------------------------------------------------------------
+// format (ADR-029 amendment: configurable prose wrapping)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkspecYaml: format parses text-wrap", () => {
+  for (const textWrap of ["always", "maintain", "never"]) {
+    const result = parseMarkspecYaml(
+      `format:\n  text-wrap: ${textWrap}\n`,
+      "/p/.markspec.yaml",
+    );
+    assertEquals(result.diagnostics, []);
+    assertEquals(result.config?.format, { textWrap });
+  }
+});
+
+Deno.test("parseMarkspecYaml: an empty format section takes the default wrapping", () => {
+  for (const yaml of ["format: {}\n", "format:\n"]) {
+    const result = parseMarkspecYaml(yaml, "/p/.markspec.yaml");
+    assertEquals(result.diagnostics, [], yaml);
+    assertEquals(result.config?.format?.textWrap ?? "always", "always", yaml);
+  }
+});
+
+Deno.test("parseMarkspecYaml: absent format leaves the config unchanged", () => {
+  const result = parseMarkspecYaml("profiles: []\n", "/p/.markspec.yaml");
+  assertEquals("format" in (result.config ?? {}), false);
+});
+
+Deno.test("parseMarkspecYaml: format.line-width points to .editorconfig", () => {
+  const result = parseMarkspecYaml(
+    "format:\n  line-width: 100\n",
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+  assertStringIncludes(result.diagnostics[0].message, "max_line_length");
+  assertStringIncludes(result.diagnostics[0].message, ".editorconfig");
+});
+
+Deno.test("parseMarkspecYaml: invalid format values emit MARKSPEC-YAML-003", () => {
+  for (
+    const [yaml, expected] of [
+      ["format:\n  text-wrap: sometimes\n", "'format.text-wrap' expected"],
+      ["format:\n  text-wrap: null\n", "'format.text-wrap' expected"],
+      ["format:\n  wrap: never\n", "'format.wrap': unknown key"],
+      ["format: never\n", "'format' expected a mapping"],
+      ["format:\n  - never\n", "got array"],
+    ] as const
+  ) {
+    const result = parseMarkspecYaml(yaml, "/p/.markspec.yaml");
+    assertEquals(result.config, null, yaml);
+    assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003", yaml);
+    assertStringIncludes(result.diagnostics[0].message, expected, yaml);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // loadToolConfig
 // ---------------------------------------------------------------------------
 
@@ -460,6 +516,21 @@ Deno.test("loadToolConfig: reads exclude + captionConventions", async () => {
   assertEquals(result.config.exclude, ["skills/"]);
   assertEquals(result.config.captionConventions, { Figure: "below" });
   assertEquals(result.diagnostics, []);
+});
+
+Deno.test("loadToolConfig: reads format.text-wrap, always when absent", async () => {
+  const project = resolve("/proj");
+  const read = (yaml: string) => (path: string) =>
+    Promise.resolve(
+      path === join(project, MARKSPEC_YAML_FILENAME) ? yaml : undefined,
+    );
+  const configured = await loadToolConfig(
+    project,
+    read("format:\n  text-wrap: never\n"),
+  );
+  assertEquals(configured.config.textWrap, "never");
+  const absent = await loadToolConfig(project, read("profiles: []\n"));
+  assertEquals(absent.config.textWrap, "always");
 });
 
 Deno.test("loadToolConfig: malformed .markspec.yaml yields defaults + error diagnostics", async () => {

@@ -33,6 +33,7 @@ import {
   type ProseFormatter,
   readEntryBody,
   replaceEntryBody,
+  type TextWrap,
 } from "../core/mod.ts";
 
 /**
@@ -120,6 +121,7 @@ export type DocumentFormatter = (
     readonly file: string;
     readonly formatMarkdownProse: ProseFormatter;
     readonly lineWidth?: number;
+    readonly textWrap?: TextWrap;
   },
 ) => { readonly output: string; readonly diagnostics: readonly Diagnostic[] };
 
@@ -134,12 +136,14 @@ function formatText(
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter,
   lineWidth: number | undefined,
+  textWrap: TextWrap | undefined,
 ): { output: string; diagnostics: readonly Diagnostic[] } | undefined {
   try {
     const result = formatDocument(text, {
       file,
       formatMarkdownProse: formatProse,
       lineWidth,
+      textWrap,
     });
     return { output: result.output, diagnostics: result.diagnostics };
   } catch {
@@ -207,6 +211,7 @@ async function checkProposal(
   withCurrent: boolean,
   formatDocument: DocumentFormatter,
   lineWidth: number | undefined,
+  textWrap: TextWrap | undefined,
 ): Promise<ProposalOutcome<CheckedProposal>> {
   if (proposed.length > MAX_PROPOSAL_CHARS) {
     return refuse("proposal-too-large");
@@ -224,6 +229,7 @@ async function checkProposal(
     formatProse,
     formatDocument,
     lineWidth,
+    textWrap,
   );
   if (
     formattedCandidate === undefined ||
@@ -246,6 +252,7 @@ async function checkProposal(
       formatProse,
       formatDocument,
       lineWidth,
+      textWrap,
     );
     if (formattedCurrent === undefined) return refuse("format-failed");
     const formattedBody = await readEntryBody(
@@ -277,6 +284,8 @@ async function checkProposal(
  * @param lineWidth - Line width resolved from `.editorconfig` for `file`,
  *   as `markspec fmt` resolves it (#984). Default 80. The line ending is
  *   not changed: only the target body is spliced into `text`.
+ * @param textWrap - The project's `.markspec.yaml` `format.text-wrap`, as
+ *   `markspec fmt` applies it. Default `always`.
  */
 export async function previewBody(
   text: string,
@@ -286,6 +295,7 @@ export async function previewBody(
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter = format,
   lineWidth?: number,
+  textWrap?: TextWrap,
 ): Promise<ProposalOutcome<BodyPreview>> {
   const checked = await checkProposal(
     text,
@@ -296,6 +306,7 @@ export async function previewBody(
     true,
     formatDocument,
     lineWidth,
+    textWrap,
   );
   if (!checked.ok) return checked;
   const { body, currentBody } = checked.value;
@@ -317,8 +328,8 @@ export async function previewBody(
  * can drop a tab at a wrap point, or raise `MSL-F900` on a wrapped ordered
  * list item), so a preview body sent back here can be written differently
  * or refused. Apply refuses everything the preview refuses. Writes nothing;
- * the caller writes the returned text. `formatDocument` and `lineWidth`
- * are as in {@linkcode previewBody}.
+ * the caller writes the returned text. `formatDocument`, `lineWidth` and
+ * `textWrap` are as in {@linkcode previewBody}.
  */
 export async function applyBody(
   text: string,
@@ -328,6 +339,7 @@ export async function applyBody(
   formatProse: ProseFormatter,
   formatDocument: DocumentFormatter = format,
   lineWidth?: number,
+  textWrap?: TextWrap,
 ): Promise<ProposalOutcome<string>> {
   const checked = await checkProposal(
     text,
@@ -338,6 +350,7 @@ export async function applyBody(
     false,
     formatDocument,
     lineWidth,
+    textWrap,
   );
   if (!checked.ok) return checked;
   return { ok: true, value: checked.value.text };
