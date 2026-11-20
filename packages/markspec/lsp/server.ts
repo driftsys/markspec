@@ -1663,12 +1663,14 @@ connection.onDocumentFormatting(async (params) => {
   // ending is left as it is in the buffer: editors convert inserted text
   // to the document's own ending (VS Code `files.eol`), so an LF rewrite of
   // a CRLF buffer would come back on every request without converging.
-  // `markspec fmt` and `check` apply `end_of_line`.
+  // `markspec fmt` and `check` apply `end_of_line`. The prose wrapping is
+  // the project's `.markspec.yaml` `format.text-wrap`.
   const style = await editorConfigResolver()(filePath);
   const result = format(currentText, {
     file: filePath,
     formatMarkdownProse,
     lineWidth: style.lineWidth,
+    textWrap: ctx.toolConfig.textWrap,
   });
 
   // Surface Markdown-pass fallbacks (MSL-F012, info): a body or prose

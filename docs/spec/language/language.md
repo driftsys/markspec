@@ -1665,9 +1665,10 @@ project version types are rejected with `ConfigError`. An empty projectRef
 version string means auto, as when absent. Other projectRef URLs must satisfy
 the schema's URI format.
 
-In `.markspec.yaml`, `exclude:` and `caption-conventions:` accept `null` or an
-empty YAML key as the default empty list or mapping. Profile specifiers must be
-local paths starting with `./` or `../`, Git specifiers of the form
+In `.markspec.yaml`, `exclude:`, `caption-conventions:` and `format:` accept
+`null` or an empty YAML key as their default (empty list, mapping, `always`).
+Profile specifiers must be local paths starting with `./` or `../`, Git
+specifiers of the form
 `git+<http|https|file>://<repository>.git[/subpath]#<ref>`, or npm specifiers of
 the form `npm:[@scope/]name@<range>`.
 
@@ -2122,9 +2123,11 @@ allowedKeys = ["layout", "permalink", "sidebar_position", "draft", "aliases"]
 | ------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------ |
 | `referenceLinks`          | string   | `"warn"` | `none`, `warn`, `enforce`                                                                                    |
 | `frontMatter.allowedKeys` | string[] | `[]`     | Top-level front-matter keys to accept beyond core / profile / `metadata`. Preserved verbatim, not validated. |
+| `format.text-wrap`        | string   | `always` | `always`, `maintain`, `never`: the prose wrapping of `markspec fmt` (ADR-029).                               |
 
-All formatting rules are fixed. There is no formatter choice — dprint is the
-formatter.
+All formatting rules are fixed, except the prose wrapping (`format.text-wrap`)
+and the line width and line ending, which come from `.editorconfig`. There is no
+formatter choice — dprint is the formatter.
 
 ### 9.2 CI
 
@@ -2164,7 +2167,10 @@ settings and equivalent Prettier settings for teams migrating from Prettier.
 | Line endings        | `newLineKind: "lf"`         | `endOfLine: "lf"`     |
 | Indent              | (global) `2`                | `tabWidth: 2`         |
 
-Prettier's `proseWrap` defaults to `"preserve"`. MarkSpec requires `"always"`.
+Prettier's `proseWrap` defaults to `"preserve"`. MarkSpec defaults to
+`"always"`; a project may select `"maintain"` (Prettier `"preserve"`) or
+`"never"` with `.markspec.yaml` `format.text-wrap`. The annexes below show the
+default style.
 
 ---
 

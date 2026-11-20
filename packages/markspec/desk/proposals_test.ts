@@ -773,3 +773,37 @@ Deno.test("applyBody: the written file passes the MSL-F010 check at the .editorc
   });
   assertEquals(again.changed, false, again.output);
 });
+
+Deno.test("applyBody: the written file passes the MSL-F010 check under text-wrap: never", async () => {
+  // A project with `format: text-wrap: never`: the file on disk keeps each
+  // paragraph on one line, and the applied body must stay on one line.
+  const oneLine = format(SYSTEM, {
+    file: FILE,
+    formatMarkdownProse: prose,
+    textWrap: "never",
+  }).output;
+  const words: string[] = [];
+  for (let i = 0; words.join(" ").length < 200; i++) words.push(`word${i}`);
+  const proposed = `The system shall ${words.join(" ")}.`;
+  const r = await applyBody(
+    oneLine,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+    format,
+    undefined,
+    "never",
+  );
+  assert(r.ok);
+  assert(
+    r.value.split("\n").some((line) => line.trim() === proposed),
+    "body on one line",
+  );
+  const again = format(r.value, {
+    file: FILE,
+    formatMarkdownProse: prose,
+    textWrap: "never",
+  });
+  assertEquals(again.changed, false, again.output);
+});

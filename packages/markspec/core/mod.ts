@@ -149,6 +149,7 @@ export {
 export type {
   MarkspecYaml,
   ParseMarkspecYamlResult,
+  TextWrap,
   ToolConfig,
 } from "./config/markspec.ts";
 

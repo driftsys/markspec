@@ -18,6 +18,7 @@ import type {
   CaptionConventions,
   DeliveredDocument,
   Diagnostic,
+  TextWrap,
 } from "../../core/mod.ts";
 import {
   loadActiveProfile,
@@ -108,6 +109,7 @@ async function checkGroup(
   // a bad caption-conventions block silently disabling MSL-C072 would be
   // invisible debt (M-1 fix).
   let captionConventions: CaptionConventions = {};
+  let textWrap: TextWrap | undefined;
   if (projectRoot !== undefined) {
     const toolConfigResult = await loadToolConfig(projectRoot, readFile);
     const toolConfigErrors = toolConfigResult.diagnostics.filter(
@@ -120,6 +122,7 @@ async function checkGroup(
       Deno.exit(1);
     }
     captionConventions = toolConfigResult.config.captionConventions;
+    textWrap = toolConfigResult.config.textWrap;
   }
 
   // Read + parse markspec.lock once, project-wide only, BEFORE
@@ -303,6 +306,7 @@ async function checkGroup(
       ((resolveStyle) => (path: string) => resolveStyle(resolvePath(path)))(
         createEditorConfigResolver(readFile),
       ),
+      textWrap,
     );
 
     if (

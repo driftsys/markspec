@@ -9,6 +9,7 @@
 
 import { assertEquals } from "@std/assert";
 import { format } from "../formatter/mod.ts";
+import { loadMarkdownFormatter } from "../formatter/dprint.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
   extractEdgeQuads,
@@ -339,4 +340,29 @@ Deno.test("proseLintGate: a vague requirement emits MSL-Q with the projected sch
   assertEquals("slug" in q!, false);
   assertEquals("group" in q!, false);
   assertEquals("scoreContribution" in q!, false);
+});
+
+Deno.test("fmtDriftGate: applies the project's text-wrap", async () => {
+  const prose = await loadMarkdownFormatter();
+  const long = CLEAN_REQ.replace(
+    "The system shall respond within 200 ms.",
+    "The system shall respond within 200 ms " +
+      "and keep responding ".repeat(6) +
+      "afterwards.",
+  );
+  const oneLine = format(long, {
+    file: "req.md",
+    formatMarkdownProse: prose,
+    textWrap: "never",
+  }).output;
+  const parsed = await parseFile(oneLine, { file: "req.md" });
+  const inputs = new Map([["req.md", oneLine]]);
+  assertEquals(
+    await fmtDriftGate(inputs, parsed.entries, [], prose, undefined, "never"),
+    [],
+  );
+  assertEquals(
+    (await fmtDriftGate(inputs, parsed.entries, [], prose)).map((d) => d.code),
+    ["MSL-F010"],
+  );
 });

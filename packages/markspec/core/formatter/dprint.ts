@@ -23,6 +23,7 @@
 
 import { processor } from "../parser/remark.ts";
 import { DEFAULT_MARKDOWN_LINE_WIDTH } from "../config/editorconfig.ts";
+import type { TextWrap } from "../config/markspec.ts";
 
 /** Per-call options for a {@linkcode ProseFormatter}. */
 export interface ProseFormatOptions {
@@ -31,6 +32,8 @@ export interface ProseFormatOptions {
    * afterwards, so the budget must shrink by the indent width to stay
    * in agreement with a whole-file dprint view of the same content. */
   readonly lineWidth?: number;
+  /** Override the prose wrapping for this fragment (default `always`). */
+  readonly textWrap?: TextWrap;
 }
 
 /** Formats a Markdown fragment to the canonical MarkSpec style. */
@@ -110,11 +113,19 @@ async function instantiate(): Promise<ProseFormatter> {
       formatter.formatText({
         filePath: "fragment.md",
         fileText: markdown,
-        overrideConfig: options?.lineWidth !== undefined
-          ? { lineWidth: options.lineWidth }
-          : undefined,
+        overrideConfig: overrides(options),
       }),
   );
+}
+
+/** The dprint configuration overrides of one call, or `undefined` for none. */
+function overrides(
+  options: ProseFormatOptions | undefined,
+): Record<string, unknown> | undefined {
+  const result: Record<string, unknown> = {};
+  if (options?.lineWidth !== undefined) result.lineWidth = options.lineWidth;
+  if (options?.textWrap !== undefined) result.textWrap = options.textWrap;
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /** Prefix of the placeholder tag that replaces a hidden fence tag. The
