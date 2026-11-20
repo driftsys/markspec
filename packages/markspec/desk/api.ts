@@ -84,6 +84,7 @@ import {
   formatEntryOrigin,
   isCorpusEntry,
   loadMarkdownFormatter,
+  loadToolConfig,
   makeDisplayId,
   type ProseFormatter,
 } from "../core/mod.ts";
@@ -737,6 +738,10 @@ export function createDeskHandler(
     const { lineWidth } = await createEditorConfigResolver(source.readFile)(
       realTarget,
     );
+    // And its prose wrapping, the project's `.markspec.yaml`
+    // `format.text-wrap` (ADR-029 amendment).
+    const { textWrap } =
+      (await loadToolConfig(source.projectRoot, source.readFile)).config;
     if (!apply) {
       const outcome = await previewBody(
         text,
@@ -746,6 +751,7 @@ export function createDeskHandler(
         formatProse,
         format,
         lineWidth,
+        textWrap,
       );
       if (!outcome.ok) return refusalResponse(outcome.refusal);
       const body: ProposalPreview = {
@@ -768,6 +774,7 @@ export function createDeskHandler(
       formatProse,
       format,
       lineWidth,
+      textWrap,
     );
     if (!outcome.ok) return refusalResponse(outcome.refusal);
     // The pipeline formats the whole file, which takes time on a large

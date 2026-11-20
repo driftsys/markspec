@@ -27,6 +27,7 @@ import type {
   ProjectConfig,
   ProjectRootResolver,
   ReadFile,
+  ToolConfig,
 } from "../core/mod.ts";
 import { dirname, join, relative, resolve } from "@std/path";
 
@@ -550,6 +551,12 @@ export interface ResolvedScope {
 /** Load the `.markspec.yaml` `exclude:` list of `root`; on a malformed
  * `.markspec.yaml`, print its errors and exit 1. */
 async function loadExcludeOrExit(root: string): Promise<readonly string[]> {
+  return (await loadToolConfigOrExit(root)).exclude;
+}
+
+/** Load the `.markspec.yaml` tool config of `root`; on a malformed
+ * `.markspec.yaml`, print its errors and exit 1. */
+export async function loadToolConfigOrExit(root: string): Promise<ToolConfig> {
   const { loadToolConfig } = await import("../core/mod.ts");
   // A malformed .markspec.yaml IS surfaced — silently falling back to "no
   // excludes" would widen file discovery in a way the author never
@@ -564,7 +571,7 @@ async function loadExcludeOrExit(root: string): Promise<readonly string[]> {
     }
     Deno.exit(1);
   }
-  return toolConfigResult.config.exclude;
+  return toolConfigResult.config;
 }
 
 /** The user's home folder, or `undefined` when it is unknown or the

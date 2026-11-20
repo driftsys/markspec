@@ -18,6 +18,21 @@ import type {
 } from "../model/mod.ts";
 import type { ReadFile } from "./mod.ts";
 
+/**
+ * How `markspec fmt` wraps prose, the `.markspec.yaml` `format.text-wrap`
+ * setting (ADR-029 amendment): `always` (default) hard-wraps at the line
+ * width, `maintain` keeps the author's line breaks, `never` puts each
+ * paragraph on one line. The values are dprint-markdown's `textWrap`.
+ */
+export type TextWrap = "always" | "maintain" | "never";
+
+/** The accepted {@linkcode TextWrap} values, in documentation order. */
+export const TEXT_WRAP_VALUES: readonly TextWrap[] = Object.freeze([
+  "always",
+  "maintain",
+  "never",
+]);
+
 /** The consumer-binding config filename, placed next to `project.yaml`. */
 export const MARKSPEC_YAML_FILENAME = ".markspec.yaml";
 
@@ -94,6 +109,12 @@ export interface MarkspecYaml {
    * Defaults to `{}` when the key is absent or null.
    */
   readonly captionConventions: CaptionConventions;
+  /**
+   * Prose wrapping of `markspec fmt` (ADR-029 amendment). Absent when the
+   * file has no `format:` section. The line width is not a `.markspec.yaml`
+   * key: it comes from `.editorconfig` (`max_line_length`).
+   */
+  readonly format?: { readonly textWrap: TextWrap };
 }
 
 /** Result of parsing a `.markspec.yaml` string. */
@@ -108,6 +129,7 @@ export const ALLOWED_MARKSPEC_YAML_KEYS = new Set([
   "default-profile",
   "exclude",
   "caption-conventions",
+  "format",
 ]);
 
 /** Valid `caption-conventions` keywords (spec §4.7 MSL-C072). */
@@ -310,6 +332,8 @@ export function parseMarkspecYaml(
     }
   }
 
+  const format = parseFormat(root.format, sourcePath, diagnostics);
+
   // If any specifier failed to parse, treat the whole file as invalid.
   const hasErrors = diagnostics.some((d) => d.severity === "error");
   if (hasErrors) {
@@ -317,9 +341,67 @@ export function parseMarkspecYaml(
   }
 
   return {
-    config: { profiles, defaultProfile, exclude, captionConventions },
+    config: {
+      profiles,
+      defaultProfile,
+      exclude,
+      captionConventions,
+      ...(format !== undefined ? { format } : {}),
+    },
     diagnostics,
   };
+}
+
+/**
+ * Parse the optional `format:` section (`text-wrap`). An omitted key takes
+ * `always`; an invalid value or an unknown key emits `MARKSPEC-YAML-003`.
+ * `line-width` gets a pointer to `.editorconfig`, the only source of the
+ * line width.
+ */
+function parseFormat(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): { textWrap: TextWrap } | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const error = (message: string) =>
+    diagnostics.push({
+      code: "MARKSPEC-YAML-003",
+      severity: "error",
+      message: `.markspec.yaml: ${message}`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    error(
+      `'format' expected a mapping with text-wrap, got ${
+        Array.isArray(raw) ? "array" : typeof raw
+      }`,
+    );
+    return undefined;
+  }
+  const section = raw as Record<string, unknown>;
+  for (const key of Object.keys(section)) {
+    if (key === "line-width") {
+      error(
+        "'format.line-width' is not supported: set max_line_length for " +
+          "Markdown files in .editorconfig, which prim and editors read too",
+      );
+    } else if (key !== "text-wrap") {
+      error(`'format.${key}': unknown key; valid keys: text-wrap`);
+    }
+  }
+  const textWrap = section["text-wrap"] === undefined
+    ? "always"
+    : section["text-wrap"];
+  if (!TEXT_WRAP_VALUES.includes(textWrap as TextWrap)) {
+    error(
+      `'format.text-wrap' expected ${
+        TEXT_WRAP_VALUES.map((value) => JSON.stringify(value)).join(", ")
+      }, got ${JSON.stringify(textWrap)}`,
+    );
+    return undefined;
+  }
+  return { textWrap: textWrap as TextWrap };
 }
 
 /**
@@ -474,23 +556,28 @@ export async function addProfileSpecifier(
 
 /**
  * The markspec-tool configuration read from `.markspec.yaml`: file-
- * discovery exclusions and caption-position conventions. Distinct from
+ * discovery exclusions, caption-position conventions and the prose
+ * wrapping of `markspec fmt`. Distinct from
  * {@linkcode MarkspecYaml}'s `profiles` / `defaultProfile` fields, which
  * drive profile-chain resolution rather than tool behavior.
  */
 export interface ToolConfig {
   readonly exclude: readonly string[];
   readonly captionConventions: CaptionConventions;
+  /** Prose wrapping of `markspec fmt` (`format.text-wrap`). */
+  readonly textWrap: TextWrap;
 }
 
-/** Defaults used when `.markspec.yaml` is absent or carries neither key. */
+/** Defaults used when `.markspec.yaml` is absent or carries none of the keys. */
 export const DEFAULT_TOOL_CONFIG: ToolConfig = {
   exclude: [],
   captionConventions: {},
+  textWrap: "always",
 };
 
 /**
- * Load the markspec tool config (`exclude`, `caption-conventions`) from
+ * Load the markspec tool config (`exclude`, `caption-conventions`,
+ * `format`) from
  * `.markspec.yaml` at `projectRoot`.
  *
  * An absent file, or one that parses to a `null` config (a schema or YAML
@@ -516,6 +603,7 @@ export async function loadToolConfig(
     config: {
       exclude: config.exclude,
       captionConventions: config.captionConventions,
+      textWrap: config.format?.textWrap ?? DEFAULT_TOOL_CONFIG.textWrap,
     },
     diagnostics,
   };

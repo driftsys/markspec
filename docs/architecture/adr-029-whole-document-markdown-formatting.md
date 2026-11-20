@@ -3,7 +3,8 @@
 ## Status
 
 Accepted (2026-07-02). Closes #649. Amended by #984: the line width and the line
-ending come from `.editorconfig`.
+ending come from `.editorconfig`. Amended by #978: the prose wrapping is a
+`.markspec.yaml` setting, `always` by default.
 
 ## Context
 
@@ -23,10 +24,10 @@ loaded on the fmt code path.
 
 Style: `lineWidth` 80 by default (soft target — table rows, links/references,
 and inline code may exceed it and are never split), `textWrap` always, emphasis
-underscores, strong asterisks, dashes for lists. The line width and the line
-ending are the only two values a project can change, and only through
-`.editorconfig` (see below); every other value is fixed. dprint's
-`<!-- dprint-ignore -->` directives work as a per-block opt-out, but an
+underscores, strong asterisks, dashes for lists. A project can change three
+values: the line width and the line ending through `.editorconfig`, and the
+prose wrapping through `.markspec.yaml` (see below); every other value is fixed.
+dprint's `<!-- dprint-ignore -->` directives work as a per-block opt-out, but an
 ignore-start/end pair MUST NOT span an entry block (segments format
 independently).
 
@@ -97,6 +98,48 @@ Windows checkout does not turn every file into line-ending drift.
 Not read from `.editorconfig`: `insert_final_newline` (`fmt` always ends a
 Markdown file with one newline) and `trim_trailing_whitespace`.
 
+### Prose wrapping: `.markspec.yaml` `format.text-wrap` (amendment, #978)
+
+Corpora migrated from a requirements tool store each paragraph on one line, and
+block editors change only the lines their author touched. With the `always`
+wrapping, a one-word edit near the start of a paragraph re-wraps every following
+line, so the review diff shows the whole paragraph changed. The opt-outs above
+do not scale: `<!-- dprint-ignore -->` is per block, and `exclude:` also drops
+Id stamping and trailer normalisation.
+
+One setting, in the `.markspec.yaml` `format:` section, selects the prose
+wrapping of a project:
+
+```yaml
+format:
+  text-wrap: always # always | maintain | never
+```
+
+`always` is the style above. It stays the default and the canonical MarkSpec
+style, and a project without the setting is unchanged. `maintain` keeps the
+author's line breaks; `never` joins each paragraph and list item onto one line.
+The values are dprint-markdown's `textWrap` values, passed as a per-call
+override, so one cached formatter serves every project. Only `always` uses the
+`.editorconfig` line width. `.markspec.yaml` has no width key: a
+`format.line-width` key is refused with a pointer to `.editorconfig`, and any
+other key or value is a `MARKSPEC-YAML-003` error. `fmt`, the `check` MSL-F010
+gate, the LSP and MarkDesk proposals apply the wrapping of the file's project.
+Hard breaks, tables, code, titles and trailers are never re-wrapped, and
+idempotency holds for every value (tested). The semantic-equivalence gate
+(MSL-F012) already treats soft-wrap positions as equal and is unchanged.
+
+prim has no wrap-mode setting. A project that also runs `prim fmt` must exclude
+the files formatted with `maintain` or `never` from prim, in `.primignore`, or
+the two formatters re-wrap each other's output. If prim gains a matching setting
+(see driftsys/prim#227 for the shared style contract), MarkSpec follows its name
+and values.
+
+Rejected: a `.markspec.yaml` `line-width` key (a second width source that
+disagrees with prim's `.editorconfig` value); a `project.yaml` key
+(`project.yaml` holds project metadata under a closed schema); a per-file
+directive (does not scale, as `dprint-ignore`); exposing more dprint options (no
+demand, and it would fragment the canonical style beyond wrapping).
+
 Idempotency (`format ∘ format === format`) is a tested hard requirement —
 MSL-F010 depends on it.
 
@@ -110,7 +153,7 @@ MSL-F010 depends on it.
   0.22.1 to match the version that `prim` pins, so both tools format Markdown
   with the same plugin.
 - Semantic line breaks (one sentence per line) do not survive
-  `textWrap: always`.
+  `textWrap: always`; they survive `text-wrap: maintain`.
 
 ## Alternatives considered
 
@@ -135,7 +178,9 @@ ragged, #649 unfixed).
   (`onDocumentFormatting`), `tests/e2e/format_test.ts` and
   `tests/e2e/lsp_formatting_test.ts`; `.editorconfig` resolution:
   `packages/markspec/core/config/editorconfig.ts`,
-  `tests/e2e/editorconfig_test.ts`.
+  `tests/e2e/editorconfig_test.ts`; `format.text-wrap`:
+  `packages/markspec/core/config/markspec.ts`,
+  `tests/e2e/format_text_wrap_test.ts`.
 - prim's `.editorconfig` resolution, which this one follows:
   `crates/prim-cli/src/editorconfig.rs` (`style_from`) in driftsys/prim, and
   driftsys/prim#227.

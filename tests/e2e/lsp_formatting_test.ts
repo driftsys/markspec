@@ -244,3 +244,49 @@ Deno.test("lsp formatting: a formatted CRLF buffer yields no edits (#984)", asyn
     await client.shutdown();
   }
 });
+
+Deno.test("lsp formatting: applies the .markspec.yaml text-wrap", async () => {
+  // A body hard-wrapped by the default style; the project selects `never`,
+  // so the editor's format must join it, as `markspec fmt` does.
+  const md = `- [STK_AEB_0001] Vehicle stops before collision
+
+  The vehicle shall stop before an obstacle that is detected in the driving
+  corridor ahead of it.
+
+      Id: 01JEMX9GZXYZ0000000000000A
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    ".markspec.yaml": "format:\n  text-wrap: never\n",
+    "reqs.md": md,
+  });
+  try {
+    await client.initialize();
+
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+
+    const edits = await client.request("textDocument/formatting", {
+      textDocument: { uri: fileUri },
+      options: { tabSize: 2, insertSpaces: true },
+    }) as Array<{ newText: string }>;
+
+    assertEquals(edits.length, 1, `Expected one edit, got ${edits.length}`);
+    assert(
+      edits[0].newText.includes(
+        "  The vehicle shall stop before an obstacle that is detected in the " +
+          "driving corridor ahead of it.\n",
+      ),
+      `Expected the body on one line, got:\n${edits[0].newText}`,
+    );
+  } finally {
+    await client.shutdown();
+  }
+});

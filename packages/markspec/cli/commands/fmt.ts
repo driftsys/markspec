@@ -14,6 +14,7 @@ import {
   denoDiscoveryIO,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
+  loadToolConfigOrExit,
   projectCollectOptions,
   readFile,
   resolveScope,
@@ -102,6 +103,11 @@ export const fmtCmd = new Command()
       const resolver = await cliProjectRootResolver();
 
       for (const group of scope.groups) {
+        // Prose wrapping of the group's project, `.markspec.yaml`
+        // `format.text-wrap` (ADR-029 amendment).
+        const textWrap = group.projectRoot !== undefined
+          ? (await loadToolConfigOrExit(group.projectRoot)).textWrap
+          : undefined;
         // Project-aware reference canonicalisation/healing (issue #593,
         // Slice 4). Built once per project group and reused for every file
         // of the group. A group without a project root leaves refIndex
@@ -173,6 +179,7 @@ export const fmtCmd = new Command()
             file: filePath,
             formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
             ...(isMarkdown ? await markdownStyle(filePath) : {}),
+            textWrap,
           });
           let output = result.output;
           let changed = result.changed;

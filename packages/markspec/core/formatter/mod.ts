@@ -56,6 +56,7 @@ import {
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
   type ProseFormatter,
 } from "./dprint.ts";
+import type { TextWrap } from "../config/markspec.ts";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
 
 /**
@@ -501,6 +502,12 @@ export interface FormatOptions {
    */
   readonly lineWidth?: number;
   /**
+   * Prose wrapping of the Markdown pass, the `.markspec.yaml`
+   * `format.text-wrap` of the file's project (ADR-029 amendment). Default
+   * `always`. Only `always` wraps to {@linkcode lineWidth}.
+   */
+  readonly textWrap?: TextWrap;
+  /**
    * Line ending of the output. When absent, the output keeps the line
    * ending detected in the input. The CLI and the LSP always pass it,
    * resolved from the `end_of_line` key of the nearest `.editorconfig`
@@ -771,12 +778,17 @@ function formatEntries(
   const rawProseFormat = isMarkdownFile
     ? options?.formatMarkdownProse
     : undefined;
-  // Prose segments are formatted at the resolved line width; an entry body
-  // passes its own, smaller width (see `emitBodyViaAst`).
+  // Prose segments are formatted at the resolved line width and with the
+  // project's wrapping; an entry body passes its own, smaller width (see
+  // `emitBodyViaAst`).
+  const textWrap = options?.textWrap;
   const proseFormat: ProseFormatter | undefined = rawProseFormat === undefined
     ? undefined
     : (text, opts) =>
-      rawProseFormat(text, { lineWidth: opts?.lineWidth ?? lineWidth });
+      rawProseFormat(text, {
+        lineWidth: opts?.lineWidth ?? lineWidth,
+        ...(textWrap !== undefined ? { textWrap } : {}),
+      });
   if (
     allEntries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined
   ) {

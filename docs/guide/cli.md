@@ -169,21 +169,23 @@ collides.
 ### .markspec.yaml
 
 `.markspec.yaml` carries markspec's own tool configuration: profile binding
-(covered in the [Profile guide](profiles.md)) plus two file-discovery /
-rendering settings that used to live in `project.yaml`:
+(covered in the [Profile guide](profiles.md)), two file-discovery / rendering
+settings that used to live in `project.yaml`, and the prose wrapping of
+`markspec fmt`:
 
 | Field                 | Type                      | Default | Description                                                                                                                                                      |
 | --------------------- | ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `exclude`             | string[]                  | `[]`    | Gitignore-syntax patterns excluded from project-wide file discovery (bare `check`/`lint`/`fmt`), anchored at the project root. Applied after `.gitignore` rules. |
 | `caption-conventions` | map<string, above\|below> | `{}`    | Per-keyword caption-position convention (`Figure`, `Table`, `Listing`, `Feature`, `Equation`, `List`) enforced by `MSL-C072`.                                    |
+| `format`              | map                       | —       | Prose wrapping of `markspec fmt`: `text-wrap` (`always`, `maintain` or `never`, default `always`). See below.                                                    |
 
 Each `exclude:` pattern must be a non-empty string. Editor validation and
 autocomplete use the
 [`.markspec.yaml` schema](https://driftsys.github.io/markspec/schemas/markspec/v1.json).
 `project.yaml` rejects `exclude:`; configure it in `.markspec.yaml`.
 
-For `exclude:` and `caption-conventions:`, `null` or an empty YAML key uses the
-default empty list or mapping.
+For `exclude:`, `caption-conventions:` and `format:`, `null` or an empty YAML
+key uses the default empty list, mapping or wrapping.
 
 **`exclude:` example** — skip a directory of example entry blocks that aren't
 real requirements, plus a generated-file pattern:
@@ -238,6 +240,31 @@ caption-conventions:
   Table: above
   Figure: below
 ```
+
+**`format:` example** — keep each paragraph on one line, as in a requirements
+tool that stores a paragraph per line, so that editing a word changes only that
+line in a diff:
+
+```yaml
+# .markspec.yaml
+format:
+  text-wrap: never
+```
+
+`text-wrap: always` (the default) hard-wraps prose at the `.editorconfig` line
+width (see [`fmt`](#fmt)). `maintain` keeps the author's line breaks and wraps
+nothing. `never` joins each paragraph and list item onto one line. In every case
+hard breaks (a trailing `\`), tables, code and trailers are kept, `fmt` stays
+idempotent, and the `check` drift gate (`MSL-F010`), the LSP and MarkDesk
+proposals apply the same wrapping. `.markspec.yaml` has no line-width key: a
+`format.line-width` key is refused, set `max_line_length` in `.editorconfig`
+instead.
+
+`maintain` and `never` have no prim equivalent: prim wraps Markdown at
+`max_line_length`, so a project that also runs `prim fmt` must exclude the files
+formatted with these modes from prim, in `.primignore`, or the two formatters
+re-wrap each other's output. If prim gains a matching setting, MarkSpec will
+follow its name and values.
 
 See the [Profile guide](profiles.md) for the profile-binding keys (`profiles:`,
 `default-profile:`) this file also carries.
@@ -346,7 +373,9 @@ formats the entire Markdown document — headings, lists, tables, and prose —
 through an embedded dprint-markdown plugin, with one fixed style: always-wrap
 prose, underscore emphasis, asterisk strong, and dash bullet lists. The line
 width and the line ending come from `.editorconfig`, with the same rules as
-`prim fmt`.
+`prim fmt`. A project can keep its line breaks or one line per paragraph with
+the `.markspec.yaml` `format:` section (`text-wrap`, see
+[.markspec.yaml](#markspecyaml)).
 
 - **Line width: `max_line_length`, default 80.** `fmt` reads the `.editorconfig`
   files from the file's directory upward, until a file with `root = true`;
