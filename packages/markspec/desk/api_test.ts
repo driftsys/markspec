@@ -1603,6 +1603,8 @@ const SYS_0002_BODY =
 /** Options for {@linkcode writableHandler}. */
 interface WritableOptions {
   readonly compiled?: CompileResult;
+  /** The served profile; defaults to the fixture's. */
+  readonly profile?: EffectiveProfile;
   readonly loadProseFormatter?: () => Promise<ProseFormatter>;
   readonly failWrite?: boolean;
   /**
@@ -1653,7 +1655,7 @@ async function writableHandler(options: WritableOptions = {}) {
     loadProseFormatter: options.loadProseFormatter,
     source: {
       projectRoot: FIXTURE_ROOT,
-      profile: fixed.profile,
+      profile: options.profile ?? fixed.profile,
       getCompiled: () => Promise.resolve(state.compiled),
       readFile: (p) => {
         if (p === SYSTEM_PATH && options.linkText !== undefined) {
@@ -1757,6 +1759,32 @@ Deno.test("desk api: preview returns the formatted proposal and writes nothing",
   assertEquals(view.changes[0].body, "New body.");
   assertStringIncludes(view.changes[0].currentBody, "within 200 ms");
   assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: preview and apply keep keyword casing under the profile's casing: preserve", async () => {
+  const fixed = await fixture;
+  assert(fixed.profile !== undefined);
+  const conventions = new Map(fixed.profile.conventions);
+  conventions.set("modal-keywords", {
+    value: { name: "modal-keywords", settings: { casing: "preserve" } },
+    origin: "@test/legacy",
+  });
+  const { h, state } = await writableHandler({
+    profile: { ...fixed.profile, conventions },
+  });
+  const proposed = "The system SHALL act When requested.";
+  const etag = await systemEtag(h);
+  const preview = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", proposed), { "if-match": etag }),
+  );
+  assertEquals(preview.status, 200);
+  assertEquals((await preview.json()).changes[0].body, proposed);
+  const applied = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", proposed), { "if-match": etag }),
+  );
+  assertEquals(applied.status, 200);
+  assertEquals(state.writes.length, 1);
+  assertStringIncludes(state.writes[0].text, `  ${proposed}`);
 });
 
 Deno.test("desk api: apply writes only the target body and returns the new ETag", async () => {

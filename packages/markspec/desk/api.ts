@@ -746,6 +746,7 @@ export function createDeskHandler(
         formatProse,
         format,
         lineWidth,
+        source.profile?.conventions,
       );
       if (!outcome.ok) return refusalResponse(outcome.refusal);
       const body: ProposalPreview = {
@@ -768,6 +769,7 @@ export function createDeskHandler(
       formatProse,
       format,
       lineWidth,
+      source.profile?.conventions,
     );
     if (!outcome.ok) return refusalResponse(outcome.refusal);
     // The pipeline formats the whole file, which takes time on a large

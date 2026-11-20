@@ -303,6 +303,7 @@ async function checkGroup(
       ((resolveStyle) => (path: string) => resolveStyle(resolvePath(path)))(
         createEditorConfigResolver(readFile),
       ),
+      chain?.effective.conventions,
     );
 
     if (
