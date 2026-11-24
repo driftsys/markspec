@@ -26,6 +26,7 @@ import {
   resolve,
   SEPARATOR,
 } from "@std/path";
+import { discoverProjectRoot } from "../config/mod.ts";
 import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 export { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
@@ -107,6 +108,16 @@ export interface DiscoverOptions {
    * folder is read. Ignored when it is not a strict ancestor of `root`.
    */
   readonly inheritGitignoreFrom?: string;
+  /**
+   * Skip the folders below `root` that are project roots of their own, so the
+   * walk covers one project only. A folder is such a root when a document in
+   * it resolves its project to the folder itself, as
+   * {@linkcode resolveConfigRoot} does: it holds a `project.yaml`, or a
+   * `.markspec.yaml` while no `project.yaml` lies at or above `root`. A
+   * `.markspec.yaml` below a `project.yaml` belongs to that project, so its
+   * folder is walked.
+   */
+  readonly excludeNestedProjects?: boolean;
 }
 
 /**
@@ -149,6 +160,13 @@ export async function* discoverFiles(
 ): AsyncGenerator<string> {
   const extensions = options.extensions ?? RELEVANT_EXTENSIONS;
   const start = await walkStart(root, io, options);
+  // Resolved once for the whole walk: no folder below `root` that the walk
+  // enters holds a `project.yaml`, since such a folder is skipped.
+  const nested: NestedRoots | undefined = options.excludeNestedProjects
+    ? {
+      projectAbove: await discoverProjectRoot(root, io.readFile) !== undefined,
+    }
+    : undefined;
   // Carry excludes separately: they must stay after every `.gitignore`,
   // including ones loaded deeper in the walk.
   yield* walk(
@@ -158,6 +176,8 @@ export async function* discoverFiles(
     start.excludeRules,
     io,
     extensions,
+    nested,
+    true,
   );
 }
 
@@ -316,6 +336,27 @@ async function inheritedGitignoreRules(
   return { rules, prefix: segments.join("/") };
 }
 
+/** How a walk recognises the nested project roots it skips. */
+interface NestedRoots {
+  /** A `project.yaml` lies at or above the walk root. */
+  readonly projectAbove: boolean;
+}
+
+/**
+ * `true` when the folder whose entries are `entries` is a project root of
+ * its own (see {@linkcode DiscoverOptions.excludeNestedProjects}). It reads
+ * no file: the entries are those the walk already listed.
+ */
+function isNestedRoot(
+  entries: readonly DiscoveryDirEntry[],
+  nested: NestedRoots,
+): boolean {
+  const has = (name: string) =>
+    entries.some((entry) => entry.isFile && entry.name === name);
+  return has("project.yaml") ||
+    (!nested.projectAbove && has(".markspec.yaml"));
+}
+
 /**
  * Walk `absDir`. `relDir` is the POSIX path of `absDir` relative to the
  * folder the rules are anchored at (the enclosing folder when rules are
@@ -328,19 +369,23 @@ async function* walk(
   excludeRules: readonly GitignoreRule[],
   io: DiscoveryIO,
   extensions: ReadonlySet<string>,
+  nested: NestedRoots | undefined,
+  isRoot: boolean,
 ): AsyncGenerator<string> {
-  // Deeper `.gitignore` rules win over inherited ones. Excludes stay last
-  // for this directory's decisions, but are not inherited as gitignore rules.
-  const gitignoreRules = await rulesForDirectory(absDir, relDir, rules, io);
-  const active = [...gitignoreRules, ...excludeRules];
-
   const entries: DiscoveryDirEntry[] = [];
   try {
     for await (const e of io.readDir(absDir)) entries.push(e);
   } catch {
     return; // unreadable directory — a project walk must not abort
   }
+  // A nested project root below the walk root belongs to its own project.
+  if (!isRoot && nested !== undefined && isNestedRoot(entries, nested)) return;
   entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+
+  // Deeper `.gitignore` rules win over inherited ones. Excludes stay last
+  // for this directory's decisions, but are not inherited as gitignore rules.
+  const gitignoreRules = await rulesForDirectory(absDir, relDir, rules, io);
+  const active = [...gitignoreRules, ...excludeRules];
 
   for (const entry of entries) {
     const rel = relDir === "" ? entry.name : `${relDir}/${entry.name}`;
@@ -353,6 +398,8 @@ async function* walk(
         excludeRules,
         io,
         extensions,
+        nested,
+        false,
       );
     } else if (entry.isFile) {
       if (!isRelevantFile(entry.name, extensions)) continue;

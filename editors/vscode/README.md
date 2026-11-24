@@ -109,6 +109,19 @@ through setting up a project and choosing a profile.
 | `markspec.trace.server`                         | `off`                             | Trace LSP traffic (`messages` / `verbose`) for debugging.                                                                                      |
 | `markspec.trace.logPath`                        | _(workspace `.markspec/lsp.log`)_ | Override the LSP event-log path.                                                                                                               |
 
+`markspec.server.path` expands `${workspaceFolder}`, so the language server and
+the MCP server can share a workspace-owned verified binary, for example
+`${workspaceFolder}/tools/markspec/markspec`. With no folder open, such a path
+is refused with an error instead of being started. Because a workspace can set
+this path, the extension runs only in a trusted workspace.
+
+The MCP server tracks only the files of its project. It honors the `.gitignore`
+files of the project and of the outermost enclosing project, the
+`.markspec.yaml` `exclude:` patterns and nested project boundaries, so an empty
+discovery boundary (`exclude: ["**"]`) starts no background compilation of the
+repository. A malformed `.markspec.yaml` is reported and the default discovery
+applies, as in the language server.
+
 ## Commands
 
 Both are available from the Command Palette (`Ctrl/Cmd+Shift+P`):

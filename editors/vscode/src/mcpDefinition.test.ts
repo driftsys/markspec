@@ -145,3 +145,26 @@ test("resolveMcpDefinition: shipped server.path default resolves to bundled bina
   );
   assert.notEqual(def!.command, "markspec");
 });
+
+test("resolveMcpDefinition: expands the configured executable path from the workspace", () => {
+  const resolved = resolveMcpDefinition({
+    ...base(),
+    configuredServerPath: "${workspaceFolder}/tools/markspec/markspec",
+  });
+  assert.equal(
+    resolved!.command,
+    `${WORKSPACE}/tools/markspec/markspec`,
+  );
+});
+
+test("resolveMcpDefinition: a workspace-relative path without an open folder fails clearly", () => {
+  assert.throws(
+    () =>
+      resolveMcpDefinition({
+        ...base(),
+        workspaceFolder: undefined,
+        configuredServerPath: "${workspaceFolder}/bin/markspec",
+      }),
+    /no workspace folder is open/,
+  );
+});

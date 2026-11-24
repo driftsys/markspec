@@ -16,10 +16,12 @@ import {
   type CaptionConventions,
   compile,
   type CompileResult,
+  createProjectRootResolver,
   type DeliveredDocument,
   deliveredPathIsContained,
   deriveUpstreamId,
   type Diagnostic,
+  discoverFiles,
   type DiscoveryDirEntry,
   type EffectiveProfile,
   type Entry,
@@ -118,17 +120,6 @@ const TRACKED_EXTENSIONS = new Set([
   ".cxx",
   ".hpp",
   ".hxx",
-]);
-
-/** Directories never scanned for tracked files. */
-const SKIP_DIRS = new Set([
-  "node_modules",
-  ".git",
-  ".worktrees",
-  "target",
-  "dist",
-  "build",
-  ".claude",
 ]);
 
 /**
@@ -304,6 +295,8 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
       return undefined; // --allow-env not granted; treat as unset
     }
   };
+  // Configuration errors already logged, so that each one is logged once.
+  const reported = new Set<string>();
   return {
     cwd: () => Deno.cwd(),
     rootOverrides: () =>
@@ -326,26 +319,56 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
       const stat = await Deno.stat(path);
       return { mtime: stat.mtime?.getTime() ?? 0 };
     },
-    walk: (root: string) => walkFs(root),
+    walk: (root: string) =>
+      walkFs(root, envGet("HOME") ?? envGet("USERPROFILE"), reported),
   };
 }
 
-/** Recursive filesystem walker used by {@linkcode defaultEnv}. */
-async function* walkFs(dir: string): AsyncGenerator<string> {
-  try {
-    for await (const entry of Deno.readDir(dir)) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory) {
-        if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
-          yield* walkFs(path);
-        }
-      } else if (entry.isFile) {
-        yield path;
-      }
+/**
+ * Tracked-file walker used by {@linkcode defaultEnv}. It shares the project
+ * discovery of the CLI and the LSP: built-in build-output skips, the
+ * `.gitignore` files of `root` and of its outermost enclosing project (as
+ * `markspec check` resolves it, from the files on disk), the `.markspec.yaml`
+ * `exclude:` patterns of `root`, and it stops at nested projects. An empty
+ * discovery boundary (`exclude: ["**"]`) therefore yields no file instead of
+ * compiling the whole repository in the background.
+ *
+ * A malformed `.markspec.yaml` does not stop the walk: as in the LSP, its
+ * error diagnostics are logged (once per message) and the default tool
+ * configuration applies. The outermost project is resolved on each walk, so a
+ * configuration added above `root` later is taken into account.
+ */
+async function* walkFs(
+  root: string,
+  homeDir: string | undefined,
+  reported: Set<string>,
+): AsyncGenerator<string> {
+  const readFile: ReadFile = async (path) => {
+    try {
+      return await Deno.readTextFile(path);
+    } catch {
+      return undefined;
     }
-  } catch {
-    // Skip unreadable directories.
+  };
+  const io = { readDir: Deno.readDir, readFile };
+  const { config, diagnostics } = await loadToolConfig(root, readFile);
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.severity !== "error") continue;
+    const message = `${root}: ${diagnostic.code}: ${diagnostic.message}`;
+    if (reported.has(message)) continue;
+    reported.add(message);
+    console.error(message);
   }
+  const outermost = await createProjectRootResolver(io, { homeDir })
+    .outermostOf(root);
+  yield* discoverFiles(root, io, {
+    extensions: TRACKED_EXTENSIONS,
+    exclude: config.exclude,
+    excludeNestedProjects: true,
+    ...(outermost !== undefined && outermost !== root
+      ? { inheritGitignoreFrom: outermost }
+      : {}),
+  });
 }
 
 /**
