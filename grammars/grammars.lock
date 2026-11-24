@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-01T11:50:16.626Z",
+  "generated": "2026-11-23T17:52:44.578Z",
   "grammars": [
     {
       "file": "tree-sitter-rust.wasm",
@@ -61,8 +61,8 @@
       "file": "tree-sitter-c-sharp.wasm",
       "source": "npm",
       "package": "tree-sitter-c-sharp",
-      "version": "0.23.5",
-      "sha256": "6f69e1cae44e1c32c1eccc170dc5a9778fb94ff716f71113fe1f8c4299aa2f40"
+      "version": "0.24.0",
+      "sha256": "e137386fcdfc2562a058f8048c76ab77b0663a318cb62d8026cd4d2e94944231"
     }
   ]
 }
