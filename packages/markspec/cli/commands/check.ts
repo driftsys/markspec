@@ -47,6 +47,7 @@ export const checkCmd = new Command()
       const scope = await resolveScope(fileArgs, {
         verb: "checking",
         quiet: options.quiet === true || options.format === "json",
+        silent: options.quiet === true,
       });
       const results: GroupCheckResult[] = [];
       for (const group of scope.groups) {

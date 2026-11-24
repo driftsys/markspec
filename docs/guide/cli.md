@@ -508,7 +508,12 @@ profile, and `markspec.lock` on every surface.
   folder that an enclosing project hides — a folder listed in the enclosing
   project's `.markspec.yaml` `exclude:`, a gitignored folder, or a hidden folder
   (name starting with `.`) — it is not a project root, as in the LSP. The file
-  then belongs to the enclosing project.
+  then belongs to the enclosing project. An explicit file argument in such a
+  folder prints one warning per hidden config (unless `-q`) that names the
+  enclosing project and how to keep the folder a project: `exclude:` negations
+  for an excluded or gitignored folder (every excluded parent folder must be
+  re-included too), or renaming a hidden folder, which is never a project root
+  even when `exclude:` re-includes it.
 - **Explicit arguments.** The project of each file is resolved from the file's
   own directory, not from the current directory. Running
   `markspec check docs/req.md` from the project root, from `docs/`, or from
