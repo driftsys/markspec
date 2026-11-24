@@ -386,6 +386,31 @@ function emitBodyViaAst(
       continue;
     }
 
+    // Text-loss guard (#989). The check above compares the emission with
+    // `canonical`, which is derived from the original body: text that the
+    // AST build itself dropped is missing from both sides, so that check
+    // cannot see it. Parse the original body text and the emission as
+    // CommonMark and compare the two trees; keep the original body when
+    // they differ. Two intended rewrites are allowed: modal keyword
+    // casing (text nodes compare case-insensitively) and ordered-list
+    // renumbering (the list `start` is ignored). URLs, code and HTML stay
+    // byte-exact, so a changed link or code span is a difference.
+    if (
+      !markdownSemanticallyEquivalent(entry.body, emittedBody, {
+        ignoreTextCase: true,
+        ignoreListStart: true,
+      })
+    ) {
+      diagnostics.push({
+        code: "MSL-F900",
+        severity: "error",
+        message: `${entry.displayId}: canonical body is not equivalent to ` +
+          `the original body (formatter kept the original body)`,
+        location: entry.location,
+      });
+      continue;
+    }
+
     // ADR-029: polish the canonical body with the whole-document
     // Markdown formatter. Gated by CommonMark-semantic equivalence —
     // NOT the strict ADR-015 relation, which is byte-verbatim on

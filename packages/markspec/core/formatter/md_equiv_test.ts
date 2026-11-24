@@ -80,3 +80,41 @@ Deno.test("md_equiv: inline code content is verbatim — whitespace change NOT e
     false,
   );
 });
+
+// Options used by the formatter's text-loss guard (#989).
+const GUARD = { ignoreTextCase: true, ignoreListStart: true } as const;
+
+Deno.test("md_equiv: default relation keeps text case and list start", () => {
+  assertEquals(markdownSemanticallyEquivalent("SHALL", "shall"), false);
+  assertEquals(markdownSemanticallyEquivalent("3. a", "1. a"), false);
+});
+
+Deno.test("md_equiv: guard options ignore text case and list start", () => {
+  assertEquals(markdownSemanticallyEquivalent("SHALL", "shall", GUARD), true);
+  assertEquals(
+    markdownSemanticallyEquivalent("3. a\n4. b", "1. a\n2. b", GUARD),
+    true,
+  );
+});
+
+Deno.test("md_equiv: guard options still reject lost content", () => {
+  for (
+    const [original, emitted] of [
+      ["Term\n&#58; first line\nsecond line.", "Term\n: first line"],
+      ["Table: first line\nsecond line.", "Table: first line"],
+      ["Table: see [x](http://a.example/p)", "Table: see x"],
+      ["*a* b", "a b"],
+      ["[x](http://a.example/p)", "[x](http://a.example/q)"],
+      ['![alt](p.png "Title")', "![alt](p.png)"],
+      ["![ALT](p.png)", "![alt](p.png)"],
+      ["`SHALL`", "`shall`"],
+      ["a b b", "a b"],
+    ]
+  ) {
+    assertEquals(
+      markdownSemanticallyEquivalent(original, emitted, GUARD),
+      false,
+      `${JSON.stringify(original)} vs ${JSON.stringify(emitted)}`,
+    );
+  }
+});
