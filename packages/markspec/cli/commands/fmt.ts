@@ -101,7 +101,7 @@ export const fmtCmd = new Command()
       let hasErrors = false;
       const resolver = await cliProjectRootResolver();
 
-      for (const group of scope.groups) {
+      for (const [index, group] of scope.groups.entries()) {
         // Project-aware reference canonicalisation/healing (issue #593,
         // Slice 4). Built once per project group and reused for every file
         // of the group. A group without a project root leaves refIndex
@@ -171,6 +171,8 @@ export const fmtCmd = new Command()
           );
           const result = format(content, {
             file: filePath,
+            // The casing conventions of this group's own profile (#845).
+            conventions: chains[index]?.effective.conventions,
             formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
             ...(isMarkdown ? await markdownStyle(filePath) : {}),
           });

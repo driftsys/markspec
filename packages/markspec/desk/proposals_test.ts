@@ -773,3 +773,47 @@ Deno.test("applyBody: the written file passes the MSL-F010 check at the .editorc
   });
   assertEquals(again.changed, false, again.output);
 });
+
+Deno.test("previewBody and applyBody: the profile's casing: preserve keeps keyword casing", async () => {
+  const conventions = new Map([
+    ["modal-keywords", {
+      value: { name: "modal-keywords", settings: { casing: "preserve" } },
+      origin: "@test/legacy",
+    }],
+  ]);
+  const proposed = "The system SHALL act When requested.";
+  const preview = await previewBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+    format,
+    undefined,
+    conventions,
+  );
+  assert(preview.ok);
+  assertEquals(preview.value.body, proposed);
+  const applied = await applyBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+    format,
+    undefined,
+    conventions,
+  );
+  assert(applied.ok);
+  assert(applied.value.includes(proposed));
+  // Without the convention, the core casing applies.
+  const canonical = await previewBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+  );
+  assert(canonical.ok);
+  assertEquals(canonical.value.body, "The system shall act when requested.");
+});

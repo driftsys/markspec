@@ -47,6 +47,42 @@ Deno.test("fmtDriftGate: a formatter-clean file emits nothing", async () => {
   assertEquals(diags, []);
 });
 
+Deno.test("fmtDriftGate: uses the same casing convention as format", async () => {
+  const conventions = new Map([
+    ["modal-keywords", {
+      value: { name: "modal-keywords", settings: { casing: "preserve" } },
+      origin: "@test/legacy",
+    }],
+  ]);
+  const content = CLEAN_REQ.replace(
+    "shall respond",
+    "SHALL respond When asked",
+  );
+  const formatted = format(content, {
+    file: "req.md",
+    conventions,
+  }).output;
+  assertEquals(formatted.includes("SHALL respond When asked"), true);
+  const parsed = await parseFile(formatted, { file: "req.md" });
+  const inputs: ReadonlyMap<string, string> = new Map([["req.md", formatted]]);
+  assertEquals(
+    await fmtDriftGate(
+      inputs,
+      parsed.entries,
+      [],
+      undefined,
+      undefined,
+      conventions,
+    ),
+    [],
+  );
+  assertEquals(
+    (await fmtDriftGate(inputs, parsed.entries, [], undefined))
+      .some((diagnostic) => diagnostic.code === "MSL-F010"),
+    true,
+  );
+});
+
 Deno.test("fmtDriftGate: a file missing Id: fails with MSL-F010", async () => {
   const content = `# Doc
 

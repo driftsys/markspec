@@ -149,7 +149,7 @@ export function runPipeline(
     diagnostics.push(...validateCaptionConvention(entry, captionConventions));
     diagnostics.push(...validateBodyBlocks(entry));
     diagnostics.push(...validateFeatureAc(entry));
-    diagnostics.push(...validateModalKeywords(entry));
+    diagnostics.push(...validateModalKeywords(entry, profile?.conventions));
   }
 
   // Stage 1.6 — cross-file trace target-type compatibility (MSL-R083).

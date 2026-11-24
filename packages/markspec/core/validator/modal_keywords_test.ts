@@ -82,6 +82,36 @@ Deno.test("validateModalKeywords: uppercase SHALL — fires MSL-M060", () => {
   assertEquals(m060[0].message.includes("SHALL"), true);
 });
 
+Deno.test("validateModalKeywords: preserve casing suppresses only the casing warning", () => {
+  const entry = makeEntry("REQ-001", "The system SHALL act.", undefined, [{
+    kind: "modal",
+    text: "SHALL",
+    case: "upper",
+    location: { file: "test.md", line: 11, column: 12 },
+  }]);
+  for (const casing of ["preserve", "iso", "rfc2119"]) {
+    const conventions = new Map([
+      ["modal-keywords", {
+        value: { name: "modal-keywords", settings: { casing } },
+        origin: "@test/legacy",
+      }],
+    ]);
+    assertEquals(
+      validateModalKeywords(entry, conventions).length,
+      casing === "preserve" ? 0 : 1,
+    );
+    const missingModal = makeEntry(
+      "REQ-002",
+      "No obligation verb.",
+      "Requirement",
+    );
+    assertEquals(
+      validateModalKeywords(missingModal, conventions)[0]?.code,
+      "MSL-M061",
+    );
+  }
+});
+
 Deno.test("validateModalKeywords: uppercase keyword in code fence — NOT flagged", () => {
   // MSL-M060 — keywords inside verbatim code blocks must be excluded.
   // extractBodyTokens skips verbatim lines, so no modal tokens appear.
