@@ -436,6 +436,14 @@ in a manifest's `extends:` field — using one of three specifier schemes:
 | `git+<https\|file>://host/repo.git[/subpath]#<tag>` | Git source; shallow + sparse clone, cached globally   |
 | `npm:[@scope/]name@<version-range>`                 | npm package; resolved via `npm pack`, cached globally |
 
+A local specifier in the `extends:` field of a manifest that was fetched from a
+git source resolves in the same repository at the same tag: the path is joined
+to the manifest's subpath, and the parent is fetched as the git specifier for
+that joined subpath. For example, `extends: "../core"` in a manifest fetched as
+`git+https://host/org/repo.git/profiles/a#v1.0.0` resolves to
+`git+https://host/org/repo.git/profiles/core#v1.0.0`. A path that leaves the
+repository root is a `PROFILE-LOAD-001` error.
+
 Git auth is inherited from the user's git configuration; npm resolution uses the
 registry configured in `.npmrc`. The `jsr:` and raw `https:` schemes are
 reserved for a future release.

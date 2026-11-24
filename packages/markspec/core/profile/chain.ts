@@ -13,6 +13,10 @@
  */
 
 import { resolve as resolvePath } from "@std/path";
+import {
+  join as joinPosix,
+  normalize as normalizePosix,
+} from "@std/path/posix";
 import type { ReadFile } from "../config/mod.ts";
 import type {
   Diagnostic,
@@ -171,7 +175,27 @@ export async function loadChain(
     // explicit parent, splice the bundled default as the implicit root
     // (once — never below the builtin itself).
     if (parsed.manifest.extends !== undefined) {
-      cursorSpec = parsed.manifest.extends;
+      const parent: ProfileSpecifier = parsed.manifest.extends;
+      if (cursorSpec.kind === "git" && parent.kind === "local") {
+        // A sparse clone holds only the child's subpath, so a relative
+        // parent is resolved in the same repository at the same tag
+        // (#1002) instead of inside the child's cache directory.
+        const sibling = gitSiblingSpecifier(cursorSpec, parent.path);
+        if (!sibling) {
+          diagnostics.push({
+            code: "PROFILE-LOAD-001",
+            severity: "error",
+            message: `profile specifier '${parent.path}' cannot be resolved: ` +
+              `the relative path leaves the repository root of ` +
+              `${cursorSpec.repo}#${cursorSpec.tag}`,
+            location: { file: resolved.sourcePath, line: 1, column: 1 },
+          });
+          return { chain: null, diagnostics };
+        }
+        cursorSpec = sibling;
+      } else {
+        cursorSpec = parent;
+      }
       cursorDir = resolved.baseDir;
     } else if (opts.bundledDefault && cursorSpec.kind !== "builtin") {
       cursorSpec = BUILTIN_DEFAULT_SPECIFIER;
@@ -199,6 +223,27 @@ export async function loadChain(
   return {
     chain: { tiers, effective: mergeResult.effective },
     diagnostics,
+  };
+}
+
+/**
+ * The git specifier for a relative `extends:` path declared by the manifest
+ * of the git tier `child`: the same repository and tag, with the path
+ * joined to the child's subpath. Returns `undefined` when the joined path
+ * leaves the repository root.
+ */
+function gitSiblingSpecifier(
+  child: Extract<ProfileSpecifier, { kind: "git" }>,
+  relativePath: string,
+): Extract<ProfileSpecifier, { kind: "git" }> | undefined {
+  const joined = normalizePosix(joinPosix(child.subpath ?? ".", relativePath))
+    .replace(/\/$/, "");
+  if (joined === ".." || joined.startsWith("../")) return undefined;
+  return {
+    kind: "git",
+    repo: child.repo,
+    subpath: joined === "." || joined === "" ? undefined : joined,
+    tag: child.tag,
   };
 }
 

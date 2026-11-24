@@ -96,3 +96,37 @@ Deno.test("profile git e2e: bad tag emits PROFILE-LOAD-001", async () => {
     await Deno.remove(gitTempDir, { recursive: true });
   }
 });
+
+Deno.test("profile git e2e: relative extends in a git subpath profile resolves a sibling profile (#1002)", async () => {
+  const gitTempDir = await Deno.makeTempDir();
+  try {
+    const fixture = await setupGitFixture({
+      workspaceDir: gitTempDir,
+      name: "monorepo",
+      files: {
+        "profiles/core/markspec.yaml": BASE_PROFILE_YAML,
+        "profiles/a/markspec.yaml":
+          `id: "@acme/phase4-a"\nversion: 1.0.0\nextends: "../core"\n`,
+      },
+      tag: "v1.0.0",
+    });
+
+    const { code, stderr } = await markspec(["check", "req.md"], {
+      files: {
+        "project.yaml": PROJECT_YAML,
+        ".markspec.yaml":
+          `profiles:\n  - "git+${fixture.url}/profiles/a#${fixture.tag}"\n`,
+        "req.md": REQ_MD,
+      },
+      permissions: PERMISSIONS,
+    });
+
+    assertEquals(code, 0, `stderr: ${stderr}`);
+    const err = stderr.split("\n").filter((l) =>
+      l.includes("PROFILE-LOAD") || l.includes("PROFILE-MERGE")
+    );
+    assertEquals(err, []);
+  } finally {
+    await Deno.remove(gitTempDir, { recursive: true });
+  }
+});
