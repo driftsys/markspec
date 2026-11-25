@@ -111,8 +111,12 @@ export interface TableNode {
 /** Image link `![alt](path)` (spec §2.4). */
 export interface FigureNode {
   readonly kind: "figure";
+  /** Image alt text, decoded and without inline markup. */
   readonly alt: string;
   readonly path: string;
+  /** Verbatim source of the image paragraph, written back by the renderer,
+   * so the alt markup, character references and title are kept (#1008). */
+  readonly raw: string;
   readonly range: SourceRange;
 }
 
@@ -121,6 +125,12 @@ export interface CodeNode {
   readonly kind: "code";
   /** Info-string language tag, or `undefined` for a bare fence. */
   readonly lang: string | undefined;
+  /** The rest of the info string of a fenced code block after the language
+   * tag, verbatim from the fence line, with the spaces before it (for
+   * example `" title=x"` in `js title=x`). Escapes and character references
+   * are not decoded; trailing spaces are removed. Absent when there is none,
+   * and always absent for an indented code block (#1008). */
+  readonly meta?: string;
   readonly text: string;
   readonly range: SourceRange;
 }
@@ -134,6 +144,10 @@ export interface CodeNode {
 export interface FeatureNode {
   readonly kind: "feature";
   readonly source: string;
+  /** The rest of the info string after `gherkin` or `feature`, in the
+   * same verbatim form as `CodeNode.meta`. Absent when there is none
+   * (#1008). */
+  readonly meta?: string;
   /** Normalized AST of the block; ranges are relative to `source`. */
   readonly feature?: FeatureAst;
   /** First parser error; line 1 is the first line of `source`. */
@@ -148,6 +162,9 @@ export interface FeatureNode {
 /** `$$ … $$` math block (spec §2.4). */
 export interface MathNode {
   readonly kind: "math";
+  /** The verbatim source between the `$$` delimiters, including any
+   * surrounding newlines. Escapes and character references are not
+   * decoded, so TeX such as `\\` and `\_` is kept (#1008). */
   readonly tex: string;
   readonly range: SourceRange;
 }
@@ -192,7 +209,13 @@ export interface CaptionNode {
     | "Feature"
     | "Equation"
     | "List";
+  /** Caption text after the keyword: the first line only, decoded and
+   * without inline markup. Read by validators. */
   readonly text: string;
+  /** Verbatim source of the whole caption paragraph, keyword included,
+   * written back by the renderer, so every line, link URL and inline
+   * markup is kept (#1008). */
+  readonly raw: string;
   readonly position: "above" | "below";
   readonly block?: BodyBlock;
   readonly range: SourceRange;

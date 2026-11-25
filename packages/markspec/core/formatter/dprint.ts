@@ -163,7 +163,7 @@ function markdownFenceTagOffsets(markdown: string): number[] {
 /**
  * Wrap `format` so that it does not format the content of a code fence
  * tagged `md` or `markdown`. dprint-markdown formats such content as
- * Markdown; the CommonMark-semantic gate then rejects the change and the
+ * Markdown; the GFM-semantic gate then rejects the change and the
  * whole prose segment stays unformatted (MSL-F012). The wrapper replaces
  * each tag with a placeholder tag that dprint does not know, calls
  * `format`, and puts the original tags back. prim does the same. The

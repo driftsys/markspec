@@ -212,7 +212,7 @@ const CANONICAL_ORDER: readonly string[] = [
  *
  * When `proseFormat` (ADR-029) is supplied, the AST-canonical body is
  * further polished by the whole-document Markdown formatter (dprint),
- * gated by CommonMark-semantic equivalence — NOT the strict ADR-015
+ * gated by GFM-semantic equivalence — NOT the strict ADR-015
  * relation above, which is byte-verbatim on inline markup and would
  * reject every legitimate re-wrap. A rejected polish keeps the
  * AST-canonical body and raises an info diagnostic (MSL-F012) naming
@@ -390,13 +390,14 @@ function emitBodyViaAst(
     // `canonical`, which is derived from the original body: text that the
     // AST build itself dropped is missing from both sides, so that check
     // cannot see it. Parse the original body text and the emission as
-    // CommonMark and compare the two trees; keep the original body when
-    // they differ. Three intended rewrites are allowed: modal keyword
-    // casing (text nodes compare case-insensitively), ordered-list
-    // renumbering (the list `start` is ignored) and the `feature` fence
-    // info string, which the emitter writes as `gherkin` (#1011). URLs,
-    // code and HTML stay byte-exact, so a changed link or code span is a
-    // difference.
+    // Markdown with the GFM extensions (remark-parse and remark-gfm) and
+    // compare the two trees; keep the original body when they differ.
+    // Three intended rewrites are allowed: modal keyword casing (text nodes
+    // compare case-insensitively), ordered-list renumbering (the list
+    // `start` is ignored) and the `feature` fence language, which the
+    // emitter writes as `gherkin` (#1011). The info-string text after the
+    // language is compared as written in the source (#1008). URLs, code and
+    // HTML stay byte-exact, so a changed link or code span is a difference.
     if (
       !markdownSemanticallyEquivalent(entry.body, emittedBody, {
         ignoreTextCase: true,
@@ -415,7 +416,7 @@ function emitBodyViaAst(
     }
 
     // ADR-029: polish the canonical body with the whole-document
-    // Markdown formatter. Gated by CommonMark-semantic equivalence —
+    // Markdown formatter. Gated by GFM-semantic equivalence —
     // NOT the strict ADR-015 relation, which is byte-verbatim on
     // inline markup and would reject every legitimate re-wrap. On
     // rejection keep the AST-canonical body and say so (info).
@@ -517,7 +518,7 @@ export interface FormatOptions {
   /**
    * Whole-document Markdown formatter (ADR-029). When supplied, prose
    * segments outside entry blocks and each entry body are routed
-   * through it (dprint-markdown), gated by CommonMark-semantic
+   * through it (dprint-markdown), gated by GFM-semantic
    * equivalence. When absent, format() is entry-only — the exact
    * pre-ADR-029 behaviour. The entry-body polish passes a per-call
    * `lineWidth` reduced by the body indent (see `emitBodyViaAst`);
@@ -800,7 +801,7 @@ function formatEntries(
   // file extension HERE so the invariant has one home — a caller that wires
   // formatMarkdownProse without its own guard (e.g. a future write tool
   // forwarding options with a source-file label) cannot silently
-  // reflow a source file's doc comment as Markdown. The CommonMark-semantic
+  // reflow a source file's doc comment as Markdown. The GFM-semantic
   // gate cannot catch that class, so it must be prevented, not detected. The
   // CLI/LSP call-site guards remain as defense-in-depth.
   const isMarkdownFile = MARKDOWN_EXTENSIONS.has(extname(file).toLowerCase());

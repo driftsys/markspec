@@ -165,7 +165,7 @@ export const fmtCmd = new Command()
           // bare/directory scope), so a source file (e.g. `main.rs`) reaching
           // here without this guard would have dprint join its lines as
           // Markdown paragraphs — destructive, and undetectable by the
-          // CommonMark-semantic equivalence gate (line-joining is
+          // GFM-semantic equivalence gate (line-joining is
           // wrap-equivalent as Markdown).
           const isMarkdown = MARKDOWN_EXTENSIONS.has(
             extname(filePath).toLowerCase(),

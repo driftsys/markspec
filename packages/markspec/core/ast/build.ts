@@ -173,6 +173,38 @@ function tryMathParagraph(
 }
 
 // ---------------------------------------------------------------------------
+// Fence info string — verbatim text after the language tag
+// ---------------------------------------------------------------------------
+
+/**
+ * The opening line of a fenced code block: optional indentation, the fence
+ * markers, optional spaces, the language tag (the first word of the info
+ * string), and the rest of the line.
+ */
+const FENCE_OPEN_RE = /^[ \t]*(?:`{3,}|~{3,})[ \t]*\S+(.*)$/;
+
+/**
+ * The info-string text after the language tag of a fenced code block, read
+ * from the verbatim source of the block (`verbatim`, whose first line is the
+ * opening fence). mdast `meta` cannot be used: it decodes escapes and
+ * character references and trims the spaces between the language and the
+ * text. The returned text keeps those spaces (`"   title=x"` for
+ * `` ```js   title=x ``) and its escapes and character references. Trailing
+ * spaces and tabs on the fence line are removed, as `fmt` removes trailing
+ * whitespace elsewhere. Returns `undefined` when there is no text after the
+ * language tag.
+ *
+ * The caller must call it for a fenced code block with a language tag only:
+ * an indented code block can start with a line that looks like a fence
+ * opening, and that line is content, not an info string.
+ */
+export function verbatimFenceMeta(verbatim: string): string | undefined {
+  const firstLine = verbatim.split("\n", 1)[0].replace(/\r$/, "");
+  const rest = FENCE_OPEN_RE.exec(firstLine)?.[1].replace(/[ \t]+$/, "");
+  return rest ? rest : undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Admonition detection
 // ---------------------------------------------------------------------------
 
@@ -361,12 +393,19 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
           kind: "figure",
           alt: img.alt ?? "",
           path: img.url ?? "",
+          raw: verbatim,
           range,
         } satisfies FigureNode;
       }
 
-      // Check for math `$$ ... $$` paragraph
-      const mathTex = tryMathParagraph(text);
+      // Check for math `$$ ... $$` paragraph. Detection runs on the
+      // flattened text; the stored TeX is the verbatim source between the
+      // delimiters, because flattening decodes escapes (`\\` becomes `\`)
+      // and character references (#1008). A paragraph whose source has no
+      // literal `$$` delimiters (`\$\$x\$\$`) is not math.
+      const mathTex = tryMathParagraph(text) !== undefined
+        ? tryMathParagraph(verbatim)
+        : undefined;
       if (mathTex !== undefined) {
         return { kind: "math", tex: mathTex, range } satisfies MathNode;
       }
@@ -408,11 +447,15 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
       // Check for caption `Figure: text` etc.
       const caption = tryCaptionParagraph(text);
       if (caption) {
-        // Position is resolved in a post-pass; default "below" for now
+        // Position is resolved in a post-pass; default "below" for now.
+        // `text` is the flattened first line, read by validators. `raw`
+        // is the verbatim paragraph, which the renderer writes back, so
+        // later lines, link URLs and inline markup are kept (#1008).
         return {
           kind: "caption",
           keyword: caption.keyword,
           text: caption.text,
+          raw: verbatim,
           position: "below",
           range,
         } satisfies CaptionNode;
@@ -483,16 +526,26 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
 
     case "code": {
       const lang = node.lang ?? undefined; // empty string → undefined
+      // The info string after the language tag, read from the verbatim
+      // fence line (#1008). Stored only when present, so a node without
+      // one has no `meta` key.
+      // An indented code block, or a fence with no info string, has no
+      // `lang`; its first line is content even when it looks like a fence.
+      const metaText = lang
+        ? verbatimFenceMeta(verbatimSlice(body, node.position))
+        : undefined;
+      const meta = metaText !== undefined ? { meta: metaText } : {};
       if (lang === "gherkin" || lang === "feature") {
         const source = node.value ?? "";
         const api = loadedGherkin();
-        if (!api) return { kind: "feature", source, range };
+        if (!api) return { kind: "feature", source, ...meta, range };
         const parsed = parseFeature(api, source);
         return parsed.ok
-          ? { kind: "feature", source, feature: parsed.feature, range }
+          ? { kind: "feature", source, ...meta, feature: parsed.feature, range }
           : {
             kind: "feature",
             source,
+            ...meta,
             parseError: {
               line: parsed.line,
               column: parsed.column,
@@ -504,6 +557,7 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
       return {
         kind: "code",
         lang: lang || undefined,
+        ...meta,
         text: node.value ?? "",
         range,
       } satisfies CodeNode;
