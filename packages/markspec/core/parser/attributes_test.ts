@@ -75,8 +75,8 @@ Deno.test("parseAttributes: trims leading/trailing whitespace from values", () =
   assertEquals(attrs[1].value, "ASIL-B");
 });
 
-const BOM = "﻿";
-const NBSP = " ";
+const BOM = String.fromCharCode(0xfeff);
+const NBSP = String.fromCharCode(0xa0);
 
 Deno.test("parseAttributeLine: keeps U+FEFF and U+00A0 around the value (#990)", () => {
   assertEquals(parseAttributeLine(`    Notes: ${BOM}legacy${NBSP}  \r`), {

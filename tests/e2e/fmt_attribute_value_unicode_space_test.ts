@@ -17,8 +17,8 @@ const PROJECT = {
   "project.yaml": "name: attribute-unicode-space-e2e\nversion: 0.1.0\n",
 };
 
-const BOM = "﻿";
-const NBSP = " ";
+const BOM = String.fromCharCode(0xfeff);
+const NBSP = String.fromCharCode(0xa0);
 
 const DOC = `- [REQ-0001] Imported requirement
 

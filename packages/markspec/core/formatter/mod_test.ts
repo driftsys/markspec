@@ -24,6 +24,8 @@ import {
 
 const MOCK_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const MOCK_ULID_2 = "01HGW2Q8MNP3RSTVWXYZABCDEG";
+const NBSP = String.fromCharCode(0xa0);
+const BOM = String.fromCharCode(0xfeff);
 
 const PRESERVE_CONVENTIONS = new Map([
   ["modal-keywords", {
@@ -1677,4 +1679,28 @@ Deno.test("format: rewrites a feature fence with an info string to gherkin and k
   const again = format(result.output, { file: "req.md", formatMarkdownProse });
   assertEquals(again.output, result.output);
   assertEquals(again.diagnostics.filter((d) => d.code === "MSL-F900"), []);
+});
+
+Deno.test("format: typedProfileKeys trims a profile typed value and keeps free text (#990)", () => {
+  const md = `- [REQ-001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+      HAZARD: HAZ-0001${BOM}${NBSP}
+      Note: kept${NBSP}
+      Comment: kept${NBSP}
+`;
+  const keys = new Set(["Hazard"]);
+  const result = format(md, { typedProfileKeys: keys });
+  assertStringIncludes(result.output, "      Hazard: HAZ-0001\n");
+  assertStringIncludes(result.output, `      Note: kept${NBSP}\n`);
+  assertStringIncludes(result.output, `      Comment: kept${NBSP}\n`);
+  assert(result.changed);
+  assertEquals(
+    format(result.output, { typedProfileKeys: keys }).output,
+    result.output,
+  );
+  // Without the option, the value keeps the characters.
+  assertStringIncludes(format(md).output, `Hazard: HAZ-0001${BOM}${NBSP}\n`);
 });

@@ -282,6 +282,7 @@ async function checkGroup(
       dependencyPinAssurance,
       fmtDriftGate,
       lockfileDriftGate,
+      profileTypedKeys,
     } = await import("../../core/mod.ts");
     pinDiagnostics = dependencyPinAssurance(lockParse?.lockfile);
 
@@ -305,6 +306,8 @@ async function checkGroup(
         createEditorConfigResolver(readFile),
       ),
       chain?.effective.conventions,
+      // Profile typed values are trimmed, as `markspec fmt` trims them.
+      chain ? profileTypedKeys(chain.effective) : undefined,
     );
 
     if (

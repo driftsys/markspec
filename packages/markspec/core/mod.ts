@@ -31,8 +31,10 @@ export {
   makeUlid,
   MIXED_DISCIPLINE,
   PALETTE_HUES,
+  profileTypedKeys,
   relationLocatorMode,
   sameOriginSource,
+  trimProfileTypedValues,
 } from "./model/mod.ts";
 export type {
   Attribute,

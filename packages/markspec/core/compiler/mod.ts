@@ -19,7 +19,9 @@ import type {
 import {
   isUpstreamEntry,
   makeDisplayId,
+  profileTypedKeys,
   relationLocatorMode,
+  trimProfileTypedValues,
 } from "../model/mod.ts";
 import { buildCriteria, isCriteriaBearing } from "../criteria/scenarios.ts";
 import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
@@ -327,6 +329,13 @@ export async function compile(
     if (res.document) documents.set(res.filePath, res.document);
   }
 
+  // Phase 1.5: Trim the value of every profile attribute whose type is not
+  // `text`, as a typed core value is trimmed (#990). The graph and the JSON
+  // output below are built from these entries.
+  const trimmedEntries = options.profile
+    ? trimProfileTypedValues(allEntries, profileTypedKeys(options.profile))
+    : allEntries;
+
   // Phase 2: Validate all entries with the same validator pipeline that
   // bare `markspec check` and the LSP run (`runPipeline`): core hygiene,
   // classification, typed attributes, traceability (MSL-L006, MSL-T014),
@@ -337,7 +346,7 @@ export async function compile(
   // the pipeline. CLI-only gates (fmt drift, lock drift, prose lint) are
   // not part of compile.
   const pipelineDiagnostics = runPipeline(
-    allEntries,
+    trimmedEntries,
     options.profile ?? null,
     options.captionConventions ?? {},
     {
@@ -348,9 +357,9 @@ export async function compile(
 
   // Phase 2.5: Classify entries when a profile is loaded. The
   // classification diagnostics are already part of the pipeline result.
-  let classifiedEntries: readonly Entry[] = allEntries;
+  let classifiedEntries: readonly Entry[] = trimmedEntries;
   if (options.profile) {
-    classifiedEntries = classifyEntriesStage(allEntries, options.profile)
+    classifiedEntries = classifyEntriesStage(trimmedEntries, options.profile)
       .entries;
   }
 

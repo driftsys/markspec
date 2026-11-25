@@ -511,6 +511,15 @@ export interface FormatOptions {
    * the §3.4.1 canonical casing.
    */
   readonly conventions?: EffectiveProfile["conventions"];
+  /**
+   * Profile typed keys, in canonical case: the result of `profileTypedKeys`
+   * for the effective profile. The value of a trailer attribute whose
+   * canonical key is in this set is trimmed of all whitespace, as the
+   * parser trims a typed core value, so a U+FEFF or a non-breaking space at
+   * either end is removed from the file (#990). When absent, such a value
+   * is kept as the parser read it (free text).
+   */
+  readonly typedProfileKeys?: ReadonlySet<string>;
   /** ULID generator override (for testing). */
   readonly generateUlid?: () => string;
   /**
@@ -884,6 +893,17 @@ function formatEntries(
         )
         : []
       : [...entry.rawAttributes];
+    // A profile typed value loses the whitespace the parser kept (#990).
+    const typedProfileKeys = options?.typedProfileKeys;
+    if (typedProfileKeys !== undefined && typedProfileKeys.size > 0) {
+      // A value of only such characters never gets here: the empty-line
+      // pass above (`removeEmptyTrailerLines`) already removed its line.
+      attrs = attrs.map((a) =>
+        typedProfileKeys.has(canonicalizeKey(a.key))
+          ? { key: a.key, value: a.value.trim() }
+          : a
+      );
+    }
 
     const titleLineIdx = entry.location.line - 1;
 

@@ -40,7 +40,7 @@ export const fmtCmd = new Command()
         quiet: options.quiet === true,
         silent: options.quiet === true,
       });
-      const { format } = await import("../../core/mod.ts");
+      const { format, profileTypedKeys } = await import("../../core/mod.ts");
 
       // Load the profile of every project group before any file is written,
       // so a refused target (below) stops the run before any file changes.
@@ -134,6 +134,13 @@ export const fmtCmd = new Command()
           }
         }
 
+        // The typed attributes of this group's own profile: their values
+        // are trimmed of all whitespace, as a typed core value (#990).
+        const groupChain = chains[index];
+        const typedProfileKeys = groupChain
+          ? profileTypedKeys(groupChain.effective)
+          : undefined;
+
         for (const filePath of group.files) {
           let content: string;
           try {
@@ -173,7 +180,8 @@ export const fmtCmd = new Command()
           const result = format(content, {
             file: filePath,
             // The casing conventions of this group's own profile (#845).
-            conventions: chains[index]?.effective.conventions,
+            conventions: groupChain?.effective.conventions,
+            typedProfileKeys,
             formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
             ...(isMarkdown ? await markdownStyle(filePath) : {}),
           });

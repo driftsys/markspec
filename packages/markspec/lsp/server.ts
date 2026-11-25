@@ -53,6 +53,7 @@ import {
   loadMarkdownFormatter,
   makeDisplayId,
   parseFile,
+  profileTypedKeys,
   targetsForRelation,
   VERSION,
 } from "../core/mod.ts";
@@ -1669,6 +1670,8 @@ connection.onDocumentFormatting(async (params) => {
     file: filePath,
     // The profile's casing conventions, as `markspec fmt`.
     conventions: ctx.profile?.conventions,
+    // Profile typed values are trimmed, as `markspec fmt` trims them.
+    typedProfileKeys: ctx.profile ? profileTypedKeys(ctx.profile) : undefined,
     formatMarkdownProse,
     lineWidth: style.lineWidth,
   });
