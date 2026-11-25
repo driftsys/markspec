@@ -445,8 +445,11 @@ to `git+https://host/org/repo.git/profiles/core#v1.0.0`. A path that leaves the
 repository root is a `PROFILE-LOAD-001` error. The parent is fetched at the
 child's tag, so with a per-profile tag such as `aspice-4/v1.2.0` it is read from
 the commit that tag names. This rule applies to git sources only. In a manifest
-fetched from npm, a relative `extends:` resolves against the directory of the
-unpacked package in the local cache.
+fetched from npm, a relative `extends:` resolves inside the unpacked package:
+the parent must be a directory of the same package. A path that leaves the
+package root is a `PROFILE-LOAD-001` error, because the cache holds only the
+requested package. To extend a profile from another package, use an `npm:`
+specifier.
 
 Git auth is inherited from the user's git configuration; npm resolution uses the
 registry configured in `.npmrc`. The `jsr:` and raw `https:` schemes are
