@@ -11,6 +11,11 @@
  *
  * Empty-string fragments (e.g. from `"a,,b"`) are dropped; surrounding
  * whitespace is trimmed.
+ *
+ * The value of a profile-declared attribute of any type other than `text`
+ * is trimmed of all whitespace, as the parser trims a typed core value. The
+ * parser has no profile, so it keeps a U+FEFF or a non-breaking space at
+ * either end of such a value as if it were free text (#990).
  */
 
 import type { EffectiveProfile, Entry, ValueType } from "../model/mod.ts";
@@ -33,10 +38,12 @@ export function normalizeListValues(
 
   for (const [name, values] of entry.typedAttributes) {
     const decl = scope.attributes.get(name);
-    if (decl !== undefined && LIST_TYPES.has(decl.type)) {
-      const split = splitListValues(values, decl.type === "id-list");
-      if (!arraysEqual(split, values)) {
-        rewritten.set(name, split);
+    if (decl !== undefined && decl.type !== "text") {
+      const next = LIST_TYPES.has(decl.type)
+        ? splitListValues(values, decl.type === "id-list")
+        : values.map((v) => v.trim()).filter((v) => v.length > 0);
+      if (!arraysEqual(next, values)) {
+        rewritten.set(name, next);
         anyChange = true;
         continue;
       }

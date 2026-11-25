@@ -23,6 +23,7 @@ import {
   parseAttributes,
   RECOGNIZED_TRAILER_KEYS,
   splitBodyAndAttributes,
+  trimLayoutEnd,
 } from "./attributes.ts";
 import { extractBodyTokens } from "./body_tokens.ts";
 import { isMarkspecDirectiveComment } from "./directives.ts";
@@ -1162,11 +1163,11 @@ function extractBodyContent(
         fileLines[first] - 1,
         ...trailerIdx.map((i) => fileLines[i]),
       ];
-      return { text: text.join("\n").trimEnd(), fileLines: files };
+      return { text: trimLayoutEnd(text.join("\n")), fileLines: files };
     }
   }
 
   // Keep the first line's own indent: it marks an indented trailer in a
   // body-less entry, and `markspec fmt` sees the same text (#916).
-  return { text: stripped.join("\n").trimEnd(), fileLines };
+  return { text: trimLayoutEnd(stripped.join("\n")), fileLines };
 }

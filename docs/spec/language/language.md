@@ -318,7 +318,16 @@ chapter, §"Entry rendering".
 
 An attribute block is the **trailing indented code block** of an entry. Each
 content line is a single `Key: Value` pair. No trailing line-continuation
-characters.
+characters. The value of a free-text attribute (an attribute of type `text`, or
+a key that neither the core nor the profile declares) loses only the ASCII
+spaces and tabs around it: a U+FEFF or a non-breaking space (U+00A0) at either
+end is part of the value and is kept. The value of every other core attribute,
+such as `Id:`, a trace link or `Labels:`, loses all whitespace around it, so an
+invisible character copied with an identifier does not break it. The value of a
+typed profile attribute is trimmed the same way before validation; the `compile`
+output still shows it as written. Two limits apply: a line whose value is made
+only of such characters is not a valid attribute line (MSL-P021), and
+`markspec fmt` removes it; and the line needs an ASCII space after the colon.
 
 The block is indented 4 spaces relative to the entry body indent (CommonMark
 indented-code-block rule). Inside a Markdown list item, that means **6 spaces of

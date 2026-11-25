@@ -371,7 +371,7 @@ Trailers {
 AttributeNode {
   key: string                      // canonical case per §2.3.1
   rawKey: string                   // exact spelling in source
-  value: string                    // trimmed of trailing whitespace
+  value: string                    // trimmed; free text keeps U+FEFF/U+00A0
   valueType: ValueType             // resolved via §1.8 catalogue
   continuation: string[]           // joined continuation lines, if any
   range: SourceRange
