@@ -613,28 +613,50 @@ const NPM_LEAF = {
 const npmPacksA100: RunNpm = () =>
   Promise.resolve({ code: 0, stdout: "org-profile-a-1.0.0.tgz\n", stderr: "" });
 
-Deno.test("loadChain: relative extends inside an npm package resolves in the package (#1006)", async () => {
-  const project = resolve("/project");
-  const result = await loadChain(
-    NPM_LEAF,
-    project,
-    project,
-    mockReadFile({
-      [join(NPM_PACKAGE_DIR, "markspec.yaml")]: manifest(
-        "@org/profile-a",
-        "./base",
-      ),
-      [join(NPM_PACKAGE_DIR, "base", "markspec.yaml")]: manifest("@org/base"),
-    }),
-    { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
-  );
+for (
+  const parentPath of ["./base", "../1.0.0/base", "./..base"]
+) {
+  Deno.test(`loadChain: relative extends '${parentPath}' inside an npm package resolves in the package (#1006)`, async () => {
+    const project = resolve("/project");
+    const result = await loadChain(
+      NPM_LEAF,
+      project,
+      project,
+      mockReadFile({
+        [join(NPM_PACKAGE_DIR, "markspec.yaml")]: manifest(
+          "@org/profile-a",
+          parentPath,
+        ),
+        [join(NPM_PACKAGE_DIR, parentPath, "markspec.yaml")]: manifest(
+          "@org/base",
+        ),
+      }),
+      { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
+    );
 
-  assertEquals(result.diagnostics, []);
-  assertEquals(result.chain?.tiers.map((t) => t.id), [
-    "@org/base",
-    "@org/profile-a",
-  ]);
-});
+    assertEquals(result.diagnostics, []);
+    assertEquals(result.chain?.tiers.map((t) => t.id), [
+      "@org/base",
+      "@org/profile-a",
+    ]);
+  });
+}
+
+/** The PROFILE-LOAD-001 message for a relative `extends:` that leaves the
+ * package of {@linkcode NPM_LEAF}. */
+function leavesNpmPackage(parentPath: string): string {
+  return `profile specifier '${parentPath}' cannot be resolved: the relative ` +
+    `path leaves the package root of npm:@org/profile-a@^1; publish the ` +
+    `parent profile as its own package and extend it with an npm: ` +
+    `specifier`;
+}
+
+/** Another package already in the cache: a relative path must not read it. */
+const CACHED_CORE = {
+  [join(NPM_CACHE, "npm", "@org", "core", "1.0.0", "markspec.yaml")]: manifest(
+    "@org/core",
+  ),
+};
 
 Deno.test("loadChain: relative extends that leaves an npm package emits PROFILE-LOAD-001 (#1006)", async () => {
   const project = resolve("/project");
@@ -646,27 +668,48 @@ Deno.test("loadChain: relative extends that leaves an npm package emits PROFILE-
       project,
       mockReadFile({
         [leafManifest]: manifest("@org/profile-a", parentPath),
-        // Another package already in the cache: the relative path must not
-        // read it.
-        [join(NPM_CACHE, "npm", "@org", "core", "1.0.0", "markspec.yaml")]:
-          manifest("@org/core"),
+        ...CACHED_CORE,
       }),
       { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
     );
 
     assertEquals(result.chain, null, parentPath);
     assertEquals(
-      result.diagnostics.map((d) => d.code),
-      ["PROFILE-LOAD-001"],
+      result.diagnostics.map((d) => [d.code, d.severity]),
+      [["PROFILE-LOAD-001", "error"]],
       parentPath,
     );
-    assertEquals(
-      result.diagnostics[0].message,
-      `profile specifier '${parentPath}' cannot be resolved: the relative ` +
-        `path leaves the package root of npm:@org/profile-a@^1; publish the ` +
-        `parent profile as its own package and extend it with an npm: ` +
-        `specifier`,
-    );
+    assertEquals(result.diagnostics[0].message, leavesNpmPackage(parentPath));
     assertEquals(result.diagnostics[0].location?.file, leafManifest);
   }
+});
+
+Deno.test("loadChain: relative extends that leaves an npm package from a nested local tier emits PROFILE-LOAD-001 (#1006)", async () => {
+  const project = resolve("/project");
+  const baseManifest = join(NPM_PACKAGE_DIR, "base", "markspec.yaml");
+  const result = await loadChain(
+    NPM_LEAF,
+    project,
+    project,
+    mockReadFile({
+      [join(NPM_PACKAGE_DIR, "markspec.yaml")]: manifest(
+        "@org/profile-a",
+        "./base",
+      ),
+      [baseManifest]: manifest("@org/base", "../../../core/1.0.0"),
+      ...CACHED_CORE,
+    }),
+    { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
+  );
+
+  assertEquals(result.chain, null);
+  assertEquals(
+    result.diagnostics.map((d) => [d.code, d.severity]),
+    [["PROFILE-LOAD-001", "error"]],
+  );
+  assertEquals(
+    result.diagnostics[0].message,
+    leavesNpmPackage("../../../core/1.0.0"),
+  );
+  assertEquals(result.diagnostics[0].location?.file, baseManifest);
 });

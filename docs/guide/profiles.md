@@ -61,8 +61,9 @@ fetches the parent from the same repository at the same tag
 (`…/profiles.git/profiles/core#v1.0.0`). A relative path that leaves the
 repository root is rejected. A profile fetched from npm can extend a relative
 path only inside its own package, for example a `base/` directory shipped in the
-same package. To extend a profile from another package, use an `npm:` specifier
-such as `extends: "npm:@acme/profile-core@^1"`.
+same package. A relative `extends:` in `base/` must stay inside the package too.
+To extend a profile from another package, use an `npm:` specifier such as
+`extends: "npm:@acme/profile-core@^1"`.
 
 **npm** — resolved with `npm pack` and cached. Use this when your organization
 distributes profiles through an npm registry or mirror (Nexus, Artifactory,

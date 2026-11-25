@@ -95,10 +95,11 @@ git-fetched manifest is resolved as a git specifier for the same repository and
 tag, with the path joined to the child's subpath; each parent tier gets its own
 cache entry. The parent is read at the child's tag, which under the per-profile
 tag convention is the commit of the child's release. A joined path that leaves
-the repository root is rejected (#1002). In an npm-fetched manifest, a relative
-`extends:` resolves inside the unpacked package, and a path that leaves the
-package root is rejected (#1006): the cache holds only the requested package, so
-a parent in another package is extended with an `npm:` specifier.
+the repository root is rejected (#1002). In an npm-fetched manifest, and in
+every manifest that it reaches by relative paths, a relative `extends:` resolves
+inside the unpacked package, and a path that leaves the package root is rejected
+(#1006): the cache holds only the requested package, so a parent in another
+package is extended with an `npm:` specifier.
 
 **npm vs jsr for profile YAML.** npm is selected over jsr for v1 because:
 
