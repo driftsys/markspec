@@ -5,10 +5,11 @@
  * up to the root, producing a multi-tier {@linkcode ProfileChain} ordered
  * root → leaf.
  *
- * Supports both local and git specifiers, with cycle + depth detection. Git
+ * Supports local, git and npm specifiers, with cycle + depth detection. Git
  * specifiers route through {@linkcode resolveGitSpecifier} (per-project
- * shallow+sparse clone cache); local specifiers route through
- * {@linkcode resolveLocalSpecifier}. A local `extends:` in the manifest of a
+ * shallow+sparse clone cache); npm specifiers route through
+ * `resolveNpmSpecifier` (unpacked-package cache); local specifiers
+ * route through {@linkcode resolveLocalSpecifier}. A local `extends:` in the manifest of a
  * git tier is the exception: it becomes a git specifier for the same
  * repository and tag (#1002), and routes through
  * {@linkcode resolveGitSpecifier}. A local `extends:` in the manifest of an

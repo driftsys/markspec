@@ -684,6 +684,38 @@ Deno.test("loadChain: relative extends that leaves an npm package emits PROFILE-
   }
 });
 
+Deno.test({
+  name:
+    "loadChain: relative extends that leaves an npm package through backslash segments emits PROFILE-LOAD-001 on Windows (#1006)",
+  // A backslash is a path separator only on Windows; elsewhere it is part
+  // of a file name and the path stays inside the package.
+  ignore: Deno.build.os !== "windows",
+  fn: async () => {
+    const project = resolve("/project");
+    const leafManifest = join(NPM_PACKAGE_DIR, "markspec.yaml");
+    for (const parentPath of ["./..\\core", "../1.0.0\\..\\..\\core"]) {
+      const result = await loadChain(
+        NPM_LEAF,
+        project,
+        project,
+        mockReadFile({
+          [leafManifest]: manifest("@org/profile-a", parentPath),
+          ...CACHED_CORE,
+        }),
+        { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
+      );
+
+      assertEquals(result.chain, null, parentPath);
+      assertEquals(
+        result.diagnostics.map((d) => d.code),
+        ["PROFILE-LOAD-001"],
+        parentPath,
+      );
+      assertEquals(result.diagnostics[0].message, leavesNpmPackage(parentPath));
+    }
+  },
+});
+
 Deno.test("loadChain: relative extends that leaves an npm package from a nested local tier emits PROFILE-LOAD-001 (#1006)", async () => {
   const project = resolve("/project");
   const baseManifest = join(NPM_PACKAGE_DIR, "base", "markspec.yaml");
