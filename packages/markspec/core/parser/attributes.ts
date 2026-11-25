@@ -47,36 +47,46 @@ export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
  * are recognized (and subsequently skipped as empty-value lines) rather than
  * silently ignored.
  */
-const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):[ \t]*(.*?)\\?$/;
+const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):[ \t]*([\s\S]*?)\\?$/;
 
 /**
- * Remove ASCII spaces, tabs and carriage returns at both ends of `text`.
- * These are the only characters of the trailer layout: indentation, the
- * space after the colon, and a CRLF line ending. Any other character, such
- * as U+FEFF or a non-breaking space (U+00A0), is part of the value and is
+ * Whitespace that is layout, not data: every character JavaScript `\s`
+ * matches except U+FEFF and the non-breaking space (U+00A0). An imported
+ * free-text value can start or end with either of those two, and they are
+ * kept (#990).
+ */
+const LAYOUT_SPACE = "[^\\S\\uFEFF\\u00A0]";
+const LAYOUT_SPACE_EDGES_RE = new RegExp(
+  `^${LAYOUT_SPACE}+|${LAYOUT_SPACE}+$`,
+  "g",
+);
+const LAYOUT_SPACE_END_RE = new RegExp(`${LAYOUT_SPACE}+$`);
+
+/**
+ * Remove whitespace at both ends of `text`, except U+FEFF and the
+ * non-breaking space (U+00A0), which are part of a free-text value and are
  * kept (#990). JavaScript `trim()` would remove both.
  */
 export function trimLayoutSpace(text: string): string {
-  return text.replace(/^[ \t\r]+|[ \t\r]+$/g, "");
+  return text.replace(LAYOUT_SPACE_EDGES_RE, "");
 }
 
 /**
  * Trim one trailer line: all whitespace before the key, which is never part
- * of a value, and only ASCII spaces, tabs and carriage returns at the end,
- * so a U+FEFF or a non-breaking space that ends a value is kept (#990).
+ * of a value, and at the end all whitespace except a U+FEFF or a
+ * non-breaking space that ends a value (#990).
  */
 export function trimTrailerLine(line: string): string {
-  return line.trimStart().replace(/[ \t\r]+$/, "");
+  return line.trimStart().replace(LAYOUT_SPACE_END_RE, "");
 }
 
 /**
- * Remove trailing ASCII spaces, tabs, carriage returns and line feeds from
- * `text`: the blank lines after an entry and the layout space at the end of
- * its last line. A U+FEFF or a non-breaking space at the end of the last
- * line is part of a value and is kept (#990).
+ * Remove trailing whitespace from `text`: the blank lines after an entry and
+ * the layout space at the end of its last line. A U+FEFF or a non-breaking
+ * space at the end of the last line is part of a value and is kept (#990).
  */
 export function trimLayoutEnd(text: string): string {
-  return text.replace(/[ \t\r\n]+$/, "");
+  return text.replace(LAYOUT_SPACE_END_RE, "");
 }
 
 /**
@@ -84,10 +94,9 @@ export function trimLayoutEnd(text: string): string {
  * ({@linkcode trimTrailerLine}: all whitespace before the key, layout space
  * only at the end), one trailing continuation backslash is dropped, and the
  * value is trimmed. The value of a free-text attribute (see
- * {@linkcode isFreeTextKey}) is trimmed of ASCII spaces, tabs and carriage
- * returns only ({@linkcode trimLayoutSpace}), so a U+FEFF or a non-breaking
- * space at either end is kept (#990). The value of any other core attribute
- * (an `Id:`, a trace link, a label, a date, …) is trimmed of all
+ * {@linkcode isFreeTextKey}) keeps a U+FEFF or a non-breaking space at either
+ * end ({@linkcode trimLayoutSpace}, #990). The value of any other core
+ * attribute (an `Id:`, a trace link, a label, …) is trimmed of all
  * whitespace, so an invisible character copied with an identifier does not
  * break it. The value is empty for `Key:` and `Key: \`. Returns `undefined` when the line is not a
  * `Key:` line. {@linkcode parseAttributes} reads lines through this
@@ -113,9 +122,12 @@ export function parseAttributeLine(
  * value (`normalizeListValues` in `validator/normalize.ts`).
  */
 function isFreeTextKey(key: string): boolean {
-  const spec = attributeSpec(key);
+  // The key in its canonical case, as `markspec fmt` writes it: `ID` is
+  // `Id`, `LABELS` is `Labels`.
+  const canonical = key[0].toUpperCase() + key.slice(1).toLowerCase();
+  const spec = attributeSpec(canonical);
   if (spec) return spec.type === "text";
-  return !RECOGNIZED_TRAILER_KEYS.has(key);
+  return !RECOGNIZED_TRAILER_KEYS.has(canonical);
 }
 
 /**

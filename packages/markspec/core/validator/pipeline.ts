@@ -197,9 +197,10 @@ export function runPipeline(
     diagnostics.push(...validatePerTypeAttributes(entry, profile ?? undefined));
   }
 
-  // Stage 2.5 — normalize profile-declared list-value attributes. Splits
+  // Stage 2.5 — normalize profile-declared attribute values. Splits
   // comma-separated values for `id-list`/`tag-list` attributes the core parser
-  // didn't see so that Stage 3 sees already-split values.
+  // did not see, and trims every non-`text` profile value (#990), so that
+  // Stage 3 sees split, trimmed values.
   if (profile !== null) {
     finalEntries = finalEntries.map((e) => normalizeListValues(e, profile));
   }

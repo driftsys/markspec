@@ -284,3 +284,15 @@ Deno.test("normalizeListValues: trims U+00A0 from a profile typed value, keeps i
   assertEquals(out.typedAttributes.get("Verifies"), ["REQ-0001"]);
   assertEquals(out.typedAttributes.get("Rationale"), ["\u00A0kept"]);
 });
+
+Deno.test("normalizeListValues: a profile typed value made only of U+00A0 is dropped (#990)", () => {
+  const countAttr: AttrDecl = {
+    name: "Count",
+    type: "integer",
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+  };
+  const p = profile({ universalAttrs: [countAttr] });
+  const e = entry({ shape: "Authored", attrs: { Count: ["\u00A0"] } });
+  assertEquals(normalizeListValues(e, p).typedAttributes.get("Count"), []);
+});

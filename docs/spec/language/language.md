@@ -319,15 +319,16 @@ chapter, §"Entry rendering".
 An attribute block is the **trailing indented code block** of an entry. Each
 content line is a single `Key: Value` pair. No trailing line-continuation
 characters. The value of a free-text attribute (an attribute of type `text`, or
-a key that neither the core nor the profile declares) loses only the ASCII
-spaces and tabs around it: a U+FEFF or a non-breaking space (U+00A0) at either
-end is part of the value and is kept. The value of every other core attribute,
-such as `Id:`, a trace link or `Labels:`, loses all whitespace around it, so an
-invisible character copied with an identifier does not break it. The value of a
-typed profile attribute is trimmed the same way before validation; the `compile`
-output still shows it as written. Two limits apply: a line whose value is made
-only of such characters is not a valid attribute line (MSL-P021), and
-`markspec fmt` removes it; and the line needs an ASCII space after the colon.
+a key that neither the core nor the profile declares) keeps a U+FEFF or a
+non-breaking space (U+00A0) at either end; any other whitespace around it is
+removed. The value of every other core attribute, such as `Id:`, a trace link or
+`Labels:`, loses all whitespace around it, so an invisible character copied with
+an identifier does not break it. The value of a typed profile attribute is
+trimmed the same way for attribute validation (Stage 2.5); the trace target-type
+check, `markspec fmt` and the `compile` output still see it as written. Two
+limits apply: a line whose value is made only of such characters is not a valid
+attribute line (MSL-P021), and `markspec fmt` removes it; and the line needs an
+ASCII space after the colon.
 
 The block is indented 4 spaces relative to the entry body indent (CommonMark
 indented-code-block rule). Inside a Markdown list item, that means **6 spaces of
@@ -1817,19 +1818,19 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 
 **Fixed rules:**
 
-| Rule                  | Value                                           |
-| --------------------- | ----------------------------------------------- |
-| Line endings          | `lf`                                            |
-| Emphasis              | `_text_` (underscores)                          |
-| Strong                | `**text**` (asterisks)                          |
-| List marker           | `-` (dashes)                                    |
-| List indent           | 2 spaces                                        |
-| Code fences           | backticks, language required                    |
-| Trailing whitespace   | removed                                         |
-| Final newline         | single `\n`                                     |
-| Table columns         | aligned, padded (tables exempt from line width) |
-| Horizontal rules      | `---`                                           |
-| Reference definitions | end of file, alphabetical within groups         |
+| Rule                  | Value                                                                |
+| --------------------- | -------------------------------------------------------------------- |
+| Line endings          | `lf`                                                                 |
+| Emphasis              | `_text_` (underscores)                                               |
+| Strong                | `**text**` (asterisks)                                               |
+| List marker           | `-` (dashes)                                                         |
+| List indent           | 2 spaces                                                             |
+| Code fences           | backticks, language required                                         |
+| Trailing whitespace   | removed, except U+FEFF and U+00A0 ending a free-text attribute value |
+| Final newline         | single `\n`                                                          |
+| Table columns         | aligned, padded (tables exempt from line width)                      |
+| Horizontal rules      | `---`                                                                |
+| Reference definitions | end of file, alphabetical within groups                              |
 
 **Configurable rules (with defaults):**
 

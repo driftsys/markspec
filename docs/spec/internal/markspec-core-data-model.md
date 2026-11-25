@@ -758,7 +758,8 @@ character after a `-` uppercase, all others lowercase. Examples: `Id`,
 #### 3.3.5 Whitespace
 
 - One ASCII space between `:` and the value.
-- No trailing whitespace on any line.
+- No trailing whitespace on any line, except a U+FEFF or a non-breaking space
+  (U+00A0) that ends a free-text attribute value (#990).
 - Continuation lines (§2.3.3) are re-emitted only if the original input used
   them; `fmt` does not introduce continuations.
 
