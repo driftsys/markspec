@@ -366,13 +366,14 @@ const MONOREPO = "https://host/org/repo.git";
 async function gitManifests(
   project: string,
   bySubpath: Record<string, string>,
+  tag = "v1.0.0",
 ): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   for (const [subpath, yaml] of Object.entries(bySubpath)) {
     const loc = await computeCacheLocation(project, {
       repo: MONOREPO,
       subpath: subpath === "" ? undefined : subpath,
-      tag: "v1.0.0",
+      tag,
     });
     map[loc.manifestPath] = yaml;
   }
@@ -498,6 +499,50 @@ for (
     assertEquals(gitCalls, []); // rejected before any fetch
   });
 }
+
+Deno.test("loadChain: relative extends reads the parent at the child's tag (#1002)", async () => {
+  const project = resolve("/project");
+  const tag = "a/v1.2.0";
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "profiles/a": manifest("@org/a", "../core"),
+        "profiles/core": manifest("@org/core"),
+      }, tag),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: "profiles/core",
+    tag,
+  });
+});
+
+Deno.test("loadChain: relative extends that leaves the root from a git root profile names subpath '.' (#1002)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: undefined, tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, { "": manifest("@org/root", "../x") }),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
+  assertEquals(
+    result.diagnostics[0].message.includes("(declared in subpath '.')"),
+    true,
+  );
+});
 
 Deno.test("loadChain: relative extends with a trailing slash resolves to the same subpath (#1002)", async () => {
   const project = resolve("/project");

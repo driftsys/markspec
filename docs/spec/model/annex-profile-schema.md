@@ -444,8 +444,9 @@ manifest fetched as `git+https://host/org/repo.git/profiles/a#v1.0.0` resolves
 to `git+https://host/org/repo.git/profiles/core#v1.0.0`. A path that leaves the
 repository root is a `PROFILE-LOAD-001` error. The parent is fetched at the
 child's tag, so with a per-profile tag such as `aspice-4/v1.2.0` it is read from
-the commit that tag names. This rule applies to git sources only; a relative
-`extends:` in a manifest fetched from npm is not supported.
+the commit that tag names. This rule applies to git sources only. In a manifest
+fetched from npm, a relative `extends:` resolves inside the unpacked package, so
+a parent outside that package cannot be reached.
 
 Git auth is inherited from the user's git configuration; npm resolution uses the
 registry configured in `.npmrc`. The `jsr:` and raw `https:` schemes are
