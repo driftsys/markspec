@@ -8,9 +8,9 @@
  * Supports local, git and npm specifiers, with cycle + depth detection. Git
  * specifiers route through {@linkcode resolveGitSpecifier} (per-project
  * shallow+sparse clone cache); npm specifiers route through
- * `resolveNpmSpecifier` (unpacked-package cache); local specifiers
- * route through {@linkcode resolveLocalSpecifier}. A local `extends:` in the manifest of a
- * git tier is the exception: it becomes a git specifier for the same
+ * `resolveNpmSpecifier` (unpacked-package cache); local specifiers route
+ * through {@linkcode resolveLocalSpecifier}. A local `extends:` in the
+ * manifest of a git tier is the exception: it becomes a git specifier for the same
  * repository and tag (#1002), and routes through
  * {@linkcode resolveGitSpecifier}. A local `extends:` in the manifest of an
  * npm tier, or of a local tier loaded from inside an npm package, resolves
@@ -294,7 +294,13 @@ function gitSiblingSpecifier(
   };
 }
 
-/** `true` when the absolute path `target` lies outside `root`. */
+/**
+ * `true` when the absolute path `target` lies outside `root`. On Windows,
+ * `relative` returns a `..\` path, which the existing escape tests cover
+ * on the Windows CI runner. It returns an absolute path only when `target`
+ * is on another drive; a `./` or `../` specifier cannot reach another
+ * drive, so that clause is a defensive check that no test reaches.
+ */
 function leavesDirectory(root: string, target: string): boolean {
   const rel = relative(root, target);
   return rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") ||
