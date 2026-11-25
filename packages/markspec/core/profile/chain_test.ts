@@ -527,6 +527,11 @@ Deno.test("loadChain: relative extends reads the parent at the child's tag (#100
 
 Deno.test("loadChain: relative extends that leaves the root from a git root profile names subpath '.' (#1002)", async () => {
   const project = resolve("/project");
+  const gitCalls: string[][] = [];
+  const runGit: RunGit = (args) => {
+    gitCalls.push([...args]);
+    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+  };
   const result = await loadChain(
     { kind: "git", repo: MONOREPO, subpath: undefined, tag: "v1.0.0" },
     project,
@@ -534,9 +539,11 @@ Deno.test("loadChain: relative extends that leaves the root from a git root prof
     mockReadFile(
       await gitManifests(project, { "": manifest("@org/root", "../x") }),
     ),
-    { runGit: noGit },
+    { runGit },
   );
 
+  assertEquals(result.chain, null);
+  assertEquals(gitCalls, []); // rejected before any fetch
   assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
   assertEquals(
     result.diagnostics[0].message.includes("(declared in subpath '.')"),
