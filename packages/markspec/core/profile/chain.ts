@@ -8,7 +8,10 @@
  * Supports both local and git specifiers, with cycle + depth detection. Git
  * specifiers route through {@linkcode resolveGitSpecifier} (per-project
  * shallow+sparse clone cache); local specifiers route through
- * {@linkcode resolveLocalSpecifier}. The chain's {@linkcode EffectiveProfile}
+ * {@linkcode resolveLocalSpecifier}. A local `extends:` in the manifest of a
+ * git tier is the exception: it becomes a git specifier for the same
+ * repository and tag (#1002), and routes through
+ * {@linkcode resolveGitSpecifier}. The chain's {@linkcode EffectiveProfile}
  * is produced by {@linkcode mergeChain}.
  */
 
@@ -187,7 +190,8 @@ export async function loadChain(
             severity: "error",
             message: `profile specifier '${parent.path}' cannot be resolved: ` +
               `the relative path leaves the repository root of ` +
-              `${cursorSpec.repo}#${cursorSpec.tag}`,
+              `${cursorSpec.repo}#${cursorSpec.tag} ` +
+              `(declared in subpath '${cursorSpec.subpath ?? "."}')`,
             location: { file: resolved.sourcePath, line: 1, column: 1 },
           });
           return { chain: null, diagnostics };

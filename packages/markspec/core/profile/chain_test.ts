@@ -461,32 +461,66 @@ Deno.test("loadChain: relative extends up to the git repo root resolves with no 
   });
 });
 
-Deno.test("loadChain: relative extends that leaves the git repo root emits PROFILE-LOAD-001 (#1002)", async () => {
+for (
+  const [label, escaping] of [
+    ["one level above the root", "../../.."],
+    ["into a folder outside the root", "../../../outside"],
+  ]
+) {
+  Deno.test(`loadChain: relative extends ${label} of the git repo emits PROFILE-LOAD-001 (#1002)`, async () => {
+    const project = resolve("/project");
+    const gitCalls: string[][] = [];
+    const runGit: RunGit = (args) => {
+      gitCalls.push([...args]);
+      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+    };
+    const manifests = await gitManifests(project, {
+      "profiles/a": manifest("@org/a", escaping),
+    });
+    const result = await loadChain(
+      { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
+      project,
+      project,
+      mockReadFile(manifests),
+      { runGit },
+    );
+
+    assertEquals(result.chain, null);
+    assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
+    const [diagnostic] = result.diagnostics;
+    assertEquals(
+      diagnostic.message.includes("leaves the repository root"),
+      true,
+    );
+    assertEquals(diagnostic.message.includes("profiles/a"), true);
+    // The diagnostic points at the child manifest that declares the path.
+    assertEquals(diagnostic.location?.file, Object.keys(manifests)[0]);
+    assertEquals(gitCalls, []); // rejected before any fetch
+  });
+}
+
+Deno.test("loadChain: relative extends with a trailing slash resolves to the same subpath (#1002)", async () => {
   const project = resolve("/project");
-  const gitCalls: string[][] = [];
-  const runGit: RunGit = (args) => {
-    gitCalls.push([...args]);
-    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
-  };
   const result = await loadChain(
     { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
     project,
     project,
     mockReadFile(
       await gitManifests(project, {
-        "profiles/a": manifest("@org/a", "../../../outside"),
+        "profiles/a": manifest("@org/a", "../core/"),
+        "profiles/core": manifest("@org/core"),
       }),
     ),
-    { runGit },
+    { runGit: noGit },
   );
 
-  assertEquals(result.chain, null);
-  assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
-  assertEquals(
-    result.diagnostics[0].message.includes("leaves the repository root"),
-    true,
-  );
-  assertEquals(gitCalls, []); // rejected before any fetch
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: "profiles/core",
+    tag: "v1.0.0",
+  });
 });
 
 Deno.test("loadChain: cycle through relative extends in a git repo emits PROFILE-LOAD-004 (#1002)", async () => {
