@@ -1,5 +1,8 @@
 import { assertEquals } from "@std/assert";
-import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
+import {
+  markdownEquivalenceTree,
+  markdownSemanticallyEquivalent,
+} from "./md_equiv.ts";
 
 Deno.test("md_equiv: re-wrapped prose is equivalent", () => {
   assertEquals(
@@ -117,6 +120,64 @@ Deno.test("md_equiv: guard options still reject lost content", () => {
       `${JSON.stringify(original)} vs ${JSON.stringify(emitted)}`,
     );
   }
+});
+
+// The info string of a fenced code block is compared as written: a decoded
+// escape or character reference is a difference; spaces around it are not
+// (#1008).
+Deno.test("markdownSemanticallyEquivalent: a decoded fence info string differs (#1008)", () => {
+  for (
+    const [a, b] of [
+      ["```js a&amp;b\nx\n```", "```js a&b\nx\n```"],
+      ["```js a\\_b \\{1\\}\nx\n```", "```js a_b {1}\nx\n```"],
+    ]
+  ) {
+    assertEquals(markdownSemanticallyEquivalent(a, b), false, a);
+  }
+});
+
+Deno.test("markdownSemanticallyEquivalent: spaces around a fence info string do not matter (#1008)", () => {
+  assertEquals(
+    markdownSemanticallyEquivalent(
+      "```js title=x  \nx\n```",
+      "```js title=x\nx\n```",
+    ),
+    true,
+  );
+  assertEquals(
+    markdownSemanticallyEquivalent("~~~ js\nx\n~~~", "```js\nx\n```"),
+    true,
+  );
+});
+
+// The language word is compared as mdast `lang`, and only the verbatim text
+// after it is compared as a separate key. Two fences that differ only in
+// the language word differ only in `lang`, so a mapping applied to `lang`
+// alone (#1011) makes them equal (#1008).
+Deno.test("markdownEquivalenceTree: fences with another language differ only in lang (#1008)", () => {
+  const feature = "```feature title=x\nx\n```";
+  const gherkin = "```gherkin   title=x\nx\n```";
+  assertEquals(markdownSemanticallyEquivalent(feature, gherkin), false);
+  const a = markdownEquivalenceTree(feature) as {
+    children: Record<string, unknown>[];
+  };
+  const b = markdownEquivalenceTree(gherkin) as {
+    children: Record<string, unknown>[];
+  };
+  assertEquals(a.children[0].lang, "feature");
+  assertEquals(b.children[0].lang, "gherkin");
+  assertEquals({ ...a.children[0], lang: "gherkin" }, b.children[0]);
+  assertEquals({ ...a, children: [{ ...a.children[0], lang: "gherkin" }] }, b);
+});
+
+Deno.test("markdownSemanticallyEquivalent: an indented code block is not read as a fence (#1008)", () => {
+  assertEquals(
+    markdownSemanticallyEquivalent(
+      "Text.\n\n    ```js x\n    y",
+      "Text.\n\n```\n```js x\ny\n```",
+    ),
+    true,
+  );
 });
 
 Deno.test("md_equiv: feature and gherkin fences are equal only with featureLangAlias (#1011)", () => {

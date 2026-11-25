@@ -583,3 +583,133 @@ Deno.test("build: the definition-list split skips colon lines that are not marke
   assertEquals(dl.items[0].definition.text, "the definition.");
   assertEquals(render(blocks), s);
 });
+
+// #1008: captions, figures, math and fenced code keep the verbatim source
+// that the renderer needs to write them back without losing text.
+
+Deno.test("build: a multi-line caption keeps every line and its markup (#1008)", () => {
+  const s =
+    "Table: see [the spec](http://a.example/p) and *this*\nsecond line &amp; kept.";
+  const blocks = buildBodyAst(s);
+  const cap = blocks[0] as CaptionNode;
+  assertEquals(cap.kind, "caption");
+  assertEquals(cap.keyword, "Table");
+  // The detection fields are unchanged: flattened text of the first line.
+  assertEquals(cap.text, "see the spec and this");
+  assertEquals(cap.raw, s);
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: caption position detection is unchanged by the verbatim source (#1008)", () => {
+  const s = "Table: *above*\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n" +
+    "![x](p.png)\n\nFigure: below\nsecond line.";
+  const blocks = buildBodyAst(s);
+  assertEquals((blocks[0] as CaptionNode).position, "above");
+  assertEquals((blocks[3] as CaptionNode).position, "below");
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: a figure keeps its title and alt markup (#1008)", () => {
+  const s = '![a *b* &amp; c](p.png "The title")';
+  const blocks = buildBodyAst(s);
+  const fig = blocks[0] as FigureNode;
+  assertEquals(fig.kind, "figure");
+  assertEquals(fig.alt, "a b & c");
+  assertEquals(fig.path, "p.png");
+  assertEquals(fig.raw, s);
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: math keeps TeX escapes and character references (#1008)", () => {
+  const s = "$$\na \\\\ b \\_c &amp; d\n$$";
+  const blocks = buildBodyAst(s);
+  const math = blocks[0] as MathNode;
+  assertEquals(math.kind, "math");
+  assertEquals(math.tex, "\na \\\\ b \\_c &amp; d\n");
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: escaped dollar signs are a paragraph, not math (#1008)", () => {
+  const s = "\\$\\$x\\$\\$";
+  const blocks = buildBodyAst(s);
+  assertEquals(blocks[0].kind, "paragraph");
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: a code fence keeps the info string after the language (#1008)", () => {
+  const s = "```js title=x {1,3}\nconst a = 1;\n```";
+  const blocks = buildBodyAst(s);
+  const code = blocks[0] as CodeNode;
+  assertEquals(code.kind, "code");
+  assertEquals(code.lang, "js");
+  assertEquals(code.meta, " title=x {1,3}");
+  assertEquals(code.text, "const a = 1;");
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: a code fence without an info string has no meta (#1008)", () => {
+  const code = buildBodyAst("```js\nx\n```")[0] as CodeNode;
+  assertEquals("meta" in code, false);
+});
+
+Deno.test("build: a gherkin fence keeps the info string after the language (#1008)", () => {
+  const s = "```gherkin title=x\nFeature: f\n```";
+  const blocks = buildBodyAst(s);
+  const feat = blocks[0] as FeatureNode;
+  assertEquals(feat.kind, "feature");
+  assertEquals(feat.meta, " title=x");
+  assertEquals(render(blocks), s);
+});
+
+// The info string after the language is the verbatim source of the fence
+// line: escapes, character references and the spaces before it are kept,
+// and trailing spaces are removed (#1008).
+for (
+  const [name, fenceLine, meta, rendered] of [
+    ["a character reference", "```js a&amp;b", " a&amp;b", "```js a&amp;b"],
+    [
+      "backslash escapes",
+      "```js a\\_b \\{1\\}",
+      " a\\_b \\{1\\}",
+      "```js a\\_b \\{1\\}",
+    ],
+    [
+      "several spaces after the language",
+      "```js    title=x",
+      "    title=x",
+      "```js    title=x",
+    ],
+    ["trailing spaces", "```js title=x  ", " title=x", "```js title=x"],
+  ]
+) {
+  Deno.test(`build: a code fence info string keeps ${name} (#1008)`, () => {
+    const blocks = buildBodyAst(`${fenceLine}\nconst a = 1;\n\`\`\``);
+    const code = blocks[0] as CodeNode;
+    assertEquals(code.kind, "code");
+    assertEquals(code.lang, "js");
+    assertEquals(code.meta, meta);
+    assertEquals(render(blocks), `${rendered}\nconst a = 1;\n\`\`\``);
+  });
+}
+
+Deno.test("build: a gherkin fence info string is verbatim (#1008)", () => {
+  const s = "```gherkin   a&amp;b\nFeature: f\n```";
+  const feat = buildBodyAst(s)[0] as FeatureNode;
+  assertEquals(feat.meta, "   a&amp;b");
+  assertEquals(render([feat]), s);
+});
+
+Deno.test("build: a fence with only trailing spaces after the language has no meta (#1008)", () => {
+  const code = buildBodyAst("```js   \nx\n```")[0] as CodeNode;
+  assertEquals("meta" in code, false);
+});
+
+Deno.test("build: an indented code block that starts with a fence line has no meta (#1008)", () => {
+  const blocks = buildBodyAst("Text.\n\n    ```js x\n    y");
+  const code = blocks[1] as CodeNode;
+  assertEquals(code.kind, "code");
+  assertEquals(code.lang, undefined);
+  assertEquals("meta" in code, false);
+  assertEquals(code.text, "```js x\ny");
+  assertEquals(render(blocks), "Text.\n\n```\n```js x\ny\n```");
+});

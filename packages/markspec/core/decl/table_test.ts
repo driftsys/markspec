@@ -53,6 +53,7 @@ function caption(
     kind: "caption",
     keyword,
     text,
+    raw: `${keyword}: ${text}`,
     position,
     range: { start: { line: 1, column: 1 }, end: { line: 1, column: 1 } },
   };

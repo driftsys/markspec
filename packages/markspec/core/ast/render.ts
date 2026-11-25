@@ -138,16 +138,26 @@ function renderTable(node: TableNode): string {
 }
 
 function renderFigure(node: FigureNode): string {
-  return `![${node.alt}](${node.path})`;
+  // The verbatim source keeps the title, alt markup and character
+  // references, which `alt` and `path` do not hold (#1008).
+  return node.raw;
+}
+
+/** The info-string text after the language tag, or the empty string when
+ * there is none. `meta` holds its leading spaces itself (#1008). */
+function infoSuffix(meta: string | undefined): string {
+  return meta ?? "";
 }
 
 function renderCode(node: CodeNode): string {
+  // The fence markers are canonical (three backticks); the content and the
+  // info string are kept.
   const lang = node.lang ?? "";
-  return `\`\`\`${lang}\n${node.text}\n\`\`\``;
+  return `\`\`\`${lang}${infoSuffix(node.meta)}\n${node.text}\n\`\`\``;
 }
 
 function renderFeature(node: FeatureNode): string {
-  return `\`\`\`gherkin\n${node.source}\n\`\`\``;
+  return `\`\`\`gherkin${infoSuffix(node.meta)}\n${node.source}\n\`\`\``;
 }
 
 function renderMath(node: MathNode): string {
@@ -195,7 +205,9 @@ function renderBlockquote(node: BlockquoteNode): string {
 }
 
 function renderCaption(node: CaptionNode): string {
-  return `${node.keyword}: ${node.text}`;
+  // The verbatim source keeps every line, link URL and inline markup of
+  // the caption; `text` holds only the flattened first line (#1008).
+  return node.raw;
 }
 
 function renderUnknown(node: UnknownNode): string {

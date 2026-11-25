@@ -554,12 +554,18 @@ The AST node:
 ```ts
 Caption {
   keyword: "Figure" | "Table" | "Listing" | "Feature" | "Equation" | "List"
-  text: string
+  text: string                    // first line, decoded, markup removed
+  raw: string                     // verbatim caption paragraph
   position: "above" | "below"     // relative to its block
   block: BlockNode                // resolved owner
   range: SourceRange
 }
 ```
+
+A caption is detected on the decoded text of its paragraph, without inline
+markup. `text` holds the first line of that decoded text, after the keyword.
+`raw` holds the verbatim source of the whole paragraph; `fmt` writes it back, so
+every line, link URL and inline markup of the caption is kept (#1008).
 
 Disambiguation from trailers (ADR-005 §Part 4): captions live next to a
 captionable block; trailers form the final indented code block of the entry. A
@@ -1026,9 +1032,15 @@ implementation must uphold.
   normalization in §3.4.1 and the inline-marker normalization in §3.4.2.
 - Fenced code block contents (including Feature / Gherkin and language-tagged
   Code blocks) — verbatim. Indentation of the fence itself may shift if the
-  enclosing list-item indent changed; the content inside the fence does not.
-- Math block contents (`$$ … $$`).
-- Image links (`![alt](path)`) — alt text and path verbatim.
+  enclosing list-item indent changed; the content inside the fence does not. The
+  info-string text after the language tag (`title=x` in `js title=x`) is kept
+  too, as written: its escapes, character references and the spaces between the
+  language tag and the text are kept; trailing spaces on the fence line are
+  removed.
+- Math block contents (`$$ … $$`), including escapes such as `\\` and character
+  references.
+- Image links (`![alt](path "title")`) — alt text, path and title verbatim.
+- Captions (§2.6) — every line, link URL and inline markup verbatim.
 - Trailing-backslash line continuation if the author used it (ADR-001 §Line
   breaks).
 - `$Identifier` tokens — case, spelling, position.
@@ -1114,13 +1126,16 @@ formatter's gate is now
 `astEquivalent(buildBodyAst(format(x)), normalizeBodyAst(buildBodyAst(x)))`. A
 **defensive string-keep fallback** (diagnosed as `MSL-F900`) is retained but
 never fires over the corpus or project documents. The same fallback also runs
-when the emitted body and the original body text parse to different CommonMark
-trees. This comparison collapses ASCII whitespace in text, compares text
+when the emitted body and the original body text parse to different Markdown
+trees (CommonMark with the GFM extensions). This comparison collapses ASCII
+whitespace in text and allows three rewrites: it compares text
 case-insensitively (modal keyword casing), ignores the start number of ordered
-lists (renumbering) and reads a `feature` fence info string as `gherkin` (the
-emitter writes feature blocks as `gherkin`); URLs, code and HTML must match byte
-for byte. The gate above compares the emission with an AST built from the
-original body, so it cannot see text that the build step itself dropped (#989).
+lists (renumbering) and reads a `feature` fence language as `gherkin` (the
+emitter writes feature blocks as `gherkin`). The info-string text after the
+language of a fence is compared as written in the source, without surrounding
+spaces. URLs, code and HTML must match byte for byte. The gate above compares
+the emission with an AST built from the original body, so it cannot see text
+that the build step itself dropped (#989).
 
 **Scope.** This contract covers the body zone only. Title-line and trailer-block
 rewrites (§3.2, §3.3) are separate deterministic rules whose correctness is

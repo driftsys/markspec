@@ -1406,23 +1406,19 @@ function formatBody(body: string, conventions?: typeof PRESERVE_CONVENTIONS) {
   return { md, result, f900 };
 }
 
-// A body whose emission loses text keeps its original lines. These bodies
-// lose text in the AST build today; #1008 fixes the builder, after which the
-// md_equiv unit tests below keep the guard covered.
+// A body whose emission changes text keeps its original lines. These tests
+// use #1009 inputs: the casing pass lowercases a modal keyword outside text
+// nodes (a link title, an image alt), and the guard keeps the body
+// unchanged. When #1009 is fixed, the emission keeps these inputs, so these
+// tests fail and must be replaced by another input that the emission
+// changes. The tests in `md_equiv_test.ts` cover the comparison directly.
 for (
   const [name, body] of [
-    [
-      "a multi-line table caption",
-      "Table: first line\nsecond line kept.\n\n| a | b |\n|---|---|\n| 1 | 2 |",
-    ],
-    [
-      "a table caption with a link",
-      "Table: see [x](http://a.example/p)\n\n| a | b |\n|---|---|\n| 1 | 2 |",
-    ],
-    ["a figure title", '![alt](p.png "Title")'],
+    ["a link title", '[x](http://a.example/p "SHALL")'],
+    ["an inline image alt", "See ![SHALL](p.png) here."],
   ]
 ) {
-  Deno.test(`format: keeps the original body when the emission drops ${name} (#989)`, () => {
+  Deno.test(`format: keeps the original body when the emission changes ${name} (#989, #1009)`, () => {
     const { md, result, f900 } = formatBody(body);
     assertEquals(result.output, md);
     assertEquals(f900.length, 1);
@@ -1440,7 +1436,6 @@ for (
     ["a definition list", "Term\n:   the definition.", "the definition."],
     ["a tilde fence", "~~~js\nx\n~~~", "  ```js\n  x\n  ```"],
     ["an indented code block", "Text.\n\n    code here", "  ```\n  code here"],
-    ["trailing whitespace", "first line.   \nsecond line.\t", "second line."],
     ["a lazy continuation", "> quote\nlazy line", "  > lazy line"],
   ]
 ) {
@@ -1450,6 +1445,20 @@ for (
     assertStringIncludes(result.output, expected);
   });
 }
+
+// The AST emission keeps a paragraph verbatim; the prose pass removes the
+// trailing whitespace. Three trailing spaces are a hard line break, which
+// the prose pass writes as a backslash.
+Deno.test("format: the text-loss guard accepts the removal of trailing whitespace (#989)", async () => {
+  const md = entryWithBody("first line.   \nsecond line.\t");
+  const result = format(md, {
+    file: "req.md",
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-F900"), []);
+  assertStringIncludes(result.output, "  first line.\\\n  second line.\n");
+  assertFalse(/[ \t]\n/.test(result.output));
+});
 
 Deno.test("format: the text-loss guard accepts preserved modal casing (#989)", () => {
   const { md, result, f900 } = formatBody(
@@ -1483,6 +1492,115 @@ Deno.test("format: a modal keyword in a link URL falls back to the original body
   assertEquals(f900.length, 1);
 });
 
+// #1008: `fmt` keeps every line, link URL, emphasis, figure title, TeX
+// escape and info string of captions, figures, math and code fences.
+for (
+  const [name, body, kept] of [
+    [
+      "a multi-line caption with a link and emphasis",
+      "Table: see [the spec](http://a.example/p) and _this_\n" +
+      "second line kept.\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+      [
+        "[the spec](http://a.example/p)",
+        "_this_",
+        "second line kept.",
+      ],
+    ],
+    [
+      "a figure title and alt markup",
+      '![a *b* &amp; c](p.png "The title")',
+      ['![a *b* &amp; c](p.png "The title")'],
+    ],
+    [
+      "TeX escapes in math",
+      "$$\na \\\\ b \\_c\n$$",
+      ["a \\\\ b \\_c"],
+    ],
+    [
+      "the info string of a code fence",
+      "```js title=x\nconst a = 1;\n```",
+      ["```js title=x const a = 1; ```"],
+    ],
+  ] as const
+) {
+  Deno.test(`format: keeps ${name} (#1008)`, async () => {
+    const formatMarkdownProse = await loadMarkdownFormatter();
+    const md = entryWithBody(body);
+    const result = format(md, { file: "req.md", formatMarkdownProse });
+    assertEquals(
+      result.diagnostics.filter((d) => d.code === "MSL-F900"),
+      [],
+    );
+    // Compare with whitespace runs collapsed, so a re-wrap by the prose
+    // pass and the list-item indentation do not matter.
+    const flat = result.output.replace(/\s+/g, " ");
+    for (const text of kept) assertStringIncludes(flat, text);
+    // Idempotent: a second run changes nothing (no MSL-F010 drift).
+    const again = format(result.output, {
+      file: "req.md",
+      formatMarkdownProse,
+    });
+    assertEquals(again.output, result.output);
+    assertEquals(
+      again.diagnostics.filter((d) => d.code === "MSL-F900"),
+      [],
+    );
+  });
+}
+
+// The info string of a code fence is written back verbatim; trailing
+// spaces on the fence line are removed (#1008). The prose pass (dprint)
+// decodes an escape or a character reference in an info string; the
+// equivalence gate rejects that output, so those bodies keep the AST
+// emission and report MSL-F012 (info).
+for (
+  const [name, fenceLine, expected, f012] of [
+    ["a character reference", "```js a&amp;b", "  ```js a&amp;b\n", 1],
+    [
+      "backslash escapes",
+      "```js a\\_b \\{1\\}",
+      "  ```js a\\_b \\{1\\}\n",
+      1,
+    ],
+    ["several spaces", "```js    title=x", "  ```js    title=x\n", 0],
+    ["trailing spaces", "```js title=x  ", "  ```js title=x\n", 0],
+  ] as const
+) {
+  Deno.test(`format: keeps the info string of a code fence with ${name} (#1008)`, async () => {
+    const formatMarkdownProse = await loadMarkdownFormatter();
+    const md = entryWithBody(`${fenceLine}\nconst a = 1;\n\`\`\``);
+    const result = format(md, { file: "req.md", formatMarkdownProse });
+    assertEquals(
+      result.diagnostics.filter((d) => d.code === "MSL-F900"),
+      [],
+    );
+    assertStringIncludes(result.output, expected);
+    assertEquals(
+      result.diagnostics.filter((d) => d.code === "MSL-F012").length,
+      f012,
+    );
+    const again = format(result.output, {
+      file: "req.md",
+      formatMarkdownProse,
+    });
+    assertEquals(again.output, result.output);
+  });
+}
+
+// An indented code block whose first line looks like a fence opening has
+// no info string: it is written back as a fenced block with no language
+// (#1008).
+Deno.test("format: an indented code block that starts with a fence line has no info string (#1008)", async () => {
+  const md = entryWithBody("Text.\n\n    ```js x\n    y");
+  const result = format(md, {
+    file: "req.md",
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-F900"), []);
+  assertStringIncludes(result.output, "```js x\n  y");
+  assertFalse(result.output.includes("``` x"));
+});
+
 // #1011: the body emitter writes a `feature` fence as `gherkin`; the #989
 // text-loss guard must accept that rename and report no MSL-F900.
 Deno.test("format: rewrites a feature fence in an entry body to gherkin (#1011)", async () => {
@@ -1498,6 +1616,25 @@ Deno.test("format: rewrites a feature fence in an entry body to gherkin (#1011)"
   assertStringIncludes(result.output, "  ```gherkin\n  Feature: F\n");
   assertEquals(result.output.includes("```feature"), false);
   // Idempotent: a second run changes nothing.
+  const again = format(result.output, { file: "req.md", formatMarkdownProse });
+  assertEquals(again.output, result.output);
+  assertEquals(again.diagnostics.filter((d) => d.code === "MSL-F900"), []);
+});
+
+// The feature-to-gherkin rename (#1011) and the verbatim info string after
+// the language (#1008) together: only the language word changes.
+Deno.test("format: rewrites a feature fence with an info string to gherkin and keeps the info string (#1008, #1011)", async () => {
+  const body =
+    "```feature title=x\nFeature: F\n  Scenario: S\n    Given a\n    When b\n    Then c\n```";
+  const md = entryWithBody(body);
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const result = format(md, { file: "req.md", formatMarkdownProse });
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-F900"),
+    [],
+  );
+  assertStringIncludes(result.output, "  ```gherkin title=x\n  Feature: F\n");
+  assertEquals(result.output.includes("```feature"), false);
   const again = format(result.output, { file: "req.md", formatMarkdownProse });
   assertEquals(again.output, result.output);
   assertEquals(again.diagnostics.filter((d) => d.code === "MSL-F900"), []);

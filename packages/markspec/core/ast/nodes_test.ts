@@ -36,6 +36,7 @@ Deno.test("nodes: block union is discriminated and exhaustive", () => {
     kind: "caption",
     keyword: "Figure",
     text: "A diagram",
+    raw: "Figure: A diagram",
     position: "below",
     range: R,
   };

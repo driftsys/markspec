@@ -27,7 +27,7 @@ export interface EntryExtent {
 /**
  * Why a prose segment kept its original text instead of the formatted
  * output: the dprint formatter threw (`"error"`), or its output failed the
- * CommonMark-semantic gate (`"non-equivalent"`). Threaded so `format()`
+ * GFM-semantic gate (`"non-equivalent"`). Threaded so `format()`
  * can emit an accurate MSL-F012 cause per segment rather than collapsing
  * both into one message.
  */
