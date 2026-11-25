@@ -446,8 +446,8 @@ repository root is a `PROFILE-LOAD-001` error. The parent is fetched at the
 child's tag, so with a per-profile tag such as `aspice-4/v1.2.0` it is read from
 the commit that tag names. This rule applies to git sources only. In a manifest
 fetched from npm, a relative `extends:` resolves inside the unpacked package:
-the parent must lie inside the same package, and so must the parent of that
-parent. A path that leaves the package root is a `PROFILE-LOAD-001` error,
+every manifest that it reaches by relative paths must lie inside the same
+package. A path that leaves the package root is a `PROFILE-LOAD-001` error,
 because the cache holds only the requested package. To extend a profile from
 another package, use an `npm:` specifier.
 

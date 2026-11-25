@@ -713,3 +713,123 @@ Deno.test("loadChain: relative extends that leaves an npm package from a nested 
   );
   assertEquals(result.diagnostics[0].location?.file, baseManifest);
 });
+
+const NPM_CORE_DIR = join(NPM_CACHE, "npm", "@org", "core", "1.0.0");
+
+/** An npm runner whose `pack` names the 1.0.0 tarball of the requested
+ * package (`@org/profile-a` or `@org/core`), both already in the cache. */
+const npmPacksBoth: RunNpm = (args) =>
+  Promise.resolve({
+    code: 0,
+    stdout: String(args[1]).startsWith("@org/core")
+      ? "org-core-1.0.0.tgz\n"
+      : "org-profile-a-1.0.0.tgz\n",
+    stderr: "",
+  });
+
+Deno.test("loadChain: a nested local tier in an npm package resolves its parent from its own directory (#1006)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    NPM_LEAF,
+    project,
+    project,
+    mockReadFile({
+      [join(NPM_PACKAGE_DIR, "markspec.yaml")]: manifest(
+        "@org/profile-a",
+        "./a",
+      ),
+      [join(NPM_PACKAGE_DIR, "a", "markspec.yaml")]: manifest("@org/a", "./b"),
+      [join(NPM_PACKAGE_DIR, "a", "b", "markspec.yaml")]: manifest(
+        "@org/b",
+        "../../shared",
+      ),
+      [join(NPM_PACKAGE_DIR, "shared", "markspec.yaml")]: manifest(
+        "@org/shared",
+      ),
+    }),
+    { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.map((t) => t.id), [
+    "@org/shared",
+    "@org/b",
+    "@org/a",
+    "@org/profile-a",
+  ]);
+});
+
+Deno.test("loadChain: relative extends two local tiers deep that leaves an npm package emits PROFILE-LOAD-001 (#1006)", async () => {
+  const project = resolve("/project");
+  const bManifest = join(NPM_PACKAGE_DIR, "a", "b", "markspec.yaml");
+  const result = await loadChain(
+    NPM_LEAF,
+    project,
+    project,
+    mockReadFile({
+      [join(NPM_PACKAGE_DIR, "markspec.yaml")]: manifest(
+        "@org/profile-a",
+        "./a",
+      ),
+      [join(NPM_PACKAGE_DIR, "a", "markspec.yaml")]: manifest("@org/a", "./b"),
+      [bManifest]: manifest("@org/b", "../../../../core/1.0.0"),
+      ...CACHED_CORE,
+    }),
+    { runNpm: npmPacksA100, npmCacheRoot: NPM_CACHE },
+  );
+
+  assertEquals(result.chain, null);
+  assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
+  assertEquals(
+    result.diagnostics[0].message,
+    leavesNpmPackage("../../../../core/1.0.0"),
+  );
+  assertEquals(result.diagnostics[0].location?.file, bManifest);
+});
+
+Deno.test("loadChain: an npm parent replaces the package that confines relative extends (#1006)", async () => {
+  const project = resolve("/project");
+  const leaf = manifest("@org/profile-a", "npm:@org/core@^1");
+  const inside = await loadChain(
+    NPM_LEAF,
+    project,
+    project,
+    mockReadFile({
+      [join(NPM_PACKAGE_DIR, "markspec.yaml")]: leaf,
+      [join(NPM_CORE_DIR, "markspec.yaml")]: manifest("@org/core", "./base"),
+      [join(NPM_CORE_DIR, "base", "markspec.yaml")]: manifest(
+        "@org/core-base",
+      ),
+    }),
+    { runNpm: npmPacksBoth, npmCacheRoot: NPM_CACHE },
+  );
+  assertEquals(inside.diagnostics, []);
+  assertEquals(inside.chain?.tiers.map((t) => t.id), [
+    "@org/core-base",
+    "@org/core",
+    "@org/profile-a",
+  ]);
+
+  const outside = await loadChain(
+    NPM_LEAF,
+    project,
+    project,
+    mockReadFile({
+      [join(NPM_PACKAGE_DIR, "markspec.yaml")]: leaf,
+      [join(NPM_CORE_DIR, "markspec.yaml")]: manifest(
+        "@org/core",
+        "../../profile-a/1.0.0",
+      ),
+    }),
+    { runNpm: npmPacksBoth, npmCacheRoot: NPM_CACHE },
+  );
+  assertEquals(outside.chain, null);
+  assertEquals(outside.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
+  assertEquals(
+    outside.diagnostics[0].message,
+    "profile specifier '../../profile-a/1.0.0' cannot be resolved: the " +
+      "relative path leaves the package root of npm:@org/core@^1; publish " +
+      "the parent profile as its own package and extend it with an npm: " +
+      "specifier",
+  );
+});

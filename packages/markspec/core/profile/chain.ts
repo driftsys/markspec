@@ -188,10 +188,10 @@ export async function loadChain(
       baseDir: resolved.baseDir,
     };
     tiersLeafFirst.push(tier);
+    // A later npm tier replaces the package. A git tier never has a local
+    // parent, and the builtin tier has no parent, so neither needs a reset.
     if (cursorSpec.kind === "npm") {
       npmPackage = { root: resolved.baseDir, spec: cursorSpec };
-    } else if (cursorSpec.kind !== "local") {
-      npmPackage = undefined;
     }
 
     // Advance cursor to the parent, if any. When the tier declares no
