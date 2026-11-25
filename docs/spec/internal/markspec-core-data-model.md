@@ -786,6 +786,19 @@ capitalization (the sentence starts with a capital `W`/`I`/`U`); within a
 sentence they normalize to lowercase. The rule is mechanical: lowercase unless
 the token is the first word of a sentence.
 
+The rule applies to prose only. A keyword keeps its case inside code, a link
+destination, a link title or reference label, an autolink, an image (path and
+alt text), a link reference definition, a footnote label, an HTML tag or an HTML
+block, because changing it there changes a target or code. The visible text of a
+`[text](url)` or `[text][label]` link is prose and is normalized. The visible
+text of a shortcut `[label]` or collapsed `[label][]` reference is its label and
+keeps its case.
+
+`fmt` applies the rule to one paragraph at a time, so a reference label or a
+footnote reference label in an entry body is not recognized when its definition
+is in another block. `fmt` then reports `MSL-F900` and keeps the whole entry
+body unchanged.
+
 #### 3.4.2 Entity references
 
 `$Identifier` tokens (§2.5.2) are emitted verbatim. `fmt` does not change case;
@@ -957,7 +970,7 @@ invariants).
 | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MSL-M050` | warning  | `$Identifier` case convention does not match resolved entity kind (PascalCase ↔ type, camelCase ↔ instance, SCREAMING_SNAKE ↔ constant). ADR-005 §Part 2. |
 | `MSL-M051` | error    | `$Identifier` does not resolve to any known entity. ADR-005 §Part 2 “Validation”.                                                                         |
-| `MSL-M060` | warning  | Modal keyword appears in uppercase (`SHALL`) — will be normalized by `fmt`.                                                                               |
+| `MSL-M060` | warning  | Modal keyword appears in uppercase (`SHALL`). `fmt` normalizes it in prose; see §3.4.1 for the places where it keeps the case.                            |
 | `MSL-M061` | info     | Requirement-type entry contains no modal keyword. Style hint; profile may promote.                                                                        |
 
 > **Implementation status (`main`).** `MSL-M060`/`MSL-M061` are implemented.

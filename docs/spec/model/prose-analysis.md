@@ -83,9 +83,10 @@ the RFC 2119 / EARS convention that modals appear in **lowercase**:
 **MSL-M060 — modal-keyword-uppercase** (warning)
 
 Fires when any of the above keywords appears in uppercase (`SHALL`, `MUST`, …)
-inside body prose. The formatter (`markspec fmt`) rewrites uppercase modals to
-lowercase automatically, so this diagnostic appears only on files that have not
-been formatted.
+inside body prose. The formatter (`markspec fmt`) rewrites uppercase modals in
+prose to lowercase automatically. It keeps the case of a keyword in inline code,
+a link URL or title, an autolink or an image, but this diagnostic still reports
+such a keyword, so a formatted file can still show it.
 
 ```text
 warning[MSL-M060]: requirements.md:12 modal keyword 'SHALL' in body prose is

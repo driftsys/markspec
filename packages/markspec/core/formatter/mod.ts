@@ -81,6 +81,10 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  *
  *   - CommonMark fenced code blocks and inline-code spans — code is
  *     verbatim per round-trip invariants (spec §5.1).
+ *   - Link destinations, titles and reference labels, autolinks, images
+ *     (path and alt text), link reference definitions, footnote labels, HTML
+ *     tags and HTML blocks (#1009). The visible text of a `[text](url)` or
+ *     `[text][label]` link is prose and is lowercased.
  *   - Lines indented by four or more spaces (or a tab) — conservatively
  *     captures indented code blocks and attribute trailers, both of which
  *     are not prose.
