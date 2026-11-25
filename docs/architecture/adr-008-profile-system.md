@@ -89,7 +89,14 @@ Single-profile repos may tag with bare `v<semver>` and omit the subpath.
 **Git fetch mechanics.** The loader uses shallow + sparse checkout
 (`git clone --depth=1 --branch=<tag> --filter=blob:none --sparse --no-checkout`,
 then `git sparse-checkout set <subpath>`). Bandwidth is minimal (single commit,
-single blob); auth is inherited from the user's git configuration.
+single blob); auth is inherited from the user's git configuration. The sparse
+clone holds only the requested subpath, so a relative `extends:` in a
+git-fetched manifest is resolved as a git specifier for the same repository and
+tag, with the path joined to the child's subpath; each parent tier gets its own
+cache entry. The parent is read at the child's tag, which under the per-profile
+tag convention is the commit of the child's release. A joined path that leaves
+the repository root is rejected (#1002). An npm-fetched manifest has no such
+rule (#1006).
 
 **npm vs jsr for profile YAML.** npm is selected over jsr for v1 because:
 

@@ -432,9 +432,21 @@ in a manifest's `extends:` field — using one of three specifier schemes:
 
 | Specifier form                                      | Resolves to                                           |
 | --------------------------------------------------- | ----------------------------------------------------- |
-| `./path/to/profile`                                 | Local directory relative to the declaring file        |
+| `./path/to/profile`                                 | Local directory relative to the declaring file (1)    |
 | `git+<https\|file>://host/repo.git[/subpath]#<tag>` | Git source; shallow + sparse clone, cached globally   |
 | `npm:[@scope/]name@<version-range>`                 | npm package; resolved via `npm pack`, cached globally |
+
+(1) Except in the `extends:` field of a manifest fetched from a git source. A
+local specifier there resolves in the same repository at the same tag: the path
+is joined to the manifest's subpath, and the parent is fetched as the git
+specifier for that joined subpath. For example, `extends: "../core"` in a
+manifest fetched as `git+https://host/org/repo.git/profiles/a#v1.0.0` resolves
+to `git+https://host/org/repo.git/profiles/core#v1.0.0`. A path that leaves the
+repository root is a `PROFILE-LOAD-001` error. The parent is fetched at the
+child's tag, so with a per-profile tag such as `aspice-4/v1.2.0` it is read from
+the commit that tag names. This rule applies to git sources only. In a manifest
+fetched from npm, a relative `extends:` resolves against the directory of the
+unpacked package in the local cache.
 
 Git auth is inherited from the user's git configuration; npm resolution uses the
 registry configured in `.npmrc`. The `jsr:` and raw `https:` schemes are

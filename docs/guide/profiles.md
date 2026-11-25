@@ -54,6 +54,15 @@ profiles:
 The fragment after `#` is a git tag (or branch for `file://` development). The
 optional subpath between `.git` and `#` selects one profile inside a monorepo.
 
+Profiles in the same monorepo can extend each other by relative path. When
+`profiles/a/markspec.yaml` declares `extends: "../core"` and a project fetches
+it as `git+https://github.com/acme/profiles.git/profiles/a#v1.0.0`, MarkSpec
+fetches the parent from the same repository at the same tag
+(`…/profiles.git/profiles/core#v1.0.0`). A relative path that leaves the
+repository root is rejected. This works for git sources only. A profile fetched
+from npm resolves a relative path against its unpacked package directory in the
+local cache.
+
 **npm** — resolved with `npm pack` and cached. Use this when your organization
 distributes profiles through an npm registry or mirror (Nexus, Artifactory,
 JFrog, or GitLab's npm package registry). The registry is whatever your `.npmrc`

@@ -355,3 +355,241 @@ Deno.test("loadChain: builtin spliced below a multi-tier local chain", async () 
   assertEquals(result.chain?.tiers[1].id, "@acme/root");
   assertEquals(result.chain?.tiers[2].id, "@acme/leaf");
 });
+
+// ---------------------------------------------------------------------------
+// #1002 — relative `extends:` inside a git-fetched profile
+// ---------------------------------------------------------------------------
+
+const MONOREPO = "https://host/org/repo.git";
+
+/** Cached manifest map for git tiers of {@linkcode MONOREPO} at `v1.0.0`. */
+async function gitManifests(
+  project: string,
+  bySubpath: Record<string, string>,
+  tag = "v1.0.0",
+): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  for (const [subpath, yaml] of Object.entries(bySubpath)) {
+    const loc = await computeCacheLocation(project, {
+      repo: MONOREPO,
+      subpath: subpath === "" ? undefined : subpath,
+      tag,
+    });
+    map[loc.manifestPath] = yaml;
+  }
+  return map;
+}
+
+function manifest(id: string, extendsSpec?: string): string {
+  return `id: "${id}"\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
+    (extendsSpec === undefined ? "" : `extends: "${extendsSpec}"\n`);
+}
+
+const noGit: RunGit = () =>
+  Promise.resolve({ code: 0, stdout: "", stderr: "" });
+
+Deno.test("loadChain: relative extends in a git subpath profile resolves in the same repo and tag (#1002)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "profiles/a": manifest("@org/a", "../core"),
+        "profiles/core": manifest("@org/core"),
+      }),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.map((t) => t.id), ["@org/core", "@org/a"]);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: "profiles/core",
+    tag: "v1.0.0",
+  });
+});
+
+Deno.test("loadChain: relative extends in a git root profile resolves to a subpath (#1002)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: undefined, tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "": manifest("@org/root", "./sub"),
+        "sub": manifest("@org/sub"),
+      }),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.map((t) => t.id), ["@org/sub", "@org/root"]);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: "sub",
+    tag: "v1.0.0",
+  });
+});
+
+Deno.test("loadChain: relative extends up to the git repo root resolves with no subpath (#1002)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "profiles/a": manifest("@org/a", "../.."),
+        "": manifest("@org/root"),
+      }),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: undefined,
+    tag: "v1.0.0",
+  });
+});
+
+for (
+  const [label, escaping] of [
+    ["one level above the root", "../../.."],
+    ["into a folder outside the root", "../../../outside"],
+  ]
+) {
+  Deno.test(`loadChain: relative extends ${label} of the git repo emits PROFILE-LOAD-001 (#1002)`, async () => {
+    const project = resolve("/project");
+    const gitCalls: string[][] = [];
+    const runGit: RunGit = (args) => {
+      gitCalls.push([...args]);
+      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+    };
+    const manifests = await gitManifests(project, {
+      "profiles/a": manifest("@org/a", escaping),
+    });
+    const result = await loadChain(
+      { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
+      project,
+      project,
+      mockReadFile(manifests),
+      { runGit },
+    );
+
+    assertEquals(result.chain, null);
+    assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
+    const [diagnostic] = result.diagnostics;
+    assertEquals(
+      diagnostic.message.includes("leaves the repository root"),
+      true,
+    );
+    assertEquals(diagnostic.message.includes("profiles/a"), true);
+    // The diagnostic points at the child manifest that declares the path.
+    assertEquals(diagnostic.location?.file, Object.keys(manifests)[0]);
+    assertEquals(gitCalls, []); // rejected before any fetch
+  });
+}
+
+Deno.test("loadChain: relative extends reads the parent at the child's tag (#1002)", async () => {
+  const project = resolve("/project");
+  const tag = "a/v1.2.0";
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "profiles/a": manifest("@org/a", "../core"),
+        "profiles/core": manifest("@org/core"),
+      }, tag),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: "profiles/core",
+    tag,
+  });
+});
+
+Deno.test("loadChain: relative extends that leaves the root from a git root profile names subpath '.' (#1002)", async () => {
+  const project = resolve("/project");
+  const gitCalls: string[][] = [];
+  const runGit: RunGit = (args) => {
+    gitCalls.push([...args]);
+    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+  };
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: undefined, tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, { "": manifest("@org/root", "../x") }),
+    ),
+    { runGit },
+  );
+
+  assertEquals(result.chain, null);
+  assertEquals(gitCalls, []); // rejected before any fetch
+  assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-001"]);
+  assertEquals(
+    result.diagnostics[0].message.includes("(declared in subpath '.')"),
+    true,
+  );
+});
+
+Deno.test("loadChain: relative extends with a trailing slash resolves to the same subpath (#1002)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "profiles/a": manifest("@org/a", "../core/"),
+        "profiles/core": manifest("@org/core"),
+      }),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers[0].specifier, {
+    kind: "git",
+    repo: MONOREPO,
+    subpath: "profiles/core",
+    tag: "v1.0.0",
+  });
+});
+
+Deno.test("loadChain: cycle through relative extends in a git repo emits PROFILE-LOAD-004 (#1002)", async () => {
+  const project = resolve("/project");
+  const result = await loadChain(
+    { kind: "git", repo: MONOREPO, subpath: "profiles/a", tag: "v1.0.0" },
+    project,
+    project,
+    mockReadFile(
+      await gitManifests(project, {
+        "profiles/a": manifest("@org/a", "../b"),
+        "profiles/b": manifest("@org/b", "../a"),
+      }),
+    ),
+    { runGit: noGit },
+  );
+
+  assertEquals(result.chain, null);
+  assertEquals(result.diagnostics.map((d) => d.code), ["PROFILE-LOAD-004"]);
+});
