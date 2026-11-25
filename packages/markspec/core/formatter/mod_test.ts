@@ -1423,6 +1423,8 @@ for (
       "a full reference label",
       "See [the rule][SHALL].\n\n[SHALL]: http://a.example/",
     ],
+    ["a reference image label", "See ![SHALL][img].\n\n[img]: p.png"],
+    ["a footnote reference label", "A note[^SHALL].\n\n[^SHALL]: It holds."],
   ]
 ) {
   Deno.test(`format: keeps the original body when the emission changes ${name} (#989, #1014)`, () => {
@@ -1492,8 +1494,8 @@ for (
 
 // The casing pass lowercases prose and the visible text of a link, but
 // keeps link URLs, link titles, autolinks and image paths and alt (#1009).
-// A footnote reference label is not kept yet, for the same reason as a
-// reference-link label (#1014).
+// A footnote reference label or a reference image label is not kept yet;
+// the guard-fallback tests above cover them (#1014).
 for (
   const [name, body, kept] of [
     [
@@ -1506,7 +1508,16 @@ for (
       ],
     ],
     ["a link title", '[x](http://a.example/p "SHALL")', ['"SHALL"']],
-    ["an image", "See ![SHALL](p/SHALL.png) here.", ["![SHALL](p/SHALL.png)"]],
+    ["an image", "See ![SHALL](p/SHALL.png) MUST.", [
+      "![SHALL](p/SHALL.png) must.",
+    ]],
+    ["a GFM literal autolink", "See http://y.example/MAY MUST.", [
+      "http://y.example/MAY must.",
+    ]],
+    ["an HTML block", "<div>\nSHALL\n</div>\n\nIt MUST act.", [
+      "SHALL",
+      "It must act.",
+    ]],
   ] as const
 ) {
   Deno.test(`format: keeps ${name} and lowercases the prose (#1009)`, () => {

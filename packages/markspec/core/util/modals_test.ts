@@ -4,62 +4,86 @@ import { normalizeProseModals } from "./modals.ts";
 // #1009: the casing pass changes prose only. Link destinations, titles and
 // labels, autolinks, images, link reference definitions and raw HTML keep
 // their text. The visible text of a link is prose and is lowercased.
+// Each input puts a prose keyword right after the kept syntax, so a
+// protected range that reaches past its node fails the test.
 for (
   const [name, input, expected] of [
     [
       "an inline link URL",
-      "The system SHALL follow [SHALL](http://x.example/SHALL).",
-      "The system shall follow [shall](http://x.example/SHALL).",
+      "The system SHALL follow [SHALL](http://x.example/SHALL) MUST.",
+      "The system shall follow [shall](http://x.example/SHALL) must.",
     ],
     [
       "a link title",
-      '[x](http://a.example/p "SHALL")',
-      '[x](http://a.example/p "SHALL")',
+      '[x](http://a.example/p "SHALL") MUST.',
+      '[x](http://a.example/p "SHALL") must.',
     ],
     [
       "an angle-bracket autolink",
-      "See <http://x.example/MUST> now.",
-      "See <http://x.example/MUST> now.",
+      "See <http://x.example/MUST> MAY.",
+      "See <http://x.example/MUST> may.",
     ],
     [
       "a GFM literal autolink",
-      "See http://y.example/MAY now.",
-      "See http://y.example/MAY now.",
+      "See http://y.example/MAY MUST.",
+      "See http://y.example/MAY must.",
     ],
     [
       "an inline image",
-      "See ![SHALL](p/SHALL.png) here.",
-      "See ![SHALL](p/SHALL.png) here.",
+      "See ![SHALL](p/SHALL.png) MUST.",
+      "See ![SHALL](p/SHALL.png) must.",
     ],
     [
       "a full reference link label",
-      "Use [MAY][SHALL].\n\n[SHALL]: http://z.example/SHALL",
-      "Use [may][SHALL].\n\n[SHALL]: http://z.example/SHALL",
+      "Use [MAY][SHALL] MUST.\n\n[SHALL]: http://z.example/SHALL",
+      "Use [may][SHALL] must.\n\n[SHALL]: http://z.example/SHALL",
     ],
     [
       "a shortcut reference link",
-      "See [SHALL].\n\n[SHALL]: http://z.example/",
-      "See [SHALL].\n\n[SHALL]: http://z.example/",
+      "See [SHALL] MUST.\n\n[SHALL]: http://z.example/",
+      "See [SHALL] must.\n\n[SHALL]: http://z.example/",
     ],
     [
       "a collapsed reference link",
-      "See [SHALL][].\n\n[SHALL]: http://z.example/",
-      "See [SHALL][].\n\n[SHALL]: http://z.example/",
+      "See [SHALL][] MUST.\n\n[SHALL]: http://z.example/",
+      "See [SHALL][] must.\n\n[SHALL]: http://z.example/",
     ],
     [
       "a reference image",
-      "See ![SHALL][img].\n\n[img]: p.png",
-      "See ![SHALL][img].\n\n[img]: p.png",
+      "See ![SHALL][img] MUST.\n\n[img]: p.png",
+      "See ![SHALL][img] must.\n\n[img]: p.png",
     ],
     [
       "a footnote label",
-      "A note[^SHALL].\n\n[^SHALL]: It MUST hold.",
-      "A note[^SHALL].\n\n[^SHALL]: It must hold.",
+      "A note[^SHALL] MAY.\n\n[^SHALL]: It MUST hold.",
+      "A note[^SHALL] may.\n\n[^SHALL]: It must hold.",
     ],
     [
       "inline raw HTML",
       'A <a href="x/SHALL">MUST</a> link.',
       'A <a href="x/SHALL">must</a> link.',
+    ],
+    [
+      "an HTML block",
+      "<div>\nSHALL\n</div>\n\nIt MUST act.",
+      "<div>\nSHALL\n</div>\n\nIt must act.",
+    ],
+    // A protected range that spans lines still covers its later lines, and
+    // prose after it on the same line is lowercased.
+    [
+      "a link title over two lines",
+      '[x](http://a.example/p "the\nSHALL title") MUST.',
+      '[x](http://a.example/p "the\nSHALL title") must.',
+    ],
+    [
+      "an image alt over two lines",
+      "See ![the\nSHALL alt](p.png) MUST.",
+      "See ![the\nSHALL alt](p.png) must.",
+    ],
+    [
+      "an HTML tag over two lines",
+      'A <span\ntitle="SHALL">x</span> MUST.',
+      'A <span\ntitle="SHALL">x</span> must.',
     ],
   ]
 ) {

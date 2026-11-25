@@ -42,8 +42,9 @@ export function isSentenceInitial(line: string, offset: number): boolean {
 
 /**
  * Normalize modal keywords in prose while preserving CommonMark fenced and
- * inline code, link destinations, titles and labels, autolinks, images,
- * link reference definitions and raw HTML (#1009). The visible text of a
+ * inline code, link destinations, titles and labels, autolinks, images (path
+ * and alt text), link reference definitions, footnote labels, HTML tags and
+ * HTML blocks (#1009). The visible text of a `[text](url)` or `[text][label]`
  * link is prose and is normalized. Four-space and tab-indented lines remain
  * verbatim as before. The document is parsed once; every exclusion uses that
  * same AST.
