@@ -118,3 +118,37 @@ Deno.test("md_equiv: guard options still reject lost content", () => {
     );
   }
 });
+
+Deno.test("md_equiv: feature and gherkin fences are equal only with featureLangAlias (#1011)", () => {
+  const feature = "```feature\nFeature: F\n```";
+  const gherkin = "```gherkin\nFeature: F\n```";
+  assertEquals(markdownSemanticallyEquivalent(feature, gherkin), false);
+  assertEquals(markdownSemanticallyEquivalent(feature, gherkin, GUARD), false);
+  assertEquals(
+    markdownSemanticallyEquivalent(feature, gherkin, {
+      ...GUARD,
+      featureLangAlias: true,
+    }),
+    true,
+  );
+});
+
+Deno.test("md_equiv: featureLangAlias still rejects any other lang change (#1011)", () => {
+  const options = { ...GUARD, featureLangAlias: true } as const;
+  for (
+    const [a, b] of [
+      ["```gherkin\nx\n```", "```js\nx\n```"],
+      ["```feature\nx\n```", "```js\nx\n```"],
+      ["```feature\nx\n```", "```\nx\n```"],
+      ["```gherkin\nx\n```", "```Gherkin\nx\n```"],
+      ["```feature\nx\n```", "```gherkin\ny\n```"],
+      ["```feature a\nx\n```", "```gherkin\nx\n```"],
+    ]
+  ) {
+    assertEquals(
+      markdownSemanticallyEquivalent(a, b, options),
+      false,
+      `${JSON.stringify(a)} vs ${JSON.stringify(b)}`,
+    );
+  }
+});

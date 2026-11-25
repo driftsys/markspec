@@ -1482,3 +1482,23 @@ Deno.test("format: a modal keyword in a link URL falls back to the original body
   assertEquals(result.output, md);
   assertEquals(f900.length, 1);
 });
+
+// #1011: the body emitter writes a `feature` fence as `gherkin`; the #989
+// text-loss guard must accept that rename and report no MSL-F900.
+Deno.test("format: rewrites a feature fence in an entry body to gherkin (#1011)", async () => {
+  const body =
+    "The system shall act.\n\n```feature\nFeature: F\n  Scenario: S\n    Given a\n    When b\n    Then c\n```";
+  const md = entryWithBody(body);
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const result = format(md, { file: "req.md", formatMarkdownProse });
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-F900"),
+    [],
+  );
+  assertStringIncludes(result.output, "  ```gherkin\n  Feature: F\n");
+  assertEquals(result.output.includes("```feature"), false);
+  // Idempotent: a second run changes nothing.
+  const again = format(result.output, { file: "req.md", formatMarkdownProse });
+  assertEquals(again.output, result.output);
+  assertEquals(again.diagnostics.filter((d) => d.code === "MSL-F900"), []);
+});

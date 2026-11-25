@@ -18,8 +18,9 @@
  * DELIBERATELY weaker than ADR-015's `astEquivalent` (byte-verbatim on
  * inline markup). Used to accept/reject dprint output and tab-marker rewrites.
  * With {@linkcode MarkdownEquivalenceOptions} (text case and ordered-list
- * start ignored) it is also the formatter's text-loss guard, which compares
- * an emitted entry body with the original body text (#989).
+ * start ignored, `feature` fences read as `gherkin`) it is also the
+ * formatter's text-loss guard, which compares an emitted entry body with the
+ * original body text (#989).
  * The ADR-015 relation still guards §5.2 body emission (MSL-F900) and must not
  * be modified.
  */
@@ -38,6 +39,12 @@ export interface MarkdownEquivalenceOptions {
   readonly ignoreTextCase?: boolean;
   /** Ignore the `start` number of ordered lists. */
   readonly ignoreListStart?: boolean;
+  /** Read the code `lang` `feature` as `gherkin`. The body emitter writes a
+   * fence that the AST builder reads as a feature block (`lang` `gherkin` or
+   * `feature`, `core/ast/build.ts`) with the `gherkin` info string
+   * (`renderFeature`, `core/ast/render.ts`); keep this alias in sync with
+   * both. Every other `lang` value stays byte-exact. */
+  readonly featureLangAlias?: boolean;
 }
 
 /** True when `a` and `b` are the same Markdown, modulo presentation. */
@@ -79,6 +86,13 @@ function normalize(
       continue;
     }
     if (key === "start" && src.type === "list" && options.ignoreListStart) {
+      continue;
+    }
+    if (
+      key === "lang" && src.type === "code" && options.featureLangAlias &&
+      src.lang === "feature"
+    ) {
+      out.lang = "gherkin";
       continue;
     }
     out[key] = normalize(src[key], options);

@@ -1116,10 +1116,11 @@ formatter's gate is now
 never fires over the corpus or project documents. The same fallback also runs
 when the emitted body and the original body text parse to different CommonMark
 trees. This comparison collapses ASCII whitespace in text, compares text
-case-insensitively (modal keyword casing) and ignores the start number of
-ordered lists (renumbering); URLs, code and HTML must match byte for byte. The
-gate above compares the emission with an AST built from the original body, so it
-cannot see text that the build step itself dropped (#989).
+case-insensitively (modal keyword casing), ignores the start number of ordered
+lists (renumbering) and reads a `feature` fence info string as `gherkin` (the
+emitter writes feature blocks as `gherkin`); URLs, code and HTML must match byte
+for byte. The gate above compares the emission with an AST built from the
+original body, so it cannot see text that the build step itself dropped (#989).
 
 **Scope.** This contract covers the body zone only. Title-line and trailer-block
 rewrites (§3.2, §3.3) are separate deterministic rules whose correctness is

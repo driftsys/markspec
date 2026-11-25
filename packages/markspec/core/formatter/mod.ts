@@ -391,14 +391,17 @@ function emitBodyViaAst(
     // AST build itself dropped is missing from both sides, so that check
     // cannot see it. Parse the original body text and the emission as
     // CommonMark and compare the two trees; keep the original body when
-    // they differ. Two intended rewrites are allowed: modal keyword
-    // casing (text nodes compare case-insensitively) and ordered-list
-    // renumbering (the list `start` is ignored). URLs, code and HTML stay
-    // byte-exact, so a changed link or code span is a difference.
+    // they differ. Three intended rewrites are allowed: modal keyword
+    // casing (text nodes compare case-insensitively), ordered-list
+    // renumbering (the list `start` is ignored) and the `feature` fence
+    // info string, which the emitter writes as `gherkin` (#1011). URLs,
+    // code and HTML stay byte-exact, so a changed link or code span is a
+    // difference.
     if (
       !markdownSemanticallyEquivalent(entry.body, emittedBody, {
         ignoreTextCase: true,
         ignoreListStart: true,
+        featureLangAlias: true,
       })
     ) {
       diagnostics.push({
