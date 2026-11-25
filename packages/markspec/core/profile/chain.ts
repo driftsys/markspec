@@ -11,11 +11,15 @@
  * {@linkcode resolveLocalSpecifier}. A local `extends:` in the manifest of a
  * git tier is the exception: it becomes a git specifier for the same
  * repository and tag (#1002), and routes through
- * {@linkcode resolveGitSpecifier}. The chain's {@linkcode EffectiveProfile}
+ * {@linkcode resolveGitSpecifier}. A local `extends:` in the manifest of an
+ * npm tier, or of a local tier loaded from inside an npm package, resolves
+ * inside the unpacked package; a path that leaves the package root is
+ * rejected (#1006), because the parent must then be its own package,
+ * extended with an `npm:` specifier. The chain's {@linkcode EffectiveProfile}
  * is produced by {@linkcode mergeChain}.
  */
 
-import { resolve as resolvePath } from "@std/path";
+import { isAbsolute, relative, resolve as resolvePath } from "@std/path";
 import {
   join as joinPosix,
   normalize as normalizePosix,
@@ -29,6 +33,7 @@ import type {
   ProfileSpecifier,
 } from "../model/mod.ts";
 import type { AppendFile, RunGit } from "./git-cache.ts";
+import type { RunNpm } from "./npm.ts";
 import { parseManifest } from "./manifest.ts";
 import { mergeChain } from "./merge.ts";
 import {
@@ -55,6 +60,10 @@ export interface LoadChainResult {
 export interface LoadChainOptions {
   readonly runGit?: RunGit;
   readonly appendFile?: AppendFile;
+  /** Injectable npm runner for npm specifiers — defaults to real `npm`. */
+  readonly runNpm?: RunNpm;
+  /** Global cache root for npm specifiers — defaults to `cacheDir()`. */
+  readonly npmCacheRoot?: string;
   /**
    * When true, the bundled default profile is spliced as the implicit
    * root of the chain (the ultimate `extends:` parent of any tier that
@@ -93,6 +102,11 @@ export async function loadChain(
   const visited = new Set<string>(); // canonical specifier key
   let cursorSpec: ProfileSpecifier | undefined = specifier;
   let cursorDir = contextDir;
+  // The npm package the current tier was loaded from: the npm tier itself,
+  // or a local tier that a relative `extends:` reached inside it (#1006).
+  let npmPackage:
+    | { readonly root: string; readonly spec: ProfileSpecifier }
+    | undefined;
 
   while (cursorSpec !== undefined) {
     const key = specifierKey(cursorSpec, cursorDir);
@@ -136,8 +150,9 @@ export async function loadChain(
         cursorSpec,
         diagnostics,
         {
-          cacheRoot: cacheDirFn(),
+          cacheRoot: opts.npmCacheRoot ?? cacheDirFn(),
           readFile,
+          runNpm: opts.runNpm,
         },
       );
     } else if (cursorSpec.kind === "builtin") {
@@ -173,6 +188,11 @@ export async function loadChain(
       baseDir: resolved.baseDir,
     };
     tiersLeafFirst.push(tier);
+    // A later npm tier replaces the package. A git tier never has a local
+    // parent, and the builtin tier has no parent, so neither needs a reset.
+    if (cursorSpec.kind === "npm") {
+      npmPackage = { root: resolved.baseDir, spec: cursorSpec };
+    }
 
     // Advance cursor to the parent, if any. When the tier declares no
     // explicit parent, splice the bundled default as the implicit root
@@ -197,6 +217,28 @@ export async function loadChain(
           return { chain: null, diagnostics };
         }
         cursorSpec = sibling;
+      } else if (
+        npmPackage !== undefined && parent.kind === "local" &&
+        leavesDirectory(
+          npmPackage.root,
+          resolvePath(resolved.baseDir, parent.path),
+        )
+      ) {
+        // Only the requested package is unpacked into the cache, so a
+        // relative parent outside it would read another cached package or
+        // nothing (#1006).
+        diagnostics.push({
+          code: "PROFILE-LOAD-001",
+          severity: "error",
+          message: `profile specifier '${parent.path}' cannot be resolved: ` +
+            `the relative path leaves the package root of ` +
+            `${
+              stringifySpec(npmPackage.spec)
+            }; publish the parent profile as ` +
+            `its own package and extend it with an npm: specifier`,
+          location: { file: resolved.sourcePath, line: 1, column: 1 },
+        });
+        return { chain: null, diagnostics };
       } else {
         cursorSpec = parent;
       }
@@ -249,6 +291,13 @@ function gitSiblingSpecifier(
     subpath: joined === "." || joined === "" ? undefined : joined,
     tag: child.tag,
   };
+}
+
+/** `true` when the absolute path `target` lies outside `root`. */
+function leavesDirectory(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") ||
+    isAbsolute(rel);
 }
 
 /**
