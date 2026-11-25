@@ -17,6 +17,9 @@
  *
  * DELIBERATELY weaker than ADR-015's `astEquivalent` (byte-verbatim on
  * inline markup). Used to accept/reject dprint output and tab-marker rewrites.
+ * With {@linkcode MarkdownEquivalenceOptions} (text case and ordered-list
+ * start ignored) it is also the formatter's text-loss guard, which compares
+ * an emitted entry body with the original body text (#989).
  * The ADR-015 relation still guards §5.2 body emission (MSL-F900) and must not
  * be modified.
  */
@@ -27,15 +30,26 @@ import remarkGfm from "remark-gfm";
 
 const parser = unified().use(remarkParse).use(remarkGfm);
 
+/** Extra relaxations of {@linkcode markdownSemanticallyEquivalent}. Every
+ * option defaults to `false`, which keeps the default relation. */
+export interface MarkdownEquivalenceOptions {
+  /** Compare `text` node values case-insensitively. Other values (code,
+   * `html`, URLs, image `alt`) stay case-sensitive. */
+  readonly ignoreTextCase?: boolean;
+  /** Ignore the `start` number of ordered lists. */
+  readonly ignoreListStart?: boolean;
+}
+
 /** True when `a` and `b` are the same Markdown, modulo presentation. */
 export function markdownSemanticallyEquivalent(
   a: string,
   b: string,
+  options: MarkdownEquivalenceOptions = {},
 ): boolean {
   if (a === b) return true;
   return deepEqual(
-    normalize(parser.parse(a)),
-    normalize(parser.parse(b)),
+    normalize(parser.parse(a), options),
+    normalize(parser.parse(b), options),
   );
 }
 
@@ -46,8 +60,11 @@ export function markdownSemanticallyEquivalent(
  * a content change pass as a wrap change). Returns a plain JSON-ish
  * structure for comparison; never mutates the input tree.
  */
-function normalize(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(normalize);
+function normalize(
+  node: unknown,
+  options: MarkdownEquivalenceOptions,
+): unknown {
+  if (Array.isArray(node)) return node.map((n) => normalize(n, options));
   if (node === null || typeof node !== "object") return node;
   const src = node as Record<string, unknown>;
   const out: Record<string, unknown> = {};
@@ -57,10 +74,14 @@ function normalize(node: unknown): unknown {
       key === "value" && src.type === "text" &&
       typeof src.value === "string"
     ) {
-      out.value = src.value.replace(/[ \t\r\n\f\v]+/g, " ");
+      const value = src.value.replace(/[ \t\r\n\f\v]+/g, " ");
+      out.value = options.ignoreTextCase ? value.toLowerCase() : value;
       continue;
     }
-    out[key] = normalize(src[key]);
+    if (key === "start" && src.type === "list" && options.ignoreListStart) {
+      continue;
+    }
+    out[key] = normalize(src[key], options);
   }
   return out;
 }

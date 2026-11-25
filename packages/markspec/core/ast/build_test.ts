@@ -538,3 +538,48 @@ Deno.test("build: feature node gets its AST once the parser is loaded", async ()
   const bad = buildBodyAst("```gherkin\nScenario: x\n  Given a\n Bogus\n```");
   assertEquals((bad[0] as FeatureNode).parseError?.line, 3);
 });
+
+// #989: an encoded (`&#58;`) or escaped (`\:`) colon at the start of a line
+// is prose, not a definition-list marker. The paragraph keeps every line.
+for (const colon of ["&#58;", "\\:"]) {
+  Deno.test(`build: '${colon}' at a line start is a paragraph, not a definition list (#989)`, () => {
+    const s = `Term\n${colon} first line\nsecond line.\nthird line shall stay.`;
+    const blocks = buildBodyAst(s);
+    assertEquals(blocks.length, 1);
+    const p = blocks[0] as ParagraphNode;
+    assertEquals(p.kind, "paragraph");
+    assertEquals(p.content.text, s);
+    assertEquals(render(blocks), s);
+  });
+}
+
+Deno.test("build: a multi-line definition after a literal colon keeps every line (#989)", () => {
+  const s = "Term\n: first line\nsecond line.\nthird line shall stay.";
+  const dl = buildBodyAst(s)[0] as DefinitionListNode;
+  assertEquals(dl.kind, "definition-list");
+  assertEquals(dl.items[0].term.text, "Term");
+  assertEquals(
+    dl.items[0].definition.text,
+    "first line\nsecond line.\nthird line shall stay.",
+  );
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+// The first `\n:` of the source is not a marker: one line holds an escaped
+// colon, the next a colon with no space after it. Only `Term\n: ...` is the
+// marker. Splitting at the first `\n:` (the code before #989) stored
+// `Intro\n\: not a marker` as the term and rendered `:no space` as
+// `: no space`, which changes the text.
+Deno.test("build: the definition-list split skips colon lines that are not markers (#989)", () => {
+  const s =
+    "Intro\n\\: not a marker\n:no space, not a marker\nTerm\n: the definition.";
+  const blocks = buildBodyAst(s);
+  const dl = blocks[0] as DefinitionListNode;
+  assertEquals(dl.kind, "definition-list");
+  assertEquals(
+    dl.items[0].term.text,
+    "Intro\n\\: not a marker\n:no space, not a marker\nTerm",
+  );
+  assertEquals(dl.items[0].definition.text, "the definition.");
+  assertEquals(render(blocks), s);
+});

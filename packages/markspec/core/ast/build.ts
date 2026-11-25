@@ -199,41 +199,45 @@ function tryDefinitionList(
 }
 
 /**
- * Deterministically split a verbatim definition-list slice into its
- * term and definition substrings.
+ * The definition-list marker in the verbatim source: a line that starts
+ * with a literal `:` followed by whitespace, after a term line that does
+ * not start with `:`. Same shape as {@linkcode DEFLIST_RE}, but applied to
+ * the source text, where an encoded (`&#58;`) or escaped (`\:`) colon is
+ * still written as such. Such a colon is prose, so it is never a marker
+ * (#989).
+ */
+const VERBATIM_DEFLIST_MARKER_RE = /^[^\n:][^\n]*\n:\s+\S/m;
+
+/**
+ * Split a verbatim paragraph slice into its definition-list term and
+ * definition substrings, or return `undefined` when the verbatim source
+ * holds no definition-list marker (see
+ * {@linkcode VERBATIM_DEFLIST_MARKER_RE}).
  *
- * Detection still runs on the flattened text via {@linkcode
- * tryDefinitionList} (markup-stripped recognition, mirroring caption /
- * math detection). This function only governs what is *stored*: it
- * returns the byte-exact verbatim term and definition so inline markup
- * on either side survives.
+ * The caller runs {@linkcode tryDefinitionList} on the flattened text
+ * first, so this function never accepts a paragraph the flattened check
+ * rejects. It only decides on the verbatim source, where an encoded or
+ * escaped colon is not decoded, and it governs what is *stored*: the
+ * byte-exact verbatim term and definition, so inline markup on either side
+ * survives.
  *
- * The split mirrors `renderDefinitionList` in `render.ts` exactly. That
- * renderer emits `${term.text}\n: ${definition.text}` — one newline,
- * then `: ` (colon + single space). The inverse is therefore: split on
- * the first `\n:`, take everything before as the term, then consume the
- * leading whitespace after the colon (the `\s+` that `DEFLIST_RE` and
- * the canonical `: ` collapse). The remainder is the definition.
- *
- * Why this replaces `DEFLIST_RE.exec(verbatim.trim())`: that regex's
- * `(.+)$` under the `/m` flag stops at the first newline, so a verbatim
- * slice spanning multiple source lines silently lost everything after
- * the first definition line and fell back to the flattened (markup-
- * stripped) form. A deterministic first-`\n:` split never misses.
- *
- * Returns `undefined` only when the verbatim slice contains no `\n:`
- * separator (cannot happen for a canonical single-item deflist that
- * flattened-detection accepted, but kept total for safety).
+ * The split mirrors `renderDefinitionList` in `render.ts`. That renderer
+ * emits `${term.text}\n: ${definition.text}`: one newline, then `: `
+ * (colon and one space). The inverse splits at the first marker newline,
+ * takes everything before it as the term, then skips the whitespace after
+ * the colon. The remainder, which can span several source lines, is the
+ * definition. Every character of the slice except that separator is kept,
+ * so no text is lost.
  */
 function splitVerbatimDeflist(
   verbatim: string,
 ): { term: string; definition: string } | undefined {
-  const sepIndex = verbatim.indexOf("\n:");
-  if (sepIndex < 0) return undefined;
+  const m = VERBATIM_DEFLIST_MARKER_RE.exec(verbatim);
+  if (!m) return undefined;
+  const sepIndex = m.index + m[0].indexOf("\n:");
   const term = verbatim.slice(0, sepIndex);
   // Skip the `\n:` then the leading whitespace the renderer re-emits
-  // as the single space in `: ` (same whitespace `DEFLIST_RE`'s `\s+`
-  // would have consumed).
+  // as the single space in `: `.
   let defStart = sepIndex + 2;
   while (defStart < verbatim.length && /\s/.test(verbatim[defStart])) {
     defStart++;
@@ -367,21 +371,18 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
         return { kind: "math", tex: mathTex, range } satisfies MathNode;
       }
 
-      // Check for definition-list pattern `Term\n: def`
+      // Check for definition-list pattern `Term\n: def`. The flattened
+      // check alone is not enough: flattening decodes `&#58;` and `\:` to
+      // `:`, but an encoded or escaped colon is prose, not a marker. The
+      // verbatim source must hold a literal marker too; otherwise the
+      // paragraph stays a paragraph (#989). There is no fallback to the
+      // flattened match, whose `(.+)$` keeps only the first line of the
+      // definition.
       const defList = tryDefinitionList(text);
-      if (defList) {
-        // Detection ran on the flattened text (markup-stripped, like
-        // caption / math detection). The *stored* term and definition
-        // are the byte-exact verbatim substrings so inline markup on
-        // either side survives. The split is deterministic (first
-        // `\n:`) and mirrors `renderDefinitionList` exactly — it can
-        // never miss a multi-line verbatim slice the way the old
-        // `DEFLIST_RE.exec(verbatim.trim())` could, so there is no
-        // flattened fallback. `splitVerbatimDeflist` only returns
-        // `undefined` when there is no `\n:` at all (impossible here,
-        // since flattened detection already matched `\n:`); the
-        // `?? defList` keeps the expression total.
-        const split = splitVerbatimDeflist(verbatim) ?? defList;
+      const split = defList ? splitVerbatimDeflist(verbatim) : undefined;
+      if (defList && split) {
+        // The stored term and definition are the byte-exact verbatim
+        // substrings, so inline markup on either side survives.
         const vTerm = split.term;
         const vDef = split.definition;
         const termRange: SourceRange = {

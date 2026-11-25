@@ -1354,3 +1354,131 @@ Deno.test("format: endOfLine overrides the detected line ending", () => {
     "# Doc\r\n\r\nText.\r\n",
   );
 });
+
+// #989: `fmt` must never drop text from an entry body.
+for (const colon of ["&#58;", "\\:"]) {
+  Deno.test(`format: keeps every line after a '${colon}' line in an entry body (#989)`, async () => {
+    const md = `- [REQ-0001] Imported paragraph
+
+  Term
+  ${colon} first line
+  second line.
+  third line shall stay.
+
+      Id: ${MOCK_ULID}
+`;
+    const formatMarkdownProse = await loadMarkdownFormatter();
+    const result = format(md, { file: "req.md", formatMarkdownProse });
+    for (
+      const words of [
+        "Term",
+        `${colon} first line`,
+        "second line.",
+        "third line shall stay.",
+      ]
+    ) {
+      assertStringIncludes(result.output, words);
+    }
+    // Idempotent: a second run changes nothing (no MSL-F010 drift).
+    const again = format(result.output, {
+      file: "req.md",
+      formatMarkdownProse,
+    });
+    assertEquals(again.output, result.output);
+  });
+}
+
+// #989 text-loss guard: `fmt` compares the emitted body with the original
+// body text as CommonMark (case-insensitive text, ordered-list start
+// ignored) and keeps the original body, with MSL-F900, when they differ.
+
+/** Wrap `body` in one entry, indented as a list-item continuation. */
+function entryWithBody(body: string): string {
+  const indented = body.split("\n").map((l) => l ? `  ${l}` : l).join("\n");
+  return `- [REQ-0001] Title\n\n${indented}\n\n      Id: ${MOCK_ULID}\n`;
+}
+
+/** The MSL-F900 diagnostics of `format(entryWithBody(body))`. */
+function formatBody(body: string, conventions?: typeof PRESERVE_CONVENTIONS) {
+  const md = entryWithBody(body);
+  const result = format(md, { file: "req.md", conventions });
+  const f900 = result.diagnostics.filter((d) => d.code === "MSL-F900");
+  return { md, result, f900 };
+}
+
+// A body whose emission loses text keeps its original lines. These bodies
+// lose text in the AST build today; #1008 fixes the builder, after which the
+// md_equiv unit tests below keep the guard covered.
+for (
+  const [name, body] of [
+    [
+      "a multi-line table caption",
+      "Table: first line\nsecond line kept.\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+    ],
+    [
+      "a table caption with a link",
+      "Table: see [x](http://a.example/p)\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+    ],
+    ["a figure title", '![alt](p.png "Title")'],
+  ]
+) {
+  Deno.test(`format: keeps the original body when the emission drops ${name} (#989)`, () => {
+    const { md, result, f900 } = formatBody(body);
+    assertEquals(result.output, md);
+    assertEquals(f900.length, 1);
+    assert(f900[0].message.startsWith("REQ-0001: "));
+  });
+}
+
+// Intended canonical rewrites pass the guard.
+for (
+  const [name, body, expected] of [
+    ["a bullet marker change", "* one\n* two", "  - one\n  - two"],
+    ["a blank-line collapse", "a\n\n\n\nb", "  a\n\n  b"],
+    ["ordered-list renumbering", "3. one\n4. two", "  1. one\n  2. two"],
+    ["modal keyword lowercasing", "The system SHALL act.", "system shall act"],
+    ["a definition list", "Term\n:   the definition.", "the definition."],
+    ["a tilde fence", "~~~js\nx\n~~~", "  ```js\n  x\n  ```"],
+    ["an indented code block", "Text.\n\n    code here", "  ```\n  code here"],
+    ["trailing whitespace", "first line.   \nsecond line.\t", "second line."],
+    ["a lazy continuation", "> quote\nlazy line", "  > lazy line"],
+  ]
+) {
+  Deno.test(`format: the text-loss guard accepts ${name} (#989)`, () => {
+    const { result, f900 } = formatBody(body);
+    assertEquals(f900, []);
+    assertStringIncludes(result.output, expected);
+  });
+}
+
+Deno.test("format: the text-loss guard accepts preserved modal casing (#989)", () => {
+  const { md, result, f900 } = formatBody(
+    "The system SHALL act.",
+    PRESERVE_CONVENTIONS,
+  );
+  assertEquals(f900, []);
+  assertEquals(result.output, md);
+});
+
+// Character references decode to the same text on both sides: no fallback.
+for (
+  const body of [
+    "Table: a &amp; b\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+    "Table: ratio &#58; x\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+    "![a &amp; b](p.png)",
+    "$$\na &amp; b\n$$",
+  ]
+) {
+  Deno.test(`format: no MSL-F900 for a character reference in ${JSON.stringify(body.split("\n")[0])} (#989)`, () => {
+    assertEquals(formatBody(body).f900, []);
+  });
+}
+
+// Modal lowercasing also rewrites a keyword inside a link URL (#1009). The
+// guard sees the URL change and keeps the original body instead of writing
+// a corrupted link. Update this test when #1009 is fixed.
+Deno.test("format: a modal keyword in a link URL falls back to the original body (#989, #1009)", () => {
+  const { md, result, f900 } = formatBody("[SHALL](http://x.example/SHALL)");
+  assertEquals(result.output, md);
+  assertEquals(f900.length, 1);
+});
