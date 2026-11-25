@@ -42,11 +42,17 @@ export function isSentenceInitial(line: string, offset: number): boolean {
 
 /**
  * Normalize modal keywords in prose while preserving CommonMark fenced and
- * inline code. Four-space and tab-indented lines remain verbatim as before.
- * The document is parsed once; both code exclusions use that same AST.
+ * inline code, link destinations, titles and labels, autolinks, images,
+ * link reference definitions and raw HTML (#1009). The visible text of a
+ * link is prose and is normalized. Four-space and tab-indented lines remain
+ * verbatim as before. The document is parsed once; every exclusion uses that
+ * same AST.
  */
 export function normalizeProseModals(text: string): string {
-  const { fencedLines, inlineCode } = parseCodeRegions(text);
+  const regions = parseCodeRegions(text);
+  const { fencedLines } = regions;
+  const verbatimRanges = [...regions.inlineCode, ...regions.verbatimInline]
+    .sort((a, b) => a.start - b.start);
   const lines = text.split("\n");
   let lineOffset = 0;
   let rangeIndex = 0;
@@ -60,15 +66,17 @@ export function normalizeProseModals(text: string): string {
     if (/^( {4}|\t)/.test(line)) return;
     const start = offsets[i];
     while (
-      rangeIndex < inlineCode.length && inlineCode[rangeIndex].end <= start
+      rangeIndex < verbatimRanges.length &&
+      verbatimRanges[rangeIndex].end <= start
     ) rangeIndex++;
     const protectedRanges: { start: number; end: number }[] = [];
     for (
       let j = rangeIndex;
-      j < inlineCode.length && inlineCode[j].start < start + line.length;
+      j < verbatimRanges.length &&
+      verbatimRanges[j].start < start + line.length;
       j++
     ) {
-      protectedRanges.push(inlineCode[j]);
+      protectedRanges.push(verbatimRanges[j]);
     }
     const isCode = (offset: number, length: number): boolean =>
       protectedRanges.some((range) =>

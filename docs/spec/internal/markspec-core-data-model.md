@@ -786,6 +786,12 @@ capitalization (the sentence starts with a capital `W`/`I`/`U`); within a
 sentence they normalize to lowercase. The rule is mechanical: lowercase unless
 the token is the first word of a sentence.
 
+The rule applies to prose only. A keyword keeps its case inside code, a link
+destination, a link title or reference label, an autolink, an image (path and
+alt text), a link reference definition, a footnote label, an HTML tag or an HTML
+block, because changing it there changes a target or code. The visible text of a
+`[text](url)` or `[text][label]` link is prose and is normalized.
+
 #### 3.4.2 Entity references
 
 `$Identifier` tokens (§2.5.2) are emitted verbatim. `fmt` does not change case;

@@ -1407,18 +1407,25 @@ function formatBody(body: string, conventions?: typeof PRESERVE_CONVENTIONS) {
 }
 
 // A body whose emission changes text keeps its original lines. These tests
-// use #1009 inputs: the casing pass lowercases a modal keyword outside text
-// nodes (a link title, an image alt), and the guard keeps the body
-// unchanged. When #1009 is fixed, the emission keeps these inputs, so these
-// tests fail and must be replaced by another input that the emission
-// changes. The tests in `md_equiv_test.ts` cover the comparison directly.
+// use #1014 inputs: the casing pass sees one paragraph at a time, so it does
+// not see the link reference definition and lowercases the label, and the
+// guard keeps the body unchanged. When #1014 is fixed, the emission keeps
+// these inputs, so these tests fail and must be replaced by another input
+// that the emission changes. The tests in `md_equiv_test.ts` cover the
+// comparison directly.
 for (
   const [name, body] of [
-    ["a link title", '[x](http://a.example/p "SHALL")'],
-    ["an inline image alt", "See ![SHALL](p.png) here."],
+    [
+      "a shortcut reference label",
+      "See [SHALL].\n\n[SHALL]: http://a.example/",
+    ],
+    [
+      "a full reference label",
+      "See [the rule][SHALL].\n\n[SHALL]: http://a.example/",
+    ],
   ]
 ) {
-  Deno.test(`format: keeps the original body when the emission changes ${name} (#989, #1009)`, () => {
+  Deno.test(`format: keeps the original body when the emission changes ${name} (#989, #1014)`, () => {
     const { md, result, f900 } = formatBody(body);
     assertEquals(result.output, md);
     assertEquals(f900.length, 1);
@@ -1483,14 +1490,35 @@ for (
   });
 }
 
-// Modal lowercasing also rewrites a keyword inside a link URL (#1009). The
-// guard sees the URL change and keeps the original body instead of writing
-// a corrupted link. Update this test when #1009 is fixed.
-Deno.test("format: a modal keyword in a link URL falls back to the original body (#989, #1009)", () => {
-  const { md, result, f900 } = formatBody("[SHALL](http://x.example/SHALL)");
-  assertEquals(result.output, md);
-  assertEquals(f900.length, 1);
-});
+// The casing pass lowercases prose and the visible text of a link, but
+// keeps link URLs, link titles, autolinks and image paths and alt (#1009).
+// A footnote reference label is not kept yet, for the same reason as a
+// reference-link label (#1014).
+for (
+  const [name, body, kept] of [
+    [
+      "a link URL",
+      "The system SHALL follow [SHALL](http://x.example/SHALL) and\n" +
+      "<http://x.example/MUST>.",
+      [
+        "The system shall follow [shall](http://x.example/SHALL) and",
+        "<http://x.example/MUST>.",
+      ],
+    ],
+    ["a link title", '[x](http://a.example/p "SHALL")', ['"SHALL"']],
+    ["an image", "See ![SHALL](p/SHALL.png) here.", ["![SHALL](p/SHALL.png)"]],
+  ] as const
+) {
+  Deno.test(`format: keeps ${name} and lowercases the prose (#1009)`, () => {
+    const { result, f900 } = formatBody(body);
+    assertEquals(f900, []);
+    for (const text of kept) assertStringIncludes(result.output, text);
+    assertEquals(
+      format(result.output, { file: "req.md" }).output,
+      result.output,
+    );
+  });
+}
 
 // #1008: `fmt` keeps every line, link URL, emphasis, figure title, TeX
 // escape and info string of captions, figures, math and code fences.
