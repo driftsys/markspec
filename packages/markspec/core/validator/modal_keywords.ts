@@ -5,9 +5,10 @@
  * `SHOULD`, `MAY`, `MUST`, `WILL`) in entry-body prose. The formatter
  * normalises these to lowercase per spec §3.4.1; this validator
  * surfaces the deviation in a lint-only flow. Profiles may promote the
- * severity. The body tokens include keywords in inline code, link URLs and
- * titles, autolinks and images, which the formatter keeps, so this
- * validator also reports them (#1017).
+ * severity. The body tokens leave out keywords in inline code and in
+ * verbatim inline link syntax (link URLs, titles and labels, autolinks,
+ * images), which the formatter keeps, so this validator does not report
+ * them (#1017).
  *
  * Reads `Entry.bodyTokens` (ADR-016) and filters for `kind === "modal"`
  * AND `case === "upper"`. Code, feature, and math blocks are

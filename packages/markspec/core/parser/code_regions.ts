@@ -102,13 +102,24 @@ export function parseCodeRegions(
  * {@linkcode CodeRegions.verbatimInline}. The `fmt` modal casing pass keeps
  * these ranges unchanged, and the body-token scanner and the MSL-Q500 rule
  * skip them, so all three use this one definition (#1017).
+ *
+ * `tree` is the parse of `markdown` alone, used when `definitions` is empty.
+ * `definitions` is the text of link reference and footnote definitions that
+ * `markdown` can use but does not hold (#1014). It is parsed after
+ * `markdown`, so a label it defines is a range, but only the ranges inside
+ * `markdown` are returned, clipped to its length.
  */
 export function nonProseRanges(
   markdown: string,
   tree?: Root,
+  definitions = "",
 ): { start: number; end: number }[] {
-  const regions = parseCodeRegions(markdown, tree);
+  const regions = definitions === ""
+    ? parseCodeRegions(markdown, tree)
+    : parseCodeRegions(`${markdown}\n\n${definitions}`);
   return [...regions.inlineCode, ...regions.verbatimInline]
+    .filter((r) => r.start < markdown.length)
+    .map((r) => ({ start: r.start, end: Math.min(r.end, markdown.length) }))
     .sort((a, b) => a.start - b.start);
 }
 

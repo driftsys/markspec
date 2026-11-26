@@ -373,3 +373,34 @@ Deno.test("modal: token on a later line keeps its column with ranges before it (
   assertEquals(tokens[0].location.line, 2);
   assertEquals(tokens[0].location.column, 12);
 });
+
+function modalPositions(body: string): string[] {
+  return tokensOf(body).filter((t) => t.kind === "modal").map((t) =>
+    `${t.text}@${t.location.line}:${t.location.column}`
+  );
+}
+
+Deno.test("modal: line offsets stay right on line 3 and line 9+ (#1017)", () => {
+  const filler = "Plain text.\n";
+  // Line 3: `SHALL` right after a backtick, then a prose shall after it.
+  assertEquals(
+    modalPositions(`${filler}${filler}x\`SHALL\` shall run.`),
+    ["shall@3:10"],
+  );
+  // Line 10.
+  assertEquals(
+    modalPositions(`${filler.repeat(9)}\`SHALL\`shall x.`),
+    ["shall@10:8"],
+  );
+  assertEquals(
+    modalPositions(`${filler.repeat(9)}\`SHALL\` shall x.`),
+    ["shall@10:9"],
+  );
+});
+
+Deno.test("modal: a prose keyword right after a link URL is a token (#1017)", () => {
+  assertEquals(
+    modalPositions("a\nb\n[x](http://x.example/SHALL) MAY go."),
+    ["MAY@3:29"],
+  );
+});

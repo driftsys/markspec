@@ -104,7 +104,10 @@ relation remains the formatter's correctness gate and is not affected.
    gherkin-section/gherkin-step scans run instead — in "Given the screen shows a
    list", `Given` is a `gherkin-step`, and "When" in "Given When the user
    clicks" is no `ears-trigger`. (Amended by ADR-038: Gherkin tokens now come
-   from the Gherkin AST, so a keyword inside step text gives no token.)
+   from the Gherkin AST, so a keyword inside step text gives no token.) (Amended
+   by #1017, 2026-11-26: modal and EARS-trigger tokens are also not emitted
+   inside inline code or verbatim inline link syntax, the ranges that the `fmt`
+   modal casing pass keeps.)
 
    This rule unifies behaviour that today diverges per consumer
    (`entity_refs.ts` excludes verbatim regions via the AST; the LSP scanner does

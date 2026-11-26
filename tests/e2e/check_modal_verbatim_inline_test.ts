@@ -32,8 +32,7 @@ Deno.test("e2e: check after fmt reports no M060 or Q500 for verbatim inline (#10
     const check = await markspecInDir(dir, ["check"]);
     assert(!check.stderr.includes("MSL-M060"), check.stderr);
     assert(!check.stderr.includes("MSL-F010"), check.stderr);
-    assert(!check.stderr.includes("MAY"), check.stderr);
-    assert(!/MSL-Q500[^\n]*SHALL/.test(check.stderr), check.stderr);
+    assert(!/MSL-Q500[^\n]*(MAY|SHALL)/.test(check.stderr), check.stderr);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

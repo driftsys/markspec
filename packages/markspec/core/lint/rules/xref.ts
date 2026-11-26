@@ -13,6 +13,7 @@ import type { GlossaryIndex } from "../glossary.ts";
 import { deriveTermSlug } from "../../parser/glossary.ts";
 import { offsetToRange } from "../range_util.ts";
 import { nonProseRanges } from "../../parser/code_regions.ts";
+import { collectDefinitions } from "../../ast/normalize.ts";
 
 /** Hook signature for the $Identifier registry leg. Returns true when
  * the token is a resolvable $Identifier (i.e. should be skipped by
@@ -276,9 +277,11 @@ function scanPhrases(
 }
 
 /** Replace every character of the non-prose ranges of `text` with a
- * space, keeping all offsets. */
-function maskNonProse(text: string): string {
-  const ranges = nonProseRanges(text);
+ * space, keeping all offsets and every `\n`. `definitions` holds the
+ * body's link reference and footnote definitions, so a label defined in
+ * another block is a range too (#1014). */
+function maskNonProse(text: string, definitions: string): string {
+  const ranges = nonProseRanges(text, undefined, definitions);
   if (ranges.length === 0) return text;
   // Offsets are UTF-16 code units; index the string, not code points.
   let out = "";
@@ -286,7 +289,7 @@ function maskNonProse(text: string): string {
   for (const { start, end } of ranges) {
     if (end <= pos) continue;
     const from = Math.max(start, pos);
-    out += text.slice(pos, from) + " ".repeat(end - from);
+    out += text.slice(pos, from) + text.slice(from, end).replace(/[^\n]/g, " ");
     pos = end;
   }
   return out + text.slice(pos);
@@ -301,12 +304,13 @@ export function runXrefRules(
 ): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
   const blocks = entry.bodyAst ?? [];
+  const definitions = collectDefinitions(blocks);
   for (const block of blocks) {
     if (block.kind !== "paragraph") continue;
     const p = block as ParagraphNode;
     // Inline code and link syntax (destinations, titles, images, ...) are
     // not prose: blank them with spaces so offsets stay the same (#1017).
-    const text = maskNonProse(p.content.text);
+    const text = maskNonProse(p.content.text, definitions);
 
     // Compute sentence-initial offsets using a simple heuristic:
     // offset 0 is always sentence-initial; after a sentence terminator

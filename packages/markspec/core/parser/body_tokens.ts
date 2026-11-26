@@ -3,8 +3,10 @@
  *
  * Inline-construct token extraction (ADR-016). Scans entry body prose for
  * the six BodyTokenKind variants, skipping verbatim regions (code, math,
- * inline-code spans). The modal and EARS scans also skip link
- * destinations, titles and labels, autolinks and images (#1017). Inside ` ```feature ` / ` ```gherkin ` fences the
+ * inline-code spans). The modal and EARS scans also skip the ranges of
+ * `nonProseRanges`: inline code, link destinations, titles and labels,
+ * autolinks, images, link reference definitions, footnote labels and raw
+ * HTML (#1017). Inside ` ```feature ` / ` ```gherkin ` fences the
  * modal/EARS/entity-ref scanners are suppressed and the gherkin
  * section/step tokens come from the normalized Gherkin AST instead.
  *
@@ -191,6 +193,22 @@ function emitInlineCode(
 }
 
 /**
+ * A test of whether an offset lies inside one of the sorted half-open
+ * `ranges`. The offsets passed must not decrease between calls: one pointer
+ * moves forward over the ranges.
+ */
+function skipRangeTester(
+  ranges: readonly { start: number; end: number }[],
+): (offset: number) => boolean {
+  let index = 0;
+  return (offset) => {
+    while (index < ranges.length && ranges[index].end <= offset) index++;
+    const range = ranges[index];
+    return range !== undefined && offset >= range.start;
+  };
+}
+
+/**
  * Extract body-token stream from an entry body.
  *
  * @param body - entry body string (post-`splitBodyAndAttributes`)
@@ -220,8 +238,8 @@ export function extractBodyTokens(
   // Inline code and verbatim inline syntax (link destinations, titles,
   // images, autolinks, ...): the ranges the fmt casing pass keeps (#1017).
   const skipRanges = nonProseRanges(body, tree);
-  const inSkipRange = (offset: number): boolean =>
-    skipRanges.some((r) => offset >= r.start && offset < r.end);
+  const inModalSkip = skipRangeTester(skipRanges);
+  const inEarsSkip = skipRangeTester(skipRanges);
   const lines = body.split("\n");
   let lineStart = 0;
   for (let li = 0; li < lines.length; li++) {
@@ -233,7 +251,7 @@ export function extractBodyTokens(
     MODAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = MODAL_RE.exec(line)) !== null) {
-      if (inSkipRange(lineOffset + m.index)) continue;
+      if (inModalSkip(lineOffset + m.index)) continue;
       const text = m[1];
       tokens.push({
         kind: "modal",
@@ -249,7 +267,7 @@ export function extractBodyTokens(
 
     EARS_RE.lastIndex = 0;
     while ((m = EARS_RE.exec(line)) !== null) {
-      if (inSkipRange(lineOffset + m.index)) continue;
+      if (inEarsSkip(lineOffset + m.index)) continue;
       const text = m[1] as "When" | "While" | "If" | "Where" | "Then";
       tokens.push({
         kind: "ears-trigger",
