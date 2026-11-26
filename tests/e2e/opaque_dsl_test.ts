@@ -21,9 +21,11 @@
  * language spec's "Opaque DSL content" guarantee): this covers the uxil DSL
  * surface — lowercase `ux:` refs, leading-slash / dot element forms, and
  * `$`-prefixed shape citations — all of which are inert to every active lint
- * rule. It does NOT promise that ARBITRARY prose inside a code span is exempt:
- * an uppercase modal keyword or a PascalCase term in a span is still analyzed.
- * Closing that structural gap is deferred follow-up #733.
+ * rule. It does NOT promise that every rule skips ARBITRARY prose inside a code
+ * span. The sentence rules (Q100-Q104, Q200, Q201, Q300, Q301, Q306-Q309, Q311,
+ * Q312, Q402) and Q500 skip code spans and link syntax (#1029). Only the
+ * lexicon rules still read a span, so a term in a span can still be analyzed by
+ * them. Closing that gap is deferred follow-up #733.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";

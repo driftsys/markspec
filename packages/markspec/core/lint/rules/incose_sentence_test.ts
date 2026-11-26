@@ -496,3 +496,51 @@ Deno.test("Q307: can co-fire with modal-multiple territory", () => {
   // runner, not via these rules).
   assertEquals(diags.some((d) => d.code === "MSL-Q200"), false);
 });
+
+// ---------------------------------------------------------------------------
+// Inline code and link syntax are not prose (#1029)
+// ---------------------------------------------------------------------------
+
+Deno.test("Q307: ignores a modal in inline code or a link title (#1029)", () => {
+  const entry = makeEntry(
+    'The system shall log faults and use `must` as [the level](http://x.example "must").',
+  );
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), false);
+});
+
+Deno.test("Q307: positive control, the same modals outside code fire (#1029)", () => {
+  const entry = makeEntry("The system shall log faults and must use a level.");
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), true);
+});
+
+/** An entry whose body also holds a link reference definition block. */
+function withDefinition(entry: Entry, raw: string): Entry {
+  const definition: BodyBlock = {
+    kind: "unknown",
+    raw,
+    range: {
+      start: { line: 3, column: 1 },
+      end: { line: 3, column: 1 + raw.length },
+    },
+  };
+  return { ...entry, bodyAst: [...(entry.bodyAst ?? []), definition] };
+}
+
+Deno.test("Q307: ignores a keyword in a full reference label that has a definition (#1029)", () => {
+  const entry = withDefinition(
+    makeEntry("The system shall log faults and use [the level][must]."),
+    "[must]: http://x.example/",
+  );
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), false);
+});
+
+Deno.test("Q307: reads the label keyword when no definition exists (#1029)", () => {
+  const entry = makeEntry(
+    "The system shall log faults and use [the level][must].",
+  );
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), true);
+});

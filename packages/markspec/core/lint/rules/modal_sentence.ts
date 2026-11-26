@@ -21,7 +21,8 @@ import type { BodyBlock, ParagraphNode } from "../../ast/nodes.ts";
 import type { LintDiagnostic } from "../types.ts";
 import { segmentSentences } from "../segmenter.ts";
 import { loadLexicon } from "../../lexicons/mod.ts";
-import { offsetToRange } from "../range_util.ts";
+import { maskNonProse, offsetToRange } from "../range_util.ts";
+import { collectDefinitions } from "../../ast/normalize.ts";
 import { resolvedCoreType } from "../../validator/type_resolution.ts";
 
 const ABBREVS = loadLexicon("sentence-abbrev");
@@ -159,6 +160,7 @@ function emitQ201(
 export function runModalSentenceRules(entry: Entry): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
   const blocks: readonly BodyBlock[] = entry.bodyAst ?? [];
+  const definitions = collectDefinitions(blocks);
 
   // Q201 only fires for Requirement-rooted entries. Conservatively skip when
   // the core type is unresolved (profile-less project or unknown display-ID).
@@ -167,7 +169,9 @@ export function runModalSentenceRules(entry: Entry): LintDiagnostic[] {
   for (const block of blocks) {
     if (block.kind !== "paragraph") continue;
     const p = block as ParagraphNode;
-    const text = p.content.text;
+    // Inline code and link syntax (destinations, titles, images, ...) are
+    // not prose: blank them with spaces so offsets stay the same (#1029).
+    const text = maskNonProse(p.content.text, definitions);
 
     // Compute file-absolute base line for this paragraph.
     // p.range.start.line is body-relative (line 1 = first body line).

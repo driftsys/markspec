@@ -229,3 +229,83 @@ Deno.test("modal: silent on non-normative sentences", () => {
   const diags = runModalSentenceRules(entry);
   assertEquals(diags.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Inline code and link syntax are not prose (#1029)
+// ---------------------------------------------------------------------------
+
+Deno.test("Q200: ignores modals in inline code, link destinations and titles (#1029)", () => {
+  const entry = makeEntry(
+    'The system shall use `SHALL` here and follow [the guide](http://x.example/SHALL "must").',
+  );
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), false);
+});
+
+Deno.test("Q200: still counts a modal in visible link text (#1029)", () => {
+  // Visible link text is prose: nonProseRanges keeps it.
+  const entry = makeEntry(
+    "The system shall use `SHALL` here and follow [shall](http://x.example/SHALL).",
+  );
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), true);
+});
+
+Deno.test("Q200: positive control, the same modals outside code fire (#1029)", () => {
+  const entry = makeEntry("The system shall use SHALL here.");
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), true);
+});
+
+Deno.test("Q200: a range after an inline code span keeps its column (#1029)", () => {
+  const entry = makeEntry("Use `x`. The system shall log and must store.");
+  const d = runModalSentenceRules(entry).find((x) => x.code === "MSL-Q200");
+  assertEquals(d?.range?.start.column, 10);
+  assertEquals(d?.range?.end.column, 46);
+});
+
+Deno.test("Q201: ignores a soft modal in inline code (#1029)", () => {
+  const entry = makeEntry("The system shall accept `may` as a value.", {
+    type: "Requirement",
+  });
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q201"), false);
+});
+
+Deno.test("Q201: positive control, a soft modal outside code fires (#1029)", () => {
+  const entry = makeEntry("The system may accept a value.", {
+    type: "Requirement",
+  });
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q201"), true);
+});
+
+/** An entry whose body also holds a link reference definition block. */
+function withDefinition(entry: Entry, raw: string): Entry {
+  const definition: BodyBlock = {
+    kind: "unknown",
+    raw,
+    range: {
+      start: { line: 3, column: 1 },
+      end: { line: 3, column: 1 + raw.length },
+    },
+  };
+  return { ...entry, bodyAst: [...(entry.bodyAst ?? []), definition] };
+}
+
+Deno.test("Q200: ignores a keyword in a full reference label that has a definition (#1029)", () => {
+  const entry = withDefinition(
+    makeEntry("The system shall log faults, see [the list][shall]."),
+    "[shall]: http://x.example/",
+  );
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), false);
+});
+
+Deno.test("Q200: reads the label keyword when no definition exists (#1029)", () => {
+  const entry = makeEntry(
+    "The system shall log faults, see [the list][shall].",
+  );
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), true);
+});

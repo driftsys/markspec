@@ -101,8 +101,9 @@ export function parseCodeRegions(
  * (with its delimiters) and the verbatim inline syntax of
  * {@linkcode CodeRegions.verbatimInline}. The `fmt` modal casing pass keeps
  * these ranges unchanged, and the modal and EARS scans of the body-token
- * scanner and the MSL-Q500 rule skip them, so all three use this one
- * definition (#1017). The entity-ref scan does not skip them.
+ * scanner, the prose lint sentence rules and MSL-Q500 skip them, so all of
+ * them use this one definition (#1017, #1029). The entity-ref scan does not
+ * skip them.
  *
  * `tree` is the parse of `markdown` alone, used when `definitions` is empty.
  * `definitions` is the text of link reference and footnote definitions that

@@ -278,3 +278,58 @@ Deno.test("Q300: range uses file-absolute line from bodyStartLine", () => {
   // bodyStartLine=7, paragraph on line 1 (body-relative) → abs line = 7 + 1 - 1 = 7
   assertEquals(d!.range!.start.line, 7);
 });
+
+// ---------------------------------------------------------------------------
+// Inline code and link syntax are not prose (#1029)
+// ---------------------------------------------------------------------------
+
+Deno.test("Q300: ignores a passive phrase in inline code (#1029)", () => {
+  const entry = makeEntry("The system shall log the `is applied` flag.");
+  const diags = runPassiveRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q300"), false);
+});
+
+Deno.test("Q300: ignores a modal in a link destination (#1029)", () => {
+  // Without the modal the sentence is not normative, so Q300 does not run.
+  const entry = makeEntry(
+    "The flag is applied, see [the list](http://x.example/shall).",
+  );
+  const diags = runPassiveRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q300"), false);
+});
+
+Deno.test("Q300: positive control, the passive phrase outside code fires (#1029)", () => {
+  const entry = makeEntry("The flag shall be applied by the system.");
+  const diags = runPassiveRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q300"), true);
+});
+
+/** An entry whose body also holds a link reference definition block. */
+function withDefinition(entry: Entry, raw: string): Entry {
+  const definition: BodyBlock = {
+    kind: "unknown",
+    raw,
+    range: {
+      start: { line: 3, column: 1 },
+      end: { line: 3, column: 1 + raw.length },
+    },
+  };
+  return { ...entry, bodyAst: [...(entry.bodyAst ?? []), definition] };
+}
+
+Deno.test("Q300: ignores a keyword in a full reference label that has a definition (#1029)", () => {
+  const entry = withDefinition(
+    makeEntry("The system logs faults, see [the list][shall be applied]."),
+    "[shall be applied]: http://x.example/",
+  );
+  const diags = runPassiveRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q300"), false);
+});
+
+Deno.test("Q300: reads the label keyword when no definition exists (#1029)", () => {
+  const entry = makeEntry(
+    "The system logs faults, see [the list][shall be applied].",
+  );
+  const diags = runPassiveRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q300"), true);
+});

@@ -279,3 +279,49 @@ Deno.test("EARS: Q103 has warn severity and score 3", () => {
   assertEquals(q103?.severity, "warning");
   assertEquals(q103?.scoreContribution, 3);
 });
+
+// ---------------------------------------------------------------------------
+// Inline code and link syntax are not prose (#1029)
+// ---------------------------------------------------------------------------
+
+Deno.test("Q100: a modal only in inline code or a link URL is not normative (#1029)", () => {
+  const entry = makeEntry(
+    "Values use `shall` as a keyword, see [the list](http://x.example/shall).",
+  );
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), false);
+});
+
+Deno.test("Q100: positive control, the same modal outside code fires (#1029)", () => {
+  const entry = makeEntry("Values shall use a keyword.");
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), true);
+});
+
+/** An entry whose body also holds a link reference definition block. */
+function withDefinition(entry: Entry, raw: string): Entry {
+  const definition: BodyBlock = {
+    kind: "unknown",
+    raw,
+    range: {
+      start: { line: 3, column: 1 },
+      end: { line: 3, column: 1 + raw.length },
+    },
+  };
+  return { ...entry, bodyAst: [...(entry.bodyAst ?? []), definition] };
+}
+
+Deno.test("Q100: ignores a keyword in a full reference label that has a definition (#1029)", () => {
+  const entry = withDefinition(
+    makeEntry("Values use [the list][shall] as a keyword."),
+    "[shall]: http://x.example/",
+  );
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), false);
+});
+
+Deno.test("Q100: reads the label keyword when no definition exists (#1029)", () => {
+  const entry = makeEntry("Values use [the list][shall] as a keyword.");
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), true);
+});

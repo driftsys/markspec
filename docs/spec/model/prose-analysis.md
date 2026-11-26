@@ -55,6 +55,16 @@ design — see
 | MSL-Q901 | disable-unknown-rule              | Suppression hygiene | warning  | —     |
 | MSL-Q902 | disable-unused                    | Suppression hygiene | info     | —     |
 
+The EARS (`MSL-Q100`–`MSL-Q104`), modal sentence (`MSL-Q200`–`MSL-Q201`),
+passive voice (`MSL-Q300`–`MSL-Q301`) and INCOSE sentence
+(`MSL-Q306`–`MSL-Q309`, `MSL-Q311`, `MSL-Q312`, `MSL-Q402`) rules do not read
+text in inline code, link destinations, titles and labels, autolinks, images,
+link reference definitions, footnote labels and raw HTML. A modal keyword or a
+passive phrase in those places does not count. An inline link and a full
+reference link keep their visible text as prose, and the rules read it. In a
+shortcut or collapsed reference that has a definition (`[shall]`, `[shall][]`),
+the text is the label, so the rules skip it.
+
 The flagship rule **MSL-Q500 `xref-glossary-undefined`** flags capitalized
 proper-noun usage in normative prose that has no corresponding `Definition`
 entry in the glossary. It ships with a glossary-only subset resolver
