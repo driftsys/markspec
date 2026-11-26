@@ -480,3 +480,49 @@ Deno.test("runXrefRules: the range after a glossary term with a keyword is exact
 Deno.test("runXrefRules: a glossary term with a keyword inside inline code is not read (#1028)", () => {
   assertEquals(q500Phrases("The pump uses `the May Day Plan` now."), []);
 });
+
+Deno.test("runXrefRules: a glossary term with a keyword at a sentence start is defined (#1028)", () => {
+  assertEquals(q500Phrases("May Day Protocol applies here."), []);
+  assertEquals(q500Phrases("MAY DAY PROTOCOL applies here."), []);
+  assertEquals(q500Phrases("Not Ready State shall inhibit operation."), []);
+  assertEquals(q500Phrases("NOT READY STATE shall inhibit operation."), []);
+  assertEquals(
+    q500Phrases("The pump stops. May Day Protocol applies here."),
+    [],
+  );
+});
+
+Deno.test("runXrefRules: without the glossary a keyword phrase at a sentence start is still split (#1028)", () => {
+  assertEquals(
+    q500Phrases("May Day Protocol applies here.", EMPTY_GLOSSARY),
+    ["Day Protocol"],
+  );
+  assertEquals(
+    q500Phrases("MAY DAY PROTOCOL applies here.", EMPTY_GLOSSARY),
+    ["DAY PROTOCOL"],
+  );
+  assertEquals(
+    q500Phrases("Not Ready State shall inhibit operation.", EMPTY_GLOSSARY),
+    ["Ready State"],
+  );
+  assertEquals(
+    q500Phrases("NOT READY STATE shall inhibit operation.", EMPTY_GLOSSARY),
+    ["READY STATE"],
+  );
+  // A sentence-initial word that is not a keyword is still not a term.
+  assertEquals(q500Phrases("Pump Day Protocol applies here."), [
+    "Day Protocol",
+  ]);
+});
+
+Deno.test("runXrefRules: the longest glossary term with a keyword wins (#1028)", () => {
+  const glossary = {
+    has: (s: string): boolean => s === "may-day" || s === "may-day-protocol",
+    size: () => 2,
+  };
+  assertEquals(q500Phrases("the May Day Protocol now.", glossary), []);
+});
+
+Deno.test("runXrefRules: words after a leading glossary term with a keyword are reported (#1028)", () => {
+  assertEquals(q500Phrases("the Not Ready State Machine now."), ["Machine"]);
+});

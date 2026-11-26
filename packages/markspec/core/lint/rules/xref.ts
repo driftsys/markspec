@@ -217,7 +217,8 @@ function keywordTermLength(
  * words (see {@linkcode extendPhrase}).
  *
  * Excludes:
- * - Sentence-initial Capitalized words (position check via `isSentenceInitial`).
+ * - Sentence-initial Capitalized words (position check via `isSentenceInitial`),
+ *   unless they start a glossary term that contains a keyword (below).
  * - Protected keywords (RFC 2119 + EARS), in any casing. A keyword ends a
  *   phrase and never starts one.
  * - A glossary term that contains a protected keyword ("May Day
@@ -240,18 +241,25 @@ function scanPhrases(
   while (i < words.length) {
     const start = words[i];
 
-    // Skip non-Capitalized words, and sentence-initial words —
-    // capitalization at sentence start is grammar, not domain vocabulary.
-    if (!isCapitalized(start.word) || isSentenceInitial(start.offset)) {
+    // Skip non-Capitalized words.
+    if (!isCapitalized(start.word)) {
       i++;
       continue;
     }
 
-    // A defined term that contains a keyword is consumed whole.
+    // A defined term that contains a keyword is consumed whole, also at a
+    // sentence start ("May Day Protocol applies.").
     const wide = extendPhrase(words, i, true);
     const termLength = keywordTermLength(text, words, wide, isDefinedTerm);
     if (termLength > 0) {
       i = wide[termLength - 1] + 1;
+      continue;
+    }
+
+    // Skip sentence-initial words — capitalization at sentence start is
+    // grammar, not domain vocabulary.
+    if (isSentenceInitial(start.offset)) {
+      i++;
       continue;
     }
 
