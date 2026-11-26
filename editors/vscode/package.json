@@ -47,8 +47,14 @@
   "main": "./out/extension.js",
   "capabilities": {
     "untrustedWorkspaces": {
-      "supported": false,
-      "description": "MarkSpec starts the executable named by markspec.server.path, which a workspace can set. It runs only once the workspace is trusted."
+      "supported": "limited",
+      "description": "In an untrusted workspace, MarkSpec ignores the workspace values of markspec.server.path, markspec.server.args, markspec.mcp.args and markspec.trace.logPath, and runs the bundled binary.",
+      "restrictedConfigurations": [
+        "markspec.server.path",
+        "markspec.server.args",
+        "markspec.mcp.args",
+        "markspec.trace.logPath"
+      ]
     }
   },
   "contributes": {
@@ -103,7 +109,7 @@
         "markspec.server.path": {
           "type": "string",
           "default": "",
-          "description": "Path to the markspec binary used by both the LSP client and the MCP server registration. Leave empty (the default) to use the version-matched binary bundled with the extension. Set to 'markspec' to use the CLI on your PATH, or an absolute path for a development build."
+          "description": "Path to the markspec binary used by both the LSP client and the MCP server registration. Leave empty (the default) to use the version-matched binary bundled with the extension. Set to 'markspec' to use the CLI on your PATH, or an absolute path for a development build. '${workspaceFolder}' is replaced with the first workspace folder. In an untrusted workspace, the workspace value of this setting is ignored."
         },
         "markspec.server.args": {
           "type": "array",

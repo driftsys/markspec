@@ -112,8 +112,17 @@ through setting up a project and choosing a profile.
 `markspec.server.path` expands `${workspaceFolder}`, so the language server and
 the MCP server can share a workspace-owned verified binary, for example
 `${workspaceFolder}/tools/markspec/markspec`. With no folder open, such a path
-is refused with an error instead of being started. Because a workspace can set
-this path, the extension runs only in a trusted workspace.
+is refused with an error instead of being started; the MCP registration shows
+that error once, not on each query.
+
+Because a workspace can set this path, an untrusted workspace (Restricted Mode)
+runs with limited support: VS Code ignores the workspace values of
+`markspec.server.path`, `markspec.server.args`, `markspec.mcp.args` and
+`markspec.trace.logPath`, and the extension runs the bundled binary, so
+diagnostics, hover and completion keep working. The language server does not
+restart when the configuration changes, so after you trust the workspace, reload
+the window (Developer: Reload Window) to apply the workspace values of these
+settings.
 
 The MCP server tracks only the files of its project. It honors the `.gitignore`
 files of the project and of the outermost enclosing project, the

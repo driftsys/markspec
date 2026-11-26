@@ -13,12 +13,13 @@ import {
   assertStrictEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { join, resolve } from "@std/path";
+import { dirname, join, resolve } from "@std/path";
 import { makeDisplayId } from "../core/mod.ts";
 import {
   buildRootOverrides,
   checkFileStaleness,
   createProject,
+  createWalkScopeCache,
   defaultEnv,
   detectMarkspecProject,
   openProject,
@@ -1081,9 +1082,14 @@ Deno.test("defaultEnv: a malformed .markspec.yaml does not stop the compile or t
     await Deno.writeTextFile(join(directory, "req.md"), REQ_DOC);
     const project = await createProject(defaultEnv([directory]));
     assertEquals((await project.getCompiled()).entries.size, 1);
-    await Deno.writeTextFile(join(directory, "other.md"), REQ_DOC);
+    // A second entry with its own display ID, so the count shows that
+    // other.md was compiled.
+    await Deno.writeTextFile(
+      join(directory, "other.md"),
+      "- [STK_TEST_0002] Other entry\n\n  Body.\n",
+    );
     await project.forceRefresh();
-    assertEquals((await project.getCompiled()).entries.size >= 1, true);
+    assertEquals((await project.getCompiled()).entries.size, 2);
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
@@ -1151,4 +1157,34 @@ Deno.test("defaultEnv: a configuration added above a project later is followed b
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
+});
+
+Deno.test("createWalkScopeCache: reloads a scope only when a config file changes", async () => {
+  // Paths built with the platform separator, as the cache builds them, so
+  // the test also holds on Windows.
+  const root = resolve("/p");
+  const rootConfig = join(root, ".markspec.yaml");
+  const mtimes = new Map<string, number>([[rootConfig, 1]]);
+  let loads = 0;
+  const scopes = createWalkScopeCache(
+    (path) => Promise.resolve(mtimes.get(path)),
+    () => {
+      loads++;
+      return Promise.resolve({ exclude: [], inheritGitignoreFrom: undefined });
+    },
+  );
+  await scopes(root);
+  await scopes(root);
+  assertEquals(loads, 1);
+  mtimes.set(rootConfig, 2); // edited
+  await scopes(root);
+  assertEquals(loads, 2);
+  mtimes.set(join(dirname(root), "project.yaml"), 3); // a configuration added above the root
+  await scopes(root);
+  assertEquals(loads, 3);
+  mtimes.delete(rootConfig); // deleted
+  await scopes(root);
+  assertEquals(loads, 4);
+  await scopes(root);
+  assertEquals(loads, 4);
 });

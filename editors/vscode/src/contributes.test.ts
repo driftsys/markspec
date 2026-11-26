@@ -38,3 +38,22 @@ test("language configuration only sets the # line comment", () => {
   // same language id, so this file cannot override them.
   assert.deepEqual(config, { comments: { lineComment: "#" } });
 });
+
+test("untrusted workspaces get limited support with restricted settings", () => {
+  const caps =
+    (JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      capabilities: {
+        untrustedWorkspaces: {
+          supported: unknown;
+          restrictedConfigurations?: string[];
+        };
+      };
+    }).capabilities.untrustedWorkspaces;
+  assert.equal(caps.supported, "limited");
+  assert.deepEqual([...(caps.restrictedConfigurations ?? [])].sort(), [
+    "markspec.mcp.args",
+    "markspec.server.args",
+    "markspec.server.path",
+    "markspec.trace.logPath",
+  ]);
+});

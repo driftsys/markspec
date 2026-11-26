@@ -2,7 +2,7 @@ import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import { resolveMcpDefinition } from "./mcpDefinition";
+import { createOnceReporter, resolveMcpDefinition } from "./mcpDefinition";
 
 const EXT_PATH = "/fake/extensions/driftsys.markspec-ide-0.5.0";
 const WORKSPACE = "/fake/workspace/markspec";
@@ -167,4 +167,23 @@ test("resolveMcpDefinition: a workspace-relative path without an open folder fai
       }),
     /no workspace folder is open/,
   );
+});
+
+test("createOnceReporter: reports a repeated error once", () => {
+  const shown: string[] = [];
+  const report = createOnceReporter((m) => shown.push(m));
+  report.error("no folder");
+  report.error("no folder");
+  assert.deepEqual(shown, ["no folder"]);
+  report.error("other");
+  assert.deepEqual(shown, ["no folder", "other"]);
+});
+
+test("createOnceReporter: a success resets, so the error shows again", () => {
+  const shown: string[] = [];
+  const report = createOnceReporter((m) => shown.push(m));
+  report.error("no folder");
+  report.ok();
+  report.error("no folder");
+  assert.deepEqual(shown, ["no folder", "no folder"]);
 });
