@@ -7,7 +7,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { Language, Parser } from "web-tree-sitter";
 import { join } from "@std/path";
-import { parseSource } from "./source.ts";
+import { parseSource, stripBlockCommentPrefix } from "./source.ts";
 import { loadGherkin } from "../gherkin/load.ts";
 
 // Gherkin tokens come from the AST, which exists once the parser is loaded.
@@ -1733,4 +1733,12 @@ fn foo() {}
   }).entries[0];
   assertEquals(entry.rawAttributes.length, 0);
   assertStringIncludes(entry.body, "Satisfies: SYS_BRK_0042");
+});
+
+Deno.test("stripBlockCommentPrefix: keeps U+00A0 that ends an unprefixed line (#990)", () => {
+  const { lines, prefixWidths } = stripBlockCommentPrefix(
+    "/**\n     Notes: \uFEFFx\u00A0  \n */",
+  );
+  assertEquals(lines, ["Notes: \uFEFFx\u00A0"]);
+  assertEquals(prefixWidths, [5]);
 });

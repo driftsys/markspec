@@ -2,15 +2,24 @@
  * @module core/validator/normalize
  *
  * Stage 2.5 normalization: split comma-separated values for profile-declared
- * list-typed attributes.
+ * list-typed attributes, and trim the value of every profile-declared
+ * attribute whose type is not `text`.
  *
  * Runs between Stage 2 (classification) and Stage 3 (typed attributes). The
  * core parser already CSV-splits values for core-catalog list types; this
  * step handles list types declared by a profile (which the parser doesn't
- * see). Idempotent — values that don't contain commas pass through unchanged.
+ * see). Idempotent — a trimmed value without commas passes through
+ * unchanged.
  *
  * Empty-string fragments (e.g. from `"a,,b"`) are dropped; surrounding
  * whitespace is trimmed.
+ *
+ * The value of a profile-declared attribute of any type other than `text`
+ * is trimmed of all whitespace, as the parser trims a typed core value. The
+ * parser has no profile, so it keeps a U+FEFF or a non-breaking space at
+ * either end of such a value as if it were free text (#990). This step
+ * trims a key declared with a type other than `text` in the entry's own
+ * scope.
  */
 
 import type { EffectiveProfile, Entry, ValueType } from "../model/mod.ts";
@@ -20,8 +29,9 @@ import { splitTraceValues } from "../refs/split.ts";
 const LIST_TYPES: ReadonlySet<ValueType> = new Set(["id-list", "tag-list"]);
 
 /**
- * Return a new Entry with list-typed attribute values split on commas. If no
- * change is needed, returns the input entry unchanged (reference equality).
+ * Return a new Entry with list-typed attribute values split on commas and
+ * every non-`text` profile value trimmed. If no change is needed, returns
+ * the input entry unchanged (reference equality).
  */
 export function normalizeListValues(
   entry: Entry,
@@ -33,10 +43,12 @@ export function normalizeListValues(
 
   for (const [name, values] of entry.typedAttributes) {
     const decl = scope.attributes.get(name);
-    if (decl !== undefined && LIST_TYPES.has(decl.type)) {
-      const split = splitListValues(values, decl.type === "id-list");
-      if (!arraysEqual(split, values)) {
-        rewritten.set(name, split);
+    if (decl !== undefined && decl.type !== "text") {
+      const next = LIST_TYPES.has(decl.type)
+        ? splitListValues(values, decl.type === "id-list")
+        : values.map((v) => v.trim()).filter((v) => v.length > 0);
+      if (!arraysEqual(next, values)) {
+        rewritten.set(name, next);
         anyChange = true;
         continue;
       }

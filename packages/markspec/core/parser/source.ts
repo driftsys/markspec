@@ -9,6 +9,7 @@
 import type { Node as SyntaxNode } from "web-tree-sitter";
 import { type Language, Parser } from "web-tree-sitter";
 import type { Entry, ExtractorRule } from "../model/mod.ts";
+import { trimTrailerLine } from "./attributes.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap } from "./line_map.ts";
 import type {
@@ -357,8 +358,11 @@ export function stripBlockCommentPrefix(text: string): BlockStripResult {
       lines.push("");
       prefixWidths.push(0);
     } else {
-      lines.push(trimmed);
-      prefixWidths.push(raw.length - trimmed.length);
+      // A U+FEFF or a non-breaking space that ends a trailer value is data
+      // (#990): only layout space is trimmed at the end.
+      const content = trimTrailerLine(raw);
+      lines.push(content);
+      prefixWidths.push(raw.length - raw.trimStart().length);
     }
   }
 

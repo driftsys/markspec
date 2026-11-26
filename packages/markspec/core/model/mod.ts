@@ -1144,3 +1144,7 @@ export type {
   ValueType,
 } from "./profile.ts";
 export { LIST_VALUE_TYPES, VALUE_TYPES } from "./profile.ts";
+export {
+  profileTypedKeys,
+  trimProfileTypedValues,
+} from "./profile_typed_keys.ts";

@@ -62,6 +62,11 @@ import { normalizeLineEndings } from "../util/line_endings.ts";
  * @param resolveStyle Resolves the line width and line ending of a Markdown
  *   file from `.editorconfig`, the same resolver `markspec fmt` uses. When
  *   absent, the defaults apply (width 80, the file's own line ending).
+ * @param conventions The profile conventions `markspec fmt` passes to
+ *   `format()` (modal keyword casing).
+ * @param typedProfileKeys The profile typed keys (`profileTypedKeys`) that
+ *   `markspec fmt` passes to `format()`: their values are trimmed of all
+ *   whitespace (#990).
  */
 export async function fmtDriftGate(
   mdContents: ReadonlyMap<string, string>,
@@ -70,6 +75,7 @@ export async function fmtDriftGate(
   formatMarkdownProse: ProseFormatter | undefined,
   resolveStyle?: EditorConfigResolver,
   conventions?: EffectiveProfile["conventions"],
+  typedProfileKeys?: ReadonlySet<string>,
 ): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
   // Corpus-blind by design (ADR-030): `markspec fmt` never loads the delivered
@@ -105,6 +111,7 @@ export async function fmtDriftGate(
       lineWidth: style?.lineWidth,
       endOfLine: style?.endOfLine,
       conventions,
+      typedProfileKeys,
     });
     if (formatted.changed) {
       // Say so when only the line endings differ: the file looks formatted

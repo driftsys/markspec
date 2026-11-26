@@ -6,6 +6,10 @@
 
 import { assert, assertEquals } from "@std/assert";
 import {
+  attributeSpec,
+  UNIVERSAL_ATTRIBUTE_KEYS,
+} from "../model/attributes.ts";
+import {
   parseAttributeLine,
   parseAttributes,
   splitBodyAndAttributes,
@@ -69,6 +73,116 @@ Deno.test("parseAttributes: trims leading/trailing whitespace from values", () =
   const attrs = parseAttributes(lines);
   assertEquals(attrs[0].value, "SRS_01HGW2Q8MNP3");
   assertEquals(attrs[1].value, "ASIL-B");
+});
+
+const BOM = String.fromCharCode(0xfeff);
+const NBSP = String.fromCharCode(0xa0);
+
+Deno.test("parseAttributeLine: keeps U+FEFF and U+00A0 around the value (#990)", () => {
+  assertEquals(parseAttributeLine(`    Notes: ${BOM}legacy${NBSP}  \r`), {
+    key: "Notes",
+    value: `${BOM}legacy${NBSP}`,
+  });
+  // The separator after the colon is ASCII only.
+  assertEquals(parseAttributeLine(`Notes:${NBSP}x`)?.value, `${NBSP}x`);
+  assertEquals(parseAttributeLine(`Notes:\t x \\`)?.value, "x");
+  // A core attribute of type text is free text too.
+  assertEquals(parseAttributeLine(`Rationale: ${BOM}r`)?.value, `${BOM}r`);
+});
+
+Deno.test("parseAttributeLine: trims all whitespace from a typed core value (#990)", () => {
+  // An invisible character copied with an identifier must not break it.
+  for (const key of ["Id", "Satisfies", "Labels", "Type"]) {
+    assertEquals(
+      parseAttributeLine(`${key}: ${BOM}X-1${NBSP}`)?.value,
+      "X-1",
+      key,
+    );
+  }
+});
+
+Deno.test("parseAttributeLine: a U+00A0 or U+FEFF before the key is not data (#990)", () => {
+  for (const lead of [NBSP, BOM]) {
+    assertEquals(
+      parseAttributeLine(`${lead}Id: 01HGW2Q8MNP3RSTVWXYZABCDEF`),
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    );
+  }
+});
+
+Deno.test("parseAttributeLine: every typed core key trims U+FEFF and U+00A0 (#990)", () => {
+  for (const key of UNIVERSAL_ATTRIBUTE_KEYS) {
+    if (attributeSpec(key)?.type === "text") continue;
+    assertEquals(
+      parseAttributeLine(`${key}: ${BOM}v${NBSP}`)?.value,
+      "v",
+      key,
+    );
+  }
+});
+
+Deno.test("parseAttributeLine: a miscased typed core key is still typed (#990)", () => {
+  for (const key of ["ID", "LABELS", "Derived-From"]) {
+    assertEquals(parseAttributeLine(`${key}: v${NBSP}`)?.value, "v", key);
+  }
+  // A miscased text key is still free text.
+  assertEquals(parseAttributeLine(`RATIONALE: r${NBSP}`)?.value, `r${NBSP}`);
+});
+
+Deno.test("parseAttributeLine: other whitespace around a value is removed (#990)", () => {
+  // U+2028, U+2029, U+2003 and a tab are layout, not data.
+  for (const space of ["\u2028", "\u2029", "\u2003", "\t"]) {
+    assertEquals(
+      parseAttributeLine(`Id: 01HGW2Q8MNP3RSTVWXYZABCDEF${space}`)?.value,
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    );
+    assertEquals(parseAttributeLine(`Notes: ${space}x${space}`)?.value, "x");
+  }
+  assertEquals(parseAttributeLine("Notes: x\t\\")?.value, "x");
+});
+
+Deno.test("parseFile: keeps U+00A0 ending a trailer above a nested entry list (#990)", async () => {
+  const { entries } = await parseFile(
+    `- [REQ-0001] Parent\n\n  The system shall do it.\n\n      Notes: ${BOM}x${NBSP}\n\n  - [REQ-0002] Child\n\n    The system shall do that.\n`,
+    { file: "req.md" },
+  );
+  const parent = entries.find((e) => e.displayId === "REQ-0001");
+  assertEquals(parent?.rawAttributes, [{
+    key: "Notes",
+    value: `${BOM}x${NBSP}`,
+  }]);
+});
+
+Deno.test("parseAttributeLine: a generated core key is typed, not free text (#990)", () => {
+  assertEquals(parseAttributeLine(`Contains: X-1${NBSP}`)?.value, "X-1");
+});
+
+Deno.test("parseFile: keeps an Id written after a U+00A0 indent (#990)", async () => {
+  const { entries } = await parseFile(
+    `- [REQ-0001] T\n\n  The system shall do it.\n\n      ${NBSP}Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n      Labels: a\n`,
+    { file: "req.md" },
+  );
+  assertEquals(entries[0].rawAttributes, [
+    { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    { key: "Labels", value: "a" },
+  ]);
+});
+
+Deno.test("splitBodyAndAttributes: keeps U+00A0 at the end of a trailer line (#990)", () => {
+  const [, attrLines] = splitBodyAndAttributes(
+    `Body.\n\n    Labels: a${NBSP}\n    Notes: ${BOM}b${NBSP}\n`,
+  );
+  assertEquals(attrLines, [`Labels: a${NBSP}`, `Notes: ${BOM}b${NBSP}`]);
+});
+
+Deno.test("parseFile: keeps U+00A0 at the end of the last trailer line (#990)", async () => {
+  const { entries } = await parseFile(
+    `- [REQ-0001] T\n\n  The system shall do it.\n\n      Notes: ${BOM}x${NBSP}\n\n`,
+    { file: "req.md" },
+  );
+  assertEquals(entries[0].rawAttributes, [
+    { key: "Notes", value: `${BOM}x${NBSP}` },
+  ]);
 });
 
 // ---------------------------------------------------------------------------

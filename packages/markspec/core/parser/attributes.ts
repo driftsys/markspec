@@ -47,12 +47,58 @@ export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
  * are recognized (and subsequently skipped as empty-value lines) rather than
  * silently ignored.
  */
-const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
+const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):[ \t]*([\s\S]*?)\\?$/;
 
 /**
- * Parse one attribute line: the line is trimmed, one trailing continuation
- * backslash is dropped, and the value is trimmed. The value is empty for
- * `Key:` and `Key: \`. Returns `undefined` when the line is not a
+ * Whitespace that is layout, not data: every character JavaScript `\s`
+ * matches except U+FEFF and the non-breaking space (U+00A0). An imported
+ * free-text value can start or end with either of those two, and they are
+ * kept (#990).
+ */
+const LAYOUT_SPACE = "[^\\S\\uFEFF\\u00A0]";
+const LAYOUT_SPACE_EDGES_RE = new RegExp(
+  `^${LAYOUT_SPACE}+|${LAYOUT_SPACE}+$`,
+  "g",
+);
+const LAYOUT_SPACE_END_RE = new RegExp(`${LAYOUT_SPACE}+$`);
+
+/**
+ * Remove whitespace at both ends of `text`, except U+FEFF and the
+ * non-breaking space (U+00A0), which are part of a free-text value and are
+ * kept (#990). JavaScript `trim()` would remove both.
+ */
+export function trimLayoutSpace(text: string): string {
+  return text.replace(LAYOUT_SPACE_EDGES_RE, "");
+}
+
+/**
+ * Trim one trailer line: all whitespace before the key, which is never part
+ * of a value, and at the end all whitespace except a U+FEFF or a
+ * non-breaking space that ends a value (#990).
+ */
+export function trimTrailerLine(line: string): string {
+  return line.trimStart().replace(LAYOUT_SPACE_END_RE, "");
+}
+
+/**
+ * Remove trailing whitespace from `text`: the blank lines after an entry and
+ * the layout space at the end of its last line. A U+FEFF or a non-breaking
+ * space at the end of the last line is part of a value and is kept (#990).
+ */
+export function trimLayoutEnd(text: string): string {
+  return text.replace(LAYOUT_SPACE_END_RE, "");
+}
+
+/**
+ * Parse one attribute line: the line is trimmed
+ * ({@linkcode trimTrailerLine}: all whitespace before the key, layout space
+ * only at the end), one trailing continuation backslash is dropped, and the
+ * value is trimmed. The value of a free-text attribute (see
+ * {@linkcode isFreeTextKey}) keeps a U+FEFF or a non-breaking space at either
+ * end ({@linkcode trimLayoutSpace}, #990). The value of any other core
+ * attribute (an `Id:`, a trace link, a label, …) is trimmed of all
+ * whitespace, so an invisible character copied with an identifier does not
+ * break it. The value is empty for `Key:` and `Key: \`. Returns `undefined` when the line is not a
  * `Key:` line. {@linkcode parseAttributes} reads lines through this
  * function, and so do the Markdown A011, A012 and A013 quick fixes of the
  * LSP, so they agree with the parser.
@@ -60,9 +106,31 @@ const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
 export function parseAttributeLine(
   line: string,
 ): { key: string; value: string } | undefined {
-  const match = ATTRIBUTE_RE.exec(line.trim());
+  const match = ATTRIBUTE_RE.exec(trimTrailerLine(line));
   if (!match) return undefined;
-  return { key: match[1], value: (match[2] ?? "").trim() };
+  const key = match[1];
+  const value = trimLayoutSpace(match[2] ?? "");
+  return { key, value: isFreeTextKey(key) ? value : value.trim() };
+}
+
+/**
+ * `true` when the value of `key` is free text: a core attribute of type
+ * `text`, or a key that is neither a core attribute nor a core trace
+ * relation. Only free text keeps a U+FEFF or a non-breaking space at either
+ * end (#990). The parser has no profile: a profile-declared typed attribute
+ * counts as free text here. Once a profile is loaded, `markspec fmt`, the
+ * fmt-drift gate of `markspec check`, LSP formatting and `markspec compile`
+ * trim its value (`profileTypedKeys` and `trimProfileTypedValues` in
+ * `model/profile_typed_keys.ts`). Attribute validation trims it separately,
+ * by the type scope of the entry itself (Stage 2.5, `validator/normalize.ts`).
+ */
+function isFreeTextKey(key: string): boolean {
+  // The key in its canonical case, as `markspec fmt` writes it: `ID` is
+  // `Id`, `LABELS` is `Labels`.
+  const canonical = key[0].toUpperCase() + key.slice(1).toLowerCase();
+  const spec = attributeSpec(canonical);
+  if (spec) return spec.type === "text";
+  return !RECOGNIZED_TRAILER_KEYS.has(canonical);
 }
 
 /**
@@ -319,8 +387,10 @@ export function splitBodyAndAttributes(
 
   // Trim trailing empty lines from body
   const body = bodyLines.join("\n").replace(/\n+$/, "");
+  // Only layout space is trimmed at the end: a U+FEFF or a non-breaking
+  // space at the end of a value is data (#990).
   const filteredAttrLines = attrLines
-    .map((l) => l.trim())
+    .map(trimTrailerLine)
     .filter((l) => l !== "");
 
   return [body, filteredAttrLines];

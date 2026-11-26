@@ -371,7 +371,7 @@ Trailers {
 AttributeNode {
   key: string                      // canonical case per §2.3.1
   rawKey: string                   // exact spelling in source
-  value: string                    // trimmed of trailing whitespace
+  value: string                    // trimmed; free text keeps U+FEFF/U+00A0
   valueType: ValueType             // resolved via §1.8 catalogue
   continuation: string[]           // joined continuation lines, if any
   range: SourceRange
@@ -758,7 +758,8 @@ character after a `-` uppercase, all others lowercase. Examples: `Id`,
 #### 3.3.5 Whitespace
 
 - One ASCII space between `:` and the value.
-- No trailing whitespace on any line.
+- No trailing whitespace on any line, except a U+FEFF or a non-breaking space
+  (U+00A0) that ends a free-text attribute value (#990).
 - Continuation lines (§2.3.3) are re-emitted only if the original input used
   them; `fmt` does not introduce continuations.
 

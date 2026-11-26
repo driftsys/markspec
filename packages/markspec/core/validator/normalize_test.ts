@@ -262,3 +262,37 @@ Deno.test("normalizeListValues: id-list keeps a comma inside a locator", () => {
     "REQ-0002",
   ]);
 });
+
+Deno.test("normalizeListValues: trims U+00A0 from a profile typed value, keeps it in text (#990)", () => {
+  const idAttr: AttrDecl = {
+    name: "Hazard",
+    type: "id",
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+  };
+  const p = profile({ universalAttrs: [idAttr, idListAttr, textAttr] });
+  const e = entry({
+    shape: "Authored",
+    attrs: {
+      Hazard: ["HAZ-0001\u00A0"],
+      Verifies: ["\uFEFFREQ-0001"],
+      Rationale: ["\u00A0kept"],
+    },
+  });
+  const out = normalizeListValues(e, p);
+  assertEquals(out.typedAttributes.get("Hazard"), ["HAZ-0001"]);
+  assertEquals(out.typedAttributes.get("Verifies"), ["REQ-0001"]);
+  assertEquals(out.typedAttributes.get("Rationale"), ["\u00A0kept"]);
+});
+
+Deno.test("normalizeListValues: a profile typed value made only of U+00A0 is dropped (#990)", () => {
+  const countAttr: AttrDecl = {
+    name: "Count",
+    type: "integer",
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+  };
+  const p = profile({ universalAttrs: [countAttr] });
+  const e = entry({ shape: "Authored", attrs: { Count: ["\u00A0"] } });
+  assertEquals(normalizeListValues(e, p).typedAttributes.get("Count"), []);
+});
