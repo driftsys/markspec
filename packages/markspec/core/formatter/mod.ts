@@ -217,8 +217,8 @@ const CANONICAL_ORDER: readonly string[] = [
  *
  * When `proseFormat` (ADR-029) is supplied, the AST-canonical body is
  * further polished by the whole-document Markdown formatter (dprint),
- * gated by GFM-semantic equivalence plus an unchanged sequence of
- * body block kinds (#1010) — NOT the strict ADR-015
+ * gated by GFM-semantic equivalence plus unchanged body block kinds at
+ * every list level (#1010) — NOT the strict ADR-015
  * relation above, which is byte-verbatim on inline markup and would
  * reject every legitimate re-wrap. A rejected polish keeps the
  * AST-canonical body and raises an info diagnostic (MSL-F012) naming
@@ -433,7 +433,8 @@ function emitBodyViaAst(
       // landing near the line width dedented exceeds it re-indented, and an
       // external whole-file dprint view (which sees the indent) re-wraps
       // it: a formatter ping-pong. Floor of 20 keeps a pathological indent
-      // from degenerating into one-word-per-line output.
+      // from degenerating into one-word-per-line output. The rewrite is
+      // gated below by GFM-semantic equivalence and the body block kinds.
       let polished: string | undefined;
       try {
         polished = proseFormat(emittedBody, {

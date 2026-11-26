@@ -1756,7 +1756,15 @@ Deno.test("format: the prose pass keeps a definition list nested in a list item 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
   const once = format(input, { file: "req.md", formatMarkdownProse });
-  assertStringIncludes(once.output, "Term\n    : first line\n");
+  // The `-\n    item` layout is the canonical list rendering, which
+  // predates #1010.
+  assertEquals(
+    once.output,
+    "- [REQ-0001] Nested deflist\n\n  -\n    item\n    Term\n" +
+      "    : first line\n    second line.\n\n" +
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n",
+  );
+  assert(once.diagnostics.some((d) => d.code === "MSL-F012"));
   const twice = format(once.output, { file: "req.md", formatMarkdownProse });
   assertEquals(twice.output, once.output);
 });
