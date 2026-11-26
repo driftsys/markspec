@@ -117,8 +117,11 @@ Tier 1). The sentence rules (`MSL-Q100`–`MSL-Q104`, `MSL-Q200`–`MSL-Q201`,
 modal keyword or a PascalCase term inside a span is not analyzed by them (#1017,
 #1029). The lexicon rules (`MSL-Q302`–`MSL-Q305`, `MSL-Q310`, `MSL-Q313`) still
 read a paragraph's verbatim `content.text`, which includes the span; closing
-that gap is deferred follow-up #733. Regression-locked by
-`tests/e2e/opaque_dsl_test.ts`.
+that gap is deferred follow-up #733. The colocated unit tests of the rules
+(`modal_sentence_test.ts`, `ears_test.ts`, `incose_sentence_test.ts`,
+`passive_test.ts` under `core/lint/rules/`) pin the #1029 behavior.
+`tests/e2e/opaque_dsl_test.ts` locks only that the uxil DSL forms in code spans
+raise no diagnostic.
 
 ### 1.3 Intent and non-goals
 

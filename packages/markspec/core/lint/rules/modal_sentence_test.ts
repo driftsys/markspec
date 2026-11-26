@@ -279,3 +279,33 @@ Deno.test("Q201: positive control, a soft modal outside code fires (#1029)", () 
   const diags = runModalSentenceRules(entry);
   assertEquals(diags.some((d) => d.code === "MSL-Q201"), true);
 });
+
+/** An entry whose body also holds a link reference definition block. */
+function withDefinition(entry: Entry, raw: string): Entry {
+  const definition: BodyBlock = {
+    kind: "unknown",
+    raw,
+    range: {
+      start: { line: 3, column: 1 },
+      end: { line: 3, column: 1 + raw.length },
+    },
+  };
+  return { ...entry, bodyAst: [...(entry.bodyAst ?? []), definition] };
+}
+
+Deno.test("Q200: ignores a keyword in a full reference label that has a definition (#1029)", () => {
+  const entry = withDefinition(
+    makeEntry("The system shall log faults, see [the list][shall]."),
+    "[shall]: http://x.example/",
+  );
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), false);
+});
+
+Deno.test("Q200: reads the label keyword when no definition exists (#1029)", () => {
+  const entry = makeEntry(
+    "The system shall log faults, see [the list][shall].",
+  );
+  const diags = runModalSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), true);
+});

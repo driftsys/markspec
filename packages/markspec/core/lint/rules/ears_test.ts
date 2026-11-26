@@ -297,3 +297,31 @@ Deno.test("Q100: positive control, the same modal outside code fires (#1029)", (
   const diags = runEarsRules(entry);
   assertEquals(diags.some((d) => d.code === "MSL-Q100"), true);
 });
+
+/** An entry whose body also holds a link reference definition block. */
+function withDefinition(entry: Entry, raw: string): Entry {
+  const definition: BodyBlock = {
+    kind: "unknown",
+    raw,
+    range: {
+      start: { line: 3, column: 1 },
+      end: { line: 3, column: 1 + raw.length },
+    },
+  };
+  return { ...entry, bodyAst: [...(entry.bodyAst ?? []), definition] };
+}
+
+Deno.test("Q100: ignores a keyword in a full reference label that has a definition (#1029)", () => {
+  const entry = withDefinition(
+    makeEntry("Values use [the list][shall] as a keyword."),
+    "[shall]: http://x.example/",
+  );
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), false);
+});
+
+Deno.test("Q100: reads the label keyword when no definition exists (#1029)", () => {
+  const entry = makeEntry("Values use [the list][shall] as a keyword.");
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), true);
+});
