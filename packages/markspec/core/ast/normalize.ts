@@ -53,7 +53,7 @@ import type {
 
 /**
  * The link reference and footnote definitions of the body that
- * {@linkcode normalizeBodyAst} is normalising, joined by newlines. A
+ * {@linkcode normalizeBodyAst} is normalising, joined by blank lines. A
  * definition is a separate block, so the casing pass of one paragraph would
  * not see it and would lowercase a label it defines (#1014). Set for the
  * duration of one synchronous `normalizeBodyAst` call only.
@@ -61,8 +61,14 @@ import type {
 let bodyDefinitions = "";
 
 /** A link reference definition (`[label]: dest`) or a footnote definition
- * (`[^label]: text`), as an `unknown` block's raw text starts. */
+ * (`[^label]: text`), at the start of an `unknown` block's raw text or of a
+ * blockquote or note line with its container markers removed. */
 const DEFINITION_RE = /^ {0,3}\[[^\]\n]+\]:/;
+
+/** Leading blockquote (`>`) and list (`-`, `*`, `+`, `1.`, `1)`) markers of a
+ * flattened container line. */
+const CONTAINER_MARKERS_RE =
+  /^(?:[ \t]*(?:>|[-*+]|\d{1,9}[.)])(?=[ \t]|$))*[ \t]*/;
 
 /**
  * The text of every definition in `blocks`, at any depth: an `unknown` block
@@ -79,7 +85,10 @@ function collectDefinitions(blocks: readonly BodyBlock[]): string {
         for (const item of b.items) walk(item.blocks);
       } else if (b.kind === "blockquote" || b.kind === "note") {
         for (const line of b.content.text.split("\n")) {
-          if (DEFINITION_RE.test(line)) found.push(line);
+          // A blockquote or note holds flattened text, so a definition in a
+          // nested container keeps its `>` or list markers on the line.
+          const bare = line.replace(CONTAINER_MARKERS_RE, "");
+          if (DEFINITION_RE.test(bare)) found.push(bare);
         }
       }
     }
@@ -89,8 +98,8 @@ function collectDefinitions(blocks: readonly BodyBlock[]): string {
 }
 
 /**
- * Apply the casing pass to each cell of the raw table text separately, as
- * {@linkcode normalizeInline} does for the parsed cells. A whole-line pass
+ * Apply the casing pass to each cell of the raw table text separately; the
+ * parsed cells are then read back from the result. A whole-line pass
  * would not see the start of a cell as a sentence start, and would lowercase
  * an EARS keyword (`When`) that the cell pass keeps. Cells are split on
  * every `|` not escaped with `\`, as GFM splits them (also inside a code

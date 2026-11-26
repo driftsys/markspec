@@ -1450,6 +1450,21 @@ for (
       "See [SHALL].",
     ],
     [
+      "a label defined in a list in a blockquote",
+      "See [SHALL].\n\n> - [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a nested blockquote",
+      "See [SHALL].\n\n> > [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a note",
+      "See [SHALL].\n\n> [!NOTE]\n> [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
       "a label defined in a blockquote",
       "See [SHALL].\n\n> [SHALL]: http://x.example/",
       "See [SHALL].",
@@ -1488,6 +1503,11 @@ for (
       "| When the car stops |\n  |---|\n  | a WHEN b must |",
     ],
     ["an escaped pipe", "| a \\| When x |\n|---|\n| y |", "| a \\| when x |"],
+    [
+      "a pipe inside a closed code span",
+      "| `a | SHALL` | y |\n|---|---|---|\n| 1 | 2 | 3 |",
+      "| `a | shall` | y |",
+    ],
     [
       "an unmatched backtick",
       "| a ` | When x |\n|---|---|\n| y | z |",
