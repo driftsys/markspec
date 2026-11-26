@@ -1174,13 +1174,18 @@ for (
       "requirement": { pattern: "REQ_{n:4d}" },
     });
     const entries = entriesOf({ "a.md": markdown });
+    // `makeProfile` makes every type extend `Requirement`, so a UXI entry
+    // without a modal keyword also gets the info hint MSL-M061 (#1024).
+    const notM061 = (d: { code: string }) => d.code !== "MSL-M061";
     for (const opts of [{}, { projectWide: true }]) {
       const whole = runPipeline(entries, profile, {}, opts);
-      assertEquals(whole.diagnostics.map((d) => d.code), [code]);
+      assertEquals(whole.diagnostics.filter(notM061).map((d) => d.code), [
+        code,
+      ]);
       assertEquals(whole.valid, false);
     }
     const subset = runPipeline(entries, profile, {}, { projectWide: false });
-    assertEquals(subset.diagnostics, []);
+    assertEquals(subset.diagnostics.filter(notM061), []);
     assertEquals(subset.valid, true);
   });
 }

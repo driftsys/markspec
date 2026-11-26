@@ -497,10 +497,73 @@ Deno.test("validateModalKeywords: M062 fires once per lowercase token", () => {
   assertEquals(m062Codes(entry), ["MSL-M062", "MSL-M062"]);
 });
 
-Deno.test("validateModalKeywords: M061 scope is unchanged by the profile", () => {
-  // A profile Requirement subtype with no modal keyword: M061 stays core-only.
+// MSL-M061 for profile types (#1024): the profile classifies the entry.
+
+Deno.test("validateModalKeywords: M061 fires for a profile Requirement subtype classified by display-ID pattern", () => {
   const entry = makeEntry("STK_0002", "No obligation verb.", undefined);
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: M061 fires for a profile Requirement subtype with explicit Type", () => {
+  const base = makeEntry("STK_0003", "No obligation verb.", undefined);
+  const entry: Entry = {
+    ...base,
+    rawAttributes: [{ key: "Type", value: "stakeholder-requirement" }],
+  };
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: M061 fires for a classified entry.type that extends Requirement", () => {
+  const entry = makeEntry(
+    "ZZZ_0003",
+    "No obligation verb.",
+    "stakeholder-requirement",
+  );
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: no M061 for a profile type that is not a Requirement", () => {
+  const entry = makeEntry("DRC_0002", "No obligation verb.", undefined);
   assertEquals(m062Codes(entry), []);
+});
+
+Deno.test("validateModalKeywords: M061 fires for an explicit profile Type when the display ID matches no pattern", () => {
+  const base = makeEntry("ZZZ_0005", "No obligation verb.", undefined);
+  const entry: Entry = {
+    ...base,
+    rawAttributes: [{ key: "Type", value: "stakeholder-requirement" }],
+  };
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: an explicit non-Requirement profile Type wins over a Requirement display-ID pattern", () => {
+  const base = makeEntry("STK_0009", "No obligation verb.", undefined);
+  const entry: Entry = {
+    ...base,
+    rawAttributes: [{ key: "Type", value: "design-record" }],
+  };
+  assertEquals(m062Codes(entry), []);
+});
+
+Deno.test("validateModalKeywords: with a profile, M061 still fires for the built-in REQ prefix", () => {
+  const entry = makeEntry("REQ-0002", "No obligation verb.", undefined);
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: M061 uses the profile under the default casing", () => {
+  // No `modal-keywords` convention: the profile still classifies the entry.
+  const entry = makeEntry("STK_0006", "No obligation verb.", undefined);
+  assertEquals(
+    validateModalKeywords(entry, undefined, rfc8174Profile()).map((d) =>
+      d.code
+    ),
+    ["MSL-M061"],
+  );
+});
+
+Deno.test("validateModalKeywords: without a profile, M061 ignores a profile display-ID prefix", () => {
+  const entry = makeEntry("STK_0004", "No obligation verb.", undefined);
+  assertEquals(validateModalKeywords(entry).map((d) => d.code), []);
 });
 
 Deno.test("validateModalKeywords: a classified entry.type that extends Requirement counts for MSL-M062", () => {
@@ -558,7 +621,9 @@ for (
     const doc =
       `- [STK_0001] Probe\n\n  ${prose}\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n`;
     const { entries } = await parseFile(doc, { file: "t.md" });
-    assertEquals(m062Codes(entries[0]), []);
+    // The only keyword is in excluded syntax: no MSL-M062, and the entry
+    // has no prose keyword, so MSL-M061 fires.
+    assertEquals(m062Codes(entries[0]), ["MSL-M061"]);
   });
 }
 

@@ -118,13 +118,15 @@ keywords inside code examples are not checked.
 
 **MSL-M061 — missing-modal-keyword** (info)
 
-Fires on entries whose core type resolves to `Requirement` without the profile:
-an explicit `Type: Requirement`, the built-in `REQ` display-ID prefix, or a
-`.feature` Feature or Rule entry (profile subtypes are not covered yet, #1024)
-whose body contains no modal keyword at all. A keyword in inline code, link
-destinations, titles and labels, autolinks, images, link reference definitions,
-footnote labels and raw HTML does not count. This is a style hint: a requirement
-without an obligation word is often a description masquerading as a requirement.
+Fires on an entry whose type resolves to `Requirement` when its body contains no
+modal keyword at all. The type resolves to `Requirement` for an explicit
+`Type: Requirement`, a profile type that extends `Requirement` (set by an
+explicit `Type:` or by the profile display-ID pattern), the built-in `REQ`
+display-ID prefix, or a `.feature` Feature or Rule entry. A keyword in inline
+code, link destinations, titles and labels, autolinks, images, link reference
+definitions, footnote labels and raw HTML does not count. This is a style hint:
+a requirement without an obligation word is often a description masquerading as
+a requirement.
 
 ```text
 info[MSL-M061]: requirements.md:7 Requirement entry contains no modal keyword

@@ -416,6 +416,55 @@ Deno.test("validate: Requirement entry with no modal keyword emits MSL-M061 (inf
   assertStringIncludes(stderr, "MSL-M061");
 });
 
+// MSL-M061 for a profile type that extends Requirement (#1024).
+Deno.test("validate: profile Requirement subtype with no modal keyword emits MSL-M061", async () => {
+  const { code, stderr } = await markspec(["check", "stk.md"], {
+    files: {
+      "project.yaml": "name: m061-subtype\nversion: 0.1.0\n",
+      ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+      "profiles/p/markspec.yaml": `markspec-schema: "1"
+id: "@acme/m061-subtype"
+version: 0.1.0
+profile:
+  types:
+    stakeholder-requirement:
+      extends: Requirement
+      display-id-pattern: "STK_{n:4d}"
+    design-record:
+      extends: Record
+      display-id-pattern: "DRC_{n:4d}"
+`,
+      "stk.md": `# Test
+
+- [STK_0001] Explicit type
+
+  The system processes inputs and emits results.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: stakeholder-requirement
+
+- [STK_0002] Display-ID pattern only
+
+  The system processes inputs and emits results.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [DRC_0001] Not a requirement
+
+  The team records the decision.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  const m061 = stderr.split("\n").filter((l) => l.includes("MSL-M061"));
+  assertEquals(m061.length, 2, stderr);
+  assertStringIncludes(stderr, "STK_0001: Requirement entry");
+  assertStringIncludes(stderr, "STK_0002: Requirement entry");
+  assertEquals(stderr.includes("DRC_0001: Requirement entry"), false, stderr);
+});
+
 Deno.test("validate: Requirement entry with lowercase modal stays clean (no MSL-M061)", async () => {
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {

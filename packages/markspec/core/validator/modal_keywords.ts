@@ -18,7 +18,10 @@
  * and `must` under `rfc8174`, so M062 on `may`, `should` or `will` stays until
  * the author uppercases the word or leaves it as plain English.
  *
- * MSL-M061 reports a `Requirement` entry with no modal keyword at all.
+ * MSL-M061 reports a `Requirement` entry with no modal keyword at all. It uses
+ * the same profile-aware check as MSL-M062, so a profile type that extends
+ * `Requirement` counts, whether an explicit `Type:` or the profile display-ID
+ * pattern sets it (#1024).
  *
  * The body tokens leave out keywords in inline code, link destinations,
  * titles and labels, autolinks, images, link reference definitions,
@@ -71,12 +74,10 @@ export function validateModalKeywords(
   // `preserve`: the source casing is the profile's choice. `rfc8174`:
   // uppercase is the normative form. Neither reports uppercase as a warning.
   const uppercaseAllowed = casing === "preserve" || casing === "rfc8174";
-  // MSL-M061 keeps its original scope: the core type resolved without the
-  // profile, so only `Type: Requirement` or a `REQ` display-ID prefix count.
-  const isCoreRequirement = resolvedCoreType(entry) === "Requirement";
-  // MSL-M062 runs before Stage 2 classification, so it classifies here with
-  // the profile: an explicit or display-ID-pattern profile type that extends
-  // `Requirement` counts. Computed only when M062 can fire.
+  // MSL-M061 and MSL-M062 run before Stage 2 classification, so they
+  // classify here with the profile: an explicit or display-ID-pattern profile
+  // type that extends `Requirement` counts. Each rule classifies only when its
+  // other condition holds. MSL-M062: a lowercase keyword under `rfc8174`.
   const m062Applies = casing === "rfc8174" &&
     modalTokens.some((t) => t.case === "lower") &&
     isRequirementWithProfile(entry, profile);
@@ -103,11 +104,11 @@ export function validateModalKeywords(
   }
 
   // MSL-M061 — Requirement-type entry contains no modal keyword
-  // (info; style hint). Gated on the resolved core type being
-  // `Requirement` so non-requirement entries (Tests, Contracts, etc.)
+  // (info; style hint). Gated on the core type resolved with the profile
+  // being `Requirement` so non-requirement entries (Tests, Contracts, etc.)
   // are not flagged. The hint stays at info severity so it doesn't
   // affect exit codes; profiles may promote.
-  if (!anyModalSeen && isCoreRequirement) {
+  if (!anyModalSeen && isRequirementWithProfile(entry, profile)) {
     diagnostics.push({
       code: "MSL-M061",
       severity: "info",
