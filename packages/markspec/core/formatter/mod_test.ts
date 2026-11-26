@@ -1517,6 +1517,48 @@ Deno.test("format: keeps a thematic break below a bare list marker (#1026)", () 
   }
 });
 
+// Every block of a list item is indented to the item's content column, so
+// a block under `1.` stays in the item (#1033).
+for (
+  const body of [
+    "Intro.\n\n1. > quote",
+    "Intro.\n\n1. ```\n   code\n   ```",
+    "Intro.\n\n1. | a | b |\n   | - | - |\n   | 1 | 2 |",
+    "Intro.\n\n1. 1. nested",
+    "Intro.\n\n1. - nested",
+    "Intro.\n\n- a\n  - > q",
+    "Intro.\n\n1. [x]: http://x.example/\n\n   More text.",
+    "Intro.\n\n1. [x]: http://x.example/\n   [y]: http://y.example/",
+    "Intro.\n\n1. Some text\n   more text.",
+    "Intro.\n\n1. # Heading",
+    "Intro.\n\n1. <div>html</div>",
+    "Intro.\n\n1. [^n]: A footnote.",
+    "Intro.\n\n1. Setext\n   ---",
+    "Intro.\n\n- # Heading",
+    "Intro.\n\n- <div>html</div>",
+  ]
+) {
+  Deno.test(`format: keeps every block of ${JSON.stringify(body.slice(8))} in its list item (#1033)`, () => {
+    const { result, f900 } = formatBody(body);
+    assertEquals(f900, []);
+    assertEquals(
+      format(result.output, { file: "req.md" }).output,
+      result.output,
+    );
+  });
+}
+
+// Continuation lines of `1.` use the 3-column content column (#1033).
+Deno.test("format: indents ordered item continuation lines to the content column (#1033)", () => {
+  const { result } = formatBody(
+    "Intro.\n\n1. [x]: http://x.example/\n   [y]: http://y.example/",
+  );
+  assertStringIncludes(
+    result.output,
+    "  1. [x]: http://x.example/\n     [y]: http://y.example/",
+  );
+});
+
 Deno.test("format: lowercases the visible text of a full reference link (#1014)", () => {
   const { result, f900 } = formatBody(
     "See [SHALL] and [the rule MUST][MUST].\n\n[SHALL]: http://x.example/\n[MUST]: http://y.example/",
@@ -1888,11 +1930,11 @@ Deno.test("format: the prose pass keeps a definition list nested in a list item 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
   const once = format(input, { file: "req.md", formatMarkdownProse });
-  // The `-\n    item` layout is the canonical list rendering, which
-  // predates #1010.
+  // A first block that starts with a non-space character starts on the
+  // marker line (#1033).
   assertEquals(
     once.output,
-    "- [REQ-0001] Nested deflist\n\n  -\n    item\n    Term\n" +
+    "- [REQ-0001] Nested deflist\n\n  - item\n    Term\n" +
       "    : first line\n    second line.\n\n" +
       "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n",
   );

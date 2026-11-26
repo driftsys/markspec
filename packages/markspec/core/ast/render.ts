@@ -70,16 +70,7 @@ function renderListItem(
 
   const firstBlock = item.blocks[0];
   const restBlocks = item.blocks.slice(1);
-
-  // The bullet prefix for the first block.
   const bullet = ordered ? `${index}.` : "-";
-
-  // Render the first block. For a paragraph, the text follows the bullet
-  // directly. An unknown block that starts with a non-space character, other
-  // than a thematic break, also follows the bullet. Any other block is
-  // rendered on the lines below the bullet, indented by 2 spaces.
-  let firstLine: string;
-  let extraLines: string[] = [];
 
   // GFM task-list checkbox, re-emitted right after the bullet. Absent for
   // non-task items (`item.checked === undefined`); independent of
@@ -90,46 +81,25 @@ function renderListItem(
     ? "[x] "
     : "[ ] ";
 
-  if (firstBlock.kind === "paragraph") {
-    // `- text` — inline with the bullet.
-    const text = (firstBlock as ParagraphNode).content.text;
-    const textLines = text.split("\n");
-    firstLine = `${bullet} ${checkbox}${textLines[0]}`;
-    // Known limitation: continuation-line indent is a fixed 2 spaces and
-    // does not account for checkbox width, so a MULTI-LINE paragraph in a
-    // task-list item (`- [x] line one\n  line two`) does not round-trip
-    // byte-identically. Task lists are an excluded construct (MSL-B042);
-    // the corpus only exercises single-line task items, so no canonical
-    // input regresses and the equivalence gate stays green.
-    if (textLines.length > 1) {
-      // Continuation lines of a multi-line paragraph are indented to align
-      // with the first character after the bullet (`- ` = 2 chars).
-      extraLines = textLines.slice(1).map((l) => (l ? `  ${l}` : ""));
-    }
-  } else if (
-    firstBlock.kind === "unknown" && /^\S/.test(renderBlock(firstBlock)) &&
-    !THEMATIC_BREAK_RE.test(renderBlock(firstBlock).split("\n")[0])
-  ) {
-    // An unknown block (e.g. a link reference definition) starts on the
-    // marker line. A thematic break is excluded: `- ---` is a top-level
-    // thematic break, not a list item. On the line after a bare marker, a fixed
-    // 2-space indent is below the content column of `1.` (3), so the block
-    // leaves the item, and a bare nested `-` under a paragraph reads as a
-    // setext underline (#1026). Continuation lines align to the content
-    // column.
-    const pad = " ".repeat(`${bullet} ${checkbox}`.length);
-    const [head, ...tail] = renderBlock(firstBlock).split("\n");
-    firstLine = `${bullet} ${checkbox}${head}`;
-    extraLines = tail.map((l) => (l ? `${pad}${l}` : ""));
-  } else {
-    // Any other first block: render on its own line(s), indented by 2
-    // spaces.
-    firstLine = checkbox ? `${bullet} ${checkbox}`.trimEnd() : bullet;
-    const blockStr = renderBlock(firstBlock);
-    extraLines = blockStr.split("\n").map((l) => (l ? `  ${l}` : ""));
-  }
+  // Every line after the marker line is indented to the item's content
+  // column: 2 for `-`, 3 for `1.`, 4 for `10.`. A smaller indent moves a
+  // block out of an ordered item (#1026, #1033). The checkbox is inline
+  // content, so it does not move the content column.
+  const pad = " ".repeat(bullet.length + 1);
+  const indent = (l: string) => (l ? `${pad}${l}` : "");
 
-  const allLines = [firstLine, ...extraLines];
+  // The first block starts on the marker line when its first line starts
+  // with a non-space character. A thematic break is excluded: `- ---` is a
+  // top-level thematic break, not a list item. A first block on the line
+  // below a bare marker can also be read as a setext underline of the
+  // paragraph above (`- a\n  -\n    > q`), so the marker line is preferred.
+  const [head, ...tail] = renderBlock(firstBlock).split("\n");
+  const allLines = /^\S/.test(head) && !THEMATIC_BREAK_RE.test(head)
+    ? [`${bullet} ${checkbox}${head}`, ...tail.map(indent)]
+    : [
+      checkbox ? `${bullet} ${checkbox}`.trimEnd() : bullet,
+      ...[head, ...tail].map(indent),
+    ];
 
   // Remaining blocks in the item, indented. A "loose" item
   // (`listItem.spread`, captured from mdast) separates its blocks with a
@@ -139,10 +109,7 @@ function renderListItem(
   // byte-identical while letting tight nested lists round-trip.
   for (const block of restBlocks) {
     if (item.spread) allLines.push(""); // blank line before next block
-    const blockStr = renderBlock(block);
-    for (const l of blockStr.split("\n")) {
-      allLines.push(l ? `  ${l}` : "");
-    }
+    allLines.push(...renderBlock(block).split("\n").map(indent));
   }
 
   return allLines.join("\n");
