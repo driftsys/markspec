@@ -43,6 +43,7 @@ import {
 } from "../util/modals.ts";
 import { synthesizedUlid } from "./synth_ulid.ts";
 import { buildBodyAst } from "../ast/build.ts";
+import type { BodyBlock } from "../ast/nodes.ts";
 import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
@@ -216,7 +217,8 @@ const CANONICAL_ORDER: readonly string[] = [
  *
  * When `proseFormat` (ADR-029) is supplied, the AST-canonical body is
  * further polished by the whole-document Markdown formatter (dprint),
- * gated by GFM-semantic equivalence — NOT the strict ADR-015
+ * gated by GFM-semantic equivalence plus an unchanged sequence of
+ * body block kinds (#1010) — NOT the strict ADR-015
  * relation above, which is byte-verbatim on inline markup and would
  * reject every legitimate re-wrap. A rejected polish keeps the
  * AST-canonical body and raises an info diagnostic (MSL-F012) naming
@@ -539,7 +541,8 @@ export interface FormatOptions {
    * Whole-document Markdown formatter (ADR-029). When supplied, prose
    * segments outside entry blocks and each entry body are routed
    * through it (dprint-markdown), gated by GFM-semantic
-   * equivalence. When absent, format() is entry-only — the exact
+   * equivalence (entry bodies also by their body block kinds, #1010).
+   * When absent, format() is entry-only — the exact
    * pre-ADR-029 behaviour. The entry-body polish passes a per-call
    * `lineWidth` reduced by the body indent (see `emitBodyViaAst`);
    * one-arg formatter callbacks simply ignore it.
@@ -1621,14 +1624,28 @@ function findEntryBodyEnd(
 }
 
 /**
- * `true` when `a` and `b` build to MarkSpec body ASTs with the same
- * sequence of top-level block kinds. Catches a prose rewrap that turns a
- * MarkSpec-only block (a definition list, a caption) into a plain
- * paragraph, which a CommonMark comparison cannot see (#1010).
+ * `true` when `a` and `b` build to MarkSpec body ASTs with the same block
+ * kinds, in the same order, at every level: list item blocks are compared
+ * too. Catches a prose rewrap that turns a MarkSpec-only block, such as a
+ * definition list, into a plain paragraph, which a CommonMark comparison
+ * cannot see (#1010). A body that fails to build compares as different.
  */
 function sameBlockKinds(a: string, b: string): boolean {
-  const kinds = (body: string) => buildBodyAst(body).map((block) => block.kind);
-  const ka = kinds(a);
-  const kb = kinds(b);
-  return ka.length === kb.length && ka.every((kind, i) => kind === kb[i]);
+  try {
+    return blockKindTree(buildBodyAst(a)) === blockKindTree(buildBodyAst(b));
+  } catch {
+    return false;
+  }
+}
+
+/** The block kinds of `blocks` as one string, with list item blocks
+ * nested in brackets. */
+function blockKindTree(blocks: readonly BodyBlock[]): string {
+  return blocks.map((block) =>
+    block.kind === "list"
+      ? `list[${
+        block.items.map((item) => `(${blockKindTree(item.blocks)})`).join("")
+      }]`
+      : block.kind
+  ).join(",");
 }

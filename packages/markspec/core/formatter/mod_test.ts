@@ -1735,6 +1735,28 @@ Deno.test("format: the prose pass keeps a definition list in an entry body (#101
     once.output,
     "\n  Term\n  : first line\n  second line.\n",
   );
+  assert(
+    once.diagnostics.some((d) =>
+      d.code === "MSL-F012" && d.severity === "info"
+    ),
+  );
+  const twice = format(once.output, { file: "req.md", formatMarkdownProse });
+  assertEquals(twice.output, once.output);
+});
+
+Deno.test("format: the prose pass keeps a definition list nested in a list item (#1010)", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const input = `- [REQ-0001] Nested deflist
+
+  - item
+    Term
+    : first line
+    second line.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const once = format(input, { file: "req.md", formatMarkdownProse });
+  assertStringIncludes(once.output, "Term\n    : first line\n");
   const twice = format(once.output, { file: "req.md", formatMarkdownProse });
   assertEquals(twice.output, once.output);
 });

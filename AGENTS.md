@@ -567,8 +567,9 @@ docs/
   dprint-markdown WASM plugin; fixed style (`textWrap: always`), with the line
   width (`max_line_length`, default 80) and line ending (`end_of_line`) read
   from `.editorconfig` as `prim fmt` does (#984); dprint rewrites are gated by a
-  CommonMark-semantic equivalence comparator with an MSL-F012 fallback;
-  `check`'s MSL-F010 now covers prose drift
+  CommonMark-semantic equivalence comparator (entry bodies also by body block
+  kinds, #1010) with an MSL-F012 fallback; `check`'s MSL-F010 now covers prose
+  drift
 - `adr-030-profile-delivered-documents.md` — `profile.delivers:` lets a profile
   ship document files to consumers, per file flagged as a traceable corpus
   (joins the graph, provenance via `Entry.origin`) or docs-only; one core loader

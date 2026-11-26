@@ -3,7 +3,8 @@
 ## Status
 
 Accepted (2026-07-02). Closes #649. Amended by #984: the line width and the line
-ending come from `.editorconfig`.
+ending come from `.editorconfig`. Amended by #1010: an entry-body rewrite must
+also keep the body block kinds.
 
 ## Context
 
@@ -36,12 +37,9 @@ never do. Every dprint rewrite is gated by a CommonMark-semantic equivalence
 comparator (`markdownSemanticallyEquivalent`, mdast-based: positions elided,
 whitespace runs in text values collapsed) — soft-wrap positions and delimiter
 styles compare equal, content changes do not. A rejected rewrite is kept as-was
-and reported as MSL-F012 (info). An entry-body rewrite must also keep the
-sequence of top-level MarkSpec body block kinds (amendment, #1010): CommonMark
-has no definition lists, so `Term` followed by a `: definition` line and the
-same text joined into one line parse to the same paragraph, and the mdast
-comparator alone accepted the join. ADR-015's byte-verbatim `astEquivalent` is
-unchanged and still guards §5.2 body emission (MSL-F900).
+and reported as MSL-F012 (info). Entry bodies have a second gate, described in
+the #1010 amendment below. ADR-015's byte-verbatim `astEquivalent` is unchanged
+and still guards §5.2 body emission (MSL-F900).
 
 Because a body is formatted dedented and re-indented afterward, the body pass
 budgets its `lineWidth` at `width − indent` (floor 20, via a per-call
@@ -100,6 +98,27 @@ Windows checkout does not turn every file into line-ending drift.
 
 Not read from `.editorconfig`: `insert_final_newline` (`fmt` always ends a
 Markdown file with one newline) and `trim_trailing_whitespace`.
+
+### Body block kinds gate (amendment, #1010)
+
+CommonMark has no definition lists: `Term` followed by a `: definition` line and
+the same text joined into one line parse to the same paragraph, so the mdast
+comparator alone accepted a dprint rewrite that joined them. An entry-body
+rewrite must now also build to MarkSpec body blocks of the same kinds, in the
+same order, at every level (blocks inside list items included). Otherwise `fmt`
+keeps the AST-canonical body and reports MSL-F012. Prose segments outside entry
+blocks have no such gate.
+
+Consequences:
+
+- An entry body that holds a definition list is not wrapped by dprint at all:
+  the rejection keeps the whole canonical body, so a long paragraph next to the
+  list is not wrapped either, and each `fmt` run reports MSL-F012 for that
+  entry.
+- `prim fmt` still joins the list into one paragraph, so `prim fmt --check`
+  fails on a file that `markspec fmt` formatted with a definition list in an
+  entry body. Until prim keeps definition lists (driftsys/prim#229), such a file
+  needs a prim exclude.
 
 Idempotency (`format ∘ format === format`) is a tested hard requirement —
 MSL-F010 depends on it.
