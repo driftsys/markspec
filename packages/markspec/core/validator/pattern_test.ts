@@ -218,8 +218,12 @@ Deno.test("displayIdScopeFilter: drops an ID the classifier reads under another 
   assertEquals(accept("G_BR0003"), true);
 });
 
-Deno.test("displayIdScopeFilter: keeps an ID the classifier does not match", () => {
+Deno.test("displayIdScopeFilter: keeps an ID the scope reader does not match", () => {
   const accept = displayIdScopeFilter("SRS_{scope}_{n:04d}", "BRK");
+  // Narrower than the padding: displayIdScope reads no scope from it, so
+  // the filter leaves the decision to the caller's prefix test.
+  assertEquals(displayIdScope("SRS_{scope}_{n:04d}", "SRS_BRK_001"), undefined);
+  assertEquals(accept("SRS_BRK_001"), true);
   assertEquals(accept("SRS_BRK_10000"), true);
   assertEquals(accept("SRS_ENG_0001"), false);
   assertEquals(accept("SRS_BRK_0001"), true);

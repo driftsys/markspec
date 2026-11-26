@@ -843,7 +843,7 @@ export class ProjectContext {
    * template. A `{scope}` after the counter (`R-{n:03d}-{scope}`) has no
    * scope in the ID prefix, so a partial never selects a scope for it; it
    * always gets its per-scope items and the template (`R-NNN-SCOPE`).
-   * An ID that the classifier reads under another scope never raises the
+   * An ID that `displayIdScope` reads under another scope never raises the
    * next number of a scope ({@linkcode scopeFilter}).
    *
    * @param partial - The display-ID text typed so far, for the mid-typed
@@ -999,7 +999,7 @@ export class ProjectContext {
   /**
    * The `(prefix, suffix)` of `displayId` under one scaffold pattern: the
    * pattern's own affixes, or for a `{scope}` pattern the affixes with the
-   * scope that the classifier reads from `displayId`. `undefined` when the
+   * scope that `displayIdScope` reads from `displayId`. `undefined` when the
    * display ID does not match the `{scope}` pattern.
    */
   private affixesFor(

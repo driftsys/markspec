@@ -233,7 +233,7 @@ export interface EntryTypeInfo {
   readonly scopeTemplate?: ScopeTemplate;
   /**
    * The scope value of a per-scope item of a `{scope}` pattern (#1038). The
-   * resolve handler uses it so that IDs the classifier reads under another
+   * resolve handler uses it so that IDs `displayIdScope` reads under another
    * scope do not raise the minted number.
    */
   readonly scope?: string;

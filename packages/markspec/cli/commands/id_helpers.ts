@@ -57,8 +57,9 @@ export function namedIdTemplate(pattern: string): string {
  * A numbered pattern with a `{scope}` placeholder (`SRS_{scope}_{n:04d}`)
  * needs `scope`, the `--scope` value: it replaces the placeholder, so the
  * number is the highest number in that scope plus one (#1038); an ID that
- * the classifier reads under another scope never counts. See
- * {@linkcode resolveScopedPattern} for the errors.
+ * `displayIdScope` reads under another scope never counts
+ * (`displayIdScopeFilter`). See {@linkcode resolveScopedPattern} for the
+ * errors.
  *
  * Exits when `pattern` is genuinely malformed (which profile-load now
  * rejects upstream via PROFILE-TYPE-008, so this is a defensive fallback),
@@ -76,9 +77,9 @@ export function nextDisplayId(
     resolveScopedPattern(pattern, entryList, scope),
   );
   if (shape) {
-    // For a `{scope}` pattern, an ID that classifies under another scope does
-    // not count, even when it starts with the scoped prefix (`G_BR10001` is
-    // scope `BR1` for `G_{scope}{n:04d}`, not scope `BR`).
+    // For a `{scope}` pattern, an ID that displayIdScope reads under another
+    // scope does not count, even when it starts with the scoped prefix
+    // (`G_BR10001` is scope `BR1` for `G_{scope}{n:04d}`, not scope `BR`).
     const accept = scope === undefined
       ? undefined
       : displayIdScopeFilter(pattern, scope);

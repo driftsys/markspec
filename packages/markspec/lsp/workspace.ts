@@ -232,8 +232,9 @@ export class WorkspaceIndex {
    *   `(prefix, suffix)`; entries are not re-filtered here.
    * @param accept - Optional test that a display ID must pass to count.
    *   For a `{scope}` pattern the caller passes `displayIdScopeFilter`, so
-   *   an ID that classifies under another scope but starts with the scoped
-   *   prefix does not raise the number (#1038). Every ID counts by default.
+   *   an ID that `displayIdScope` reads under another scope but starts with
+   *   the scoped prefix does not raise the number (#1038). Every ID counts
+   *   by default.
    */
   getNextDisplayIdNumber(
     prefix: string,

@@ -640,11 +640,20 @@ Deno.test("lsp completions: each bare scaffold resolves as its own type when a r
 Deno.test("lsp completions: resolve ignores a scaffold payload with a malformed scope (#1038)", async () => {
   const { client, items } = await scopedCompletion("- [", 3);
   try {
-    const item = items[0];
+    // A payload for scope STR, which has no IDs yet: every number a resolve
+    // reserved would show up in the number the valid payload mints.
+    const item = {
+      ...items[0],
+      data: {
+        ...(items[0].data as Record<string, unknown>),
+        prefix: "SRS_STR_",
+        scope: "STR",
+      },
+    };
     for (const scope of ["B_K", "", 7]) {
       const tampered = {
         ...item,
-        data: { ...(item.data as Record<string, unknown>), scope },
+        data: { ...item.data, scope },
       };
       const resolved = await client.request(
         "completionItem/resolve",
@@ -654,13 +663,13 @@ Deno.test("lsp completions: resolve ignores a scaffold payload with a malformed 
       assertEquals(resolved.label, item.label);
       assertEquals(resolved.insertText, item.insertText);
     }
-    // The untampered item still mints the first free number, so the
+    // The valid payload mints the first number of scope STR, so the
     // tampered resolves reserved nothing.
     const resolved = await client.request(
       "completionItem/resolve",
       item,
     ) as ScopedItem;
-    assertEquals(resolved.label, "New software-requirement (SRS_BRK_0002)");
+    assertEquals(resolved.label, "New software-requirement (SRS_STR_0001)");
   } finally {
     await client.shutdown();
   }
