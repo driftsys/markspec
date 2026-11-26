@@ -41,6 +41,12 @@ Appends a scaffolded entry block to `<file>`. The block contains:
 The file is modified in place. Only the new block is appended; existing content
 is never touched.
 
+If the type's `display-id-pattern` has a `{scope}` placeholder (for example
+`SRS_{scope}_{n:04d}`), pass `--scope <value>`:
+`markspec insert <type> <file> --scope BRK`. Without it, `insert` exits 1, lists
+the scopes in use, and writes nothing. `next-id` and `create` take the same
+flag.
+
 **Then:** fill in the `Title` and `Body` prose in the editor. Do not touch `Id:`
 or the display ID — the formatter owns them.
 

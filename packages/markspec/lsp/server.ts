@@ -49,6 +49,7 @@ import {
   formatFeatureText,
   isCorpusEntry,
   isLineFenced,
+  isValidScope,
   isWithin,
   loadMarkdownFormatter,
   makeDisplayId,
@@ -871,8 +872,9 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
           character: params.position.character,
         },
       };
+      // The partial selects the scope of a `{scope}` pattern (#1038).
       const items = buildMidTypedScaffoldItems(
-        ctx.getEntryTypes(),
+        ctx.getEntryTypes(partial),
         partial,
         ulid,
         replacementRange,
@@ -887,7 +889,8 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
         insertTextFormat: InsertTextFormat.Snippet,
         kind: CompletionItemKind.Snippet,
         textEdit: item.textEdit,
-        data: {
+        // A `{scope}` template has no number to mint or reserve (#1038).
+        data: item.scopeTemplate ? undefined : {
           kind: SCAFFOLD_COMPLETION_KIND,
           typeName: item.typeName,
           prefix: item.prefix,
@@ -896,6 +899,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
           named: item.named,
           replacementRange: item.textEdit.range,
           uri: params.textDocument.uri,
+          scope: item.scope,
         } satisfies ScaffoldCompletionData,
       }));
     });
@@ -904,10 +908,12 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   // Trigger 1: Block scaffold
   if (isBlockScaffoldTrigger(line)) {
     return time("onCompletion/scaffold", () => {
-      const types = ctx.getEntryTypes();
-      const items = buildBlockScaffoldItems(types, ulid);
-      return items.map((item, i) => {
-        const type = types[i];
+      const items = buildBlockScaffoldItems(ctx.getEntryTypes(), ulid);
+      return items.map((item) => {
+        // The item's own type: the items are sorted recommended-first, so
+        // their order can differ from the type list. A `{scope}` template
+        // has no number to mint or reserve (#1038).
+        const type = item.type?.scopeTemplate ? undefined : item.type;
         return {
           label: item.label,
           detail: item.detail,
@@ -927,6 +933,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
               suffix: type.suffix,
               named: type.named,
               uri: params.textDocument.uri,
+              scope: type.scope,
             } satisfies ScaffoldCompletionData
             : undefined,
         };
@@ -1085,7 +1092,9 @@ connection.onCompletionResolve((item): CompletionItem => {
   if (
     typeof data.prefix !== "string" || data.prefix.length > 64 ||
     typeof data.typeName !== "string" || data.typeName.length > 128 ||
-    typeof data.suffix !== "string" || data.suffix.length > 64
+    typeof data.suffix !== "string" || data.suffix.length > 64 ||
+    (data.scope !== undefined &&
+      (typeof data.scope !== "string" || !isValidScope(data.scope)))
   ) {
     return item;
   }
@@ -1117,10 +1126,13 @@ connection.onCompletionResolve((item): CompletionItem => {
     // window — before this entry reaches the index — sees the number as
     // taken and picks the next one, closing the duplicate-ID race.
     const { prefix, suffix } = data;
+    // For a `{scope}` pattern, IDs of other scopes never count (#1038).
+    const accept = ctx.scopeFilter(data.typeName, data.scope);
     const nextNumber = mintReservedNumber(
       prefix,
       suffix,
-      (reserved) => ctx.index.getNextDisplayIdNumber(prefix, suffix, reserved),
+      (reserved) =>
+        ctx.index.getNextDisplayIdNumber(prefix, suffix, reserved, accept),
     );
     rendered = renderScaffoldSnippet({
       typeName: data.typeName,

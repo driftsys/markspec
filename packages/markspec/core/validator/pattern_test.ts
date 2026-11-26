@@ -5,7 +5,12 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { compileDisplayIdPattern } from "./pattern.ts";
+import {
+  compileDisplayIdPattern,
+  displayIdScope,
+  displayIdScopeFilter,
+  displayIdScopesInUse,
+} from "./pattern.ts";
 
 Deno.test("compileDisplayIdPattern: bare {n} becomes \\d+", () => {
   const r = compileDisplayIdPattern("REQ-{n}");
@@ -165,4 +170,61 @@ Deno.test("compileDisplayIdPattern: all-literal pattern (no placeholder) still t
       throw new Error(`expected '{n}' in error message, got: ${msg}`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// {scope} values in use (#1038)
+// ---------------------------------------------------------------------------
+
+Deno.test("displayIdScope: the scope of a display ID that matches the pattern", () => {
+  assertEquals(displayIdScope("SRS_{scope}_{n:04d}", "SRS_BRK_0001"), "BRK");
+  assertEquals(displayIdScope("REQ-{n:03d}-{scope}", "REQ-012-ENG"), "ENG");
+});
+
+Deno.test("displayIdScope: undefined for an ID that does not match or a pattern without {scope}", () => {
+  assertEquals(
+    displayIdScope("SRS_{scope}_{n:04d}", "STK_BRK_0001"),
+    undefined,
+  );
+  assertEquals(displayIdScope("SRS_{scope}_{n:04d}", "SRS_BRK_01"), undefined);
+  assertEquals(displayIdScope("STK_{n:04d}", "STK_0001"), undefined);
+  assertEquals(displayIdScope("SRS_{scope", "SRS_BRK_0001"), undefined);
+});
+
+Deno.test("displayIdScopesInUse: sorted, deduplicated scopes of the matching entries", () => {
+  const entries = [
+    { displayId: "SRS_ENG_0002" },
+    { displayId: "SRS_BRK_0001" },
+    { displayId: "SRS_BRK_0003" },
+    { displayId: "STK_0001" },
+    { displayId: "SRS_B_K_0001" },
+  ];
+  assertEquals(
+    displayIdScopesInUse("SRS_{scope}_{n:04d}", entries),
+    ["BRK", "ENG"],
+  );
+});
+
+Deno.test("displayIdScopesInUse: empty for a pattern without {scope} or a malformed pattern", () => {
+  const entries = [{ displayId: "STK_0001" }];
+  assertEquals(displayIdScopesInUse("STK_{n:04d}", entries), []);
+  assertEquals(displayIdScopesInUse("STK_{n}{n}", entries), []);
+});
+
+Deno.test("displayIdScopeFilter: drops an ID the classifier reads under another scope", () => {
+  const accept = displayIdScopeFilter("G_{scope}{n:04d}", "BR");
+  assertEquals(accept("G_BR10001"), false);
+  assertEquals(accept("G_BR0003"), true);
+});
+
+Deno.test("displayIdScopeFilter: keeps an ID the classifier does not match", () => {
+  const accept = displayIdScopeFilter("SRS_{scope}_{n:04d}", "BRK");
+  assertEquals(accept("SRS_BRK_10000"), true);
+  assertEquals(accept("SRS_ENG_0001"), false);
+  assertEquals(accept("SRS_BRK_0001"), true);
+});
+
+Deno.test("displayIdScopeFilter: keeps every ID for a pattern without {scope}", () => {
+  const accept = displayIdScopeFilter("STK_{n:04d}", "BRK");
+  assertEquals(accept("STK_0001"), true);
 });

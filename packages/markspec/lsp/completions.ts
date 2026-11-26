@@ -176,6 +176,13 @@ export interface CompletionItemData {
   readonly isSnippet: boolean;
   /** LSP CompletionItemKind numeric value. */
   readonly kind: number;
+  /**
+   * The entry type a block-scaffold item renders. Set on the items that
+   * {@linkcode buildBlockScaffoldItems} builds from profile types, so the
+   * server attaches the resolve payload of the right type after the
+   * recommended-first sort (#1038). Absent on the generic fallback item.
+   */
+  readonly type?: EntryTypeInfo;
 }
 
 /** CompletionItemKind.Snippet = 15, CompletionItemKind.Reference = 18 */
@@ -213,6 +220,30 @@ export interface EntryTypeInfo {
    * a minted number (#598).
    */
   readonly named?: boolean;
+  /**
+   * Set for the fill-in template of a type whose pattern has a `{scope}`
+   * placeholder (#1038), on either side of the counter. `prefix` holds the
+   * pattern text before the first placeholder, which mid-typed matching
+   * uses. The scaffold inserts `beforeScope`, a `${1:SCOPE}` tab stop, and
+   * `afterScope`, where the counter is written as one `N` per digit. The
+   * template is not mintable: `width`, `suffix` and `nextNumber` are unused,
+   * and the item carries no resolve payload. A type's per-scope items have
+   * `{scope}` already replaced and leave this field unset.
+   */
+  readonly scopeTemplate?: ScopeTemplate;
+  /**
+   * The scope value of a per-scope item of a `{scope}` pattern (#1038). The
+   * resolve handler uses it so that IDs the classifier reads under another
+   * scope do not raise the minted number.
+   */
+  readonly scope?: string;
+}
+
+/** The display-ID text on each side of the `SCOPE` tab stop of a scope
+ * template, with the counter written as one `N` per digit. */
+export interface ScopeTemplate {
+  readonly beforeScope: string;
+  readonly afterScope: string;
 }
 
 /**
@@ -304,6 +335,12 @@ export interface ScaffoldSnippetInput {
    * `suffix`, and `nextNumber` are ignored in this mode (#598).
    */
   readonly named?: boolean;
+  /**
+   * Set to render the fill-in template of a `{scope}` pattern (#1038):
+   * `beforeScope`, a `${1:SCOPE}` tab stop, and `afterScope`. `prefix`,
+   * `width`, `suffix`, and `nextNumber` are ignored in this mode.
+   */
+  readonly scopeTemplate?: ScopeTemplate;
 }
 
 /**
@@ -351,6 +388,11 @@ export interface ScaffoldCompletionData {
    * used.
    */
   readonly uri?: string;
+  /**
+   * The scope value of a per-scope item of a `{scope}` pattern (#1038), so
+   * the resolve handler leaves out the IDs of other scopes when it mints.
+   */
+  readonly scope?: string;
 }
 
 /**
@@ -377,6 +419,18 @@ export function renderScaffoldSnippet(
   input: ScaffoldSnippetInput,
 ): { label: string; insertText: string } {
   const safeTypeName = escapeSnippet(input.typeName);
+  // Scope template (#1038): the author types the scope into the first tab
+  // stop; the number stays a placeholder, since a scope is needed to mint
+  // it. The later stops shift one place, as for a named type.
+  if (input.scopeTemplate) {
+    const { beforeScope, afterScope } = input.scopeTemplate;
+    return {
+      label: `New ${safeTypeName} (${beforeScope}SCOPE${afterScope})`,
+      insertText: `${escapeSnippet(beforeScope)}\${1:SCOPE}${
+        escapeSnippet(afterScope)
+      }] \${2:Title}\n\n  \${3:Body.}\n\n      Id: ${input.ulid}\n      \${4:Satisfies: }`,
+    };
+  }
   // Named (counter-less) type (#598): no number to mint. The author types
   // the identifier into the first tab stop after the literal prefix, so the
   // Title/Body/Satisfies stops shift one place to avoid colliding with it.
@@ -420,6 +474,11 @@ export function renderScaffoldSnippet(
  * pre-filled display ID and attribute skeleton. The typed-profile path
  * calls `ulidProvider()` once per item and bakes the real ULID into the
  * snippet text.
+ *
+ * Each item carries the {@linkcode EntryTypeInfo} it renders in `type`, so
+ * the caller can attach the resolve payload after the recommended-first
+ * sort. A scope template ({@linkcode EntryTypeInfo.scopeTemplate}) renders a
+ * `${1:SCOPE}` tab stop instead of a number (#1038).
  *
  * When `types` is empty (no profile loaded), returns a single generic
  * scaffold item that retains the literal `${ULID}` placeholder. The
@@ -469,6 +528,7 @@ export function buildBlockScaffoldItems(
       nextNumber: type.nextNumber,
       ulid: ulidProvider(),
       named: type.named,
+      scopeTemplate: type.scopeTemplate,
     });
     const detail = type.modeRecommended === true
       ? `${type.name} (recommended)`
@@ -479,6 +539,7 @@ export function buildBlockScaffoldItems(
       insertText: rendered.insertText,
       isSnippet: true,
       kind: KIND_SNIPPET,
+      type,
     };
   });
 }
@@ -512,6 +573,11 @@ export interface MidTypedScaffoldItem {
    * the resolve-time {@linkcode ScaffoldCompletionData} so it skips minting
    * a number (#598). */
   readonly named?: boolean;
+  /** Set for the fill-in template of a `{scope}` pattern; the server
+   * attaches no resolve payload to it, so it never mints a number (#1038). */
+  readonly scopeTemplate?: ScopeTemplate;
+  /** The scope value of a per-scope item of a `{scope}` pattern (#1038). */
+  readonly scope?: string;
   readonly textEdit: {
     readonly range: ReplacementRange;
     readonly newText: string;
@@ -537,6 +603,10 @@ export interface MidTypedScaffoldItem {
  * `replacementRange` (the span covering the typed partial). Items whose
  * `prefix` exactly equals the partial sort first; remaining matches keep
  * the caller's order.
+ *
+ * A scope template ({@linkcode EntryTypeInfo.scopeTemplate}) matches by
+ * the pattern text before its first placeholder, which its `prefix` holds,
+ * and renders a `${1:SCOPE}` tab stop instead of a number (#1038).
  *
  * Returns an empty array when no profile type matches (including when
  * `types` is empty), so the server falls back to no completion — the
@@ -576,6 +646,7 @@ export function buildMidTypedScaffoldItems(
       nextNumber: type.nextNumber,
       ulid: ulidProvider(),
       named: type.named,
+      scopeTemplate: type.scopeTemplate,
     });
     return {
       label: rendered.label,
@@ -585,6 +656,8 @@ export function buildMidTypedScaffoldItems(
       width: type.width,
       suffix: type.suffix,
       named: type.named,
+      scopeTemplate: type.scopeTemplate,
+      scope: type.scope,
       textEdit: { range: replacementRange, newText: rendered.insertText },
     };
   });

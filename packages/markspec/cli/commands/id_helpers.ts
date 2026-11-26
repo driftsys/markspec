@@ -6,10 +6,16 @@
  */
 
 import {
+  displayIdScopeFilter,
+  displayIdScopesInUse,
   formatDisplayId,
+  hasScopePlaceholder,
   highestDisplayIdNumber,
+  isValidScope,
   parseDisplayIdPattern,
   type ProfileChain,
+  SEGMENT_CLASS,
+  substituteScope,
   validateDisplayIdPattern,
 } from "../../core/mod.ts";
 
@@ -48,16 +54,41 @@ export function namedIdTemplate(pattern: string): string {
  * placeholder template (`SWC_NAME`) so `create` / `insert` scaffold a block
  * that still passes `markspec check`, and `next-id` prints the form to fill in.
  *
- * Exits only when `pattern` is genuinely malformed (which profile-load now
- * rejects upstream via PROFILE-TYPE-008, so this is a defensive fallback).
+ * A numbered pattern with a `{scope}` placeholder (`SRS_{scope}_{n:04d}`)
+ * needs `scope`, the `--scope` value: it replaces the placeholder, so the
+ * number is the highest number in that scope plus one (#1038); an ID that
+ * the classifier reads under another scope never counts. See
+ * {@linkcode resolveScopedPattern} for the errors.
+ *
+ * Exits when `pattern` is genuinely malformed (which profile-load now
+ * rejects upstream via PROFILE-TYPE-008, so this is a defensive fallback),
+ * or when `scope` does not suit the pattern.
  */
 export function nextDisplayId(
   pattern: string,
   entries: Iterable<{ displayId: string }>,
+  scope?: string,
 ): string {
-  const shape = parseDisplayIdPattern(pattern);
+  // Read the entries once: the scope listing and the number scan both use
+  // them, and an iterator such as `Map.values()` can be read only once.
+  const entryList = [...entries];
+  const shape = parseDisplayIdPattern(
+    resolveScopedPattern(pattern, entryList, scope),
+  );
   if (shape) {
-    return formatDisplayId(shape, highestDisplayIdNumber(shape, entries) + 1);
+    // For a `{scope}` pattern, an ID that classifies under another scope does
+    // not count, even when it starts with the scoped prefix (`G_BR10001` is
+    // scope `BR1` for `G_{scope}{n:04d}`, not scope `BR`).
+    const accept = scope === undefined
+      ? undefined
+      : displayIdScopeFilter(pattern, scope);
+    const counted = accept
+      ? entryList.filter((e) => accept(e.displayId))
+      : entryList;
+    return formatDisplayId(
+      shape,
+      highestDisplayIdNumber(shape, counted) + 1,
+    );
   }
   const validation = validateDisplayIdPattern(pattern);
   if (validation.ok) {
@@ -73,6 +104,49 @@ export function nextDisplayId(
     `error: display-id-pattern '${pattern}' is invalid: ${validation.message}`,
   );
   Deno.exit(1);
+}
+
+/**
+ * Apply the `--scope` value to `pattern`. For a numbered pattern with a
+ * `{scope}` placeholder, returns the pattern with `scope` in place of the
+ * placeholder. For any other pattern, returns it unchanged. Prints an error
+ * and exits 1 when the pattern has `{scope}` and `scope` is absent (the
+ * message lists the scopes `entries` already use), when `scope` is set but
+ * the pattern has no `{scope}`, or when `scope` is not one or more ASCII
+ * letters or digits.
+ */
+export function resolveScopedPattern(
+  pattern: string,
+  entries: Iterable<{ displayId: string }>,
+  scope: string | undefined,
+): string {
+  if (!hasScopePlaceholder(pattern)) {
+    if (scope === undefined) return pattern;
+    console.error(
+      `error: --scope applies only to a numbered display-id-pattern with a ` +
+        `{scope} placeholder; '${pattern}' has none`,
+    );
+    Deno.exit(1);
+  }
+  if (scope === undefined) {
+    const inUse = displayIdScopesInUse(pattern, entries);
+    const listing = inUse.length > 0
+      ? `scopes in use: ${inUse.join(", ")}`
+      : "no scope is in use yet";
+    console.error(
+      `error: display-id-pattern '${pattern}' has a {scope} placeholder; ` +
+        `pass --scope <value> (${listing})`,
+    );
+    Deno.exit(1);
+  }
+  if (!isValidScope(scope)) {
+    console.error(
+      `error: --scope '${scope}' is invalid: a scope must match ` +
+        `${SEGMENT_CLASS} (ASCII letters and digits only)`,
+    );
+    Deno.exit(1);
+  }
+  return substituteScope(pattern, scope);
 }
 
 /**

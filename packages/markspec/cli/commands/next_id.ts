@@ -14,10 +14,14 @@ export const nextIdCmd = new Command()
   .option("--format <format:string>", "Output format (json|text)", {
     default: "text",
   })
+  .option(
+    "--scope <scope:string>",
+    "Value for the {scope} placeholder of the type's display-id-pattern",
+  )
   .arguments("<type:string> <paths...:string>")
   .action(
     async (
-      options: { format?: string },
+      options: { format?: string; scope?: string },
       typeName: string,
       ...paths: string[]
     ) => {
@@ -27,7 +31,11 @@ export const nextIdCmd = new Command()
         Deno.exit(1);
       }
       const pattern = resolveTypePattern(typeName, chain, "next-id");
-      const value = nextDisplayId(pattern, result.entries.values());
+      const value = nextDisplayId(
+        pattern,
+        result.entries.values(),
+        options.scope,
+      );
       // A named (counter-less) type is not mintable: `value` is a fill-in
       // template (e.g. `SWC_NAME`), not an allocated ID. parseDisplayIdPattern
       // returns undefined only for named patterns here (malformed ones already

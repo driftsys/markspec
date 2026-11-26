@@ -199,14 +199,23 @@ export { inferDisciplineMode, resolveDisciplineMode } from "./profile/mod.ts";
 // DisciplineMode type already re-exported via Task 2.
 export {
   formatDisplayId,
+  hasScopePlaceholder,
   highestDisplayIdNumber,
+  inferDisplayIdScope,
+  isValidScope,
   padDisplayIdNumber,
   parseDisplayIdPattern,
+  parseScopeSlot,
+  scopeTemplateText,
+  SEGMENT_CLASS,
+  substituteScope,
   validateDisplayIdPattern,
 } from "./profile/mod.ts";
 export type {
   DisplayIdPatternShape,
   DisplayIdPatternValidation,
+  ScopeSlot,
+  ScopeTemplateText,
 } from "./profile/mod.ts";
 
 export {
@@ -305,6 +314,9 @@ export {
   classifyEntry,
   compileDisplayIdPattern,
   detectCorpusCollisions,
+  displayIdScope,
+  displayIdScopeFilter,
+  displayIdScopesInUse,
   effectiveScope,
   effectiveTraceRules,
   matchesAnyTarget,

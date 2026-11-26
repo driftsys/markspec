@@ -29,11 +29,30 @@
  *   REQ-{n}               → numbered, width 1
  *   SWC_{name}            → named (classifying only — not mintable)
  *
- * Note: the `{scope}` placeholder documented in the profile schema is NOT
- * substituted here. For a numbered pattern like `XREQ_{scope}_{n:04d}`,
- * the literal `{scope}` text ends up in `prefix` and must be replaced
- * upstream before the pattern is fed to scaffolding.
+ * The `{scope}` placeholder documented in the profile schema is not
+ * substituted by {@linkcode parseDisplayIdPattern}: for a numbered pattern
+ * like `XREQ_{scope}_{n:04d}`, the literal `{scope}` text stays in `prefix`.
+ * A caller that mints an ID first calls {@linkcode substituteScope} with a
+ * scope value that {@linkcode isValidScope} accepts (the CLI `--scope` flag,
+ * or a scope the LSP reads from the index or from the typed text), so the
+ * prefix holds the scope and the next number counts only that scope (#1038).
+ * Other named placeholders in a numbered pattern stay in their `{name}` form.
  */
+
+/**
+ * Character class for a medial named placeholder (e.g. `{scope}` between two
+ * literal segments): a single free alphanumeric run that stops at the next
+ * literal. The classifier (`compileDisplayIdPattern`) matches the placeholder
+ * with this class, and {@linkcode isValidScope} checks a scope value with it,
+ * so a minted scope always classifies.
+ */
+export const SEGMENT_CLASS = "[A-Za-z0-9]+";
+
+/** Name of the scope placeholder, `{scope}`, in a numbered pattern. */
+const SCOPE_NAME = "scope";
+
+/** A whole value that matches {@linkcode SEGMENT_CLASS}. */
+const SCOPE_VALUE_RE = new RegExp(`^${SEGMENT_CLASS}$`);
 
 /** Width-and-position decomposition of a *numbered* display-id-pattern. */
 export interface DisplayIdPatternShape {
@@ -265,4 +284,149 @@ export function highestDisplayIdNumber(
     if (!isNaN(n) && n > max) max = n;
   }
   return max;
+}
+
+/**
+ * Escape `text` for literal use inside a RegExp source. Shared with the
+ * classifier in `core/validator/pattern.ts`.
+ */
+export function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The tokens of a numbered pattern (exactly one counter), or `undefined`. */
+function numberedTokens(pattern: string): PatternToken[] | undefined {
+  const tokens = tokenizePattern(pattern);
+  const counters = tokens.filter((t) => t.kind === "counter").length;
+  return counters === 1 ? tokens : undefined;
+}
+
+/** `true` for the `{scope}` named token. */
+function isScopeToken(token: PatternToken): boolean {
+  return token.kind === "named" && token.name === SCOPE_NAME;
+}
+
+/**
+ * `true` when `pattern` is a *numbered* pattern (exactly one counter) that
+ * contains a `{scope}` placeholder, before or after the counter. Such a
+ * pattern mints an ID only once a scope value is chosen
+ * ({@linkcode substituteScope}). A named (counter-less) pattern is never
+ * scoped in this sense: it is not mintable.
+ */
+export function hasScopePlaceholder(pattern: string): boolean {
+  return numberedTokens(pattern)?.some(isScopeToken) ?? false;
+}
+
+/**
+ * `true` when `value` can replace a `{scope}` placeholder: one or more ASCII
+ * letters or digits ({@linkcode SEGMENT_CLASS}), the same class the
+ * classifier matches the placeholder with.
+ */
+export function isValidScope(value: string): boolean {
+  return SCOPE_VALUE_RE.test(value);
+}
+
+/**
+ * Replace the `{scope}` placeholder of `pattern` with `scope`. The result
+ * feeds {@linkcode parseDisplayIdPattern}, whose prefix (or suffix) then
+ * holds the scope, so {@linkcode highestDisplayIdNumber} counts only the IDs
+ * of that scope. Every other token is kept as written, including other
+ * named placeholders. A pattern without `{scope}` is returned unchanged.
+ * The caller checks `scope` with {@linkcode isValidScope} first.
+ */
+export function substituteScope(pattern: string, scope: string): string {
+  return tokenizePattern(pattern)
+    .map((t) => isScopeToken(t) ? scope : reconstructLiteral(t))
+    .join("");
+}
+
+/** The literal text around the `{scope}` placeholder of a numbered pattern. */
+export interface ScopeSlot {
+  /** Pattern text before `{scope}`. */
+  readonly beforeScope: string;
+  /** Pattern text between `{scope}` and the counter. */
+  readonly afterScope: string;
+}
+
+/**
+ * Split a numbered pattern at its `{scope}` placeholder: the text before the
+ * placeholder and the text between the placeholder and the counter. Returns
+ * `undefined` when the pattern is not numbered, has no `{scope}`, or places
+ * `{scope}` after the counter (`REQ-{n:03d}-{scope}`), where an ID prefix
+ * does not hold the scope.
+ */
+export function parseScopeSlot(pattern: string): ScopeSlot | undefined {
+  const tokens = numberedTokens(pattern);
+  if (!tokens) return undefined;
+  const scopeIndex = tokens.findIndex(isScopeToken);
+  const counterIndex = tokens.findIndex((t) => t.kind === "counter");
+  if (scopeIndex < 0 || scopeIndex > counterIndex) return undefined;
+  return {
+    beforeScope: tokens.slice(0, scopeIndex).map(reconstructLiteral).join(""),
+    afterScope: tokens.slice(scopeIndex + 1, counterIndex)
+      .map(reconstructLiteral).join(""),
+  };
+}
+
+/** The fill-in display-ID text of a numbered pattern with `{scope}`. */
+export interface ScopeTemplateText {
+  /** Pattern text before the first of `{scope}` and the counter: the part
+   * every display ID of the pattern starts with. */
+  readonly anchor: string;
+  /** Display-ID text before `{scope}`, with the counter (when it comes
+   * first) written as one `N` per digit of its width. */
+  readonly beforeScope: string;
+  /** Display-ID text after `{scope}`, with the counter (when it comes
+   * after) written as one `N` per digit of its width. */
+  readonly afterScope: string;
+}
+
+/**
+ * The fill-in text of a numbered pattern with a `{scope}` placeholder, on
+ * either side of the counter: `SRS_{scope}_{n:04d}` gives `SRS_` + scope +
+ * `_NNNN`, and `R-{n:03d}-{scope}` gives `R-NNN-` + scope. A scaffold puts a
+ * `SCOPE` tab stop between the two parts. Other named placeholders keep their
+ * `{name}` form. Returns `undefined` when {@linkcode hasScopePlaceholder} is
+ * `false`.
+ */
+export function scopeTemplateText(
+  pattern: string,
+): ScopeTemplateText | undefined {
+  const tokens = numberedTokens(pattern);
+  if (!tokens) return undefined;
+  const scopeIndex = tokens.findIndex(isScopeToken);
+  if (scopeIndex < 0) return undefined;
+  const counterIndex = tokens.findIndex((t) => t.kind === "counter");
+  const render = (t: PatternToken): string =>
+    t.kind === "counter"
+      ? "N".repeat(t.padding ? parseInt(t.padding, 10) : 1)
+      : reconstructLiteral(t);
+  return {
+    anchor: tokens.slice(0, Math.min(scopeIndex, counterIndex))
+      .map(reconstructLiteral).join(""),
+    beforeScope: tokens.slice(0, scopeIndex).map(render).join(""),
+    afterScope: tokens.slice(scopeIndex + 1).map(render).join(""),
+  };
+}
+
+/**
+ * The scope value that `text` holds for `pattern`, when `text` starts with
+ * the text before `{scope}`, a valid scope value, and the full text between
+ * `{scope}` and the counter (`SRS_BRK_` or `SRS_BRK_00` for
+ * `SRS_{scope}_{n:04d}` give `BRK`). Returns `undefined` for a shorter text
+ * (`SRS_B`), a pattern without a {@linkcode parseScopeSlot} slot, or a
+ * pattern with no text between `{scope}` and the counter, where the end of
+ * the scope cannot be found without the counter.
+ */
+export function inferDisplayIdScope(
+  pattern: string,
+  text: string,
+): string | undefined {
+  const slot = parseScopeSlot(pattern);
+  if (!slot || slot.afterScope.length === 0) return undefined;
+  const re = new RegExp(
+    `^${escapeRegex(slot.beforeScope)}(${SEGMENT_CLASS})` +
+      escapeRegex(slot.afterScope),
+  );
+  return re.exec(text)?.[1];
 }

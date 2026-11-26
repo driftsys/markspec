@@ -230,15 +230,21 @@ export class WorkspaceIndex {
    *   participate in reservation (e.g. the build-time scaffold path). The
    *   caller is responsible for passing a set scoped to this
    *   `(prefix, suffix)`; entries are not re-filtered here.
+   * @param accept - Optional test that a display ID must pass to count.
+   *   For a `{scope}` pattern the caller passes `displayIdScopeFilter`, so
+   *   an ID that classifies under another scope but starts with the scoped
+   *   prefix does not raise the number (#1038). Every ID counts by default.
    */
   getNextDisplayIdNumber(
     prefix: string,
     suffix = "",
     reserved: ReadonlySet<number> = NO_RESERVATIONS,
+    accept: (displayId: string) => boolean = () => true,
   ): number {
     let max = 0;
     for (const id of this.byDisplayId.keys()) {
       if (!id.startsWith(prefix)) continue;
+      if (!accept(id)) continue;
       if (suffix && !id.endsWith(suffix)) continue;
       const numberPart = id.slice(prefix.length, id.length - suffix.length);
       const num = parseInt(numberPart, 10);

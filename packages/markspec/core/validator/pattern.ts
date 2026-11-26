@@ -41,7 +41,10 @@
  */
 
 import {
+  escapeRegex,
+  hasScopePlaceholder,
   type PatternToken,
+  SEGMENT_CLASS,
   tokenizePattern,
   validateDisplayIdPattern,
 } from "../profile/display_id.ts";
@@ -53,13 +56,6 @@ import {
  * underscore-bearing IDs like `SWC_LIGHT_CTRL`.
  */
 const REST_OF_ID_CLASS = "[A-Za-z0-9._/-]+";
-
-/**
- * Character class for a medial named placeholder (e.g. `{scope}` between two
- * literal segments). A single free alphanumeric run that stops at the next
- * literal — never swallows an adjacent counter or separator.
- */
-const SEGMENT_CLASS = "[A-Za-z0-9]+";
 
 /**
  * Compile a display-ID pattern template into an anchored RegExp.
@@ -124,6 +120,62 @@ export function tryCompileDisplayIdPattern(
   }
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * The scope value of `displayId` for a numbered `pattern` with a `{scope}`
+ * placeholder: the text the classifier regex captures in its `scope` group.
+ * Returns `undefined` when the pattern has no `{scope}`, is malformed, or
+ * does not classify `displayId`.
+ */
+export function displayIdScope(
+  pattern: string,
+  displayId: string,
+): string | undefined {
+  if (!hasScopePlaceholder(pattern)) return undefined;
+  return tryCompileDisplayIdPattern(pattern)?.exec(displayId)?.groups?.scope;
+}
+
+/**
+ * A test for the display IDs that count toward the next number of `scope`
+ * under a numbered `pattern` with a `{scope}` placeholder: `false` for an ID
+ * the classifier reads under another scope, `true` otherwise. With nothing
+ * between `{scope}` and the counter (`G_{scope}{n:04d}`), `G_BR10001` starts
+ * with the prefix `G_BR` but classifies under scope `BR1`, so it must not
+ * raise the next number of `BR`. An ID the classifier does not match keeps
+ * counting by prefix as before, so a number wider than the padding
+ * (`SRS_BRK_10000` for `{n:04d}`) still moves the counter on. Every ID passes
+ * when the pattern has no `{scope}` or is malformed.
+ */
+export function displayIdScopeFilter(
+  pattern: string,
+  scope: string,
+): (displayId: string) => boolean {
+  const re = hasScopePlaceholder(pattern)
+    ? tryCompileDisplayIdPattern(pattern)
+    : undefined;
+  if (!re) return () => true;
+  return (displayId) => {
+    const found = re.exec(displayId)?.groups?.scope;
+    return found === undefined || found === scope;
+  };
+}
+
+/**
+ * The scope values already used by the entries whose display ID the
+ * classifier regex of `pattern` matches, sorted and deduplicated. Empty when
+ * the pattern has no `{scope}` placeholder or is malformed. The CLI lists
+ * them when `--scope` is missing; the LSP offers one scaffold per scope.
+ */
+export function displayIdScopesInUse(
+  pattern: string,
+  entries: Iterable<{ readonly displayId: string }>,
+): string[] {
+  if (!hasScopePlaceholder(pattern)) return [];
+  const re = tryCompileDisplayIdPattern(pattern);
+  if (!re) return [];
+  const scopes = new Set<string>();
+  for (const entry of entries) {
+    const scope = re.exec(entry.displayId)?.groups?.scope;
+    if (scope !== undefined) scopes.add(scope);
+  }
+  return [...scopes].sort();
 }

@@ -51,14 +51,23 @@ export {
 
 export {
   formatDisplayId,
+  hasScopePlaceholder,
   highestDisplayIdNumber,
+  inferDisplayIdScope,
+  isValidScope,
   padDisplayIdNumber,
   parseDisplayIdPattern,
+  parseScopeSlot,
+  scopeTemplateText,
+  SEGMENT_CLASS,
+  substituteScope,
   validateDisplayIdPattern,
 } from "./display_id.ts";
 export type {
   DisplayIdPatternShape,
   DisplayIdPatternValidation,
+  ScopeSlot,
+  ScopeTemplateText,
 } from "./display_id.ts";
 
 export {

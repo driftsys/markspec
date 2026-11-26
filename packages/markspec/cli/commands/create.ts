@@ -13,8 +13,12 @@ import { nextDisplayId, resolveTypePattern } from "./id_helpers.ts";
 
 export const createCmd = new Command()
   .description("Scaffold a new entry block for a profile-declared type")
+  .option(
+    "--scope <scope:string>",
+    "Value for the {scope} placeholder of the type's display-id-pattern",
+  )
   .arguments("<type:string> <paths...:string>")
-  .action(async (_options, typeName: string, ...paths: string[]) => {
+  .action(async (options, typeName: string, ...paths: string[]) => {
     const { result, chain } = await compileProject(paths);
     if (!chain) {
       console.error(`error: create requires a profile; none configured`);
@@ -28,7 +32,11 @@ export const createCmd = new Command()
     emitModeHintIfOffMode(typeName, chain.effective);
 
     const pattern = resolveTypePattern(typeName, chain, "create");
-    const displayId = nextDisplayId(pattern, result.entries.values());
+    const displayId = nextDisplayId(
+      pattern,
+      result.entries.values(),
+      options.scope,
+    );
 
     const { ulid } = await import("@std/ulid");
     const id = ulid();

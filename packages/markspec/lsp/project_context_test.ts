@@ -9,6 +9,16 @@ import { assertEquals } from "@std/assert";
 import { join, resolve } from "@std/path";
 import { ProjectContext, type ProjectContextHost } from "./project_context.ts";
 import { pathToUri } from "./util.ts";
+import {
+  buildBlockScaffoldItems,
+  buildMidTypedScaffoldItems,
+  type EntryTypeInfo,
+} from "./completions.ts";
+import {
+  _reset as _resetReservations,
+  isReserved,
+  reserve,
+} from "./id_reservations.ts";
 
 /** Absolute project root: on Windows it carries a drive letter. */
 const ROOT = resolve("/proj");
@@ -523,4 +533,220 @@ Deno.test("ProjectContext.closeFile: a file removed on close is kept when it com
   const ids = f.ctx.index.getEntriesForFile(target).map((e) => e.displayId);
   f.ctx.dispose();
   assertEquals(ids, ["REQ-0001"]);
+});
+
+// ---------------------------------------------------------------------------
+// {scope} placeholder in scaffold types (#1038)
+// ---------------------------------------------------------------------------
+
+const SCOPED_PROFILE_YAML = `id: "@acme/scoped"
+version: 0.1.0
+profile:
+  types:
+    software-requirement:
+      extends: Requirement
+      display-id-pattern: "SRS_{scope}_{n:04d}"
+`;
+
+const SCOPED_MD = `- [SRS_BRK_0001] Brake request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+
+- [SRS_ENG_0004] Engine request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`;
+
+/** A loaded context with the scoped profile and {@linkcode SCOPED_MD}. */
+async function scopedContext(): Promise<ProjectContext> {
+  const { ctx } = await fixture({
+    [`${ROOT}/.markspec.yaml`]: "profiles:\n  - ./profiles/p\n",
+    [`${ROOT}/profiles/p/markspec.yaml`]: SCOPED_PROFILE_YAML,
+    [`${ROOT}/project.yaml`]: "name: p\nversion: 0.1.0\n",
+  });
+  await ctx.index.parseAndUpdateFile(join(ROOT, "doc.md"), SCOPED_MD);
+  return ctx;
+}
+
+/** The scaffold labels for `types`, as the bare `- [` trigger offers them. */
+function scaffoldLabels(types: readonly EntryTypeInfo[]): string[] {
+  return buildBlockScaffoldItems(types, () => "01HFAKEULID00000000000000")
+    .map((i) => i.label);
+}
+
+Deno.test("ProjectContext.getEntryTypes: a scoped type offers one scaffold per scope in use plus a SCOPE template (#1038)", async () => {
+  const ctx = await scopedContext();
+  const types = ctx.getEntryTypes();
+  ctx.dispose();
+  assertEquals(scaffoldLabels(types), [
+    "New software-requirement (SRS_BRK_0002)",
+    "New software-requirement (SRS_ENG_0005)",
+    "New software-requirement (SRS_SCOPE_NNNN)",
+  ]);
+  for (const type of types) assertEquals(type.prefix.includes("{"), false);
+});
+
+Deno.test("ProjectContext.getEntryTypes: a partial that holds a scope offers only that scope (#1038)", async () => {
+  const ctx = await scopedContext();
+  const brk = ctx.getEntryTypes("SRS_BRK_");
+  const longer = ctx.getEntryTypes("SRS_BRK_00");
+  const fresh = ctx.getEntryTypes("SRS_STR_");
+  ctx.dispose();
+  assertEquals(scaffoldLabels(brk), [
+    "New software-requirement (SRS_BRK_0002)",
+  ]);
+  assertEquals(scaffoldLabels(longer), [
+    "New software-requirement (SRS_BRK_0002)",
+  ]);
+  assertEquals(scaffoldLabels(fresh), [
+    "New software-requirement (SRS_STR_0001)",
+  ]);
+});
+
+Deno.test("ProjectContext.getEntryTypes: a shorter partial offers the matching scopes in use and the template (#1038)", async () => {
+  const ctx = await scopedContext();
+  const range = {
+    start: { line: 0, character: 3 },
+    end: { line: 0, character: 8 },
+  };
+  const items = buildMidTypedScaffoldItems(
+    ctx.getEntryTypes("SRS_B"),
+    "SRS_B",
+    () => "01HFAKEULID00000000000000",
+    range,
+  );
+  ctx.dispose();
+  assertEquals(items.map((i) => i.label), [
+    "New software-requirement (SRS_BRK_0002)",
+    "New software-requirement (SRS_SCOPE_NNNN)",
+  ]);
+});
+
+Deno.test("ProjectContext.releaseObservedReservations: releases a reservation of a scoped display ID (#1038)", async () => {
+  _resetReservations();
+  try {
+    const ctx = await scopedContext();
+    reserve("SRS_BRK_", "", 2);
+    reserve("SRS_ENG_", "", 5);
+    const docPath = join(ROOT, "doc.md");
+    await ctx.index.parseAndUpdateFile(
+      docPath,
+      SCOPED_MD + `
+- [SRS_BRK_0002] Second brake request
+
+  Body text.
+
+      Id: 01SRS000000000000000000003
+`,
+    );
+    ctx.releaseObservedReservations(docPath);
+    ctx.dispose();
+    assertEquals(isReserved("SRS_BRK_", "", 2), false);
+    assertEquals(isReserved("SRS_ENG_", "", 5), true);
+  } finally {
+    _resetReservations();
+  }
+});
+
+/** A loaded context with one type of `pattern` and `md` indexed. */
+async function contextWithPattern(
+  pattern: string,
+  md: string,
+): Promise<ProjectContext> {
+  const { ctx } = await fixture({
+    [`${ROOT}/.markspec.yaml`]: "profiles:\n  - ./profiles/p\n",
+    [`${ROOT}/profiles/p/markspec.yaml`]: `id: "@acme/pattern"
+version: 0.1.0
+profile:
+  types:
+    release-requirement:
+      extends: Requirement
+      display-id-pattern: "${pattern}"
+`,
+    [`${ROOT}/project.yaml`]: "name: p\nversion: 0.1.0\n",
+  });
+  await ctx.index.parseAndUpdateFile(join(ROOT, "doc.md"), md);
+  return ctx;
+}
+
+Deno.test("ProjectContext.getEntryTypes: {scope} after the counter offers a template when no scope is in use (#1038)", async () => {
+  const ctx = await contextWithPattern("R-{n:03d}-{scope}", "# Empty\n");
+  const types = ctx.getEntryTypes();
+  ctx.dispose();
+  assertEquals(scaffoldLabels(types), [
+    "New release-requirement (R-NNN-SCOPE)",
+  ]);
+  assertEquals(types[0].prefix, "R-");
+});
+
+Deno.test("ProjectContext.getEntryTypes: {scope} after the counter offers each scope in use, the template, and the template for a partial (#1038)", async () => {
+  const ctx = await contextWithPattern(
+    "R-{n:03d}-{scope}",
+    `- [R-001-BRK] Brake release
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+`,
+  );
+  const bare = scaffoldLabels(ctx.getEntryTypes());
+  const range = {
+    start: { line: 0, character: 3 },
+    end: { line: 0, character: 6 },
+  };
+  const midTyped = buildMidTypedScaffoldItems(
+    ctx.getEntryTypes("R-0"),
+    "R-0",
+    () => "01HFAKEULID00000000000000",
+    range,
+  ).map((i) => i.label);
+  ctx.dispose();
+  assertEquals(bare, [
+    "New release-requirement (R-002-BRK)",
+    "New release-requirement (R-NNN-SCOPE)",
+  ]);
+  assertEquals(midTyped, bare);
+});
+
+Deno.test("ProjectContext.getEntryTypes: with nothing between {scope} and the counter, another scope's IDs do not count (#1038)", async () => {
+  const ctx = await contextWithPattern(
+    "G_{scope}{n:04d}",
+    `- [G_BR10001] Scope BR1 request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+
+- [G_BR0003] Scope BR request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`,
+  );
+  const types = ctx.getEntryTypes();
+  ctx.dispose();
+  // G_BR10001 is scope BR1: it starts with G_BR but must not make the next
+  // BR number 10002.
+  assertEquals(scaffoldLabels(types), [
+    "New release-requirement (G_BR0004)",
+    "New release-requirement (G_BR10002)",
+    "New release-requirement (G_SCOPENNNN)",
+  ]);
+});
+
+Deno.test("ProjectContext.scopeFilter: filters by scope for a {scope} type only (#1038)", async () => {
+  const ctx = await contextWithPattern("G_{scope}{n:04d}", "# Empty\n");
+  const accept = ctx.scopeFilter("release-requirement", "BR");
+  const none = ctx.scopeFilter("release-requirement", undefined);
+  const unknown = ctx.scopeFilter("no-such-type", "BR");
+  ctx.dispose();
+  assertEquals(accept?.("G_BR10001"), false);
+  assertEquals(accept?.("G_BR0001"), true);
+  assertEquals(none, undefined);
+  assertEquals(unknown, undefined);
 });
