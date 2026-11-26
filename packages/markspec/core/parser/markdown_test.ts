@@ -1915,3 +1915,10 @@ Deno.test("parseMarkdown: only an exact Id: key makes a block trailer-shaped for
     assertEquals(p025(text).lines, [], line);
   }
 });
+
+Deno.test("parseMarkdown: whitespace-only lines before the trailer are not body (#1022)", () => {
+  const md = "- [REQ-0001] Title\n\n  Body line.\n   \n\t\n\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const { entries: [entry] } = parseMarkdown(md);
+  assertEquals(entry.body, "Body line.");
+});

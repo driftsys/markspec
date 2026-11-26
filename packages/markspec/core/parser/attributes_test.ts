@@ -787,3 +787,10 @@ for (
     );
   });
 }
+
+Deno.test("splitBodyAndAttributes: drops whitespace-only lines before the trailer (#1022)", () => {
+  const [body] = splitBodyAndAttributes(
+    "Body line.  \n   \n\t\n\n    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
+  assertEquals(body, "Body line.  ");
+});
