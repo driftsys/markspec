@@ -127,30 +127,112 @@ function isConnector(word: string): boolean {
 }
 
 /**
+ * Extend a phrase that starts at the Capitalized word `words[start]`, per
+ * ADR-021 Decision 2, and return the indexes of the words it holds. The
+ * phrase consumes:
+ *   - additional Capitalized words (always extend, no connector cost)
+ *   - lowercase connector words (cost +1 per word, max budget 2), only
+ *     when the connector run is followed by a Capitalized word.
+ *
+ * It stops when the connector budget is exhausted or a non-connector
+ * lowercase word is encountered. When `joinKeywords` is `false`, it also
+ * stops before a protected keyword: "Brake When System" is not one
+ * phrase. When `joinKeywords` is `true`, a keyword extends the phrase
+ * like any other Capitalized word; {@linkcode scanPhrases} uses this to
+ * find a glossary term that contains a keyword (#1028).
+ */
+function extendPhrase(
+  words: readonly WordToken[],
+  start: number,
+  joinKeywords: boolean,
+): number[] {
+  const stopsAt = (word: string) => !joinKeywords && isProtectedKeyword(word);
+  const held = [start];
+  let connectorBudget = 0;
+  let j = start + 1;
+  while (j < words.length) {
+    const cur = words[j];
+
+    if (isCapitalized(cur.word)) {
+      if (stopsAt(cur.word)) break;
+      held.push(j);
+      j++;
+      continue;
+    }
+
+    // Non-connector, non-Capitalized word — stops the phrase.
+    if (!isConnector(cur.word)) break;
+
+    // cur is a connector. Only consume the connector run (and pay the
+    // budget) if a Capitalized word follows it.
+    let k = j;
+    while (k < words.length && isConnector(words[k].word)) k++;
+    const pendingConnectors = k - j;
+    if (k >= words.length || !isCapitalized(words[k].word)) break;
+    // A keyword after the connectors ends the phrase before them.
+    if (stopsAt(words[k].word)) break;
+    if (connectorBudget + pendingConnectors > MAX_CONNECTORS) break;
+    for (let ci = j; ci <= k; ci++) held.push(ci);
+    connectorBudget += pendingConnectors;
+    j = k + 1;
+  }
+  return held;
+}
+
+/** The text of `text` from the first to the last word of `held`. */
+function spanText(
+  text: string,
+  words: readonly WordToken[],
+  held: readonly number[],
+): string {
+  const first = words[held[0]];
+  const last = words[held[held.length - 1]];
+  return text.slice(first.offset, last.offset + last.word.length);
+}
+
+/**
+ * Number of leading words of `held` that form the longest glossary term
+ * containing a protected keyword, or 0 when there is none. Only spans
+ * that end on a Capitalized word are tried.
+ */
+function keywordTermLength(
+  text: string,
+  words: readonly WordToken[],
+  held: readonly number[],
+  isDefinedTerm: (phrase: string) => boolean,
+): number {
+  const firstKeyword = held.findIndex((w) => isProtectedKeyword(words[w].word));
+  if (firstKeyword < 0) return 0;
+  for (let n = held.length; n > firstKeyword; n--) {
+    if (!isCapitalized(words[held[n - 1]].word)) continue;
+    if (isDefinedTerm(spanText(text, words, held.slice(0, n)))) return n;
+  }
+  return 0;
+}
+
+/**
  * Scan a paragraph's text for Capitalized phrases per ADR-021
  * Decision 2: ≥1 Capitalized word, optionally extended with up to 2
  * total connector words (of/the/and) bridging adjacent Capitalized
- * words.
+ * words (see {@linkcode extendPhrase}).
  *
  * Excludes:
- * - Sentence-initial Capitalized words (position check via `isSentenceInitial`).
- * - Protected keywords (RFC 2119 + EARS).
+ * - Sentence-initial Capitalized words (position check via `isSentenceInitial`),
+ *   unless they start a glossary term that contains a keyword (below).
+ * - Protected keywords (RFC 2119 + EARS), in any casing. A keyword ends a
+ *   phrase and never starts one.
+ * - A glossary term that contains a protected keyword ("May Day
+ *   Protocol", "NOT READY STATE"; #1028). At each phrase start, the
+ *   phrase is first extended across keywords; when a leading part of it
+ *   that holds a keyword is a defined term (`isDefinedTerm`), that part is
+ *   skipped as a whole. Otherwise the keyword splits the phrase as above.
  *
- * Algorithm:
- * 1. Extract all word tokens with offsets.
- * 2. Walk tokens greedily: when a Capitalized word is found that is
- *    not sentence-initial and not a protected keyword, start building a
- *    phrase. Extend it by consuming:
- *      - additional Capitalized words (always extend, no connector cost)
- *      - lowercase connector words (cost +1 per word, max budget 2)
- *    Stop extending when the connector budget is exhausted, a
- *    non-connector lowercase word is encountered, or a sentence-initial
- *    Capitalized word starts a new sentence boundary.
- * 3. Emit one PhraseMatch per discovered phrase.
+ * Emits one PhraseMatch per discovered phrase.
  */
 function scanPhrases(
   text: string,
   isSentenceInitial: (offset: number) => boolean,
+  isDefinedTerm: (phrase: string) => boolean,
 ): PhraseMatch[] {
   const words = extractWords(text);
   const phrases: PhraseMatch[] = [];
@@ -162,6 +244,15 @@ function scanPhrases(
     // Skip non-Capitalized words.
     if (!isCapitalized(start.word)) {
       i++;
+      continue;
+    }
+
+    // A defined term that contains a keyword is consumed whole, also at a
+    // sentence start ("May Day Protocol applies.").
+    const wide = extendPhrase(words, i, true);
+    const termLength = keywordTermLength(text, words, wide, isDefinedTerm);
+    if (termLength > 0) {
+      i = wide[termLength - 1] + 1;
       continue;
     }
 
@@ -178,89 +269,15 @@ function scanPhrases(
       continue;
     }
 
-    // Begin building a phrase starting at this word.
-    const phraseWords: WordToken[] = [start];
-    let connectorBudget = 0;
-    let j = i + 1;
-
-    // Greedily extend. We need to peek ahead to handle connector words:
-    // connectors are only consumed when they are followed by a Capitalized word.
-    while (j < words.length) {
-      const cur = words[j];
-
-      if (isCapitalized(cur.word)) {
-        // Protected keywords (RFC 2119 / EARS) must never be absorbed into
-        // a phrase — even mid-extension. "Brake When System" must not emit
-        // a single phrase "Brake When System".
-        if (isProtectedKeyword(cur.word)) break;
-        // Consume the Capitalized word — extends the phrase.
-        phraseWords.push(cur);
-        j++;
-        continue;
-      }
-
-      // Check if cur is a connector that might bridge to the next Capitalized word.
-      if (!isConnector(cur.word)) {
-        // Non-connector, non-Capitalized word — stops the phrase.
-        break;
-      }
-
-      // cur is a connector. Only consume it (and pay the budget) if there
-      // is a subsequent Capitalized word within the same run. Scan forward
-      // through consecutive connectors to find the next Capitalized token.
-      // Count how many connectors we would consume.
-      let pendingConnectors = 0;
-      let k = j;
-      while (k < words.length && isConnector(words[k].word)) {
-        pendingConnectors++;
-        k++;
-      }
-
-      // Is there a Capitalized word after the connector run?
-      if (k < words.length && isCapitalized(words[k].word)) {
-        // A keyword after the connectors ends the phrase before them.
-        if (isProtectedKeyword(words[k].word)) break;
-        // Would we exceed the connector budget?
-        if (connectorBudget + pendingConnectors > MAX_CONNECTORS) {
-          // Exceeds budget — stop the phrase here.
-          break;
-        }
-        // Consume the connectors and the Capitalized word.
-        for (let ci = j; ci < k; ci++) {
-          phraseWords.push(words[ci]);
-        }
-        phraseWords.push(words[k]);
-        connectorBudget += pendingConnectors;
-        j = k + 1;
-        continue;
-      }
-
-      // Connector run is not followed by a Capitalized word — phrase ends.
-      break;
-    }
-
-    // The phrase runs from phraseWords[0].offset to the end of phraseWords[last].
-    // Reconstruct the phrase text as a substring of the original text to preserve
-    // any internal whitespace exactly.
-    const firstOffset = phraseWords[0].offset;
-    const lastWord = phraseWords[phraseWords.length - 1];
-    const lastOffset = lastWord.offset + lastWord.word.length;
-    const phraseText = text.slice(firstOffset, lastOffset);
-
-    // Collect only the Capitalized tokens for the tokens field.
-    const capitalizedTokens = phraseWords
-      .filter((w) => isCapitalized(w.word))
-      .map((w) => w.word);
-
+    const held = extendPhrase(words, i, false);
     phrases.push({
-      phrase: phraseText,
-      offset: firstOffset,
-      tokens: capitalizedTokens,
+      phrase: spanText(text, words, held),
+      offset: start.offset,
+      // Only the Capitalized tokens.
+      tokens: held.map((w) => words[w].word).filter(isCapitalized),
     });
-
-    // Advance past this phrase's tokens. Skip the entire range covered
-    // (j is already past the last consumed word).
-    i = j;
+    // Advance past this phrase's last word.
+    i = held[held.length - 1] + 1;
   }
 
   return phrases;
@@ -276,6 +293,10 @@ export function runXrefRules(
   const out: LintDiagnostic[] = [];
   const blocks = entry.bodyAst ?? [];
   const definitions = collectDefinitions(blocks);
+  const isGlossaryTerm = (phrase: string) => {
+    const slug = deriveTermSlug(phrase);
+    return slug.length > 0 && glossary.has(slug);
+  };
   for (const block of blocks) {
     if (block.kind !== "paragraph") continue;
     const p = block as ParagraphNode;
@@ -297,7 +318,7 @@ export function runXrefRules(
     }
     const isSentenceInitial = (off: number) => sentenceStarts.has(off);
 
-    const phrases = scanPhrases(text, isSentenceInitial);
+    const phrases = scanPhrases(text, isSentenceInitial, isGlossaryTerm);
     for (const ph of phrases) {
       // Allowlist: skip when ALL Capitalized tokens in the phrase are in
       // the capitalized-allow lexicon (e.g. "Monday" → skip;
@@ -309,12 +330,8 @@ export function runXrefRules(
 
       // Resolver: try the slug for the full phrase; for single-token
       // phrases also try the token's slug. First hit wins.
-      const phraseSlug = deriveTermSlug(ph.phrase);
-      if (phraseSlug.length > 0 && glossary.has(phraseSlug)) continue;
-      if (ph.tokens.length === 1) {
-        const tokenSlug = deriveTermSlug(ph.tokens[0]);
-        if (tokenSlug.length > 0 && glossary.has(tokenSlug)) continue;
-      }
+      if (isGlossaryTerm(ph.phrase)) continue;
+      if (ph.tokens.length === 1 && isGlossaryTerm(ph.tokens[0])) continue;
 
       // Convert body-relative paragraph range to file-absolute line.
       // `p.range.start.line` is body-relative (line 1 = first body line).

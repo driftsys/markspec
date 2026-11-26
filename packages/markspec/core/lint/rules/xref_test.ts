@@ -411,3 +411,128 @@ Deno.test("KEYWORD_WORDS: covers every word of the modal and EARS regexes", () =
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// #1028: a glossary term that contains a keyword stays whole
+// ---------------------------------------------------------------------------
+
+/** A glossary that holds `may-day-protocol` and `not-ready-state`. */
+const KEYWORD_TERMS = {
+  has: (s: string): boolean =>
+    s === "may-day-protocol" || s === "not-ready-state",
+  size: () => 2,
+};
+
+function q500Phrases(body: string, glossary = KEYWORD_TERMS): string[] {
+  const out = runXrefRules(makeEntry(body), glossary, ALLOW, () => false);
+  return out.map((d) => /'([^']+)'/.exec(d.message)?.[1] ?? "");
+}
+
+Deno.test("runXrefRules: a Title-case glossary term that contains a keyword is defined (#1028)", () => {
+  assertEquals(
+    q500Phrases("The pump uses the May Day Protocol in the Not Ready State."),
+    [],
+  );
+});
+
+Deno.test("runXrefRules: an all-caps glossary term that contains a keyword is defined (#1028)", () => {
+  assertEquals(
+    q500Phrases("The pump uses the MAY DAY PROTOCOL in the NOT READY STATE."),
+    [],
+  );
+});
+
+Deno.test("runXrefRules: a keyword phrase that is not a glossary term is still split (#1028)", () => {
+  assertEquals(
+    q500Phrases(
+      "The pump uses the May Day Protocol in the Not Ready State.",
+      EMPTY_GLOSSARY,
+    ),
+    ["Day Protocol", "Ready State"],
+  );
+  assertEquals(
+    q500Phrases("The pump uses the May Day Plan."),
+    ["Day Plan"],
+  );
+});
+
+Deno.test("runXrefRules: a glossary term after a keyword in the sentence is defined (#1028)", () => {
+  assertEquals(q500Phrases("The system shall use the May Day Protocol."), []);
+  assertEquals(q500Phrases("The system SHALL use the MAY DAY PROTOCOL."), []);
+});
+
+Deno.test("runXrefRules: a glossary term with a keyword ends the phrase before it (#1028)", () => {
+  assertEquals(
+    q500Phrases("The Brake May Day Protocol applies."),
+    ["Brake"],
+  );
+});
+
+Deno.test("runXrefRules: the range after a glossary term with a keyword is exact (#1028)", () => {
+  const body = "The pump uses the May Day Protocol for XyzUnit.";
+  const out = runXrefRules(makeEntry(body), KEYWORD_TERMS, ALLOW, () => false);
+  assertEquals(out.length, 1);
+  assertStringIncludes(out[0].message, "'XyzUnit'");
+  assertEquals(out[0].range!.start.column, body.indexOf("XyzUnit") + 1);
+  assertEquals(out[0].range!.end.column, body.indexOf("XyzUnit") + 8);
+});
+
+Deno.test("runXrefRules: a glossary term with a keyword inside inline code is not read (#1028)", () => {
+  assertEquals(q500Phrases("The pump uses `the May Day Plan` now."), []);
+});
+
+Deno.test("runXrefRules: a glossary term with a keyword at a sentence start is defined (#1028)", () => {
+  assertEquals(q500Phrases("May Day Protocol applies here."), []);
+  assertEquals(q500Phrases("MAY DAY PROTOCOL applies here."), []);
+  assertEquals(q500Phrases("Not Ready State shall inhibit operation."), []);
+  assertEquals(q500Phrases("NOT READY STATE shall inhibit operation."), []);
+  assertEquals(
+    q500Phrases("The pump stops. May Day Protocol applies here."),
+    [],
+  );
+});
+
+Deno.test("runXrefRules: without the glossary a keyword phrase at a sentence start is still split (#1028)", () => {
+  assertEquals(
+    q500Phrases("May Day Protocol applies here.", EMPTY_GLOSSARY),
+    ["Day Protocol"],
+  );
+  assertEquals(
+    q500Phrases("MAY DAY PROTOCOL applies here.", EMPTY_GLOSSARY),
+    ["DAY PROTOCOL"],
+  );
+  assertEquals(
+    q500Phrases("Not Ready State shall inhibit operation.", EMPTY_GLOSSARY),
+    ["Ready State"],
+  );
+  assertEquals(
+    q500Phrases("NOT READY STATE shall inhibit operation.", EMPTY_GLOSSARY),
+    ["READY STATE"],
+  );
+  // A sentence-initial word that is not a keyword is still not a term.
+  assertEquals(q500Phrases("Pump Day Protocol applies here."), [
+    "Day Protocol",
+  ]);
+});
+
+Deno.test("runXrefRules: the longest glossary term with a keyword wins (#1028)", () => {
+  const glossary = {
+    has: (s: string): boolean => s === "may-day" || s === "may-day-protocol",
+    size: () => 2,
+  };
+  assertEquals(q500Phrases("the May Day Protocol now.", glossary), []);
+});
+
+Deno.test("runXrefRules: words after a leading glossary term with a keyword are reported (#1028)", () => {
+  assertEquals(q500Phrases("the Not Ready State Machine now."), ["Machine"]);
+  // The same at a sentence start.
+  assertEquals(q500Phrases("Not Ready State Machine runs."), ["Machine"]);
+});
+
+Deno.test("runXrefRules: a sentence-initial glossary term whose keyword is not the first word is defined (#1028)", () => {
+  const glossary = {
+    has: (s: string): boolean => s === "pump-when-protocol",
+    size: () => 1,
+  };
+  assertEquals(q500Phrases("Pump When Protocol applies.", glossary), []);
+});

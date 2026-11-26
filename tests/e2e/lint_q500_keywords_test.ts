@@ -3,11 +3,13 @@
  *
  * E2E: MSL-Q500 never reports a modal or EARS keyword as an undefined term,
  * whether `fmt` left it lowercase or uppercased it under `rfc8174`. A real
- * undefined term in the same text is still reported.
+ * undefined term in the same text is still reported. A glossary term that
+ * contains a keyword ("May Day Protocol", "NOT READY STATE") is not split at
+ * the keyword (#1028).
  */
 
 import { assert, assertEquals } from "@std/assert";
-import { markspecInDir, markspecPersist } from "./helpers.ts";
+import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
 
 const PROJECT = {
   "project.yaml": "name: q500-e2e\nversion: 0.1.0\n",
@@ -52,4 +54,35 @@ Deno.test("e2e: lint skips uppercased modal keywords under rfc8174 but reports a
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+const TERMS_DOC = `- [REQ-0001] Recovery
+
+  May Day Protocol
+  : the recovery sequence
+
+  Not Ready State
+  : the state before calibration
+
+  The pump shall use the May Day Protocol in the NOT READY STATE. The
+  XyzUnit MAY retry the MAY DAY PROTOCOL in the Not Ready State.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+`;
+
+Deno.test("e2e: lint keeps a glossary term that contains a keyword whole (#1028)", async () => {
+  const { stdout } = await markspec(["lint", "--format", "json", "req.md"], {
+    files: {
+      "project.yaml": "name: q500-e2e\nversion: 0.1.0\n",
+      "req.md": TERMS_DOC,
+    },
+  });
+  const parsed = JSON.parse(stdout) as {
+    diagnostics: Array<{ code: string; message: string }>;
+  };
+  const phrases = parsed.diagnostics
+    .filter((d) => d.code === "MSL-Q500")
+    .map((d) => /'([^']+)'/.exec(d.message)?.[1]);
+  assertEquals(phrases, ["XyzUnit"]);
 });

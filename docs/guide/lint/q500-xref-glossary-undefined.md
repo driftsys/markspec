@@ -20,6 +20,17 @@ and the word `not`, or an EARS keyword (`when`, `while`, `where`, `unless`,
 a neighbouring term. An acronym spelled like a keyword, such as `IF`, is also
 skipped.
 
+The exception is a glossary term that contains a keyword. The rule reads a
+capitalized phrase across a keyword that is in Title case or all caps, and
+checks the leading parts of that phrase, longest first. When a leading part that
+holds the keyword is a defined term, such as `May Day Protocol` or
+`NOT READY STATE`, nothing in that part is reported. This also holds at the
+start of a sentence: `May Day Protocol applies here.` reports nothing. The words
+after the term are checked as usual: with `not-ready-state` defined,
+`the Not Ready State Machine now.` reports only `Machine`. When no leading part
+is a defined term, the keyword splits the phrase: with no glossary entry,
+`the May Day Protocol` reports `Day Protocol`.
+
 ## Why it matters
 
 Capitalization in requirement prose signals a defined term. An undefined

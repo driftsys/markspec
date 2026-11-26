@@ -76,7 +76,13 @@ profile tiers, capped, and explicitly excludes domain vocabulary and
 standards-body acronyms. Text in inline code, link destinations, titles and
 labels, autolinks, images, link reference definitions, footnote labels and raw
 HTML is not read as a term. The rule skips modal and EARS keywords in any
-casing, so it never reports `SHALL` or `WHEN`.
+casing, so it never reports `SHALL` or `WHEN`. A glossary term that contains a
+keyword, such as `May Day Protocol`, is not split at the keyword when the
+keyword is in Title case or all caps and the term starts where the capitalized
+phrase starts, including at the start of a sentence. The rule tries the leading
+parts of the phrase, longest first. A term that starts later in the phrase is
+still split: with `day-when-protocol` defined, `the Pump Day When Protocol` is
+split at `When`.
 
 ## Modal keyword analysis
 
