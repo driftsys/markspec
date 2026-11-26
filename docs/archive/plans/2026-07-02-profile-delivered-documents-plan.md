@@ -553,9 +553,7 @@ Deno.test("loadDeliveredCorpus: parses corpus entries and stamps origin", async 
   const { entries, diagnostics } = await loadDeliveredCorpus(
     [doc({})],
     // deno-lint-ignore require-await
-    async (
-      p,
-    ) => (p === "/cache/platform-arch/ref/arch.md" ? CORPUS_MD : undefined),
+    async (p) => (p === "/cache/platform-arch/ref/arch.md" ? CORPUS_MD : undefined),
   );
   assertEquals(diagnostics.filter((d) => d.severity === "error"), []);
   assertEquals(entries.length, 1);
@@ -1027,9 +1025,8 @@ let diagnostics: Diagnostic[] = [
   ...linkTargetDiags,
 ];
 if (options.corpusEntries && options.corpusEntries.length > 0) {
-  const { attributeCorpusDiagnostics, detectCorpusCollisions } = await import(
-    "../validator/corpus.ts"
-  );
+  const { attributeCorpusDiagnostics, detectCorpusCollisions } =
+    await import("../validator/corpus.ts");
   const collisions = detectCorpusCollisions(allEntries);
   diagnostics = [
     ...attributeCorpusDiagnostics(
@@ -1246,9 +1243,8 @@ Seed `allEntries` with the corpus before the file loop
 `runPipeline` apply the post-pass:
 
 ```ts
-const { attributeCorpusDiagnostics, detectCorpusCollisions } = await import(
-  "../../core/mod.ts"
-);
+const { attributeCorpusDiagnostics, detectCorpusCollisions } =
+  await import("../../core/mod.ts");
 const collisions = detectCorpusCollisions(allEntries);
 const pipelineDiagnostics = [
   ...attributeCorpusDiagnostics(
@@ -1506,10 +1502,7 @@ git commit -m "feat(core): origin column in reports and serialized export"
 ```ts
 Deno.test("deliveredUri round-trips profileId and path", () => {
   const uri = deliveredUri("platform-arch", "reference/platform.md");
-  assertEquals(
-    uri,
-    "markspec://delivered/platform-arch/reference%2Fplatform.md",
-  );
+  assertEquals(uri, "markspec://delivered/platform-arch/reference%2Fplatform.md");
   assertEquals(parseDeliveredUri(uri), {
     profileId: "platform-arch",
     path: "reference/platform.md",

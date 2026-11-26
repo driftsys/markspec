@@ -1463,22 +1463,22 @@ Always JSON, always small (target < 100 KB at 100k entries — holds no bodies):
   "project": {
     "name": "...",
     "root": "urn:markspec:project:<id>",
-    "version": "1.2.0" // optional; from project.yaml `version:`
+    "version": "1.2.0", // optional; from project.yaml `version:`
   },
   "counts": {
     "entries": 1234,
     "edges": 5678,
-    "byType": { "Requirement": 900 }
+    "byType": { "Requirement": 900 },
   },
   "entries": {
     "format": "ndjson",
     "file": "entries.ndjson",
-    "index": "entries.idx"
+    "index": "entries.idx",
   },
   "edges": { "format": "ndjson", "file": "edges.ndjson" },
   "sqliteMirror": null,
   "federation": [],
-  "reserved": {}
+  "reserved": {},
 }
 ```
 

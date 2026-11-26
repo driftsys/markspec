@@ -529,19 +529,19 @@ const truncate = (md: string): string =>
   md.trimEnd().split(" ").slice(0, -1).join(" ") + "\n";
 
 const DOC = [
-  "# Overview", // 0
-  "", // 1
-  "Some ragged", // 2
-  "prose here.", // 3
-  "", // 4
-  "- [STK_0001] Title", // 5  ← entry extent [5, 10)
-  "", // 6
-  "  Body prose.", // 7
-  "", // 8
+  "# Overview",           // 0
+  "",                     // 1
+  "Some ragged",          // 2
+  "prose here.",          // 3
+  "",                     // 4
+  "- [STK_0001] Title",   // 5  ← entry extent [5, 10)
+  "",                     // 6
+  "  Body prose.",        // 7
+  "",                     // 8
   "      Id: 01JADYKACKQKGVGHT9K7Y6PBPA", // 9
-  "", // 10
-  "Trailing chapter", // 11
-  "prose.", // 12
+  "",                     // 10
+  "Trailing chapter",     // 11
+  "prose.",               // 12
 ];
 
 Deno.test("prose: formats segments outside entry extents only", () => {
@@ -552,10 +552,7 @@ Deno.test("prose: formats segments outside entry extents only", () => {
   assertEquals(text.includes("Some ragged prose here."), true);
   assertEquals(text.includes("Trailing chapter prose."), true);
   // entry block untouched, byte for byte
-  assertEquals(
-    res.lines[res.lines.indexOf("- [STK_0001] Title") + 2],
-    "  Body prose.",
-  );
+  assertEquals(res.lines[res.lines.indexOf("- [STK_0001] Title") + 2], "  Body prose.");
   assertEquals(text.includes("      Id: 01JADYKACKQKGVGHT9K7Y6PBPA"), true);
 });
 
@@ -585,13 +582,7 @@ Deno.test("prose: no entries — whole document is one segment", () => {
 
 Deno.test("prose: already-canonical input is a no-op", () => {
   const res = formatProseSegments(
-    [
-      "One line.",
-      "",
-      "- [STK_0001] T",
-      "",
-      "      Id: 01JADYKACKQKGVGHT9K7Y6PBPA",
-    ],
+    ["One line.", "", "- [STK_0001] T", "", "      Id: 01JADYKACKQKGVGHT9K7Y6PBPA"],
     [{ start: 2, end: 5 }],
     (md) => md.endsWith("\n") ? md : md + "\n",
   );
@@ -856,7 +847,8 @@ if (proseFormat !== undefined) {
     diagnostics.push({
       code: "MSL-F011",
       severity: "info",
-      message: "Markdown pass produced non-equivalent output for this prose " +
+      message:
+        "Markdown pass produced non-equivalent output for this prose " +
         "segment — kept the original text",
       location: { file, line: lineIdx + 1, column: 1 },
     });
@@ -1125,10 +1117,7 @@ Deno.test("ADR-029: format is idempotent over the fixture corpus", async () => {
   let count = 0;
   for await (const f of walk(FIXTURES, { exts: [".md"], includeDirs: false })) {
     const src = await Deno.readTextFile(f.path);
-    const once = format(src, {
-      file: f.path,
-      formatMarkdownProse: proseFormat,
-    });
+    const once = format(src, { file: f.path, formatMarkdownProse: proseFormat });
     const twice = format(once.output, {
       file: f.path,
       formatMarkdownProse: proseFormat,
@@ -1214,8 +1203,7 @@ Deno.test("fmt: aligns misaligned tables in entry bodies (#649)", async () => {
 Deno.test("fmt: wraps ragged prose chapters at 80 columns", async () => {
   const long =
     "This overview chapter line is deliberately much longer than the eighty column limit so the formatter must wrap it.";
-  const input =
-    `# Overview\n\n${long}\n\n- [STK_0007] E\n\n  B.\n\n      Id: 01JADYKACKQKGVGHT9K7Y6PBPC\n`;
+  const input = `# Overview\n\n${long}\n\n- [STK_0007] E\n\n  B.\n\n      Id: 01JADYKACKQKGVGHT9K7Y6PBPC\n`;
   const { code, readFile } = await runFormat({ "t.md": input });
   assertEquals(code, 0);
   const out = await readFile("t.md");
@@ -1229,8 +1217,7 @@ Deno.test("fmt: wraps ragged prose chapters at 80 columns", async () => {
 Deno.test("fmt: soft-limit contract — wide tables and long URLs stay single-line", async () => {
   const url =
     "<https://example.com/a/very/long/url/that/exceeds/eighty/columns/deliberately/xyz>";
-  const input =
-    `Prose with ${url} inside.\n\n| A wide table heading here | another wide heading here | third wide heading |\n|--|--|--|\n| a | b | c |\n`;
+  const input = `Prose with ${url} inside.\n\n| A wide table heading here | another wide heading here | third wide heading |\n|--|--|--|\n| a | b | c |\n`;
   const { code, readFile } = await runFormat({ "t.md": input });
   assertEquals(code, 0);
   const out = await readFile("t.md");
@@ -1247,10 +1234,7 @@ Deno.test("fmt: preserves CRLF line endings through the markdown pass", async ()
   assertEquals(code, 0);
   const out = await readFile("t.md");
   assertStringIncludes(out, "\r\n");
-  assertEquals(
-    out.includes("\n") && !out.replace(/\r\n/g, "").includes("\n"),
-    true,
-  );
+  assertEquals(out.includes("\n") && !out.replace(/\r\n/g, "").includes("\n"), true);
 });
 
 Deno.test("fmt --check: exits 1 on markdown-only drift", async () => {

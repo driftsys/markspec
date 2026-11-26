@@ -17,8 +17,8 @@ two scenarios.
 ````markdown
 - [REQ_BRK_0010] Emergency braking for close obstacles
 
-  The braking controller shall start braking when an obstacle is detected closer
-  than 40 m at speeds of 60 km/h or less.
+  The braking controller shall start braking when an obstacle is detected
+  closer than 40 m at speeds of 60 km/h or less.
 
   ```feature
   Scenario: Brake at 20 m

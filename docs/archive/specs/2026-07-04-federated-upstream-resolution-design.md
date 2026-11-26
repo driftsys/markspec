@@ -97,20 +97,20 @@ of `projectRef` (`url` required; `version`, `name` optional):
 name: io.acme.aeb-brake-controller
 version: "1.2.0"
 
-dependencies: # projects this project uses (git repos)
+dependencies:                       # projects this project uses (git repos)
   - url: git@github.com:acme/aeb-product.git
-    name: product # short id: cache dir, lock rows, badges
-  # version absent → auto mode: latest release tag, else default branch
+    name: product                    # short id: cache dir, lock rows, badges
+    # version absent → auto mode: latest release tag, else default branch
   - url: git@github.com:acme/aeb-icd.git
     name: icd
-    version: "v2.1.0" # frozen baseline (exact tag)
-  - url: ../aeb-sensor # local path clone — sibling dev loop
+    version: "v2.1.0"                # frozen baseline (exact tag)
+  - url: ../aeb-sensor               # local path clone — sibling dev loop
     name: sensor
-    version: "main" # deliberately track unreleased head
+    version: "main"                  # deliberately track unreleased head
 
-references: # citation sources (published sites)
+references:                          # citation sources (published sites)
   - url: https://driftsys.github.io/refhub
-    name: refhub # was parent-fallback — now explicit
+    name: refhub                     # was parent-fallback — now explicit
 ```
 
 - **`dependencies:`** — projects this project uses. URL is a git repository

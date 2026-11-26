@@ -345,30 +345,18 @@ Inputs the spec implies but does not name; each has a test in its owning task.
 - Produces (exported from `core/mod.ts`):
   ```ts
   export type EntryBodyRefusal =
-    | "entry-not-found"
-    | "body-empty"
-    | "proposal-empty"
-    | "trailer-invalid"
-    | "entries-changed";
+    | "entry-not-found" | "body-empty" | "proposal-empty"
+    | "trailer-invalid" | "entries-changed";
   export type EntryBodyEdit =
     | { readonly ok: true; readonly text: string }
     | { readonly ok: false; readonly refusal: EntryBodyRefusal };
   /** Body as written in `text` (dedented, LF, no surrounding blank lines);
    *  "" when the entry has no body; undefined when no entry has `displayId`.
    *  `file` names a `.md` file. */
-  export function readEntryBody(
-    text: string,
-    file: string,
-    displayId: string,
-  ): Promise<string | undefined>;
+  export function readEntryBody(text: string, file: string, displayId: string): Promise<string | undefined>;
   /** `text` with the target body replaced by `body` re-indented to the body
    *  indent; every other line byte-for-byte unchanged. */
-  export function replaceEntryBody(
-    text: string,
-    file: string,
-    displayId: string,
-    body: string,
-  ): Promise<EntryBodyEdit>;
+  export function replaceEntryBody(text: string, file: string, displayId: string, body: string): Promise<EntryBodyEdit>;
   ```
 
 - [ ] **Step 1: Write the failing tests** in `entry_body_test.ts`, using a
@@ -460,36 +448,17 @@ git commit -m "feat(core): read and replace one entry body in a Markdown file" -
   ```ts
   export const MAX_PROPOSAL_CHARS = 20_000;
   export type ProposalRefusal =
-    | "entry-not-found"
-    | "entry-body-empty"
-    | "proposal-empty"
-    | "proposal-too-large"
-    | "proposal-changes-entries"
-    | "entry-trailer-invalid"
-    | "format-failed";
+    | "entry-not-found" | "entry-body-empty" | "proposal-empty"
+    | "proposal-too-large" | "proposal-changes-entries"
+    | "entry-trailer-invalid" | "format-failed";
   export type ProposalOutcome<T> =
     | { readonly ok: true; readonly value: T }
     | { readonly ok: false; readonly refusal: ProposalRefusal };
-  export interface BodyPreview {
-    readonly body: string;
-    readonly currentBody: string;
-  }
+  export interface BodyPreview { readonly body: string; readonly currentBody: string }
   /** No write. `file` is the absolute `.md` path (it gates the prose pass). */
-  export function previewBody(
-    text: string,
-    file: string,
-    displayId: string,
-    proposed: string,
-    formatProse: ProseFormatter,
-  ): Promise<ProposalOutcome<BodyPreview>>;
+  export function previewBody(text: string, file: string, displayId: string, proposed: string, formatProse: ProseFormatter): Promise<ProposalOutcome<BodyPreview>>;
   /** The new file text: `text` with the formatted proposed body spliced in. */
-  export function applyBody(
-    text: string,
-    file: string,
-    displayId: string,
-    proposed: string,
-    formatProse: ProseFormatter,
-  ): Promise<ProposalOutcome<string>>;
+  export function applyBody(text: string, file: string, displayId: string, proposed: string, formatProse: ProseFormatter): Promise<ProposalOutcome<string>>;
   ```
 
   As built, both functions take an optional last `formatDocument` parameter
@@ -595,17 +564,10 @@ git commit -m "feat(cli): build formatted desk proposals for one entry body" -m 
    *  folder (createNew), copy the original's mode on POSIX, keep a leading
    *  UTF-8 BOM the original had, then rename over `path`. Removes the temp
    *  file on failure and rethrows. */
-  export function writeTextFileAtomic(
-    path: string,
-    text: string,
-  ): Promise<void>;
+  export function writeTextFileAtomic(path: string, text: string): Promise<void>;
   // desk/api.ts
-  interface DeskSource {
-    /* … */ writeFile(absolutePath: string, text: string): Promise<void>;
-  }
-  interface DeskHandlerOptions {
-    /* … */ readonly loadProseFormatter?: () => Promise<ProseFormatter>;
-  } // default loadMarkdownFormatter
+  interface DeskSource { /* … */ writeFile(absolutePath: string, text: string): Promise<void>; }
+  interface DeskHandlerOptions { /* … */ readonly loadProseFormatter?: () => Promise<ProseFormatter>; } // default loadMarkdownFormatter
   ```
   HTTP per builder decisions 1–3 and 7; schema components `ProposalRequest`,
   `ProposalChange`, `ProposalPreview`, `PreviewedChange`, `ProposalApplied`.
@@ -756,15 +718,9 @@ git commit -m "feat(cli): preview and apply one entry body through the desk API"
   export type ProposalApplied = components["schemas"]["ProposalApplied"];
   interface DeskClient {
     /** POST /proposals/preview with If-Match: etag. */
-    previewProposal(
-      etag: string,
-      changes: ProposalChange[],
-    ): Promise<ProposalPreview>;
+    previewProposal(etag: string, changes: ProposalChange[]): Promise<ProposalPreview>;
     /** POST /proposals/apply with If-Match: etag. */
-    applyProposal(
-      etag: string,
-      changes: ProposalChange[],
-    ): Promise<ProposalApplied>;
+    applyProposal(etag: string, changes: ProposalChange[]): Promise<ProposalApplied>;
   }
   ```
 
@@ -866,34 +822,13 @@ git commit -m "feat(repo): add proposal preview and apply to the MarkDesk client
   String>`.
 - Produces (TS, `bridge.ts`):
   ```ts
-  export interface AssistantStatus {
-    /* … */ promptsAvailable: boolean;
-  }
-  export interface AssistantPromptRequest {
-    title: string;
-    body: string;
-    instruction: string;
-    attributes: { key: string; value: string }[];
-  }
-  export type PromptOutcome =
-    | "ok"
-    | "timeout"
-    | "cancelled"
-    | "failed"
-    | "unavailable"
-    | "prompt-too-long"
-    | "reply-too-long";
-  export interface AssistantPromptResult {
-    outcome: PromptOutcome;
-    reply: string | null;
-    error: string | null;
-  }
+  export interface AssistantStatus { /* … */ promptsAvailable: boolean }
+  export interface AssistantPromptRequest { title: string; body: string; instruction: string; attributes: { key: string; value: string }[] }
+  export type PromptOutcome = "ok" | "timeout" | "cancelled" | "failed" | "unavailable" | "prompt-too-long" | "reply-too-long";
+  export interface AssistantPromptResult { outcome: PromptOutcome; reply: string | null; error: string | null }
   interface ShellBridge {
-    runAssistantPrompt(
-      id: AssistantId,
-      request: AssistantPromptRequest,
-    ): Promise<AssistantPromptResult>; // invoke("run_assistant_prompt", { id, request })
-    cancelAssistantPrompt(): Promise<void>; // invoke("cancel_assistant_prompt")
+    runAssistantPrompt(id: AssistantId, request: AssistantPromptRequest): Promise<AssistantPromptResult>; // invoke("run_assistant_prompt", { id, request })
+    cancelAssistantPrompt(): Promise<void>;                                                                // invoke("cancel_assistant_prompt")
   }
   ```
   `fakeAssistantBridge` defaults: `runAssistantPrompt` resolves
@@ -1038,23 +973,18 @@ git commit -m "feat(repo): run one prompt on Claude Code with every tool switche
    *  optional info string, matching closer, no other closer inside); else the
    *  trimmed reply. */
   export function stripOneFence(reply: string): string;
-  export interface DiffPart {
-    readonly kind: "same" | "removed" | "added";
-    readonly text: string;
-  }
+  export interface DiffPart { readonly kind: "same" | "removed" | "added"; readonly text: string }
   export function diffWords(before: string, after: string): DiffPart[];
   export interface PromptContext {
     assistantName: string;
-    state: AssistantState | undefined; // undefined while detecting
+    state: AssistantState | undefined;   // undefined while detecting
     promptsAvailable: boolean;
     testRunning: boolean;
     selected: string | undefined;
     entry: EntryView | "loading" | "missing" | undefined;
   }
   /** One-line reason the prompt box is disabled; undefined when enabled. */
-  export function promptDisabledReason(
-    context: PromptContext,
-  ): string | undefined;
+  export function promptDisabledReason(context: PromptContext): string | undefined;
   ````
   Reasons, checked in this order (exact copy): `"Checking the assistant."`,
   `"<name> is not installed."`, `"<name> needs sign-in."`,
@@ -1134,31 +1064,21 @@ git commit -m "feat(repo): add reply, word diff, and prompt-box reason helpers" 
 - Produces:
   ```ts
   export const PROMPT_MESSAGES = {
-    assistantFailed: (firstLine: string) =>
-      `The assistant failed: ${firstLine}`,
+    assistantFailed: (firstLine: string) => `The assistant failed: ${firstLine}`,
     timeout: "The assistant did not answer within 120 seconds.",
     noProposal: "The assistant returned no proposal.",
     promptTooLong: "This entry is too long to send to the assistant.",
     replyTooLong: "The assistant's reply is longer than 20 000 characters.",
     couldNotFormat: "MarkDesk could not format this proposal.",
-    changesEntries:
-      "The proposal changes more than this entry's body. Ask again.",
+    changesEntries: "The proposal changes more than this entry's body. Ask again.",
     fileChanged: "This file changed since the proposal. Ask again.",
     writeFailed: "MarkDesk could not write this file.",
   } as const;
-  export type PromptPhase = { kind: "idle" } | { kind: "running" } | {
-    kind: "proposal";
-    displayId: string;
-    etag: string;
-    currentBody: string;
-    proposedBody: string;
-  } | {
-    kind: "applying";
-    displayId: string;
-    etag: string;
-    currentBody: string;
-    proposedBody: string;
-  } | { kind: "error"; message: string };
+  export type PromptPhase =
+    | { kind: "idle" } | { kind: "running" }
+    | { kind: "proposal"; displayId: string; etag: string; currentBody: string; proposedBody: string }
+    | { kind: "applying"; displayId: string; etag: string; currentBody: string; proposedBody: string }
+    | { kind: "error"; message: string };
   export interface PromptController {
     disabledReason: string | undefined;
     instruction: string;

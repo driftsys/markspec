@@ -86,10 +86,10 @@ provenance rather than a second copy of the graph.
 
 ```typescript
 interface LockEdge {
-  readonly sourceUlid: string; // stable ULID of the source entry
-  readonly relation: string; // e.g. "Satisfies"
-  readonly targetUlid?: string; // stable ULID of target; absent if unresolved
-  readonly authoredTarget: string; // display ID (or ULID) as authored at lock time
+  readonly sourceUlid: string;       // stable ULID of the source entry
+  readonly relation: string;         // e.g. "Satisfies"
+  readonly targetUlid?: string;      // stable ULID of target; absent if unresolved
+  readonly authoredTarget: string;   // display ID (or ULID) as authored at lock time
 }
 ```
 

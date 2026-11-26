@@ -253,13 +253,11 @@ export const UXIL_CODES: Record<UxilCode, UxilCodeEntry> = {
   },
   "UXIL-004": {
     severity: "error",
-    template:
-      "Root declaration is missing its kind (expected 'ux:surface : kind').",
+    template: "Root declaration is missing its kind (expected 'ux:surface : kind').",
   },
   "UXIL-005": {
     severity: "error",
-    template:
-      "Element declaration has an empty verb set (expected '/element : verb').",
+    template: "Element declaration has an empty verb set (expected '/element : verb').",
   },
   "UXIL-006": {
     severity: "error",
@@ -335,18 +333,8 @@ import { tokenize } from "./lexer.ts";
 Deno.test("tokenize: full reference tail", () => {
   const kinds = tokenize("media.home/play:{id}!activate").map((t) => t.kind);
   assertEquals(kinds, [
-    "IDENT",
-    "DOT",
-    "IDENT",
-    "SLASH",
-    "IDENT",
-    "COLON",
-    "LBRACE",
-    "IDENT",
-    "RBRACE",
-    "BANG",
-    "IDENT",
-    "EOF",
+    "IDENT", "DOT", "IDENT", "SLASH", "IDENT", "COLON",
+    "LBRACE", "IDENT", "RBRACE", "BANG", "IDENT", "EOF",
   ]);
 });
 
@@ -513,9 +501,7 @@ import { assertEquals } from "@std/assert";
 import { parseUxRef } from "./grammar.ts";
 
 Deno.test("parseUxRef: full ref with scheme, state, element, key, verb", () => {
-  const { ref, diagnostics } = parseUxRef(
-    "ux:media.home@ready/play:{id}!activate",
-  );
+  const { ref, diagnostics } = parseUxRef("ux:media.home@ready/play:{id}!activate");
   assertEquals(diagnostics, []);
   assertEquals(ref?.hasScheme, true);
   assertEquals(ref?.surface, ["media", "home"]);
@@ -619,11 +605,7 @@ function expectIdent(
 ): string | undefined {
   if (c.peek().kind === "IDENT") return c.advance().value;
   diags.push(
-    uxilDiagnostic(
-      "UXIL-001",
-      { detail: `expected ${what}` },
-      c.peek().position,
-    ),
+    uxilDiagnostic("UXIL-001", { detail: `expected ${what}` }, c.peek().position),
   );
   return undefined;
 }
@@ -639,11 +621,7 @@ function parseSurface(
     c.advance();
     if (c.peek().kind !== "IDENT") {
       diags.push(
-        uxilDiagnostic(
-          "UXIL-008",
-          { detail: "trailing '.' in surface" },
-          c.peek().position,
-        ),
+        uxilDiagnostic("UXIL-008", { detail: "trailing '.' in surface" }, c.peek().position),
       );
       break;
     }
@@ -658,37 +636,23 @@ function parseKey(c: Cursor, diags: UxilDiagnostic[]): UxKey | undefined {
     c.advance();
     if (c.peek().kind !== "IDENT") {
       diags.push(
-        uxilDiagnostic(
-          "UXIL-007",
-          { detail: "expected a name inside { }" },
-          c.peek().position,
-        ),
+        uxilDiagnostic("UXIL-007", { detail: "expected a name inside { }" }, c.peek().position),
       );
       return undefined;
     }
     const name = c.advance().value;
     if (c.peek().kind !== "RBRACE") {
       diags.push(
-        uxilDiagnostic(
-          "UXIL-007",
-          { detail: "missing closing '}'" },
-          c.peek().position,
-        ),
+        uxilDiagnostic("UXIL-007", { detail: "missing closing '}'" }, c.peek().position),
       );
       return undefined;
     }
     c.advance();
     return { kind: "template", name };
   }
-  if (c.peek().kind === "IDENT") {
-    return { kind: "concrete", value: c.advance().value };
-  }
+  if (c.peek().kind === "IDENT") return { kind: "concrete", value: c.advance().value };
   diags.push(
-    uxilDiagnostic(
-      "UXIL-001",
-      { detail: "expected a key after ':'" },
-      c.peek().position,
-    ),
+    uxilDiagnostic("UXIL-001", { detail: "expected a key after ':'" }, c.peek().position),
   );
   return undefined;
 }
@@ -726,9 +690,7 @@ function expectEof(c: Cursor, diags: UxilDiagnostic[]): void {
   if (!c.atEof()) {
     const t = c.peek();
     diags.push(
-      uxilDiagnostic("UXIL-001", {
-        detail: `unexpected '${t.value || t.kind}'`,
-      }, t.position),
+      uxilDiagnostic("UXIL-001", { detail: `unexpected '${t.value || t.kind}'` }, t.position),
     );
   }
 }
@@ -753,11 +715,7 @@ export function parseUxRef(
       diagnostics.push(uxilDiagnostic("UXIL-003", {}, c.peek().position));
     } else {
       diagnostics.push(
-        uxilDiagnostic(
-          "UXIL-008",
-          { detail: "missing surface" },
-          c.peek().position,
-        ),
+        uxilDiagnostic("UXIL-008", { detail: "missing surface" }, c.peek().position),
       );
     }
     return { diagnostics };
@@ -766,20 +724,12 @@ export function parseUxRef(
   const surface = parseSurface(c, diagnostics);
   if (!surface) {
     diagnostics.push(
-      uxilDiagnostic(
-        "UXIL-008",
-        { detail: "expected a surface segment" },
-        c.peek().position,
-      ),
+      uxilDiagnostic("UXIL-008", { detail: "expected a surface segment" }, c.peek().position),
     );
     return { diagnostics };
   }
 
-  const ref: Mut<UxRef> = {
-    hasScheme,
-    surface,
-    position: { line: 1, column: 1 },
-  };
+  const ref: Mut<UxRef> = { hasScheme, surface, position: { line: 1, column: 1 } };
   if (c.peek().kind === "AT") {
     c.advance();
     const s = expectIdent(c, diagnostics, "state");
@@ -850,9 +800,7 @@ git commit -m "feat(core): uxil ux: reference parser (#725)"
 import { parseChildSurfaceDecl, parseRootDecl } from "./grammar.ts";
 
 Deno.test("parseRootDecl: surface, kind, state set", () => {
-  const { decl, diagnostics } = parseRootDecl(
-    "ux:media.home : screen @ loading, error, ready",
-  );
+  const { decl, diagnostics } = parseRootDecl("ux:media.home : screen @ loading, error, ready");
   assertEquals(diagnostics, []);
   assertEquals(decl?.form, "root");
   assertEquals(decl?.surface, ["media", "home"]);
@@ -866,9 +814,7 @@ Deno.test("parseRootDecl: missing kind is UXIL-004", () => {
 });
 
 Deno.test("parseChildSurfaceDecl: dotted leading path + state", () => {
-  const { decl, diagnostics } = parseChildSurfaceDecl(
-    ".confirm_dialog @ default",
-  );
+  const { decl, diagnostics } = parseChildSurfaceDecl(".confirm_dialog @ default");
   assertEquals(diagnostics, []);
   assertEquals(decl?.form, "child");
   assertEquals(decl?.path, ["confirm_dialog"]);
@@ -905,11 +851,7 @@ export function parseRootDecl(
   const surface = parseSurface(c, diagnostics);
   if (!surface) {
     diagnostics.push(
-      uxilDiagnostic(
-        "UXIL-008",
-        { detail: "expected a surface segment" },
-        c.peek().position,
-      ),
+      uxilDiagnostic("UXIL-008", { detail: "expected a surface segment" }, c.peek().position),
     );
     return { diagnostics };
   }
@@ -946,9 +888,7 @@ export function parseChildSurfaceDecl(
   const c = new Cursor(tokenize(source));
   if (c.peek().kind !== "DOT") {
     diagnostics.push(
-      uxilDiagnostic("UXIL-008", {
-        detail: "child surface must start with '.'",
-      }, c.peek().position),
+      uxilDiagnostic("UXIL-008", { detail: "child surface must start with '.'" }, c.peek().position),
     );
     return { diagnostics };
   }
@@ -956,9 +896,7 @@ export function parseChildSurfaceDecl(
   const path = parseSurface(c, diagnostics);
   if (!path) {
     diagnostics.push(
-      uxilDiagnostic("UXIL-008", {
-        detail: "expected a child surface name after '.'",
-      }, c.peek().position),
+      uxilDiagnostic("UXIL-008", { detail: "expected a child surface name after '.'" }, c.peek().position),
     );
     return { diagnostics };
   }
@@ -1099,9 +1037,7 @@ export function parseElementBullet(
   const { span, rest } = splitLeadingCodeSpan(paragraph);
   if (span === undefined) {
     diagnostics.push(
-      uxilDiagnostic("UXIL-001", {
-        detail: "element bullet must begin with a code span",
-      }, { line: 1, column: 1 }),
+      uxilDiagnostic("UXIL-001", { detail: "element bullet must begin with a code span" }, { line: 1, column: 1 }),
     );
     return { diagnostics };
   }
@@ -1119,11 +1055,7 @@ export function parseElementBullet(
   const c = new Cursor(tokenize(structPart));
   if (c.peek().kind !== "SLASH") {
     diagnostics.push(
-      uxilDiagnostic(
-        "UXIL-001",
-        { detail: "element must start with '/'" },
-        c.peek().position,
-      ),
+      uxilDiagnostic("UXIL-001", { detail: "element must start with '/'" }, c.peek().position),
     );
     return { diagnostics };
   }
@@ -1172,9 +1104,7 @@ export function parseElementBullet(
   if (navSource !== undefined) {
     if (navSource.length === 0) {
       diagnostics.push(
-        uxilDiagnostic("UXIL-001", {
-          detail: "missing navigation target after '->'",
-        }, { line: 1, column: 1 }),
+        uxilDiagnostic("UXIL-001", { detail: "missing navigation target after '->'" }, { line: 1, column: 1 }),
       );
     } else {
       const nav = parseUxRef(navSource);

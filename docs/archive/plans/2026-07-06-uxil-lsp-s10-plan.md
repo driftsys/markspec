@@ -571,10 +571,7 @@ Deno.test("formatUxHoverContent: element ref shows verbs and description", () =>
 });
 
 Deno.test("formatUxHoverContent: unknown surface returns undefined", () => {
-  assertEquals(
-    formatUxHoverContent(ref("media.home"), registry([])),
-    undefined,
-  );
+  assertEquals(formatUxHoverContent(ref("media.home"), registry([])), undefined);
 });
 
 Deno.test("formatUxHoverContent: unknown element on a known surface returns undefined", () => {
@@ -620,7 +617,7 @@ Append to `packages/markspec/lsp/uxil.ts` (add the type import at the top of the
 file first):
 
 ```ts
-import type { SurfaceRecord, UxRef, UxRegistry } from "../core/uxil/mod.ts";
+import type { SurfaceRecord, UxRegistry, UxRef } from "../core/uxil/mod.ts";
 ```
 
 ```ts
@@ -704,14 +701,8 @@ the `./uxil.ts` import):
 
 Deno.test("buildUxCompletionItems: one item per known surface path", () => {
   const r = registry([
-    surfaceRecord("media.home", {
-      kind: "screen",
-      owningEntryDisplayId: "SAD_0001",
-    }),
-    surfaceRecord("media.queue", {
-      kind: "panel",
-      owningEntryDisplayId: "SAD_0002",
-    }),
+    surfaceRecord("media.home", { kind: "screen", owningEntryDisplayId: "SAD_0001" }),
+    surfaceRecord("media.queue", { kind: "panel", owningEntryDisplayId: "SAD_0002" }),
   ]);
   const items = buildUxCompletionItems(r, "");
   assertEquals(items.map((i) => i.label).sort(), ["media.home", "media.queue"]);
@@ -1124,70 +1115,70 @@ import { parseUxRef } from "../core/uxil/mod.ts";
 In `connection.onHover(...)`, the existing body reads (in part):
 
 ```ts
-// Try typl $Name token first — it takes priority over display-ID lookup.
-const dollarName = dollarNameAtPosition(line, params.position.character);
-if (dollarName) {
-  const registry = index.getTypeRegistry();
-  // Published tier (#750): give hover the enclosing entry so it can
-  // resolve a relative `$.x` against the entry root namespace and mark a
-  // published symbol as declared "in this entry" vs. cited from another.
-  const enclosing = findEnclosingEntry(
-    index.getEntriesForFile(filePath),
-    params.position.line + 1, // LSP is 0-based; Entry is 1-based.
-  );
-  const hoverContent = formatTyplHoverContent(dollarName, registry, {
-    entryDisplayId: enclosing?.displayId,
-    rootNamespace: enclosing?.types?.rootNamespace,
-  });
-  if (hoverContent) {
-    return { contents: { kind: "markdown", value: hoverContent } };
+  // Try typl $Name token first — it takes priority over display-ID lookup.
+  const dollarName = dollarNameAtPosition(line, params.position.character);
+  if (dollarName) {
+    const registry = index.getTypeRegistry();
+    // Published tier (#750): give hover the enclosing entry so it can
+    // resolve a relative `$.x` against the entry root namespace and mark a
+    // published symbol as declared "in this entry" vs. cited from another.
+    const enclosing = findEnclosingEntry(
+      index.getEntriesForFile(filePath),
+      params.position.line + 1, // LSP is 0-based; Entry is 1-based.
+    );
+    const hoverContent = formatTyplHoverContent(dollarName, registry, {
+      entryDisplayId: enclosing?.displayId,
+      rootNamespace: enclosing?.types?.rootNamespace,
+    });
+    if (hoverContent) {
+      return { contents: { kind: "markdown", value: hoverContent } };
+    }
   }
-}
 
-const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(line, params.position.character);
 ```
 
 Insert a new branch between the closing `}` of the `dollarName` block and
 `const id = ...`:
 
 ```ts
-// Try typl $Name token first — it takes priority over display-ID lookup.
-const dollarName = dollarNameAtPosition(line, params.position.character);
-if (dollarName) {
-  const registry = index.getTypeRegistry();
-  // Published tier (#750): give hover the enclosing entry so it can
-  // resolve a relative `$.x` against the entry root namespace and mark a
-  // published symbol as declared "in this entry" vs. cited from another.
-  const enclosing = findEnclosingEntry(
-    index.getEntriesForFile(filePath),
-    params.position.line + 1, // LSP is 0-based; Entry is 1-based.
-  );
-  const hoverContent = formatTyplHoverContent(dollarName, registry, {
-    entryDisplayId: enclosing?.displayId,
-    rootNamespace: enclosing?.types?.rootNamespace,
-  });
-  if (hoverContent) {
-    return { contents: { kind: "markdown", value: hoverContent } };
+  // Try typl $Name token first — it takes priority over display-ID lookup.
+  const dollarName = dollarNameAtPosition(line, params.position.character);
+  if (dollarName) {
+    const registry = index.getTypeRegistry();
+    // Published tier (#750): give hover the enclosing entry so it can
+    // resolve a relative `$.x` against the entry root namespace and mark a
+    // published symbol as declared "in this entry" vs. cited from another.
+    const enclosing = findEnclosingEntry(
+      index.getEntriesForFile(filePath),
+      params.position.line + 1, // LSP is 0-based; Entry is 1-based.
+    );
+    const hoverContent = formatTyplHoverContent(dollarName, registry, {
+      entryDisplayId: enclosing?.displayId,
+      rootNamespace: enclosing?.types?.rootNamespace,
+    });
+    if (hoverContent) {
+      return { contents: { kind: "markdown", value: hoverContent } };
+    }
   }
-}
 
-// Try a ux: ref next (S10 #728) — inert (no registry) unless the
-// profile designates a declaring type (uxilDeclaringTypes).
-const uxToken = uxRefTokenAtPosition(line, params.position.character);
-if (uxToken) {
-  const uxRegistry = index.getUxRegistry(profile ?? null);
-  if (uxRegistry) {
-    const { ref } = parseUxRef(uxToken);
-    if (ref) {
-      const hoverContent = formatUxHoverContent(ref, uxRegistry);
-      if (hoverContent) {
-        return { contents: { kind: "markdown", value: hoverContent } };
+  // Try a ux: ref next (S10 #728) — inert (no registry) unless the
+  // profile designates a declaring type (uxilDeclaringTypes).
+  const uxToken = uxRefTokenAtPosition(line, params.position.character);
+  if (uxToken) {
+    const uxRegistry = index.getUxRegistry(profile ?? null);
+    if (uxRegistry) {
+      const { ref } = parseUxRef(uxToken);
+      if (ref) {
+        const hoverContent = formatUxHoverContent(ref, uxRegistry);
+        if (hoverContent) {
+          return { contents: { kind: "markdown", value: hoverContent } };
+        }
       }
     }
   }
-}
 
-const id = displayIdAtPosition(line, params.position.character);
+  const id = displayIdAtPosition(line, params.position.character);
 ```
 
 - [ ] **Step 3: Add the completion trigger**

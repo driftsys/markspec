@@ -411,7 +411,8 @@ reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
 
   Sensor driver shall debounce raw inputs.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDE Satisfies: SYS_BRK_0042
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDE
+  Satisfies: SYS_BRK_0042
 ```
 
 **Nested entry.** In a Markdown file, a list item inside an entry that is itself

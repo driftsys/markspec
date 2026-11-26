@@ -220,13 +220,7 @@ interface ProfileType {
 }
 
 type PaletteHue =
-  | "blue"
-  | "cyan"
-  | "teal"
-  | "orange"
-  | "red"
-  | "purple"
-  | "grey";
+  | "blue" | "cyan" | "teal" | "orange" | "red" | "purple" | "grey";
 ```
 
 The shape derives directly from `core/profile`'s in-memory model: `prefix` comes

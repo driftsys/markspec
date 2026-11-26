@@ -115,8 +115,8 @@ it.
 ````markdown
 - [REQ_BRK_0010] Emergency braking for close obstacles
 
-  The braking controller shall start braking when an obstacle is detected closer
-  than 40 m at speeds of 60 km/h or less.
+  The braking controller shall start braking when an obstacle is detected
+  closer than 40 m at speeds of 60 km/h or less.
 
   ```feature
   Background:
@@ -179,7 +179,7 @@ A Requirement or Contract may state its criteria as a list instead of a block
   - Brake lights switch on within 100 ms of the brake command.
   - Brake lights stay on while the brake command is active.
 
-    Satisfies: STK_BRK_0002
+      Satisfies: STK_BRK_0002
 ```
 
 ## 5. `.feature` files that describe entries (Case B)

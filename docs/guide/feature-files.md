@@ -322,11 +322,7 @@ shows the fields that differ from a Markdown entry:
         "form": "scenario",
         "name": "Brake at 20 m",
         "addressable": true,
-        "location": {
-          "file": "features/brake.feature",
-          "line": 15,
-          "column": 1
-        }
+        "location": { "file": "features/brake.feature", "line": 15, "column": 1 }
       }
     ]
   },

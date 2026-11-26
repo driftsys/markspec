@@ -297,60 +297,60 @@ Current `.github/workflows/pages.yaml:29-52` (checkout through the 4 build
 steps):
 
 ```yaml
-- uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.2
 
-- uses: denoland/setup-deno@v2
-  with:
-    deno-version: v2.x
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
-- name: Regenerate tokens
-  run: deno run --allow-read --allow-write scripts/gen_theme.ts
+      - name: Regenerate tokens
+        run: deno run --allow-read --allow-write scripts/gen_theme.ts
 
-- name: Build language spec book
-  working-directory: docs/spec/language
-  run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/spec
+      - name: Build language spec book
+        working-directory: docs/spec/language
+        run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/spec
 
-- name: Build typography book
-  working-directory: docs/spec/typography
-  run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/typography
+      - name: Build typography book
+        working-directory: docs/spec/typography
+        run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/typography
 
-- name: Build model reference book
-  working-directory: docs/spec/model
-  run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/model
+      - name: Build model reference book
+        working-directory: docs/spec/model
+        run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/model
 
-- name: Build guide book
-  working-directory: docs/guide
-  run: deno run --allow-read --allow-write ../../packages/markspec/main.ts book build --output ../../_site/guide
+      - name: Build guide book
+        working-directory: docs/guide
+        run: deno run --allow-read --allow-write ../../packages/markspec/main.ts book build --output ../../_site/guide
 ```
 
 Replace with:
 
 ```yaml
-- uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.2
 
-- name: Install mdBook
-  uses: peaceiris/actions-mdbook@v2
-  with:
-    mdbook-version: latest
+      - name: Install mdBook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: latest
 
-- uses: denoland/setup-deno@v2
-  with:
-    deno-version: v2.x
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
-- name: Regenerate tokens
-  run: deno run --allow-read --allow-write scripts/gen_theme.ts
+      - name: Regenerate tokens
+        run: deno run --allow-read --allow-write scripts/gen_theme.ts
 
-- name: Build language spec book
-  run: mdbook build docs/spec/language
+      - name: Build language spec book
+        run: mdbook build docs/spec/language
 
-- name: Build typography book
-  run: mdbook build docs/spec/typography
+      - name: Build typography book
+        run: mdbook build docs/spec/typography
 
-- name: Build model reference book
-  run: mdbook build docs/spec/model
+      - name: Build model reference book
+        run: mdbook build docs/spec/model
 
-- name: Build guide book
-  run: mdbook build docs/guide
+      - name: Build guide book
+        run: mdbook build docs/guide
 ```
 
 Use the Edit tool with the exact "Current" block as `old_string` and the exact

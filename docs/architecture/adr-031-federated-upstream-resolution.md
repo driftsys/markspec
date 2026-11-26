@@ -49,15 +49,15 @@ list of `projectRef` (`ProjectRef = { url; version?; name? }`, `url` required):
 name: io.acme.aeb-brake-controller
 version: "1.2.0"
 
-dependencies: # git repositories → clone + compile
+dependencies:                       # git repositories → clone + compile
   - url: git@github.com:acme/aeb-product.git
-    name: product # short id: cache dir, lock rows, badges
-  # version absent → auto: latest release tag, else default branch
+    name: product                   # short id: cache dir, lock rows, badges
+    # version absent → auto: latest release tag, else default branch
   - url: git@github.com:acme/aeb-icd.git
     name: icd
-    version: "v2.1.0" # exact tag → frozen baseline
+    version: "v2.1.0"               # exact tag → frozen baseline
 
-references: # published sites → fetch the index
+references:                         # published sites → fetch the index
   - url: https://driftsys.github.io/refhub
     name: refhub
 ```

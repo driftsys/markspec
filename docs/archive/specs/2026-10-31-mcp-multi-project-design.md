@@ -94,11 +94,11 @@ New `mcp/workspace.ts`:
 
 ```ts
 interface McpWorkspace {
-  readonly startRoot: string; // where discovery started
+  readonly startRoot: string;          // where discovery started
   readonly projects: readonly Project[]; // sorted by root
-  readonly softGateMessage?: string; // set when projects is empty
+  readonly softGateMessage?: string;   // set when projects is empty
   select(projectArg?: string): Project[] | string; // string = error text
-  label(project: Project): string; // root relative to startRoot, "." for itself
+  label(project: Project): string;     // root relative to startRoot, "." for itself
 }
 async function createWorkspace(env: ProjectEnv): Promise<McpWorkspace>;
 ```
@@ -123,10 +123,8 @@ shared helper does the fan-out:
 
 ```ts
 async function perProject(
-  workspace,
-  args,
-  render: (project) => Promise<string | undefined>,
-): Promise<string>;
+  workspace, args, render: (project) => Promise<string | undefined>,
+): Promise<string>
 ```
 
 - Resolves `args.project` through `workspace.select`. Unknown value → returns an

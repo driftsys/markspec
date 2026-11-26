@@ -25,11 +25,11 @@ flat graph whose size is O(entries + tree links), and the UI expands it lazily.
        "title": "…",
        "type": "…",
        "kind": "…",
-       "origin": "…"
+       "origin": "…",
      }],
      "edges": [
-       { "from": "SYS_0001", "to": "STK_0001", "relation": "satisfies" }
-     ]
+       { "from": "SYS_0001", "to": "STK_0001", "relation": "satisfies" },
+     ],
    }
    ```
 

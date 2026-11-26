@@ -72,7 +72,7 @@ markspec-check:
 
 markspec-lint:
   stage: quality
-  allow_failure: true # lint is informational; remove to make it blocking
+  allow_failure: true   # lint is informational; remove to make it blocking
   script:
     - markspec lint docs/**/*.md
   needs: [markspec-check]
