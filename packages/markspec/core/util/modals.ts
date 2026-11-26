@@ -17,8 +17,13 @@ import { walkProseLines } from "./fence.ts";
  * Captured for canonical-form normalisation per spec §3.4.1: uppercase
  * input is accepted but emitted lowercase. This is the pattern of the default
  * (`lower`) mode; the `rfc8174` mode uses {@linkcode RFC8174_ENFORCED_RE}.
+ * A keyword wrapped in underscores (`__SHALL__`, `_MUST_`) is matched, since
+ * underscore emphasis is Markdown syntax, not part of the word (#1031); a
+ * keyword joined to a letter or digit, directly or through an underscore
+ * (`FOO_SHALL`), is not.
  */
-export const RFC2119_MODAL_RE = /\b(SHALL|SHOULD|MAY|MUST)(\s+NOT)?\b/g;
+export const RFC2119_MODAL_RE =
+  /(?<![A-Za-z0-9])(?<=(?:^|[^\w])_*)(SHALL|SHOULD|MAY|MUST)(\s+NOT)?(?![A-Za-z0-9])(?=_*(?:[^\w]|$))/g;
 
 /**
  * The `shall` and `must` keywords in any casing, with an optional following
@@ -28,12 +33,14 @@ export const RFC2119_MODAL_RE = /\b(SHALL|SHOULD|MAY|MUST)(\s+NOT)?\b/g;
  * `well-must`, `mustard`) is not matched.
  *
  * The gap between the keyword and `not` is spaces and tabs, or at most one
- * line break with any spaces and tabs around it, so a `not` that starts the
+ * line break with any spaces and tabs around it (and any `>` blockquote
+ * markers after it, for a nested blockquote whose text keeps the inner
+ * markers, #1031), so a `not` that starts the
  * next line of the same paragraph is matched and a blank line is never
  * crossed. Group 1 is the keyword, group 2 the gap and group 3 the `not`.
  */
 export const RFC8174_ENFORCED_RE =
-  /(?<![-\w])(shall|must)(?:([ \t]*\r?\n[ \t]*|[ \t]+)(not))?(?![-\w])/gi;
+  /(?<![-\w])(shall|must)(?:([ \t]*\r?\n[ \t>]*|[ \t]+)(not))?(?![-\w])/gi;
 
 /**
  * Every RFC 2119 modal word and every EARS keyword, in lowercase. A word
@@ -87,7 +94,8 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  * and alt text), link reference definitions, footnote labels, HTML tags and
  * HTML blocks (#1009). The visible text of a `[text](url)` or `[text][label]`
  * link is prose and is normalized. A keyword on a four-space or tab-indented
- * line remains verbatim as before. The document is parsed once; every
+ * line remains verbatim, unless the line continues a paragraph (a lazy
+ * continuation line), which is prose (#1031). The document is parsed once; every
  * exclusion uses that same AST.
  *
  * `mode` is `"lower"` (the §3.4.1 rule: lowercase the uppercase RFC 2119
@@ -114,12 +122,13 @@ export function normalizeProseModals(
   const tree = processor.parse(source);
   const { fencedLines } = parseCodeRegions(source, tree);
   const verbatimRanges = nonProseRanges(source, tree);
+  const blockRanges = inlineBlockRanges(tree);
   if (mode === "rfc8174") {
     return uppercaseRfc8174(
       text,
       fencedLines,
       verbatimRanges,
-      inlineBlockRanges(tree),
+      blockRanges,
     );
   }
   const lines = text.split("\n");
@@ -132,8 +141,8 @@ export function normalizeProseModals(
     return offset;
   });
   walkProseLines(text, (line, i) => {
-    if (/^( {4}|\t)/.test(line)) return;
     const start = offsets[i];
+    if (isIndentedCodeLine(line, start, blockRanges)) return;
     while (
       rangeIndex < verbatimRanges.length &&
       verbatimRanges[rangeIndex].end <= start
@@ -173,7 +182,7 @@ export function normalizeProseModals(
  * {@linkcode RFC8174_ENFORCED_RE} on the whole text, so a `not` on the next
  * line of the same paragraph needs no state between lines. A match is kept as
  * written when its keyword is on a fenced line or on a line indented by four
- * or more spaces (or a tab), or when any part of the match overlaps inline
+ * or more spaces (or a tab) that does not continue a paragraph, or when any part of the match overlaps inline
  * code or another verbatim range (`nonProseRanges`: inline code and link
  * syntax). Otherwise only the keyword and the `not` letters are uppercased;
  * the gap between them is kept exactly. A `not` after a line break is
@@ -201,7 +210,11 @@ function uppercaseRfc8174(
       const lineIndex = text.slice(0, lineStart).split("\n").length - 1;
       if (
         fencedLines.has(lineIndex) ||
-        /^( {4}|\t)/.test(text.slice(lineStart, lineStart + 4))
+        isIndentedCodeLine(
+          text.slice(lineStart, lineStart + 4),
+          lineStart,
+          blockRanges,
+        )
       ) return match;
       const end = offset + match.length;
       if (verbatimRanges.some((r) => r.start < end && r.end > offset)) {
@@ -215,6 +228,22 @@ function uppercaseRfc8174(
         (sameBlock ? not.toUpperCase() : not);
     },
   );
+}
+
+/**
+ * `true` when the line that starts at `lineStart` is indented by four or more
+ * spaces (or a tab) and does not continue a paragraph (it does not start
+ * inside a range of `blockRanges`). Inside a paragraph such a line is a lazy continuation line,
+ * which is prose: the Markdown pass joins it to the line before, so its
+ * keyword must be cased in the same pass (#1031).
+ */
+function isIndentedCodeLine(
+  line: string,
+  lineStart: number,
+  blockRanges: readonly { start: number; end: number }[],
+): boolean {
+  if (!/^( {4}|\t)/.test(line)) return false;
+  return !blockRanges.some((r) => r.start < lineStart && lineStart < r.end);
 }
 
 /** Node types whose text is one run of inline content. */

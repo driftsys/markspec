@@ -514,10 +514,16 @@ Deno.test("normalizeModalKeywords: fenced code blocks left verbatim", () => {
 });
 
 Deno.test("normalizeModalKeywords: indented (code/trailer) lines left verbatim", () => {
-  // 4-space and tab-indented lines are not prose.
+  // 4-space and tab-indented lines after a blank line (an indented code
+  // block or a trailer) are not prose. Directly after a paragraph line they
+  // are lazy continuation lines, which are prose (#1031).
   assertEquals(
-    normalizeModalKeywords("Prose SHALL lower.\n    SHALL stay\n\tMUST stay"),
-    "Prose shall lower.\n    SHALL stay\n\tMUST stay",
+    normalizeModalKeywords("Prose SHALL lower.\n\n    SHALL stay\n\tMUST stay"),
+    "Prose shall lower.\n\n    SHALL stay\n\tMUST stay",
+  );
+  assertEquals(
+    normalizeModalKeywords("Prose SHALL lower.\n    SHALL lower"),
+    "Prose shall lower.\n    shall lower",
   );
 });
 

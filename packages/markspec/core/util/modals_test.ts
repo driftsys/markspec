@@ -365,3 +365,55 @@ Deno.test("normalizeProseModals: rfc8174 keeps uppercase MAY, SHOULD and WILL as
   const text = "It MAY retry, SHOULD log and WILL stop. It may, should, will.";
   assertEquals(normalizeProseModals(text, "rfc8174"), text);
 });
+
+// #1031: one fmt pass gives the final casing.
+for (
+  const [name, input, mode, expected] of [
+    [
+      "an indented lazy continuation line (lower)",
+      "The system\n      MUST not fail.",
+      "lower",
+      "The system\n      must not fail.",
+    ],
+    [
+      "an indented lazy continuation line (rfc8174)",
+      "The system\n      must not fail.",
+      "rfc8174",
+      "The system\n      MUST NOT fail.",
+    ],
+    [
+      "an indented code block stays verbatim (lower)",
+      "Text.\n\n    MUST code",
+      "lower",
+      "Text.\n\n    MUST code",
+    ],
+    [
+      "a keyword and not split in a single-level blockquote (rfc8174)",
+      "> The system must\n> not fail.",
+      "rfc8174",
+      "> The system MUST\n> NOT fail.",
+    ],
+    [
+      "a keyword and not split in a nested blockquote (rfc8174)",
+      "> > The system must\n> > not fail.",
+      "rfc8174",
+      "> > The system MUST\n> > NOT fail.",
+    ],
+    [
+      "underscore emphasis (lower)",
+      "The system __SHALL__ and _MUST_ act.",
+      "lower",
+      "The system __shall__ and _must_ act.",
+    ],
+    [
+      "a keyword joined by an underscore stays (lower)",
+      "FOO_SHALL and SHALL_X stay.",
+      "lower",
+      "FOO_SHALL and SHALL_X stay.",
+    ],
+  ] as const
+) {
+  Deno.test(`normalizeProseModals: #1031 ${name}`, () => {
+    assertEquals(normalizeProseModals(input, mode), expected);
+  });
+}
