@@ -1461,6 +1461,11 @@ for (
       "  - a\n    - [SHALL]: http://x.example/",
     ],
     [
+      "a multi-line definition in an ordered list item",
+      'See [SHALL].\n\n1. [SHALL]: http://x.example/\n   "title"',
+      '  1. [SHALL]: http://x.example/\n     "title"',
+    ],
+    [
       "a lowercase label defined in an ordered list item",
       "See [x].\n\n1. [x]: http://x.example/",
       "  1. [x]: http://x.example/",
@@ -1497,6 +1502,19 @@ for (
     );
   });
 }
+
+// A thematic break as the first block of an item stays below the bare
+// marker: `- ---` would be a top-level thematic break (#1026).
+Deno.test("format: keeps a thematic break below a bare list marker (#1026)", () => {
+  for (const body of ["Intro.\n\n-\n  ---", "Intro.\n\n-\n  - - -"]) {
+    const { result, f900 } = formatBody(body);
+    assertEquals(f900, []);
+    assertEquals(
+      format(result.output, { file: "req.md" }).output,
+      result.output,
+    );
+  }
+});
 
 Deno.test("format: lowercases the visible text of a full reference link (#1014)", () => {
   const { result, f900 } = formatBody(
