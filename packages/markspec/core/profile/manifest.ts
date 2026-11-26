@@ -776,7 +776,12 @@ function parseDisciplineMode(
 }
 
 const KNOWN_CONVENTIONS = new Set(["modal-keywords"]);
-const MODAL_KEYWORDS_CASING_VALUES = new Set(["rfc2119", "iso", "preserve"]);
+const MODAL_KEYWORDS_CASING_VALUES = new Set([
+  "rfc2119",
+  "iso",
+  "preserve",
+  "rfc8174",
+]);
 
 function parseLabelConcerns(
   raw: unknown,
@@ -990,7 +995,7 @@ function parseConventions(
             code: "PROFILE-LOAD-003",
             severity: "error",
             message:
-              `profile.conventions.modal-keywords.casing: '${v}' not valid (expected: rfc2119, iso, preserve)`,
+              `profile.conventions.modal-keywords.casing: '${v}' not valid (expected: rfc2119, iso, preserve, rfc8174)`,
             location: { file: sourcePath, line: 1, column: 1 },
           });
           valid = false;

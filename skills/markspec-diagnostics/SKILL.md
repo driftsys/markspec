@@ -56,11 +56,12 @@ Emitted during identity validation (uniqueness, ULID format).
 Emitted when RFC 2119 modal keyword usage violates profile rules (e.g.
 profile-default requires lowercase shall/should/may/must/will).
 
-| Code     | Message pattern         | Fix                                             |
-| -------- | ----------------------- | ----------------------------------------------- |
-| MSL-M050 | Missing modal keyword   | Body must contain at least one RFC 2119 keyword |
-| MSL-M051 | Ambiguous modal keyword | Body uses multiple levels without justification |
-| MSL-M060 | Uppercase modal keyword | Lowercase the keyword: `SHALL` → `shall`        |
+| Code     | Message pattern                                        | Fix                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MSL-M050 | Missing modal keyword                                  | Body must contain at least one RFC 2119 keyword                                                                                                                                                             |
+| MSL-M051 | Ambiguous modal keyword                                | Body uses multiple levels without justification                                                                                                                                                             |
+| MSL-M060 | Uppercase modal keyword (default casing only)          | Lowercase the keyword: `SHALL` → `shall`                                                                                                                                                                    |
+| MSL-M062 | Lowercase modal keyword (only under `casing: rfc8174`) | Write the keyword in uppercase: `shall` → `SHALL`. `markspec fmt` does this for `shall` and `must` only; for `may`, `should` or `will`, uppercase the word if it is normative, or leave it as plain English |
 
 ### A0xx — Attribute
 

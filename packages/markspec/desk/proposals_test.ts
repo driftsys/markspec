@@ -817,3 +817,40 @@ Deno.test("previewBody and applyBody: the profile's casing: preserve keeps keywo
   assert(canonical.ok);
   assertEquals(canonical.value.body, "The system shall act when requested.");
 });
+
+Deno.test("previewBody and applyBody: the profile's casing: rfc8174 uppercases shall and must", async () => {
+  const conventions = new Map([
+    ["modal-keywords", {
+      value: { name: "modal-keywords", settings: { casing: "rfc8174" } },
+      origin: "@test/rfc8174",
+    }],
+  ]);
+  const proposed =
+    "The system shall act and may retry. It must not fail. When x, Y.";
+  const expected =
+    "The system SHALL act and may retry. It MUST NOT fail. When x, Y.";
+  const preview = await previewBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+    format,
+    undefined,
+    conventions,
+  );
+  assert(preview.ok);
+  assertEquals(preview.value.body, expected);
+  const applied = await applyBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+    format,
+    undefined,
+    conventions,
+  );
+  assert(applied.ok);
+  assert(applied.value.includes(expected));
+});

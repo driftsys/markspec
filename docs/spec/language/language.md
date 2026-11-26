@@ -2146,15 +2146,65 @@ allowedKeys = ["layout", "permalink", "sidebar_position", "draft", "aliases"]
 | `referenceLinks`          | string   | `"warn"` | `none`, `warn`, `enforce`                                                                                    |
 | `frontMatter.allowedKeys` | string[] | `[]`     | Top-level front-matter keys to accept beyond core / profile / `metadata`. Preserved verbatim, not validated. |
 
-All formatting rules are fixed. There is no formatter choice — dprint is the
-formatter.
+All formatting rules are fixed, with one exception: the effective profile
+convention `modal-keywords.casing` changes the casing of modal and EARS keywords
+in entry bodies. There is no formatter choice — dprint is the formatter.
 
-The effective profile convention `modal-keywords.casing: preserve` keeps the
-source casing of modal and EARS keywords in entry bodies during formatting. The
-CLI formatter, the project-wide format-drift gate (`MSL-F010`) and the editor
-formatter use the same effective convention. Without `preserve`, the core casing
-rules apply. The `MSL-M060` lowercase warning also respects `preserve`; the
-missing-modal hint `MSL-M061` and unrelated prose findings remain active.
+The default casing, which `rfc2119` and `iso` also select, lowercases `SHALL`,
+`SHOULD`, `MAY` and `MUST` (with a following `NOT`), and lowercases the EARS
+keywords `When`, `While`, `Where` and `Unless` in the middle of a sentence. The
+effective profile convention `modal-keywords.casing: preserve` keeps the source
+casing of modal and EARS keywords in entry bodies during formatting. The CLI
+formatter, the project-wide format-drift gate (`MSL-F010`), the editor formatter
+and MarkDesk proposals use the same effective convention, each with the profile
+of its own project. Without `preserve` or `rfc8174`, the core casing rules
+apply. The `MSL-M060` warning, which reports an uppercase modal keyword, does
+not fire under `preserve`; the missing-modal hint `MSL-M061` and unrelated prose
+findings remain active.
+
+Under `modal-keywords.casing: rfc8174`, `MSL-M060` is not emitted, because
+uppercase is the normative form. Instead, `MSL-M062` (info) reports each
+lowercase modal keyword in an entry whose type resolves to `Requirement`: the
+core type, a profile type that extends it (set by an explicit `Type:` or by the
+profile display-ID pattern), the built-in `REQ` display-ID prefix, or a
+`.feature` Feature or Rule entry. Like `MSL-M060`, `MSL-M062` does not report a
+keyword in inline code, link destinations, titles and labels, autolinks, images,
+link reference definitions, footnote labels or raw HTML, which the formatter
+keeps as written. `MSL-M062` also reports a lowercase `may`, `should`, `will`
+and `should not`, which `markspec fmt` does not change (see below): it clears
+the note only for `shall` and `must`, so the note on `may`, `should` or `will`
+stays until the author uppercases the word, if it is normative, or leaves it as
+plain English.
+
+Under `rfc8174`, `markspec fmt` uppercases `shall` and `must` in entry bodies,
+in any casing, together with a `not` that directly follows them (`shall not`
+becomes `SHALL NOT`). It leaves `may`, `should`, `will` and the EARS keywords as
+written, because a lowercase `may` or `will` is often plain English. A
+hyphenated word such as `must-have` is not changed. A `not` that starts the next
+line of the same paragraph is uppercased too (`must` at the end of a line and
+`not` at the start of the next become `MUST` and `NOT`), so that `fmt` gives the
+final form in one pass when it joins the lines. This includes a two-space hard
+line break, but not a backslash hard break (`must\` at a line end): there the
+`not` on the next line is kept as written. A `not` that starts another
+paragraph, a list item, or the line after a heading, also inside a blockquote,
+is not changed. A keyword on a paragraph continuation line indented four or more
+spaces needs a second `fmt` pass in both casings. Under `rfc8174`, a keyword and
+`not` on two lines of a nested blockquote also need a second pass
+(`> > It
+shall` and `> > not fail.` become `>> It SHALL not fail.`, then
+`>> It SHALL NOT fail.`). Under the default casing, `> > It SHALL` and
+`> > NOT fail.` become `>> It shall NOT fail.`, and later passes keep it,
+because the split `NOT` keeps its case. The rewrite applies to `must` and
+`shall` in the body of a Markdown entry of any type, not only requirements, and
+to plain English such as a sentence-initial `Must we ...`. `fmt` does not
+rewrite source doc comments, and in a `.feature` file it only stamps a missing
+`# Id:`, so an `MSL-M062` in a source doc-comment or `.feature` entry is fixed
+by hand. Inline code, link destinations and titles, autolinks, images and HTML
+keep any word as written. A table is cased one cell at a time, as under the
+default casing: `shall` and `must` in a table cell are uppercased, with a `not`
+that follows them in the same cell, and `preserve` keeps a cell as written. The
+`check` fmt-drift gate (`MSL-F010`), the LSP formatter and MarkDesk proposals
+apply the same rule.
 
 ### 9.2 CI
 

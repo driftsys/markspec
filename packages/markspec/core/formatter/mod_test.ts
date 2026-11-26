@@ -15,6 +15,7 @@ import {
   assertStringIncludes,
 } from "@std/assert";
 import { parseMarkdown } from "../parser/markdown.ts";
+import { normalizeProseModals } from "../util/modals.ts";
 import {
   format,
   isSentenceInitial,
@@ -1898,4 +1899,436 @@ Deno.test("format: the prose pass keeps a definition list nested in a list item 
   assert(once.diagnostics.some((d) => d.code === "MSL-F012"));
   const twice = format(once.output, { file: "req.md", formatMarkdownProse });
   assertEquals(twice.output, once.output);
+});
+
+const RFC8174_CONVENTIONS = new Map([
+  ["modal-keywords", {
+    value: { name: "modal-keywords", settings: { casing: "rfc8174" } },
+    origin: "@test/rfc8174",
+  }],
+]);
+
+Deno.test("format: casing rfc8174 uppercases shall and must and a following not", () => {
+  const md = `- [REQ-001] Wording
+
+  The system shall stop and may log. It must not fail. When x, Y. The
+  system Shall Not hang, and it should retry while idle.
+
+  - The value MUST remain. A driver will notice.
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: RFC8174_CONVENTIONS });
+  assertStringIncludes(
+    result.output,
+    "The system SHALL stop and may log. It MUST NOT fail. When x, Y. The\n  system SHALL NOT hang, and it should retry while idle.",
+  );
+  assertStringIncludes(
+    result.output,
+    "- The value MUST remain. A driver will notice.",
+  );
+  assert(result.changed);
+  // Idempotent.
+  const again = format(result.output, { conventions: RFC8174_CONVENTIONS });
+  assertEquals(again.output, result.output);
+  assertFalse(again.changed);
+  // The default casing lowercases instead.
+  assertStringIncludes(format(md).output, "It must not fail.");
+});
+
+Deno.test("format: casing rfc8174 keeps verbatim inline text as written", () => {
+  const md = `- [REQ-001] Wording
+
+  Use \`shall\` and [the must page](https://example.com/shall/must) and
+  <https://example.com/shall> here; the system shall act.
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: RFC8174_CONVENTIONS });
+  assertStringIncludes(result.output, "`shall`");
+  assertStringIncludes(result.output, "(https://example.com/shall/must)");
+  assertStringIncludes(result.output, "<https://example.com/shall>");
+  assertStringIncludes(result.output, "[the MUST page]");
+  assertStringIncludes(result.output, "the system SHALL act.");
+});
+
+Deno.test("format: casing rfc8174 is idempotent for `must` at a line end", async () => {
+  const conventions = RFC8174_CONVENTIONS;
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const md = `- [REQ-001] Wording
+
+  The system must
+  not fail.
+
+      Id: ${MOCK_ULID}
+`;
+  for (const prose of [undefined, formatMarkdownProse]) {
+    const options = { file: "t.md", conventions, formatMarkdownProse: prose };
+    const first = format(md, options);
+    // With the Markdown formatter the two lines are joined.
+    assertStringIncludes(
+      first.output,
+      prose ? "The system MUST NOT fail." : "The system MUST\n  NOT fail.",
+    );
+    const second = format(first.output, options);
+    assertEquals(second.output, first.output);
+    assertFalse(second.changed);
+  }
+});
+
+Deno.test("format: casing rfc8174 keeps uppercase MAY, SHOULD and WILL as written", () => {
+  const md = `- [REQ-001] Wording
+
+  The system MAY log, SHOULD retry and WILL stop. A driver may, should, will.
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: RFC8174_CONVENTIONS });
+  assertStringIncludes(
+    result.output,
+    "The system MAY log, SHOULD retry and WILL stop. A driver may, should, will.",
+  );
+});
+
+Deno.test("format: casing rfc8174 keeps keywords in link titles, images and HTML", () => {
+  const md = `- [REQ-001] Wording
+
+  A [link](https://example.com "the shall title") and
+  ![the must image](https://example.com/a.png "must title") and
+  <span title="shall">x</span> here; the system shall act.
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: RFC8174_CONVENTIONS });
+  assertStringIncludes(result.output, `"the shall title"`);
+  assertStringIncludes(result.output, `![the must image]`);
+  assertStringIncludes(result.output, `"must title"`);
+  assertStringIncludes(result.output, `<span title="shall">`);
+  assertStringIncludes(result.output, "the system SHALL act.");
+});
+
+// A table renders from its raw text, so the rfc8174 pass cases the raw text
+// one cell at a time, as the default casing does (#1015).
+Deno.test("format: casing rfc8174 uppercases shall and must in a table cell in one pass", async () => {
+  const md = `- [REQ-001] Wording
+
+  The system shall act.
+
+  | Rule | Note |
+  | ---- | ---- |
+  | the system shall act | it must not fail |
+  | it MAY log | \`shall\` stays |
+
+      Id: ${MOCK_ULID}
+`;
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  for (const prose of [undefined, formatMarkdownProse]) {
+    const options = {
+      file: "req.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse: prose,
+    };
+    const first = format(md, options);
+    assertEquals(
+      first.diagnostics.filter((d) => d.code.startsWith("MSL-F9")),
+      [],
+    );
+    assertStringIncludes(first.output, "The system SHALL act.");
+    assertStringIncludes(first.output, "the system SHALL act");
+    assertStringIncludes(first.output, "it MUST NOT fail");
+    assertStringIncludes(first.output, "it MAY log");
+    assertStringIncludes(first.output, "`shall` stays");
+    const second = format(first.output, options);
+    assertEquals(second.output, first.output);
+    assertFalse(second.changed);
+  }
+});
+
+Deno.test("format: casing preserve keeps a table cell as written", () => {
+  const md = `- [REQ-001] Wording
+
+  | Rule |
+  | ---- |
+  | the system SHALL act and must not fail |
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: PRESERVE_CONVENTIONS });
+  assertEquals(
+    result.diagnostics.filter((d) => d.code.startsWith("MSL-F9")),
+    [],
+  );
+  assertStringIncludes(
+    result.output,
+    "| the system SHALL act and must not fail |",
+  );
+});
+
+Deno.test("format: casing rfc8174 keeps a `Not` that starts an entry body paragraph", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const md = `- [REQ-001] Wording
+
+  Not all inputs are valid. The system must act.
+
+  - Not every item.
+
+      Id: ${MOCK_ULID}
+`;
+  for (const prose of [undefined, formatMarkdownProse]) {
+    const result = format(md, {
+      file: "t.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse: prose,
+    });
+    assertStringIncludes(
+      result.output,
+      "  Not all inputs are valid. The system MUST act.\n",
+    );
+    assertStringIncludes(result.output, "  - Not every item.\n");
+  }
+});
+
+for (
+  const [name, body, expected] of [
+    [
+      "a list item",
+      "  - it must\n  - not every item.",
+      "  - it MUST\n  - not every item.",
+    ],
+    [
+      "a paragraph before a list",
+      "  The system must\n  - not every item.",
+      "  The system MUST\n\n  - not every item.",
+    ],
+    [
+      "a blockquote with a heading",
+      "  > # It must\n  > not fail.",
+      "  > # It MUST\n  >\n  > not fail.",
+    ],
+    [
+      "a note with a heading",
+      "  > [!NOTE]\n  > # It must\n  > not fail.",
+      "  > [!NOTE]\n  >\n  > # It MUST\n  >\n  > not fail.",
+    ],
+  ] as const
+) {
+  // The list cases pin existing behaviour; the heading cases reach the
+  // same-block check.
+  Deno.test(`format: casing rfc8174 keeps a \`not\` that starts the next block after ${name}`, async () => {
+    const md = `- [REQ-001] Wording\n\n${body}\n\n      Id: ${MOCK_ULID}\n`;
+    const options = {
+      file: "t.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse: await loadMarkdownFormatter(),
+    };
+    const first = format(md, options);
+    assertStringIncludes(first.output, expected);
+    const second = format(first.output, options);
+    assertEquals(second.output, first.output);
+  });
+}
+
+Deno.test("format: casing rfc8174 joins a keyword and a `not` on two lines of a setext heading in a blockquote", async () => {
+  const md = `- [REQ-001] Wording
+
+  > It must
+  > not fail
+  > ===
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, {
+    file: "t.md",
+    conventions: RFC8174_CONVENTIONS,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
+  assertStringIncludes(result.output, "  > # It MUST NOT fail\n");
+});
+
+Deno.test("format: casing rfc8174 keeps a keyword in underscore emphasis and needs two passes for double-underscore emphasis", async () => {
+  const options = {
+    file: "t.md",
+    conventions: RFC8174_CONVENTIONS,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  };
+  const wrap = (body: string) =>
+    `- [REQ-001] Wording\n\n  ${body}\n\n      Id: ${MOCK_ULID}\n`;
+  const single = format(wrap("The system _must_ act."), options).output;
+  assertStringIncludes(single, "  The system _must_ act.\n");
+  assertEquals(format(single, options).output, single);
+  const double = format(wrap("The system __must__ act."), options);
+  assertStringIncludes(double.output, "  The system **must** act.\n");
+  assertStringIncludes(
+    format(double.output, options).output,
+    "  The system **MUST** act.\n",
+  );
+});
+
+Deno.test("format: casing rfc8174 gives the final form in one pass for a `not` on a continuation line indented four or more spaces", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const md = `- [REQ-001] Wording
+
+  The system must
+      not fail.
+
+      Id: ${MOCK_ULID}
+`;
+  for (const prose of [undefined, formatMarkdownProse]) {
+    const options = {
+      file: "t.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse: prose,
+    };
+    const first = format(md, options);
+    assertStringIncludes(
+      first.output,
+      prose ? "The system MUST NOT fail." : "The system MUST\n      NOT fail.",
+    );
+    const second = format(first.output, options);
+    assertEquals(second.output, first.output);
+    assertFalse(second.changed);
+  }
+});
+
+Deno.test("format: casing rfc8174 leaves a `not` that starts the paragraph after a blank line", () => {
+  const md = `- [REQ-001] Wording
+
+  The system must
+
+  not fail.
+
+      Id: ${MOCK_ULID}
+`;
+  const result = format(md, { conventions: RFC8174_CONVENTIONS });
+  assertStringIncludes(result.output, "The system MUST\n\n  not fail.");
+});
+
+Deno.test("format: casing rfc8174 rewrites the body of an entry that is not a requirement", () => {
+  const md = `- [TST-001] Check
+
+  The tester must record the result. Must we stop?
+
+      Id: ${MOCK_ULID}
+      Type: Test
+`;
+  const result = format(md, { conventions: RFC8174_CONVENTIONS });
+  assertStringIncludes(
+    result.output,
+    "The tester MUST record the result. MUST we stop?",
+  );
+});
+
+Deno.test("format: casing rfc8174 keeps reference labels defined in the body", async () => {
+  const md = `- [REQ-001] Labels
+
+  See [shall] and it must act.
+
+  [shall]: https://example.com
+
+  | Col | Other |
+  | --- | --- |
+  | see [must] here and shall act | x |
+
+  [must]: https://example.com
+
+  A note[^shall] here.
+
+  [^shall]: Footnote text.
+
+      Id: ${MOCK_ULID}
+`;
+  for (const useDprint of [false, true]) {
+    const formatMarkdownProse = useDprint
+      ? await loadMarkdownFormatter()
+      : undefined;
+    const options = {
+      file: "req.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse,
+    };
+    const once = format(md, options);
+    assertFalse(once.diagnostics.some((d) => d.code.startsWith("MSL-F9")));
+    assertStringIncludes(once.output, "See [shall] and it MUST act.");
+    assertStringIncludes(once.output, "[shall]: https://example.com");
+    assertStringIncludes(once.output, "see [must] here and SHALL act");
+    assertStringIncludes(once.output, "[must]: https://example.com");
+    assertStringIncludes(once.output, "[^shall]");
+    const twice = format(once.output, options);
+    assertEquals(twice.output, once.output);
+  }
+  assertEquals(
+    normalizeProseModals("See [shall] x", "rfc8174", "[shall]: https://e.com"),
+    "See [shall] x",
+  );
+});
+
+Deno.test("format: casing rfc8174 uppercases a definition list term and definition", async () => {
+  const md = `- [REQ-001] Terms
+
+  Term must
+  : the system shall act
+
+      Id: ${MOCK_ULID}
+`;
+  for (const useDprint of [false, true]) {
+    const formatMarkdownProse = useDprint
+      ? await loadMarkdownFormatter()
+      : undefined;
+    const options = {
+      file: "req.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse,
+    };
+    const once = format(md, options);
+    assertStringIncludes(once.output, "Term MUST");
+    assertStringIncludes(once.output, ": the system SHALL act");
+    assertEquals(format(once.output, options).output, once.output);
+  }
+});
+
+Deno.test("format: casing rfc8174 cases a table without outer pipes", async () => {
+  const md = `- [REQ-001] Table
+
+  A | B
+  --- | ---
+  x | it shall act
+
+      Id: ${MOCK_ULID}
+`;
+  for (const useDprint of [false, true]) {
+    const formatMarkdownProse = useDprint
+      ? await loadMarkdownFormatter()
+      : undefined;
+    const options = {
+      file: "req.md",
+      conventions: RFC8174_CONVENTIONS,
+      formatMarkdownProse,
+    };
+    const once = format(md, options);
+    assertStringIncludes(once.output, "it SHALL act");
+    assertEquals(format(once.output, options).output, once.output);
+  }
+});
+
+Deno.test("format: casing rfc8174 table cell edge cases", () => {
+  const md = `- [REQ-001] Cells
+
+  | it must | not fail |
+  | --- | --- |
+  | it must \\| not fail | x |
+  | a | b |
+
+  | Header shall | B |
+  | --- | --- |
+  | a | b |
+
+      Id: ${MOCK_ULID}
+`;
+  const out = format(md, {
+    file: "req.md",
+    conventions: RFC8174_CONVENTIONS,
+  }).output;
+  assertStringIncludes(out, "| it MUST | not fail |");
+  assertStringIncludes(out, "it MUST \\| not fail");
+  assertStringIncludes(out, "| Header SHALL | B |");
 });

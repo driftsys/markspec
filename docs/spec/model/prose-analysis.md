@@ -65,12 +65,15 @@ of universally-true capitalized words (calendar / geography / languages) at
 profile tiers, capped, and explicitly excludes domain vocabulary and
 standards-body acronyms. Text in inline code, link destinations, titles and
 labels, autolinks, images, link reference definitions, footnote labels and raw
-HTML is not read as a term.
+HTML is not read as a term. The rule skips modal and EARS keywords in any
+casing, so it never reports `SHALL` or `WHEN`.
 
 ## Modal keyword analysis
 
 Modal keywords signal the obligation level of a requirement. MarkSpec enforces
-the RFC 2119 / EARS convention that modals appear in **lowercase**:
+the RFC 2119 / EARS convention that modals appear in **lowercase** under the
+default casing. Under `modal-keywords.casing: rfc8174`, `shall` and `must` are
+written in uppercase instead, and under `preserve` the source casing is kept:
 
 | Keyword      | Obligation                                     |
 | ------------ | ---------------------------------------------- |
@@ -85,11 +88,14 @@ the RFC 2119 / EARS convention that modals appear in **lowercase**:
 **MSL-M060 — modal-keyword-uppercase** (warning)
 
 Fires when any of the above keywords appears in uppercase (`SHALL`, `MUST`, …)
-inside body prose. The formatter (`markspec fmt`) rewrites uppercase modals in
-prose to lowercase automatically. It keeps the case of a keyword in inline code,
-link destinations, titles and labels, autolinks, images, link reference
-definitions, footnote labels and raw HTML, and this diagnostic does not report a
-keyword in those places either, so a formatted file does not show it.
+inside body prose, under the default casing (also selected by `rfc2119` and
+`iso`). It is not emitted under `modal-keywords.casing: preserve` or `rfc8174`.
+Under the default casing, the formatter (`markspec fmt`) rewrites uppercase
+modals in prose to lowercase automatically. It keeps the case of a keyword in
+inline code, link destinations, titles and labels, autolinks, images, link
+reference definitions, footnote labels and raw HTML, and this diagnostic does
+not report a keyword in those places either, so a formatted file does not show
+it.
 
 ```text
 warning[MSL-M060]: requirements.md:12 modal keyword 'SHALL' in body prose is
@@ -102,11 +108,13 @@ keywords inside code examples are not checked.
 
 **MSL-M061 — missing-modal-keyword** (info)
 
-Fires on `Requirement` entries (and profile subtypes) whose body contains no
-modal keyword at all. A keyword in inline code, link destinations, titles and
-labels, autolinks, images, link reference definitions, footnote labels and raw
-HTML does not count. This is a style hint: a requirement without an obligation
-word is often a description masquerading as a requirement.
+Fires on entries whose core type resolves to `Requirement` without the profile:
+an explicit `Type: Requirement`, the built-in `REQ` display-ID prefix, or a
+`.feature` Feature or Rule entry (profile subtypes are not covered yet, #1024)
+whose body contains no modal keyword at all. A keyword in inline code, link
+destinations, titles and labels, autolinks, images, link reference definitions,
+footnote labels and raw HTML does not count. This is a style hint: a requirement
+without an obligation word is often a description masquerading as a requirement.
 
 ```text
 info[MSL-M061]: requirements.md:7 Requirement entry contains no modal keyword
@@ -114,12 +122,36 @@ info[MSL-M061]: requirements.md:7 Requirement entry contains no modal keyword
 explicit
 ```
 
+**MSL-M062 — modal-keyword-lowercase-rfc8174** (info)
+
+Fires only under the profile convention `modal-keywords.casing: rfc8174`, on
+each lowercase modal keyword in an entry whose type resolves to `Requirement`:
+the core type, a profile type that extends it (set by an explicit `Type:` or by
+the profile display-ID pattern), the built-in `REQ` display-ID prefix, or a
+`.feature` Feature or Rule entry. Under that convention only uppercase keywords
+are normative, and `MSL-M060` is not emitted. Like `MSL-M060`, it does not
+report a keyword in inline code, link destinations, titles and labels,
+autolinks, images, link reference definitions, footnote labels and raw HTML,
+which the formatter keeps as written.
+
+The diagnostic covers every lowercase modal keyword: `shall`, `must`, `may`,
+`should`, `will`, and `should not` (as well as `shall not` and `must not`).
+`markspec fmt` uppercases only `shall` and `must`, so `MSL-M062` on `may`,
+`should` or `will` stays until the author uppercases the word, if it is
+normative, or leaves it as plain English.
+
+```text
+info[MSL-M062]: requirements.md:12 modal keyword 'shall' is lowercase; under
+RFC 8174 only uppercase keywords are normative
+```
+
 ## EARS pattern recognition
 
 EARS (Easy Approach to Requirements Syntax) defines five body forms for
 requirement entries. MarkSpec recognises the leading keyword of each form and
-uses it internally for normalization — capitalisation is preserved at sentence
-start and lowercased mid-sentence.
+uses it internally for normalization — under the default casing, capitalisation
+is preserved at sentence start and lowercased mid-sentence (`rfc8174` and
+`preserve` keep the source casing of EARS keywords).
 
 | Form         | Leading keyword | Template                                |
 | ------------ | --------------- | --------------------------------------- |

@@ -944,7 +944,10 @@ export type BodyTokenKind =
   | "entity-ref" // $Identifier (any case convention, spec §2.5.2)
   | "inline-code"; // `…` span (mdast InlineCode projection)
 
-/** Case form of a modal token — MSL-M060 targets `"upper"`. */
+/**
+ * Case form of a modal token — MSL-M060 targets `"upper"`, and MSL-M062
+ * (under `casing: rfc8174`) targets `"lower"`.
+ */
 export type ModalCase = "lower" | "upper";
 
 /** EARS trigger word — captured as a discriminator on `ears-trigger` tokens. */

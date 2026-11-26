@@ -1470,3 +1470,29 @@ profile:
     true,
   );
 });
+
+Deno.test("parseManifest: casing rfc8174 is accepted; the error lists it", () => {
+  const manifest = (casing: string) => `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  conventions:
+    modal-keywords:
+      casing: ${casing}
+`;
+  const ok = parseManifest(manifest("rfc8174"));
+  assertEquals(ok.diagnostics, []);
+  assertEquals(
+    ok.manifest?.conventions.find((c) => c.name === "modal-keywords")
+      ?.settings["casing"],
+    "rfc8174",
+  );
+  const bad = parseManifest(manifest("bad"));
+  assertEquals(
+    bad.diagnostics[0].message.includes(
+      "expected: rfc2119, iso, preserve, rfc8174",
+    ),
+    true,
+  );
+});

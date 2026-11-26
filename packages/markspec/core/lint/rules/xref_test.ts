@@ -9,6 +9,8 @@ import type { BodyBlock } from "../../ast/nodes.ts";
 import type { BodyToken, Entry } from "../../model/mod.ts";
 import { makeDisplayId } from "../../model/mod.ts";
 import { loadLexicon } from "../../lexicons/mod.ts";
+import { EARS_RE, MODAL_RE } from "../../parser/body_tokens.ts";
+import { EARS_KEYWORD_RE, KEYWORD_WORDS } from "../../util/modals.ts";
 import { buildIdentifierIndex, runXrefRules } from "./xref.ts";
 
 // ---------------------------------------------------------------------------
@@ -375,4 +377,37 @@ Deno.test("Q500: a term after a multi-line code span keeps its line (#1017)", ()
   assertEquals(diags.length, 1);
   // Paragraph line 3; the body starts on file line 2.
   assertEquals(diags[0].range?.start.line, 4);
+});
+
+Deno.test("runXrefRules: modal and EARS keywords in any casing are not undefined terms", () => {
+  const e = makeEntry(
+    "The system SHALL act. Then WHEN requested the Shall WILL act, SHOULD MAY MUST NOT retry WHILE busy WHERE set UNLESS IF stopped THEN halt.",
+  );
+  const out = runXrefRules(e, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(out.map((d) => d.message), []);
+});
+
+Deno.test("runXrefRules: a keyword next to a term does not hide the term or join it", () => {
+  const e = makeEntry("The BrakeController SHALL apply pressure for XyzUnit.");
+  const out = runXrefRules(e, EMPTY_GLOSSARY, ALLOW, () => false);
+  const phrases = out.map((d) => /'([^']+)'/.exec(d.message)?.[1]);
+  assertEquals(phrases, ["BrakeController", "XyzUnit"]);
+});
+
+Deno.test("runXrefRules: a keyword after a connector run does not join the phrase", () => {
+  const e = makeEntry("The value of XyzUnit of SHALL is set.");
+  const out = runXrefRules(e, EMPTY_GLOSSARY, ALLOW, () => false);
+  const phrases = out.map((d) => /'([^']+)'/.exec(d.message)?.[1]);
+  assertEquals(phrases, ["XyzUnit"]);
+});
+
+Deno.test("KEYWORD_WORDS: covers every word of the modal and EARS regexes", () => {
+  for (const re of [MODAL_RE, EARS_RE, EARS_KEYWORD_RE]) {
+    const alternation = /\(([^()]+)\)/.exec(re.source)![1];
+    for (const alt of alternation.split("|")) {
+      for (const word of alt.toLowerCase().split(/\s+/)) {
+        assertEquals(KEYWORD_WORDS.has(word), true, `missing '${word}'`);
+      }
+    }
+  }
 });

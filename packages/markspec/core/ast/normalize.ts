@@ -16,6 +16,8 @@
  *     always lowercased.
  *   - EARS (`When`, `While`, `Where`, `Unless`) — lowercased
  *     mid-sentence, capitalisation preserved when sentence-initial.
+ *   - `rfc8174` mode: only `shall` and `must`, plus a following `not`, are
+ *     uppercased; other modal and EARS keywords are kept as written.
  *
  * The shared `normalizeProseModals` helper is imported from
  * `core/util/modals.ts`. Importing it from `formatter/mod.ts` would create
@@ -36,7 +38,7 @@
  * This module is pure library code: no `Deno.*` APIs.
  */
 
-import { normalizeProseModals } from "../util/modals.ts";
+import { type ModalCasingMode, normalizeProseModals } from "../util/modals.ts";
 import { buildBodyAst } from "./build.ts";
 import type {
   BlockquoteNode,
@@ -105,7 +107,7 @@ export function collectDefinitions(blocks: readonly BodyBlock[]): string {
  * every `|` not escaped with `\`, as GFM splits them (also inside a code
  * span).
  */
-function normalizeTableRaw(raw: string): string {
+function normalizeTableRaw(raw: string, mode: ModalCasingMode): string {
   return raw.split("\n").map((line) => {
     let out = "";
     let cell = "";
@@ -116,22 +118,23 @@ function normalizeTableRaw(raw: string): string {
         continue;
       }
       if (ch === "|") {
-        out += normalizeCell(cell) + ch;
+        out += normalizeCell(cell, mode) + ch;
         cell = "";
         continue;
       }
       cell += ch;
     }
-    return out + normalizeCell(cell);
+    return out + normalizeCell(cell, mode);
   }).join("\n");
 }
 
 /** Case one raw cell, keeping its surrounding whitespace. */
-function normalizeCell(cell: string): string {
+function normalizeCell(cell: string, mode: ModalCasingMode): string {
   const lead = cell.length - cell.trimStart().length;
   const body = cell.trim();
   if (body === "") return cell;
-  return cell.slice(0, lead) + normalizeProseModals(body, bodyDefinitions) +
+  return cell.slice(0, lead) +
+    normalizeProseModals(body, mode, bodyDefinitions) +
     cell.slice(lead + body.length);
 }
 
@@ -146,8 +149,15 @@ function normalizeCell(cell: string): string {
  * If the normalised text equals the original, the original node is
  * returned UNCHANGED (makes the no-op case allocation-free).
  */
-function normalizeInline(content: InlineContent): InlineContent {
-  const normalizedText = normalizeProseModals(content.text, bodyDefinitions);
+function normalizeInline(
+  content: InlineContent,
+  mode: ModalCasingMode,
+): InlineContent {
+  const normalizedText = normalizeProseModals(
+    content.text,
+    mode,
+    bodyDefinitions,
+  );
   if (normalizedText === content.text) return content;
   return { text: normalizedText };
 }
@@ -156,39 +166,42 @@ function normalizeInline(content: InlineContent): InlineContent {
 // Per-node normalisation — recurse structurally; verbatim nodes untouched
 // ---------------------------------------------------------------------------
 
-function normalizeListItem(item: ListItemNode): ListItemNode {
-  const blocks = normalizeBlocks(item.blocks);
+function normalizeListItem(
+  item: ListItemNode,
+  mode: ModalCasingMode,
+): ListItemNode {
+  const blocks = normalizeBlocks(item.blocks, mode);
   if (blocks === item.blocks) return item;
   return { ...item, blocks };
 }
 
-function normalizeBlock(block: BodyBlock): BodyBlock {
+function normalizeBlock(block: BodyBlock, mode: ModalCasingMode): BodyBlock {
   switch (block.kind) {
     case "paragraph": {
-      const content = normalizeInline(block.content);
+      const content = normalizeInline(block.content, mode);
       if (content === block.content) return block;
       return { ...block, content } satisfies ParagraphNode;
     }
     case "note": {
-      const content = normalizeInline(block.content);
+      const content = normalizeInline(block.content, mode);
       if (content === block.content) return block;
       return { ...block, content } satisfies NoteNode;
     }
     case "blockquote": {
-      const content = normalizeInline(block.content);
+      const content = normalizeInline(block.content, mode);
       if (content === block.content) return block;
       return { ...block, content } satisfies BlockquoteNode;
     }
     case "list": {
-      const items = block.items.map(normalizeListItem);
+      const items = block.items.map((it) => normalizeListItem(it, mode));
       const changed = items.some((it, i) => it !== block.items[i]);
       if (!changed) return block;
       return { ...block, items } satisfies ListNode;
     }
     case "definition-list": {
       const items = block.items.map((pair): DefinitionPair => {
-        const term = normalizeInline(pair.term);
-        const definition = normalizeInline(pair.definition);
+        const term = normalizeInline(pair.term, mode);
+        const definition = normalizeInline(pair.definition, mode);
         if (term === pair.term && definition === pair.definition) return pair;
         return { term, definition };
       });
@@ -201,8 +214,9 @@ function normalizeBlock(block: BodyBlock): BodyBlock {
       // cell by cell, and the cells are read back from the cased raw text.
       // Casing the flattened cell text instead would lowercase a reference
       // label that the raw pass keeps, and the rendered table would no
-      // longer build to the cells (#1014, #1015).
-      const raw = normalizeTableRaw(block.raw);
+      // longer build to the cells (#1014, #1015). The same holds for the
+      // `rfc8174` mode, which uppercases `shall` and `must` in a cell.
+      const raw = normalizeTableRaw(block.raw, mode);
       if (raw === block.raw) return block;
       let rebuilt: BodyBlock | undefined;
       try {
@@ -243,10 +257,11 @@ function normalizeBlock(block: BodyBlock): BodyBlock {
  */
 function normalizeBlocks(
   blocks: readonly BodyBlock[],
+  mode: ModalCasingMode,
 ): readonly BodyBlock[] {
   let changed = false;
   const out: BodyBlock[] = blocks.map((b) => {
-    const nb = normalizeBlock(b);
+    const nb = normalizeBlock(b, mode);
     if (nb !== b) changed = true;
     return nb;
   });
@@ -274,16 +289,20 @@ function normalizeBlocks(
  *
  * @param blocks - The `BodyBlock[]` produced by `buildBodyAst` (or any
  *   prior `normalizeBodyAst` output — idempotence holds).
+ * @param mode - `"lower"` (default) applies the §3.4.1 rule. `"rfc8174"`
+ *   only uppercases `shall` and `must` (and a following `not`) and rewrites
+ *   no other modal or EARS keyword.
  * @returns A new `BodyBlock[]`; unchanged sub-trees share references with
  *   the input but the input array itself is never mutated.
  */
 export function normalizeBodyAst(
   blocks: readonly BodyBlock[],
+  mode: ModalCasingMode = "lower",
 ): BodyBlock[] {
   const previous = bodyDefinitions;
   bodyDefinitions = collectDefinitions(blocks);
   try {
-    return [...normalizeBlocks(blocks)];
+    return [...normalizeBlocks(blocks, mode)];
   } finally {
     bodyDefinitions = previous;
   }

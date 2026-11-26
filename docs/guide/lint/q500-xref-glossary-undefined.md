@@ -13,6 +13,13 @@ Detects both single PascalCase tokens (`BrakeController`) and multi-word phrases
 of adjacent Capitalized tokens (`Brake Controller Unit`), with up to 2 lowercase
 connectors (`of` | `the` | `and`) per ADR-021 Decision 2.
 
+The rule never flags a modal keyword (`shall`, `should`, `may`, `must`, `will`)
+and the word `not`, or an EARS keyword (`when`, `while`, `where`, `unless`,
+`if`, `then`). This holds in any casing, so `SHALL` under
+`modal-keywords.casing: rfc8174` is not reported, and a keyword is not joined to
+a neighbouring term. An acronym spelled like a keyword, such as `IF`, is also
+skipped.
+
 ## Why it matters
 
 Capitalization in requirement prose signals a defined term. An undefined

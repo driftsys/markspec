@@ -376,3 +376,27 @@ Deno.test("proseLintGate: a vague requirement emits MSL-Q with the projected sch
   assertEquals("group" in q!, false);
   assertEquals("scoreContribution" in q!, false);
 });
+
+Deno.test("fmtDriftGate: casing rfc8174 reports drift for lowercase shall and none for SHALL", async () => {
+  const conventions = new Map([
+    ["modal-keywords", {
+      value: { name: "modal-keywords", settings: { casing: "rfc8174" } },
+      origin: "@test/rfc8174",
+    }],
+  ]);
+  const run = async (content: string) => {
+    const parsed = await parseFile(content, { file: "req.md" });
+    return await fmtDriftGate(
+      new Map([["req.md", content]]),
+      parsed.entries,
+      [],
+      undefined,
+      undefined,
+      conventions,
+    );
+  };
+  const lower = CLEAN_REQ.replace("shall respond", "shall respond and may");
+  assertEquals((await run(lower)).some((d) => d.code === "MSL-F010"), true);
+  const upper = CLEAN_REQ.replace("shall respond", "SHALL respond and may");
+  assertEquals((await run(upper)).some((d) => d.code === "MSL-F010"), false);
+});

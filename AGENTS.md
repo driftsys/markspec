@@ -569,7 +569,8 @@ docs/
   from `.editorconfig` as `prim fmt` does (#984); dprint rewrites are gated by a
   CommonMark-semantic equivalence comparator (entry bodies also by body block
   kinds, #1010) with an MSL-F012 fallback; `check`'s MSL-F010 now covers prose
-  drift
+  drift; amended 2026-11-26: the profile `modal-keywords.casing` convention also
+  changes fmt output (lowercase, `preserve`, `rfc8174`)
 - `adr-030-profile-delivered-documents.md` — `profile.delivers:` lets a profile
   ship document files to consumers, per file flagged as a traceable corpus
   (joins the graph, provenance via `Entry.origin`) or docs-only; one core loader

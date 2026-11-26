@@ -52,12 +52,24 @@ safety module shall monitor the brake pressure."
       "the aforementioned".
 - [ ] All abbreviations are defined in a glossary or expanded on first use.
 - [ ] No vague quantifiers: "several", "a number of", "some", "many".
-- [ ] Modal keywords are lowercase RFC 2119: `shall` (mandatory), `should`
-      (recommended), `may` (optional). No bare "will" or "must".
-- [ ] No emphasis around modal verbs (`_shall_`, `**must**`). MSL-M060 scans the
-      parser's body-token stream and does not see modals wrapped in `_…_` or
-      `**…**`; plain `shall` / `must` is the only form that gets both the
-      warning and the `format` lowercase normalisation.
+- [ ] Modal keywords follow the project's `modal-keywords.casing` (lowercase by
+      default, uppercase `shall`/`must` under `rfc8174`); RFC 2119 words:
+      `shall` (mandatory), `should` (recommended), `may` (optional). No bare
+      "will"; no bare "must" unless `must` is the project's mandatory word
+      (under `rfc8174`, `fmt` writes it as `MUST`).
+- [ ] No emphasis around modal verbs (`_shall_`, `**must**`). Underscore
+      emphasis hides a modal keyword: `_SHALL_` gets no MSL-M060 warning and no
+      `fmt` rewrite, and under `rfc8174` `fmt` does not uppercase `_must_`.
+      Asterisk emphasis (`*SHALL*`, `**SHALL**`) does not hide it. Double
+      underscores do not hide it either: the first `fmt` pass rewrites `__x__`
+      to `**x**`, and a second pass then rewrites the keyword (`__SHALL__`
+      becomes `**SHALL**`, then `**shall**`; under `rfc8174`, `__must__` becomes
+      `**must**`, then `**MUST**`). Only single-underscore emphasis (`_x_`)
+      hides a keyword. Under the default casing, a visible uppercase `SHALL` or
+      `MUST` gets MSL-M060 and the `fmt` lowercase rewrite. Under `rfc8174`,
+      `fmt` uppercases a visible lowercase `shall` or `must` in the body of
+      every Markdown entry, while the MSL-M062 info reports it only in a
+      `Requirement` entry.
 
 **Flag:** "It shall process them within the defined timeout." → name the subject
 and define both referents explicitly.

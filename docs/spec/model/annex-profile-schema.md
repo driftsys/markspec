@@ -349,16 +349,29 @@ mapping to a settings object (plus an optional `description`).
 profile:
   conventions:
     modal-keywords:
-      casing: rfc2119   # rfc2119 | iso | preserve
-      description: "Require lowercase shall/should/may"
+      casing: rfc8174   # rfc2119 | iso | preserve | rfc8174
+      description: "Write shall and must in uppercase (RFC 8174)"
 ```
 
 The only recognised convention is `modal-keywords`; unknown convention names are
 accepted with a `PROFILE-LOAD-003` warning (forward compatibility). For
-`modal-keywords`, the `casing` setting must be `rfc2119`, `iso`, or `preserve`.
-With `preserve`, `markspec fmt`, the `MSL-F010` drift gate and the editor
-formatter keep the source casing of modal and EARS keywords, and `MSL-M060` does
-not warn on uppercase keywords.
+`modal-keywords`, the `casing` setting must be `rfc2119`, `iso`, `preserve`, or
+`rfc8174`:
+
+- Absent, `rfc2119` and `iso` (the last two are aliases of the default):
+  `markspec fmt` lowercases `SHALL`, `SHOULD`, `MAY` and `MUST` (with a
+  following `NOT`) and the EARS keywords `When`, `While`, `Where` and `Unless`
+  in the middle of a sentence, and `MSL-M060` warns on an uppercase modal
+  keyword.
+- `preserve`: `markspec fmt`, the `MSL-F010` drift gate, the editor formatter
+  and MarkDesk proposals keep the source casing of modal and EARS keywords, and
+  `MSL-M060` does not warn.
+- `rfc8174`: `markspec fmt` uppercases `shall` and `must` (with a following
+  `not`) and keeps `may`, `should`, `will` and EARS keywords as written.
+  `MSL-M060` is not emitted; `MSL-M062` (info) notes a lowercase modal keyword
+  in a `Requirement` entry. `fmt` clears it only for `shall` and `must`; a
+  lowercase `may`, `should` or `will` stays reported until the author uppercases
+  the word, if it is normative, or leaves it as plain English.
 
 ## B.9 Prose lexicons (`profile.prose`)
 
