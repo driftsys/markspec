@@ -450,7 +450,14 @@ function emitBodyViaAst(
         });
       }
       if (polished !== undefined && polished !== emittedBody) {
-        if (markdownSemanticallyEquivalent(emittedBody, polished)) {
+        // CommonMark has no definition lists: `Term\n: def` and `Term : def`
+        // are both one paragraph, so the GFM gate alone accepts a rewrap
+        // that joins them. The rewrap must also keep the MarkSpec body
+        // block kinds (#1010).
+        if (
+          markdownSemanticallyEquivalent(emittedBody, polished) &&
+          sameBlockKinds(emittedBody, polished)
+        ) {
           finalBody = polished;
         } else {
           diagnostics.push({
@@ -1611,4 +1618,17 @@ function findEntryBodyEnd(
   }
 
   return insertAt;
+}
+
+/**
+ * `true` when `a` and `b` build to MarkSpec body ASTs with the same
+ * sequence of top-level block kinds. Catches a prose rewrap that turns a
+ * MarkSpec-only block (a definition list, a caption) into a plain
+ * paragraph, which a CommonMark comparison cannot see (#1010).
+ */
+function sameBlockKinds(a: string, b: string): boolean {
+  const kinds = (body: string) => buildBodyAst(body).map((block) => block.kind);
+  const ka = kinds(a);
+  const kb = kinds(b);
+  return ka.length === kb.length && ka.every((kind, i) => kind === kb[i]);
 }

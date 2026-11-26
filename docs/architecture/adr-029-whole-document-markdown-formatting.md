@@ -36,7 +36,11 @@ never do. Every dprint rewrite is gated by a CommonMark-semantic equivalence
 comparator (`markdownSemanticallyEquivalent`, mdast-based: positions elided,
 whitespace runs in text values collapsed) — soft-wrap positions and delimiter
 styles compare equal, content changes do not. A rejected rewrite is kept as-was
-and reported as MSL-F012 (info). ADR-015's byte-verbatim `astEquivalent` is
+and reported as MSL-F012 (info). An entry-body rewrite must also keep the
+sequence of top-level MarkSpec body block kinds (amendment, #1010): CommonMark
+has no definition lists, so `Term` followed by a `: definition` line and the
+same text joined into one line parse to the same paragraph, and the mdast
+comparator alone accepted the join. ADR-015's byte-verbatim `astEquivalent` is
 unchanged and still guards §5.2 body emission (MSL-F900).
 
 Because a body is formatted dedented and re-indented afterward, the body pass

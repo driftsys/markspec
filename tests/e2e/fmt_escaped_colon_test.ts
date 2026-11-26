@@ -48,6 +48,11 @@ for (const colon of ["&#58;", "\\:", ":"]) {
         assertStringIncludes(out, words);
       }
       if (colon !== ":") assertStringIncludes(out, `${colon} first line`);
+      // A literal colon is a definition-list marker: the prose pass must not
+      // join the term and the definition into one paragraph (#1010).
+      if (colon === ":") {
+        assertStringIncludes(out, "\n  Term\n  : first line\n");
+      }
 
       const recheck = await markspecInDir(dir, ["fmt", "--check", "req.md"]);
       assertEquals(recheck.code, 0, recheck.stderr);
