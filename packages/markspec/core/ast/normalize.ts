@@ -47,6 +47,74 @@ import type {
   TableNode,
 } from "./nodes.ts";
 
+/**
+ * The link reference and footnote definitions of the body that
+ * {@linkcode normalizeBodyAst} is normalising, joined by newlines. A
+ * definition is a separate block, so the casing pass of one paragraph would
+ * not see it and would lowercase a label it defines (#1014). Set for the
+ * duration of one synchronous `normalizeBodyAst` call only.
+ */
+let bodyDefinitions = "";
+
+/** A link reference definition (`[label]: dest`) or a footnote definition
+ * (`[^label]: text`), as an `unknown` block's raw text starts. */
+const DEFINITION_RE = /^ {0,3}\[[^\]\n]+\]:/;
+
+/** The raw text of every top-level definition block of `blocks`. */
+function collectDefinitions(blocks: readonly BodyBlock[]): string {
+  return blocks
+    .filter((b) => b.kind === "unknown" && DEFINITION_RE.test(b.raw))
+    .map((b) => (b as { raw: string }).raw)
+    .join("\n");
+}
+
+/**
+ * Apply the casing pass to each cell of the raw table text separately, as
+ * {@linkcode normalizeInline} does for the parsed cells. A whole-line pass
+ * would not see the start of a cell as a sentence start, and would lowercase
+ * an EARS keyword (`When`) that the cell pass keeps. Cells are split on `|`
+ * outside code spans and not escaped with `\`.
+ */
+function normalizeTableRaw(raw: string): string {
+  return raw.split("\n").map((line) => {
+    let out = "";
+    let cell = "";
+    let codeTicks = 0;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === "\\" && i + 1 < line.length) {
+        cell += ch + line[++i];
+        continue;
+      }
+      if (ch === "`") {
+        let run = 1;
+        while (line[i + run] === "`") run++;
+        if (codeTicks === 0) codeTicks = run;
+        else if (codeTicks === run) codeTicks = 0;
+        cell += line.slice(i, i + run);
+        i += run - 1;
+        continue;
+      }
+      if (ch === "|" && codeTicks === 0) {
+        out += normalizeCell(cell) + ch;
+        cell = "";
+        continue;
+      }
+      cell += ch;
+    }
+    return out + normalizeCell(cell);
+  }).join("\n");
+}
+
+/** Case one raw cell, keeping its surrounding whitespace. */
+function normalizeCell(cell: string): string {
+  const lead = cell.length - cell.trimStart().length;
+  const body = cell.trim();
+  if (body === "") return cell;
+  return cell.slice(0, lead) + normalizeProseModals(body, bodyDefinitions) +
+    cell.slice(lead + body.length);
+}
+
 // ---------------------------------------------------------------------------
 // InlineContent normalisation
 // ---------------------------------------------------------------------------
@@ -59,7 +127,7 @@ import type {
  * returned UNCHANGED (makes the no-op case allocation-free).
  */
 function normalizeInline(content: InlineContent): InlineContent {
-  const normalizedText = normalizeProseModals(content.text);
+  const normalizedText = normalizeProseModals(content.text, bodyDefinitions);
   if (normalizedText === content.text) return content;
   return { text: normalizedText };
 }
@@ -109,17 +177,18 @@ function normalizeBlock(block: BodyBlock): BodyBlock {
       return { ...block, items } satisfies DefinitionListNode;
     }
     case "table": {
-      // TableNode renders via `raw` (byte-exact round-trip preserved).
-      // Cell InlineContent is still normalised for validator-view
-      // consistency — it does NOT affect render output.
+      // TableNode renders via `raw`, so the casing pass changes the raw
+      // text as well as the cells; otherwise the rendered table keeps the
+      // old casing and no longer builds to the normalised cells (#1015).
       const header = block.header.map(normalizeInline);
       const rows = block.rows.map((row) => row.map(normalizeInline));
+      const raw = normalizeTableRaw(block.raw);
       const headerChanged = header.some((c, i) => c !== block.header[i]);
       const rowsChanged = rows.some((row, i) =>
         row.some((c, j) => c !== block.rows[i][j])
       );
-      if (!headerChanged && !rowsChanged) return block;
-      return { ...block, header, rows } satisfies TableNode;
+      if (!headerChanged && !rowsChanged && raw === block.raw) return block;
+      return { ...block, header, rows, raw } satisfies TableNode;
     }
     // Verbatim content (§2.5: no modal recognition) and structurally
     // modal-free nodes pass through UNCHANGED — same reference.
@@ -179,5 +248,11 @@ function normalizeBlocks(
 export function normalizeBodyAst(
   blocks: readonly BodyBlock[],
 ): BodyBlock[] {
-  return [...normalizeBlocks(blocks)];
+  const previous = bodyDefinitions;
+  bodyDefinitions = collectDefinitions(blocks);
+  try {
+    return [...normalizeBlocks(blocks)];
+  } finally {
+    bodyDefinitions = previous;
+  }
 }
