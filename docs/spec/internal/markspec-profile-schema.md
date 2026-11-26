@@ -536,10 +536,10 @@ types**. It contributes only _bindings and hygiene_ over the core taxonomy:
    box. Enforcement `warn` (not `error`) keeps the default opinion-light
    (ADR-010 §5).
 2. **RFC 2119 / RFC 8174 hygiene** on `Requirement` (ADR-010 §3): an
-   **informational** diagnostic (`MSL-M061`, core-data-model §4.6) when a
-   `Requirement` entry's body carries no uppercase RFC 2119 keyword.
-   Recommended, not enforced; overridable by `normative-language: none` (ADR-010
-   §3, §7).
+   **informational** diagnostic (`MSL-M061`, core-data-model §4.6) when an entry
+   of type `Requirement` (or a profile type extending it) has no modal keyword,
+   in any case, in its body. Recommended, not enforced. ADR-010 §3 and §7
+   describe an override with `normative-language: none`; it is not implemented.
 3. **Glossary `term` convenience.** ADR-010's `term` type maps to the core
    `Definition` type (core-data-model §1.3 / ADR-003 §Part 2 "Definition"). The
    default profile binds a free-form-slug display-ID rule
