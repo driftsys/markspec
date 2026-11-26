@@ -119,7 +119,10 @@ Because a workspace can set this path, an untrusted workspace (Restricted Mode)
 runs with limited support: VS Code ignores the workspace values of
 `markspec.server.path`, `markspec.server.args`, `markspec.mcp.args` and
 `markspec.trace.logPath`, and the extension runs the bundled binary, so
-diagnostics, hover and completion keep working.
+diagnostics, hover and completion keep working. The language server does not
+restart when the configuration changes, so after you trust the workspace, reload
+the window (Developer: Reload Window) to apply the workspace values of these
+settings.
 
 The MCP server tracks only the files of its project. It honors the `.gitignore`
 files of the project and of the outermost enclosing project, the
