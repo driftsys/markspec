@@ -554,7 +554,8 @@ types**. It contributes only _bindings and hygiene_ over the core taxonomy:
    §4.1–4.8) surfaced with explanatory text — _named, not re-enforced_ (ADR-010
    §4).
 5. **Optional front-matter keys** `normative-language` and `glossary-scope`
-   (ADR-010 §7) — unchanged, neither required.
+   (ADR-010 §7) — unchanged, neither required. No code reads
+   `normative-language` yet, so the key has no effect.
 
 ### 7.2 What ADR-010's four types become
 

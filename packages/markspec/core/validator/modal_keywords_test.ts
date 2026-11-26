@@ -527,6 +527,40 @@ Deno.test("validateModalKeywords: no M061 for a profile type that is not a Requi
   assertEquals(m062Codes(entry), []);
 });
 
+Deno.test("validateModalKeywords: M061 fires for an explicit profile Type when the display ID matches no pattern", () => {
+  const base = makeEntry("ZZZ_0005", "No obligation verb.", undefined);
+  const entry: Entry = {
+    ...base,
+    rawAttributes: [{ key: "Type", value: "stakeholder-requirement" }],
+  };
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: an explicit non-Requirement profile Type wins over a Requirement display-ID pattern", () => {
+  const base = makeEntry("STK_0009", "No obligation verb.", undefined);
+  const entry: Entry = {
+    ...base,
+    rawAttributes: [{ key: "Type", value: "design-record" }],
+  };
+  assertEquals(m062Codes(entry), []);
+});
+
+Deno.test("validateModalKeywords: with a profile, M061 still fires for the built-in REQ prefix", () => {
+  const entry = makeEntry("REQ-0002", "No obligation verb.", undefined);
+  assertEquals(m062Codes(entry), ["MSL-M061"]);
+});
+
+Deno.test("validateModalKeywords: M061 uses the profile under the default casing", () => {
+  // No `modal-keywords` convention: the profile still classifies the entry.
+  const entry = makeEntry("STK_0006", "No obligation verb.", undefined);
+  assertEquals(
+    validateModalKeywords(entry, undefined, rfc8174Profile()).map((d) =>
+      d.code
+    ),
+    ["MSL-M061"],
+  );
+});
+
 Deno.test("validateModalKeywords: without a profile, M061 ignores a profile display-ID prefix", () => {
   const entry = makeEntry("STK_0004", "No obligation verb.", undefined);
   assertEquals(validateModalKeywords(entry).map((d) => d.code), []);
