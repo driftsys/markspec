@@ -13,7 +13,7 @@ import {
   assertStrictEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { join, resolve } from "@std/path";
+import { dirname, join, resolve } from "@std/path";
 import { makeDisplayId } from "../core/mod.ts";
 import {
   buildRootOverrides,
@@ -1160,7 +1160,11 @@ Deno.test("defaultEnv: a configuration added above a project later is followed b
 });
 
 Deno.test("createWalkScopeCache: reloads a scope only when a config file changes", async () => {
-  const mtimes = new Map<string, number>([["/p/.markspec.yaml", 1]]);
+  // Paths built with the platform separator, as the cache builds them, so
+  // the test also holds on Windows.
+  const root = resolve("/p");
+  const rootConfig = join(root, ".markspec.yaml");
+  const mtimes = new Map<string, number>([[rootConfig, 1]]);
   let loads = 0;
   const scopes = createWalkScopeCache(
     (path) => Promise.resolve(mtimes.get(path)),
@@ -1169,18 +1173,18 @@ Deno.test("createWalkScopeCache: reloads a scope only when a config file changes
       return Promise.resolve({ exclude: [], inheritGitignoreFrom: undefined });
     },
   );
-  await scopes("/p");
-  await scopes("/p");
+  await scopes(root);
+  await scopes(root);
   assertEquals(loads, 1);
-  mtimes.set("/p/.markspec.yaml", 2); // edited
-  await scopes("/p");
+  mtimes.set(rootConfig, 2); // edited
+  await scopes(root);
   assertEquals(loads, 2);
-  mtimes.set("/project.yaml", 3); // a configuration added above the root
-  await scopes("/p");
+  mtimes.set(join(dirname(root), "project.yaml"), 3); // a configuration added above the root
+  await scopes(root);
   assertEquals(loads, 3);
-  mtimes.delete("/p/.markspec.yaml"); // deleted
-  await scopes("/p");
+  mtimes.delete(rootConfig); // deleted
+  await scopes(root);
   assertEquals(loads, 4);
-  await scopes("/p");
+  await scopes(root);
   assertEquals(loads, 4);
 });
