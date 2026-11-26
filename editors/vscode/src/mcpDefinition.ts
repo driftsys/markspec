@@ -97,3 +97,32 @@ function resolveCommand(
       : ["mcp"],
   };
 }
+
+/** Reports an error message once until it changes or a success clears it. */
+export interface OnceReporter {
+  /** Show `message` unless it is the last message shown. */
+  error(message: string): void;
+  /** Forget the last message, so the next error is shown. */
+  ok(): void;
+}
+
+/**
+ * Create a {@link OnceReporter}. VS Code queries the MCP provider again on
+ * each configuration change and on its own schedule; without this, the same
+ * error message would be shown on every query.
+ */
+export function createOnceReporter(
+  show: (message: string) => void,
+): OnceReporter {
+  let last: string | undefined;
+  return {
+    error(message) {
+      if (message === last) return;
+      last = message;
+      show(message);
+    },
+    ok() {
+      last = undefined;
+    },
+  };
+}

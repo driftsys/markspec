@@ -11,7 +11,7 @@
  * without filesystem access.
  */
 
-import { isAbsolute, join, resolve } from "@std/path";
+import { dirname, isAbsolute, join, resolve } from "@std/path";
 import {
   type CaptionConventions,
   compile,
@@ -297,6 +297,20 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
   };
   // Configuration errors already logged, so that each one is logged once.
   const reported = new Set<string>();
+  const statMtime = async (path: string): Promise<number | undefined> => {
+    try {
+      return (await Deno.stat(path)).mtime?.getTime() ?? 0;
+    } catch {
+      return undefined;
+    }
+  };
+  // Walk scope per root, kept until a configuration file it depends on
+  // changes (#1004).
+  const scopes = createWalkScopeCache(
+    statMtime,
+    (root) =>
+      loadWalkScope(root, envGet("HOME") ?? envGet("USERPROFILE"), reported),
+  );
   return {
     cwd: () => Deno.cwd(),
     rootOverrides: () =>
@@ -319,39 +333,67 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
       const stat = await Deno.stat(path);
       return { mtime: stat.mtime?.getTime() ?? 0 };
     },
-    walk: (root: string) =>
-      walkFs(root, envGet("HOME") ?? envGet("USERPROFILE"), reported),
+    walk: (root: string) => walkFs(root, scopes),
+  };
+}
+
+/** The discovery settings of one MCP walk root. */
+export interface WalkScope {
+  /** `.markspec.yaml` `exclude:` patterns of the root. */
+  readonly exclude: readonly string[];
+  /** The outermost enclosing project, when it is not the root itself. */
+  readonly inheritGitignoreFrom: string | undefined;
+}
+
+/** The configuration files whose change can change a {@linkcode WalkScope}. */
+const WALK_SCOPE_FILES = [".markspec.yaml", "project.yaml", ".gitignore"];
+
+/**
+ * Cache of {@linkcode WalkScope} values per root. A scope is loaded again only
+ * when the modification time, creation or deletion of a `.markspec.yaml`,
+ * `project.yaml` or `.gitignore` in the root or in one of its ancestor folders
+ * changes. Checking these needs only `stat` calls: no file is read or parsed,
+ * and no project resolver is built, on a walk with an unchanged scope.
+ *
+ * @param statMtime Modification time of a file, or `undefined` when it does
+ *   not exist.
+ * @param load Load the scope of a root.
+ */
+export function createWalkScopeCache(
+  statMtime: (path: string) => Promise<number | undefined>,
+  load: (root: string) => Promise<WalkScope>,
+): (root: string) => Promise<WalkScope> {
+  const cache = new Map<string, { key: string; scope: WalkScope }>();
+  return async (root) => {
+    const parts: string[] = [];
+    for (let dir = root;; dir = dirname(dir)) {
+      for (const name of WALK_SCOPE_FILES) {
+        parts.push(String(await statMtime(join(dir, name))));
+      }
+      if (dirname(dir) === dir) break;
+    }
+    const key = parts.join(",");
+    const hit = cache.get(root);
+    if (hit && hit.key === key) return hit.scope;
+    const scope = await load(root);
+    cache.set(root, { key, scope });
+    return scope;
   };
 }
 
 /**
- * Tracked-file walker used by {@linkcode defaultEnv}. It shares the project
- * discovery of the CLI and the LSP: built-in build-output skips, the
- * `.gitignore` files of `root` and of its outermost enclosing project (as
- * `markspec check` resolves it, from the files on disk), the `.markspec.yaml`
- * `exclude:` patterns of `root`, and it stops at nested projects. An empty
- * discovery boundary (`exclude: ["**"]`) therefore yields no file instead of
- * compiling the whole repository in the background.
- *
- * A malformed `.markspec.yaml` does not stop the walk: as in the LSP, its
- * error diagnostics are logged (once per message) and the default tool
- * configuration applies. The outermost project is resolved on each walk, so a
- * configuration added above `root` later is taken into account.
+ * Load the {@linkcode WalkScope} of `root`: the `.markspec.yaml` `exclude:`
+ * patterns and the outermost enclosing project, as `markspec check` resolves
+ * it from the files on disk. A malformed `.markspec.yaml` does not stop the
+ * walk: as in the LSP, its error diagnostics are logged (once per message)
+ * and the default tool configuration applies.
  */
-async function* walkFs(
+async function loadWalkScope(
   root: string,
   homeDir: string | undefined,
   reported: Set<string>,
-): AsyncGenerator<string> {
-  const readFile: ReadFile = async (path) => {
-    try {
-      return await Deno.readTextFile(path);
-    } catch {
-      return undefined;
-    }
-  };
-  const io = { readDir: Deno.readDir, readFile };
-  const { config, diagnostics } = await loadToolConfig(root, readFile);
+): Promise<WalkScope> {
+  const { config, diagnostics } = await loadToolConfig(root, readDiskFile);
   for (const diagnostic of diagnostics) {
     if (diagnostic.severity !== "error") continue;
     const message = `${root}: ${diagnostic.code}: ${diagnostic.message}`;
@@ -359,15 +401,50 @@ async function* walkFs(
     reported.add(message);
     console.error(message);
   }
-  const outermost = await createProjectRootResolver(io, { homeDir })
+  const outermost = await createProjectRootResolver(diskIO(), { homeDir })
     .outermostOf(root);
-  yield* discoverFiles(root, io, {
-    extensions: TRACKED_EXTENSIONS,
+  return {
     exclude: config.exclude,
+    inheritGitignoreFrom: outermost !== undefined && outermost !== root
+      ? outermost
+      : undefined,
+  };
+}
+
+const readDiskFile: ReadFile = async (path) => {
+  try {
+    return await Deno.readTextFile(path);
+  } catch {
+    return undefined;
+  }
+};
+
+function diskIO() {
+  return { readDir: Deno.readDir, readFile: readDiskFile };
+}
+
+/**
+ * Tracked-file walker used by {@linkcode defaultEnv}. It shares the project
+ * discovery of the CLI and the LSP: built-in build-output skips, the
+ * `.gitignore` files of `root` and of its outermost enclosing project, the
+ * `.markspec.yaml` `exclude:` patterns of `root`, and it stops at nested
+ * projects. An empty discovery boundary (`exclude: ["**"]`) therefore yields
+ * no file instead of compiling the whole repository in the background.
+ *
+ * The scope comes from {@linkcode createWalkScopeCache}, so a configuration
+ * added above `root` later is taken into account, and an unchanged one is not
+ * read again on each staleness check.
+ */
+async function* walkFs(
+  root: string,
+  scopes: (root: string) => Promise<WalkScope>,
+): AsyncGenerator<string> {
+  const { exclude, inheritGitignoreFrom } = await scopes(root);
+  yield* discoverFiles(root, diskIO(), {
+    extensions: TRACKED_EXTENSIONS,
+    exclude,
     excludeNestedProjects: true,
-    ...(outermost !== undefined && outermost !== root
-      ? { inheritGitignoreFrom: outermost }
-      : {}),
+    ...(inheritGitignoreFrom !== undefined ? { inheritGitignoreFrom } : {}),
   });
 }
 

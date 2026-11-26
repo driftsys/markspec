@@ -51,7 +51,7 @@ import {
 } from "./inlineCompletions";
 import type { EntryRef } from "./prompts";
 import { resolveServerOptions } from "./serverOptions";
-import { resolveMcpDefinition } from "./mcpDefinition";
+import { createOnceReporter, resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
 import { DecorationManager } from "./decorations";
 import { activateWith } from "./activation";
@@ -417,6 +417,9 @@ function startMarkspec(context: ExtensionContext): void {
 function registerMcpProvider(context: ExtensionContext): void {
   const didChange = new EventEmitter<void>();
   context.subscriptions.push(didChange);
+  const errors = createOnceReporter((message) =>
+    window.showErrorMessage(`MarkSpec: ${message}`)
+  );
 
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((event) => {
@@ -444,10 +447,10 @@ function registerMcpProvider(context: ExtensionContext): void {
             extensionVersion: extensionVersion(context),
           });
         } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          window.showErrorMessage(`MarkSpec: ${reason}`);
+          errors.error(err instanceof Error ? err.message : String(err));
           return [];
         }
+        errors.ok();
         if (!resolved) return [];
         const def = new McpStdioServerDefinition(
           resolved.label,
