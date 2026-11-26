@@ -24,12 +24,14 @@ import {
   type Diagnostic as CoreDiagnostic,
   discoverFiles,
   type DiscoveryDirEntry,
+  type DisplayIdPatternShape,
   displayIdScope,
   displayIdScopeFilter,
   displayIdScopesInUse,
   type EffectiveProfile,
   type Entry,
   FEATURE_EXTENSIONS,
+  formatDisplayId,
   hasScopePlaceholder,
   inferDisplayIdScope,
   isDiscoverable,
@@ -957,6 +959,36 @@ export class ProjectContext {
       });
     }
     return types;
+  }
+
+  /**
+   * Mint and reserve the number of a numbered scaffold of the profile type
+   * `typeName` whose pattern, with any `{scope}` substituted, is `shape`.
+   * The scaffold-completion resolve handler calls it. For a `{scope}`
+   * pattern, IDs of other scopes never count ({@linkcode scopeFilter},
+   * #1038). The number's display ID is neither indexed nor reserved by a
+   * resolve under another prefix, which can format the same ID for a glued
+   * `{scope}` pattern (#1041). The number and its display ID are reserved in
+   * this project's {@linkcode reservations}.
+   */
+  mintScaffoldNumber(
+    typeName: string,
+    scope: string | undefined,
+    shape: DisplayIdPatternShape,
+  ): number {
+    const accept = this.scopeFilter(typeName, scope);
+    return this.reservations.mintReservedNumber(
+      shape.prefix,
+      shape.suffix,
+      (reserved) =>
+        this.index.getNextFreeDisplayIdNumber(
+          shape,
+          reserved,
+          accept,
+          (id) => this.reservations.isDisplayIdReserved(id),
+        ),
+      (n) => formatDisplayId(shape, n),
+    );
   }
 
   /**

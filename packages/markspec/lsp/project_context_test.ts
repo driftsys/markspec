@@ -822,21 +822,13 @@ Deno.test("ProjectContext.reservations: a parse in another project never release
       request("G_BR100", "01SRS000000000000000000002"),
   );
   const b = await contextWithPattern(pattern, "# Empty\n");
-  // One resolve for scope BR in project A, composed as server.ts composes it.
-  const shape = { prefix: "G_BR", width: 2, suffix: "" };
+  // One resolve for scope BR in project A, as the resolve handler mints it.
   const mintInA = () =>
-    a.reservations.mintReservedNumber(
-      "G_BR",
-      "",
-      (reserved) =>
-        a.index.getNextFreeDisplayIdNumber(
-          shape,
-          reserved,
-          a.scopeFilter("release-requirement", "BR"),
-          (id) => a.reservations.isDisplayIdReserved(id),
-        ),
-      (n) => `G_BR${n}`,
-    );
+    a.mintScaffoldNumber("release-requirement", "BR", {
+      prefix: "G_BR",
+      width: 2,
+      suffix: "",
+    });
   assertEquals(mintInA(), 101);
   // Project B parses a file that holds G_BR101 before A's own parse runs.
   const docB = join(ROOT, "other.md");

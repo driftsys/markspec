@@ -45,7 +45,6 @@ import {
   type EditorConfigResolver,
   filterEntriesByTraceTargets,
   format,
-  formatDisplayId,
   formatEntryOrigin,
   formatFeatureText,
   isCorpusEntry,
@@ -1126,24 +1125,11 @@ connection.onCompletionResolve((item): CompletionItem => {
     // window — before this entry reaches the index — sees the number as
     // taken and picks the next one, closing the duplicate-ID race.
     const { prefix, suffix } = data;
-    // For a `{scope}` pattern, IDs of other scopes never count (#1038).
-    const accept = ctx.scopeFilter(data.typeName, data.scope);
-    // The display ID is neither indexed nor reserved by a resolve under
-    // another prefix, which can format the same ID for a glued `{scope}`
-    // pattern (#1041). The minted ID is reserved too.
-    const shape = { prefix, width: data.width, suffix };
-    const nextNumber = ctx.reservations.mintReservedNumber(
+    const nextNumber = ctx.mintScaffoldNumber(data.typeName, data.scope, {
       prefix,
+      width: data.width,
       suffix,
-      (reserved) =>
-        ctx.index.getNextFreeDisplayIdNumber(
-          shape,
-          reserved,
-          accept,
-          (id) => ctx.reservations.isDisplayIdReserved(id),
-        ),
-      (n) => formatDisplayId(shape, n),
-    );
+    });
     rendered = renderScaffoldSnippet({
       typeName: data.typeName,
       prefix: data.prefix,

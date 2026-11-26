@@ -163,14 +163,23 @@ Deno.test("firstFreeDisplayIdNumber: passes the number to the predicate and pads
 Deno.test("firstFreeDisplayIdNumber: stops at the largest safe integer instead of looping (#1041)", () => {
   const shape = { prefix: "R_", width: 0, suffix: "" };
   // Above 2^53 - 1, n + 1 can equal n: an always-taken predicate must not
-  // loop forever. The bound itself is returned, as is a start above it.
+  // loop forever. The predicate throws after a few calls, so a missing bound
+  // fails the test instead of hanging it.
+  const alwaysTaken = () => {
+    let calls = 0;
+    return () => {
+      if (++calls > 10) throw new Error("the search did not stop");
+      return true;
+    };
+  };
   const near = Number.MAX_SAFE_INTEGER - 2;
   assertEquals(
-    firstFreeDisplayIdNumber(shape, near, () => true),
+    firstFreeDisplayIdNumber(shape, near, alwaysTaken()),
     Number.MAX_SAFE_INTEGER,
   );
+  // A start above the bound is returned unchanged.
   assertEquals(
-    firstFreeDisplayIdNumber(shape, 2 ** 53, () => true),
+    firstFreeDisplayIdNumber(shape, 2 ** 53, alwaysTaken()),
     2 ** 53,
   );
 });
