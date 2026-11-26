@@ -15,7 +15,8 @@ export const createCmd = new Command()
   .description("Scaffold a new entry block for a profile-declared type")
   .option(
     "--scope <scope:string>",
-    "Value for the {scope} placeholder of the type's display-id-pattern",
+    "Value for the {scope} placeholder: required when the type's " +
+      "display-id-pattern is numbered with {scope}, rejected otherwise",
   )
   .arguments("<type:string> <paths...:string>")
   .action(async (options, typeName: string, ...paths: string[]) => {

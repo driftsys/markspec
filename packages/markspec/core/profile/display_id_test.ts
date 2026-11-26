@@ -13,7 +13,6 @@ import {
   parseDisplayIdPattern,
   parseScopeSlot,
   scopeTemplateText,
-  SEGMENT_CLASS,
   substituteScope,
   validateDisplayIdPattern,
 } from "./display_id.ts";
@@ -195,10 +194,6 @@ Deno.test("isValidScope: rejects an empty value and non-alphanumeric characters"
   assertEquals(isValidScope("{scope}"), false);
 });
 
-Deno.test("isValidScope: uses the classifier's medial segment class", () => {
-  assertEquals(SEGMENT_CLASS, "[A-Za-z0-9]+");
-});
-
 Deno.test("substituteScope: the value replaces {scope}, so the pattern parses with a scoped prefix", () => {
   const pattern = substituteScope("SRS_{scope}_{n:04d}", "BRK");
   assertEquals(pattern, "SRS_BRK_{n:04d}");
@@ -305,4 +300,11 @@ Deno.test("scopeTemplateText: {scope} after the counter", () => {
 Deno.test("scopeTemplateText: undefined without {scope} or for a named pattern", () => {
   assertEquals(scopeTemplateText("STK_{n:04d}"), undefined);
   assertEquals(scopeTemplateText("SWC_{scope}"), undefined);
+});
+
+Deno.test("inferDisplayIdScope: no scope when the text after the scope slot is not digits (#1038)", () => {
+  const pattern = "SRS_{scope}_{n:04d}";
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BR_K_"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_0X"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_10000"), "BRK");
 });

@@ -110,10 +110,11 @@ export function nextDisplayId(
  * Apply the `--scope` value to `pattern`. For a numbered pattern with a
  * `{scope}` placeholder, returns the pattern with `scope` in place of the
  * placeholder. For any other pattern, returns it unchanged. Prints an error
- * and exits 1 when the pattern has `{scope}` and `scope` is absent (the
- * message lists the scopes `entries` already use), when `scope` is set but
- * the pattern has no `{scope}`, or when `scope` is not one or more ASCII
- * letters or digits.
+ * and exits 1 when the pattern is numbered with `{scope}` and `scope` is
+ * absent (the message lists the scopes `entries` already use), when `scope`
+ * is set but the pattern is not a numbered pattern with `{scope}` (it has no
+ * `{scope}`, or it has no counter, such as `XREQ_{scope}`), or when `scope`
+ * is not one or more ASCII letters or digits.
  */
 export function resolveScopedPattern(
   pattern: string,
@@ -124,7 +125,7 @@ export function resolveScopedPattern(
     if (scope === undefined) return pattern;
     console.error(
       `error: --scope applies only to a numbered display-id-pattern with a ` +
-        `{scope} placeholder; '${pattern}' has none`,
+        `{scope} placeholder; '${pattern}' is not one`,
     );
     Deno.exit(1);
   }

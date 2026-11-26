@@ -926,15 +926,18 @@ For a **scoped type** — a numbered `display-id-pattern` with a `{scope}`
 placeholder, e.g. `software-requirement: "SRS_{scope}_{n:04d}"` — `next-id`,
 `create`, and `insert` need `--scope <value>`. The value replaces `{scope}`, and
 the number is the highest number in that scope plus one; IDs of other scopes do
-not count. A scope is one or more ASCII letters or digits (`[A-Za-z0-9]+`).
+not count. A scope is one or more ASCII letters or digits (`[A-Za-z0-9]+`). A
+counter-less pattern such as `SWC_{scope}` is a named type, not a scoped type:
+it takes no `--scope`. As for any type, `next-id` and `create` read the IDs of
+the paths you pass, and `insert` reads only the IDs of its target file.
 
 ```sh
-# docs/ already holds SRS_BRK_0001 and SRS_ENG_0007
+# docs/requirements.md holds SRS_BRK_0001 and SRS_ENG_0007
 markspec next-id software-requirement "docs/**/*.md" --scope BRK
 # → SRS_BRK_0002
 
 markspec insert software-requirement docs/requirements.md --scope ENG
-# → appends SRS_ENG_0008
+# → appends SRS_ENG_0008 (only the IDs in docs/requirements.md count)
 
 markspec next-id software-requirement "docs/**/*.md"
 # → exit 1: error: display-id-pattern 'SRS_{scope}_{n:04d}' has a {scope}
@@ -942,8 +945,10 @@ markspec next-id software-requirement "docs/**/*.md"
 ```
 
 Each command exits 1 with an error, and `insert` writes nothing, when `--scope`
-is missing for a scoped type, when `--scope` is given for a type whose pattern
-has no `{scope}`, or when the value is not letters and digits.
+is missing for a scoped type, when `--scope` is given for a type that is not a
+scoped type, or when the value is not letters and digits. The missing-flag error
+lists the scopes in use in the IDs the command read (for `insert`, the target
+file).
 
 #### lint
 
@@ -1637,10 +1642,10 @@ bundled default profile applies unless `default-profile: false` is set.
 
 **Entry block completion** — type `- [` at the start of a line to get a
 pre-filled entry block scaffold with the next available display ID for each type
-defined in your profile. For a type whose pattern has a `{scope}` placeholder,
-you get one scaffold per scope already in the project, with the next number in
-that scope, plus one scaffold with a `SCOPE` tab stop. Typing the scope after
-the bracket (`- [SRS_BRK_`) offers the next number in that scope.
+defined in your profile. For a type whose numbered pattern has a `{scope}`
+placeholder, you get one scaffold per scope already in the project, with the
+next number in that scope, plus one scaffold with a `SCOPE` tab stop. Typing the
+scope after the bracket (`- [SRS_BRK_`) offers the next number in that scope.
 
 **ID reference completion** — after a trace attribute keyword (`Satisfies:`,
 `Derived-from:`, `Verifies:`, `Tests:`, etc.) the server suggests all known

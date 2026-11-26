@@ -35,7 +35,9 @@
  * A caller that mints an ID first calls {@linkcode substituteScope} with a
  * scope value that {@linkcode isValidScope} accepts (the CLI `--scope` flag,
  * or a scope the LSP reads from the index or from the typed text), so the
- * prefix holds the scope and the next number counts only that scope (#1038).
+ * prefix holds the scope, and drops the IDs of other scopes with
+ * `displayIdScopeFilter` (`core/validator/pattern.ts`) before it counts
+ * (#1038).
  * Other named placeholders in a numbered pattern stay in their `{name}` form.
  */
 
@@ -329,9 +331,12 @@ export function isValidScope(value: string): boolean {
 /**
  * Replace the `{scope}` placeholder of `pattern` with `scope`. The result
  * feeds {@linkcode parseDisplayIdPattern}, whose prefix (or suffix) then
- * holds the scope, so {@linkcode highestDisplayIdNumber} counts only the IDs
- * of that scope. Every other token is kept as written, including other
- * named placeholders. A pattern without `{scope}` is returned unchanged.
+ * holds the scope. The prefix alone does not keep other scopes out of
+ * {@linkcode highestDisplayIdNumber} when nothing separates `{scope}` from
+ * the counter (`G_BR10001`, scope `BR1`, starts with the `G_BR` prefix of
+ * scope `BR`), so a caller that mints also drops the IDs of other scopes
+ * with `displayIdScopeFilter` (`core/validator/pattern.ts`). Every other
+ * token is kept as written, including other named placeholders. A pattern without `{scope}` is returned unchanged.
  * The caller checks `scope` with {@linkcode isValidScope} first.
  */
 export function substituteScope(pattern: string, scope: string): string {
@@ -413,8 +418,9 @@ export function scopeTemplateText(
  * The scope value that `text` holds for `pattern`, when `text` starts with
  * the text before `{scope}`, a valid scope value, and the full text between
  * `{scope}` and the counter (`SRS_BRK_` or `SRS_BRK_00` for
- * `SRS_{scope}_{n:04d}` give `BRK`). Returns `undefined` for a shorter text
- * (`SRS_B`), a pattern without a {@linkcode parseScopeSlot} slot, or a
+ * `SRS_{scope}_{n:04d}` give `BRK`), followed by nothing but digits.
+ * Returns `undefined` for a shorter text (`SRS_B`), a text with anything
+ * other than digits after the scope slot (`SRS_BR_K_`), a pattern without a {@linkcode parseScopeSlot} slot, or a
  * pattern with no text between `{scope}` and the counter, where the end of
  * the scope cannot be found without the counter.
  */
@@ -424,9 +430,11 @@ export function inferDisplayIdScope(
 ): string | undefined {
   const slot = parseScopeSlot(pattern);
   if (!slot || slot.afterScope.length === 0) return undefined;
+  // Only counter digits may follow the scope slot, so `SRS_BR_K_` does not
+  // read as scope `BR`.
   const re = new RegExp(
     `^${escapeRegex(slot.beforeScope)}(${SEGMENT_CLASS})` +
-      escapeRegex(slot.afterScope),
+      `${escapeRegex(slot.afterScope)}\\d*$`,
   );
   return re.exec(text)?.[1];
 }

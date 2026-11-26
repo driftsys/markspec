@@ -518,3 +518,150 @@ Deno.test("lsp completions: {scope} after the counter offers the template for a 
     await client.shutdown();
   }
 });
+
+const GLUED_PROFILE_YAML = `id: "@acme/glued"
+version: 0.1.0
+profile:
+  types:
+    glued-requirement:
+      extends: Requirement
+      display-id-pattern: "G_{scope}{n:04d}"
+`;
+
+const GLUED_ENTRIES_MD = `# Requirements
+
+- [G_BR10001] Scope BR1 request
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [G_BR0003] Scope BR request
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+
+Deno.test("lsp completions: resolving a glued-pattern scaffold leaves out the IDs of other scopes (#1038)", async () => {
+  const { client, items } = await scopedCompletion(
+    "- [",
+    3,
+    GLUED_PROFILE_YAML,
+    GLUED_ENTRIES_MD,
+  );
+  try {
+    assertEquals(items.map((i) => i.label), [
+      "New glued-requirement (G_BR0004)",
+      "New glued-requirement (G_BR10002)",
+      "New glued-requirement (G_SCOPENNNN)",
+    ]);
+    // G_BR10001 starts with the G_BR prefix but is scope BR1: resolving the
+    // BR item must not mint G_BR10002.
+    const resolved = await client.request(
+      "completionItem/resolve",
+      items[0],
+    ) as ScopedItem;
+    assertEquals(resolved.label, "New glued-requirement (G_BR0004)");
+    assert(
+      resolved.insertText?.startsWith("G_BR0004] "),
+      resolved.insertText,
+    );
+  } finally {
+    await client.shutdown();
+  }
+});
+
+Deno.test("lsp completions: a mid-typed SCOPE template has no resolve payload and keeps its tab stop when resolved (#1038)", async () => {
+  const { client, items } = await scopedCompletion("- [SRS_B", 8);
+  try {
+    assertEquals(items.map((i) => i.label), [
+      "New software-requirement (SRS_BRK_0002)",
+      "New software-requirement (SRS_SCOPE_NNNN)",
+    ]);
+    const template = items[1];
+    assertEquals(template.data, undefined);
+    const resolved = await client.request(
+      "completionItem/resolve",
+      template,
+    ) as ScopedItem;
+    assertEquals(resolved.label, template.label);
+    assert(
+      resolved.textEdit?.newText.startsWith("SRS_${1:SCOPE}_NNNN] "),
+      resolved.textEdit?.newText,
+    );
+  } finally {
+    await client.shutdown();
+  }
+});
+
+const MIXED_PROFILE_YAML = `id: "@acme/mixed"
+version: 0.1.0
+profile:
+  types:
+    zeta:
+      extends: Item
+      display-id-pattern: "Z_{n:04d}"
+    software-requirement:
+      extends: Requirement
+      display-id-pattern: "SRS_{scope}_{n:04d}"
+`;
+
+Deno.test("lsp completions: each bare scaffold resolves as its own type when a recommended {scope} type sorts first (#1038)", async () => {
+  const { client, items } = await scopedCompletion(
+    "- [",
+    3,
+    MIXED_PROFILE_YAML,
+  );
+  try {
+    // The recommended requirement type sorts before zeta, which the profile
+    // declares first.
+    assertEquals(items.map((i) => i.label), [
+      "New software-requirement (SRS_BRK_0002)",
+      "New software-requirement (SRS_ENG_0002)",
+      "New software-requirement (SRS_SCOPE_NNNN)",
+      "New zeta (Z_0001)",
+    ]);
+    assertEquals(items[2].data, undefined);
+    const labels: string[] = [];
+    for (const item of items) {
+      const resolved = await client.request(
+        "completionItem/resolve",
+        item,
+      ) as ScopedItem;
+      labels.push(resolved.label);
+    }
+    assertEquals(labels, items.map((i) => i.label));
+  } finally {
+    await client.shutdown();
+  }
+});
+
+Deno.test("lsp completions: resolve ignores a scaffold payload with a malformed scope (#1038)", async () => {
+  const { client, items } = await scopedCompletion("- [", 3);
+  try {
+    const item = items[0];
+    for (const scope of ["B_K", "", 7]) {
+      const tampered = {
+        ...item,
+        data: { ...(item.data as Record<string, unknown>), scope },
+      };
+      const resolved = await client.request(
+        "completionItem/resolve",
+        tampered,
+      ) as ScopedItem;
+      // The item comes back as sent: no number is minted or reserved.
+      assertEquals(resolved.label, item.label);
+      assertEquals(resolved.insertText, item.insertText);
+    }
+    // The untampered item still mints the first free number, so the
+    // tampered resolves reserved nothing.
+    const resolved = await client.request(
+      "completionItem/resolve",
+      item,
+    ) as ScopedItem;
+    assertEquals(resolved.label, "New software-requirement (SRS_BRK_0002)");
+  } finally {
+    await client.shutdown();
+  }
+});

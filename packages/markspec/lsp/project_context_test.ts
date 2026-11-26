@@ -750,3 +750,46 @@ Deno.test("ProjectContext.scopeFilter: filters by scope for a {scope} type only 
   assertEquals(none, undefined);
   assertEquals(unknown, undefined);
 });
+
+const OVERFLOW_MD = `- [SRS_BRK_10000] Brake request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+      Type: software-requirement
+`;
+
+Deno.test("ProjectContext.getEntryTypes: offers a scope whose only ID is wider than the padding (#1038)", async () => {
+  const ctx = await contextWithPattern("SRS_{scope}_{n:04d}", OVERFLOW_MD);
+  const types = ctx.getEntryTypes();
+  ctx.dispose();
+  assertEquals(scaffoldLabels(types), [
+    "New release-requirement (SRS_BRK_10001)",
+    "New release-requirement (SRS_SCOPE_NNNN)",
+  ]);
+});
+
+Deno.test("ProjectContext.releaseObservedReservations: releases a reservation of an ID wider than the padding (#1038)", async () => {
+  _resetReservations();
+  try {
+    const ctx = await contextWithPattern("SRS_{scope}_{n:04d}", OVERFLOW_MD);
+    reserve("SRS_BRK_", "", 10001);
+    const docPath = join(ROOT, "doc.md");
+    await ctx.index.parseAndUpdateFile(
+      docPath,
+      OVERFLOW_MD + `
+- [SRS_BRK_10001] Second brake request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+      Type: software-requirement
+`,
+    );
+    ctx.releaseObservedReservations(docPath);
+    ctx.dispose();
+    assertEquals(isReserved("SRS_BRK_", "", 10001), false);
+  } finally {
+    _resetReservations();
+  }
+});

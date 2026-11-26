@@ -799,10 +799,10 @@ Deno.test("renderScaffoldSnippet: a scope template escapes both sides of the SCO
     suffix: "-draft",
     nextNumber: 0,
     ulid: "01HFAKEULID00000000000000",
-    scopeTemplate: { beforeScope: "R$", afterScope: ".NN-draft" },
+    scopeTemplate: { beforeScope: "R$", afterScope: ".NN-$draft" },
   });
   assertEquals(
-    rendered.insertText.startsWith("R\\$${1:SCOPE}.NN-draft] "),
+    rendered.insertText.startsWith("R\\$${1:SCOPE}.NN-\\$draft] "),
     true,
   );
 });

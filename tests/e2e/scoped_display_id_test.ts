@@ -20,6 +20,9 @@ profile:
     stakeholder-requirement:
       extends: Requirement
       display-id-pattern: "STK_{n:04d}"
+    named-element:
+      extends: Item
+      display-id-pattern: "XREQ_{scope}"
 `;
 
 const BASE_FILES = {
@@ -289,4 +292,53 @@ Deno.test("next-id --scope: the scope the classifier reads keeps counting", asyn
   );
   assertEquals(code, 0, stderr);
   assertEquals(stdout.trim(), "G_BR10002");
+});
+
+// ---------------------------------------------------------------------------
+// a number wider than the padding
+// ---------------------------------------------------------------------------
+
+const OVERFLOW_FILES = {
+  ...BASE_FILES,
+  "req.md": `# Requirements
+
+- [SRS_BRK_10000] Brake request
+
+  The brake controller shall apply the brake within 100 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: software-requirement
+`,
+};
+
+Deno.test("next-id: the missing --scope error lists a scope whose only ID is wider than the padding", async () => {
+  const { code, stderr } = await markspec(
+    ["next-id", "software-requirement", "req.md"],
+    { files: OVERFLOW_FILES },
+  );
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "scopes in use: BRK");
+});
+
+Deno.test("next-id --scope: a number wider than the padding still moves the counter on", async () => {
+  const { code, stdout, stderr } = await markspec(
+    ["next-id", "software-requirement", "--scope", "BRK", "req.md"],
+    { files: OVERFLOW_FILES },
+  );
+  assertEquals(code, 0, stderr);
+  assertEquals(stdout.trim(), "SRS_BRK_10001");
+});
+
+Deno.test("next-id: --scope on a counter-less pattern with {scope} fails", async () => {
+  const { code, stdout, stderr } = await markspec(
+    ["next-id", "named-element", "--scope", "BRK", "req.md"],
+    { files: FILES },
+  );
+  assertEquals(code, 1);
+  assertEquals(stdout, "");
+  assertStringIncludes(
+    stderr,
+    "--scope applies only to a numbered display-id-pattern with a {scope} " +
+      "placeholder; 'XREQ_{scope}' is not one",
+  );
 });

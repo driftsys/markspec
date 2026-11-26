@@ -11,6 +11,7 @@ import {
   displayIdScopeFilter,
   displayIdScopesInUse,
 } from "./pattern.ts";
+import { isValidScope, substituteScope } from "../profile/display_id.ts";
 
 Deno.test("compileDisplayIdPattern: bare {n} becomes \\d+", () => {
   const r = compileDisplayIdPattern("REQ-{n}");
@@ -227,4 +228,36 @@ Deno.test("displayIdScopeFilter: keeps an ID the classifier does not match", () 
 Deno.test("displayIdScopeFilter: keeps every ID for a pattern without {scope}", () => {
   const accept = displayIdScopeFilter("STK_{n:04d}", "BRK");
   assertEquals(accept("STK_0001"), true);
+});
+
+Deno.test("isValidScope: every valid scope value classifies back through displayIdScope", () => {
+  const pattern = "SRS_{scope}_{n:04d}";
+  for (const scope of ["BRK", "brk2", "7", "A1b2C3"]) {
+    assertEquals(isValidScope(scope), true, scope);
+    const id = substituteScope(pattern, scope).replace("{n:04d}", "0001");
+    assertEquals(displayIdScope(pattern, id), scope, id);
+  }
+  assertEquals(isValidScope("B_K"), false);
+  assertEquals(displayIdScope(pattern, "SRS_B_K_0001"), undefined);
+});
+
+Deno.test("displayIdScope: reads a counter wider than the padding (#1038)", () => {
+  assertEquals(displayIdScope("SRS_{scope}_{n:04d}", "SRS_BRK_10000"), "BRK");
+  assertEquals(displayIdScope("G_{scope}{n:04d}", "G_BR10001"), "BR1");
+  assertEquals(displayIdScope("SRS_{scope}_{n:04d}", "SRS_BRK_001"), undefined);
+});
+
+Deno.test("displayIdScopesInUse: lists a scope whose only ID is wider than the padding (#1038)", () => {
+  assertEquals(
+    displayIdScopesInUse("SRS_{scope}_{n:04d}", [
+      { displayId: "SRS_BRK_10000" },
+    ]),
+    ["BRK"],
+  );
+});
+
+Deno.test("compileDisplayIdPattern: the classifier still needs the exact padded width (#1038)", () => {
+  const re = compileDisplayIdPattern("SRS_{scope}_{n:04d}");
+  assertEquals(re.test("SRS_BRK_10000"), false);
+  assertEquals(re.test("SRS_BRK_0001"), true);
 });

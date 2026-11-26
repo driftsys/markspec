@@ -350,6 +350,9 @@ markspec fmt <file>              # assign ULID, normalize indentation
 markspec check <file>            # confirm no broken references
 ```
 
+For a type whose numbered pattern has a `{scope}` placeholder, `insert` needs
+`--scope <value>` (see the [CLI reference](cli.md#next-id)).
+
 Each step produces structured output the agent can parse:
 
 ```sh
