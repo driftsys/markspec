@@ -1439,6 +1439,21 @@ for (
       "A note[^SHALL].\n\n[^SHALL]: It holds.",
       "A note[^SHALL].",
     ],
+    [
+      "a link label defined after a footnote",
+      "A note[^n] and [SHALL].\n\n[^n]: It holds.\n\n[SHALL]: http://x.example/",
+      "A note[^n] and [SHALL].",
+    ],
+    [
+      "a label defined in a list item",
+      "See [SHALL].\n\n- [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a blockquote",
+      "See [SHALL].\n\n> [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
   ]
 ) {
   Deno.test(`format: keeps ${name} with no MSL-F900 (#1014)`, () => {
@@ -1472,7 +1487,17 @@ for (
       "| When the car stops |\n|---|\n| a WHEN b MUST |",
       "| When the car stops |\n  |---|\n  | a WHEN b must |",
     ],
-    ["an escaped pipe", "| a \\| SHALL |\n|---|\n| x |", "| a \\| shall |"],
+    ["an escaped pipe", "| a \\| When x |\n|---|\n| y |", "| a \\| when x |"],
+    [
+      "an unmatched backtick",
+      "| a ` | When x |\n|---|---|\n| y | z |",
+      "| a ` | When x |",
+    ],
+    [
+      "a reference label in a cell",
+      "| [SHALL] | [MUST][] |\n|---|---|\n| SHALL | y |\n\n[SHALL]: http://x.example/\n[MUST]: http://y.example/",
+      "| [SHALL] | [MUST][] |\n  |---|---|\n  | shall | y |",
+    ],
   ]
 ) {
   Deno.test(`format: casing in ${name} of a table gives no MSL-F900 (#1015)`, () => {

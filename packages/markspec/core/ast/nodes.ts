@@ -101,9 +101,10 @@ export interface TableNode {
   readonly kind: "table";
   readonly header: readonly InlineContent[];
   readonly rows: readonly (readonly InlineContent[])[];
-  /** Verbatim source substring of the table (preserves author column
-   * widths for byte-identical round-trip; header/rows are the parsed
-   * view for validators). */
+  /** Source substring of the table (preserves author column widths for
+   * round-trip; header/rows are the parsed view for validators). Verbatim
+   * as parsed; `normalizeBodyAst` changes only the modal keyword casing in
+   * it (#1015). */
   readonly raw: string;
   readonly range: SourceRange;
 }

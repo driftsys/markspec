@@ -798,7 +798,8 @@ keeps its case.
 `fmt` applies the rule to one paragraph or table cell at a time, and gives each
 one the link reference and footnote definitions of its entry body, so a
 reference label or a footnote reference label keeps its case when its definition
-is in another block of the same body.
+is in another block of the same body, also inside a list item or a blockquote. A
+definition inside an ordered list item still gives `MSL-F900` (#1026).
 
 #### 3.4.2 Entity references
 
