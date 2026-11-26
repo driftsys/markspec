@@ -1704,3 +1704,18 @@ Deno.test("format: typedProfileKeys trims a profile typed value and keeps free t
   // Without the option, the value keeps the characters.
   assertStringIncludes(format(md).output, `Hazard: HAZ-0001${BOM}${NBSP}\n`);
 });
+
+Deno.test("format: a profile typed value made only of U+00A0 loses its line (#990)", () => {
+  const md = `- [REQ-001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+      Hazard: ${NBSP}
+      Labels: ASIL-B
+`;
+  const result = format(md, { typedProfileKeys: new Set(["Hazard"]) });
+  assertEquals(result.output.includes("Hazard"), false);
+  assertEquals(result.output.includes(NBSP), false);
+  assertStringIncludes(result.output, "      Labels: ASIL-B\n");
+});

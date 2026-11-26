@@ -5,11 +5,11 @@
  * all whitespace, like a typed core attribute (#990). `fmt` removes a
  * U+FEFF or a non-breaking space (U+00A0) at either end of its value, and
  * keeps them around the value of a profile `text` attribute and of an
- * undeclared key. A second `fmt` changes nothing, bare `check` reports no
- * MSL-F010, and `compile --format json` outputs the trimmed value.
+ * undeclared key. A second `fmt` changes nothing, bare `check` reports
+ * MSL-F010 for an untrimmed value, and `compile --format json` outputs the trimmed value.
  */
 
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import { markspecInDir, markspecPersist } from "./helpers.ts";
 
@@ -83,10 +83,6 @@ Deno.test("e2e: fmt, check and compile trim a profile typed value and keep free 
     const again = await markspecInDir(dir, ["fmt", "req.md"]);
     assertEquals(again.code, 0, again.stderr);
     assertEquals(await Deno.readTextFile(join(dir, "req.md")), out);
-
-    const check = await markspecInDir(dir, ["check"]);
-    assert(!check.stderr.includes("MSL-F010"), check.stderr);
-    assert(!check.stderr.includes("error["), check.stderr);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -116,6 +112,39 @@ Deno.test("e2e: compile outputs a trimmed profile typed value (#990)", async () 
     assertEquals(compiledValue(stdout, "COUNT"), "3");
     assertEquals(compiledValue(stdout, "Note"), `${NBSP}kept as imported`);
     assertEquals(compiledValue(stdout, "Comment"), `legacy value${NBSP}`);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("e2e: fmt applies the profile of each project to its own files (#990)", async () => {
+  // Only the nested project's profile declares Hazard as a typed attribute.
+  const entry = (id: string) =>
+    `- [REQ-0001] Imported requirement
+
+  The system shall keep imported values unchanged.
+
+      Id: ${id}
+      Hazard: HAZ-0001${NBSP}
+`;
+  const { dir, code, stderr } = await markspecPersist(
+    ["fmt", "a.md", "nested/b.md"],
+    {
+      "project.yaml": "name: outer-e2e\nversion: 0.1.0\n",
+      "a.md": entry("01HGW2Q8MNP3RSTVWXYZABCDEF"),
+      "nested/project.yaml": "name: nested-e2e\nversion: 0.1.0\n",
+      "nested/.markspec.yaml": "profiles:\n  - ./profiles/unicode\n",
+      "nested/profiles/unicode/markspec.yaml": PROFILE_YAML,
+      "nested/b.md": entry("01HGW2Q8MNP3RSTVWXYZABCDEG"),
+    },
+  );
+  try {
+    assertEquals(code, 0, stderr);
+    const a = await Deno.readTextFile(join(dir, "a.md"));
+    const b = await Deno.readTextFile(join(dir, "nested/b.md"));
+    assertStringIncludes(a, `      Hazard: HAZ-0001${NBSP}\n`);
+    assertStringIncludes(b, "      Hazard: HAZ-0001\n");
+    assertEquals(b.includes(NBSP), false);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

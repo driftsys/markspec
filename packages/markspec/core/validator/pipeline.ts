@@ -1,8 +1,7 @@
 /**
  * @module core/validator/pipeline
  *
- * Validator pipeline. Composes Stage 0 (trim of profile typed values —
- * {@linkcode trimProfileTypedValues}), Stage 1 (core hygiene — existing
+ * Validator pipeline. Composes Stage 1 (core hygiene — existing
  * `validate`),
  * Stage 2 (type classification — {@linkcode classifyEntriesStage}),
  * Stage 2.5 (list-value normalization — {@linkcode normalizeListValues}),
@@ -23,8 +22,6 @@ import {
   CORE_DISCIPLINE_REGISTRY,
   emittableEntries,
   makeDisplayId,
-  profileTypedKeys,
-  trimProfileTypedValues,
 } from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import {
@@ -102,9 +99,6 @@ export interface PipelineOptions {
 /**
  * Run the validator pipeline.
  *
- * - Stage 0 (when `profile` is non-null): the value of every profile
- *   attribute whose type is not `text` is trimmed of all whitespace via
- *   {@linkcode trimProfileTypedValues} (#990).
  * - Stage 1 (always): core hygiene via {@linkcode validate}.
  * - Stage 2 (when `profile` is non-null): entry classification via
  *   {@linkcode classifyEntriesStage}.
@@ -121,21 +115,12 @@ export interface PipelineOptions {
  *   validating a file-local subset to suppress cross-entry diagnostics.
  */
 export function runPipeline(
-  parsedEntries: readonly Entry[],
+  entries: readonly Entry[],
   profile: EffectiveProfile | null,
   captionConventions: CaptionConventions = {},
   opts: PipelineOptions = {},
 ): PipelineResult {
   const diagnostics: Diagnostic[] = [];
-
-  // Stage 0 — trim the value of every profile attribute whose type is not
-  // `text`, as the parser trims a typed core value (#990). The parser has
-  // no profile and keeps a U+FEFF or a non-breaking space at either end of
-  // such a value. Done first, so Stage 1.6 and every later stage see the
-  // trimmed value.
-  const entries = profile === null
-    ? parsedEntries
-    : trimProfileTypedValues(parsedEntries, profileTypedKeys(profile));
 
   // Partition per orchestrator (#771): emit loops here iterate
   // `emittable` / `finalEmittable`; resolution maps build from the full
@@ -217,7 +202,6 @@ export function runPipeline(
   // comma-separated values for `id-list`/`tag-list` attributes the core parser
   // did not see, and trims each value that the entry's scope declares with
   // a type other than `text`, so that Stage 3 sees split, trimmed values.
-  // Stage 0 already trimmed the keys of `profileTypedKeys` (#990).
   if (profile !== null) {
     finalEntries = finalEntries.map((e) => normalizeListValues(e, profile));
   }

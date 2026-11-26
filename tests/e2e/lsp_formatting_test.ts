@@ -291,3 +291,60 @@ profile:
     await client.shutdown();
   }
 });
+
+Deno.test("lsp formatting: a profile typed attribute loses a U+00A0 at the end of its value (#990)", async () => {
+  const nbsp = String.fromCharCode(0xa0);
+  const md = `- [REQ-0001] Typed value
+
+  The system shall act when requested.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+      Hazard: HAZ-0001${nbsp}
+      Note: kept${nbsp}
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: typed-lsp\nversion: 0.1.0\n",
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `markspec-schema: "1"
+id: "@acme/typed"
+version: 0.1.0
+profile:
+  attributes:
+    - name: Hazard
+      type: id
+    - name: Note
+      type: text
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    "reqs.md": md,
+  });
+  try {
+    await client.initialize();
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+    const edits = await client.request("textDocument/formatting", {
+      textDocument: { uri: fileUri },
+      options: { tabSize: 2, insertSpaces: true },
+    }) as Array<{ newText: string }>;
+    assertExists(edits);
+    assert(edits.length > 0, "the typed value must produce an edit");
+    const inserted = edits.map((e) => e.newText).join("\n");
+    assert(inserted.includes("Hazard: HAZ-0001"), inserted);
+    assert(!inserted.includes(`HAZ-0001${nbsp}`), inserted);
+    // The free-text attribute keeps its character.
+    assert(inserted.includes(`Note: kept${nbsp}`), inserted);
+  } finally {
+    await client.shutdown();
+  }
+});

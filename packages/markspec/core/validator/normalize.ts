@@ -17,10 +17,9 @@
  * The value of a profile-declared attribute of any type other than `text`
  * is trimmed of all whitespace, as the parser trims a typed core value. The
  * parser has no profile, so it keeps a U+FEFF or a non-breaking space at
- * either end of such a value as if it were free text (#990). In
- * `runPipeline`, Stage 0 (`trimProfileTypedValues`) already trims the keys
- * that `profileTypedKeys` returns, before Stage 1.6; this step also trims a
- * key declared with a type other than `text` in the entry's own scope.
+ * either end of such a value as if it were free text (#990). This step
+ * trims a key declared with a type other than `text` in the entry's own
+ * scope.
  */
 
 import type { EffectiveProfile, Entry, ValueType } from "../model/mod.ts";

@@ -137,6 +137,15 @@ Deno.test("profileTypedKeys: a key declared as text anywhere is not typed", () =
   assertEquals(keys.has("Ref"), false);
 });
 
+Deno.test("profileTypedKeys: a universal text declaration beats a type-scoped typed one", () => {
+  const keys = profileTypedKeys(
+    profile([attr("Ref", "text")], [typeDef("requirement", [
+      attr("Ref", "id"),
+    ])]),
+  );
+  assertEquals(keys.has("Ref"), false);
+});
+
 Deno.test("profileTypedKeys: keys are stored in canonical case", () => {
   const keys = profileTypedKeys(profile([attr("HAZARD-ref", "id")]));
   assertEquals([...keys], ["Hazard-ref"]);
