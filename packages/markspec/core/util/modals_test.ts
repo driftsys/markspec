@@ -388,10 +388,16 @@ for (
       "Text.\n\n    MUST code",
     ],
     [
-      "a keyword and not split in a nested blockquote (rfc8174)",
+      "a keyword and not split in a single-level blockquote (rfc8174)",
       "> The system must\n> not fail.",
       "rfc8174",
       "> The system MUST\n> NOT fail.",
+    ],
+    [
+      "a keyword and not split in a nested blockquote (rfc8174)",
+      "> > The system must\n> > not fail.",
+      "rfc8174",
+      "> > The system MUST\n> > NOT fail.",
     ],
     [
       "underscore emphasis (lower)",

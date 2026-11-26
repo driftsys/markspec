@@ -94,8 +94,8 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  * and alt text), link reference definitions, footnote labels, HTML tags and
  * HTML blocks (#1009). The visible text of a `[text](url)` or `[text][label]`
  * link is prose and is normalized. A keyword on a four-space or tab-indented
- * line remains verbatim, unless the line is a lazy continuation line of a
- * paragraph or heading, which is prose (#1031). The document is parsed once; every
+ * line remains verbatim, unless the line continues a paragraph (a lazy
+ * continuation line), which is prose (#1031). The document is parsed once; every
  * exclusion uses that same AST.
  *
  * `mode` is `"lower"` (the §3.4.1 rule: lowercase the uppercase RFC 2119
@@ -182,8 +182,7 @@ export function normalizeProseModals(
  * {@linkcode RFC8174_ENFORCED_RE} on the whole text, so a `not` on the next
  * line of the same paragraph needs no state between lines. A match is kept as
  * written when its keyword is on a fenced line or on a line indented by four
- * or more spaces (or a tab) that is not a paragraph or heading continuation
- * line, or when any part of the match overlaps inline
+ * or more spaces (or a tab) that does not continue a paragraph, or when any part of the match overlaps inline
  * code or another verbatim range (`nonProseRanges`: inline code and link
  * syntax). Otherwise only the keyword and the `not` letters are uppercased;
  * the gap between them is kept exactly. A `not` after a line break is
@@ -233,8 +232,8 @@ function uppercaseRfc8174(
 
 /**
  * `true` when the line that starts at `lineStart` is indented by four or more
- * spaces (or a tab) and is not a continuation line of a paragraph or heading
- * (`blockRanges`). Inside a paragraph such a line is a lazy continuation line,
+ * spaces (or a tab) and does not continue a paragraph (it does not start
+ * inside a range of `blockRanges`). Inside a paragraph such a line is a lazy continuation line,
  * which is prose: the Markdown pass joins it to the line before, so its
  * keyword must be cased in the same pass (#1031).
  */
