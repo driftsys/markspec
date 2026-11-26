@@ -1922,3 +1922,18 @@ Deno.test("parseMarkdown: whitespace-only lines before the trailer are not body 
   const { entries: [entry] } = parseMarkdown(md);
   assertEquals(entry.body, "Body line.");
 });
+
+Deno.test("parseMarkdown: CRLF whitespace-only lines before the trailer are not body (#1022)", () => {
+  const md = "- [REQ-0001] Title\r\n\r\n  Body line.  \r\n   \r\n\t\r\n\r\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\r\n";
+  const { entries: [entry] } = parseMarkdown(md);
+  assertEquals(entry.body, "Body line.  ");
+});
+
+Deno.test("parseMarkdown: a closed fence before whitespace-only lines stays whole (#1022)", () => {
+  const md =
+    "- [REQ-0001] Title\n\n  Body line.\n\n  ```text\n  code\n  ```\n" +
+    "   \n\t\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const { entries: [entry] } = parseMarkdown(md);
+  assertEquals(entry.body, "Body line.\n\n```text\ncode\n```");
+});
