@@ -787,3 +787,20 @@ for (
     );
   });
 }
+
+Deno.test("splitBodyAndAttributes: drops whitespace-only lines before the trailer (#1022)", () => {
+  const [body] = splitBodyAndAttributes(
+    "Body line.  \n   \n\t\n\n    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
+  assertEquals(body, "Body line.  ");
+});
+
+Deno.test("splitBodyAndAttributes: a long run of whitespace-only lines is linear (#1022)", () => {
+  const started = performance.now();
+  const [body] = splitBodyAndAttributes(
+    "Body line." + "\n ".repeat(50_000) +
+      "x\n\n    Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
+  assertEquals(body.endsWith("\n x"), true);
+  assertEquals(performance.now() - started < 1000, true);
+});

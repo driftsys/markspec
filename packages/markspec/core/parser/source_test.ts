@@ -1742,3 +1742,15 @@ Deno.test("stripBlockCommentPrefix: keeps U+00A0 that ends an unprefixed line (#
   assertEquals(lines, ["Notes: \uFEFFx\u00A0"]);
   assertEquals(prefixWidths, [5]);
 });
+
+Deno.test("parseSource: whitespace-only doc lines before the trailer are not body (#1022)", async () => {
+  const language = await getRustLanguage();
+  const source = "/// [SRS_BRK_0001] Title\n///\n/// Body line.\n///   \n" +
+    "///\t\n///\n///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\nfn foo() {}\n";
+  const { entries } = parseSource(source, {
+    file: "test.rs",
+    language,
+    languageId: "rust",
+  });
+  assertEquals(entries[0].body, "Body line.");
+});

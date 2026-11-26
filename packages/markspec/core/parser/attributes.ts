@@ -385,8 +385,17 @@ export function splitBodyAndAttributes(
   const bodyLines = lines.slice(0, attrStart);
   const attrLines = lines.slice(attrStart);
 
-  // Trim trailing empty lines from body
-  const body = bodyLines.join("\n").replace(/\n+$/, "");
+  // Trim trailing empty and whitespace-only lines from the body (#1022).
+  // Spaces and tabs at the end of the last body line are kept. A CRLF
+  // line ending is removed with its line. A line scan, not a regular
+  // expression, so the time is linear in the body length.
+  let end = bodyLines.length;
+  while (end > 1 && /^[ \t\r]*$/.test(bodyLines[end - 1])) end--;
+  const kept = bodyLines.slice(0, end);
+  if (end < bodyLines.length && kept[end - 1].endsWith("\r")) {
+    kept[end - 1] = kept[end - 1].slice(0, -1);
+  }
+  const body = kept.join("\n");
   // Only layout space is trimmed at the end: a U+FEFF or a non-breaking
   // space at the end of a value is data (#990).
   const filteredAttrLines = attrLines
