@@ -168,7 +168,8 @@ so analysis and formatting are lossless and deterministic.
 - **Whole-document formatting**
   ([ADR-029](./adr-029-whole-document-markdown-formatting.md)) — `markspec fmt`
   formats the entire Markdown document via an embedded dprint plugin, gated by a
-  CommonMark-semantic equivalence comparator.
+  CommonMark-semantic equivalence comparator (entry bodies also by body block
+  kinds, #1010).
 - **Document directive, not a resolution step**
   ([ADR-013](./adr-013-document-directive-not-a-resolution-step.md)) — the
   family-hint document directive is a `fmt` concern, deliberately kept out of

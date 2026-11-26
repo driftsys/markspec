@@ -1719,3 +1719,52 @@ Deno.test("format: a profile typed value made only of U+00A0 loses its line (#99
   assertEquals(result.output.includes(NBSP), false);
   assertStringIncludes(result.output, "      Labels: ASIL-B\n");
 });
+
+Deno.test("format: the prose pass keeps a definition list in an entry body (#1010)", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const input = `- [REQ-0001] Deflist
+
+  Term
+  : first line
+  second line.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const once = format(input, { file: "req.md", formatMarkdownProse });
+  assertStringIncludes(
+    once.output,
+    "\n  Term\n  : first line\n  second line.\n",
+  );
+  assert(
+    once.diagnostics.some((d) =>
+      d.code === "MSL-F012" && d.severity === "info"
+    ),
+  );
+  const twice = format(once.output, { file: "req.md", formatMarkdownProse });
+  assertEquals(twice.output, once.output);
+});
+
+Deno.test("format: the prose pass keeps a definition list nested in a list item (#1010)", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const input = `- [REQ-0001] Nested deflist
+
+  - item
+    Term
+    : first line
+    second line.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const once = format(input, { file: "req.md", formatMarkdownProse });
+  // The `-\n    item` layout is the canonical list rendering, which
+  // predates #1010.
+  assertEquals(
+    once.output,
+    "- [REQ-0001] Nested deflist\n\n  -\n    item\n    Term\n" +
+      "    : first line\n    second line.\n\n" +
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n",
+  );
+  assert(once.diagnostics.some((d) => d.code === "MSL-F012"));
+  const twice = format(once.output, { file: "req.md", formatMarkdownProse });
+  assertEquals(twice.output, once.output);
+});
