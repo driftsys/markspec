@@ -16,7 +16,9 @@ import {
 } from "./completions.ts";
 import {
   _reset as _resetReservations,
+  isDisplayIdReserved,
   isReserved,
+  mintReservedNumber,
   reserve,
 } from "./id_reservations.ts";
 
@@ -737,6 +739,66 @@ Deno.test("ProjectContext.getEntryTypes: with nothing between {scope} and the co
     "New release-requirement (G_BR10002)",
     "New release-requirement (G_SCOPENNNN)",
   ]);
+});
+
+Deno.test("ProjectContext.getEntryTypes: a glued {scope} scaffold never offers an existing ID (#1041)", async () => {
+  const ctx = await contextWithPattern(
+    "G_{scope}{n:02d}",
+    `- [G_BR99] Scope BR request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+
+- [G_BR100] Scope BR1 request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`,
+  );
+  const types = ctx.getEntryTypes();
+  ctx.dispose();
+  // G_BR100 reads as scope BR1, number 00, so scope BR counts only
+  // G_BR99: 100 is taken by G_BR100, and the scaffold offers 101.
+  assertEquals(
+    types.filter((t) => t.scope === "BR").map((t) => t.nextNumber),
+    [101],
+  );
+});
+
+Deno.test("ProjectContext.releaseObservedReservations: a glued ID releases the reservation of the scope that minted it (#1041)", async () => {
+  _resetReservations();
+  try {
+    const glued = `- [G_BR99] Scope BR request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+`;
+    const ctx = await contextWithPattern("G_{scope}{n:02d}", glued);
+    // A resolve for scope BR minted number 101, which formats to G_BR101.
+    mintReservedNumber("G_BR", "", () => 101, () => "G_BR101");
+    const docPath = join(ROOT, "doc.md");
+    await ctx.index.parseAndUpdateFile(
+      docPath,
+      glued + `
+- [G_BR101] Second request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`,
+    );
+    // G_BR101 reads as scope BR1, number 01, yet the reservation of G_BR
+    // (scope BR) is released.
+    ctx.releaseObservedReservations(docPath);
+    ctx.dispose();
+    assertEquals(isReserved("G_BR", "", 101), false);
+    assertEquals(isDisplayIdReserved("G_BR101"), false);
+  } finally {
+    _resetReservations();
+  }
 });
 
 Deno.test("ProjectContext.scopeFilter: filters by scope for a {scope} type only (#1038)", async () => {

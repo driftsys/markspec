@@ -7,17 +7,24 @@
 
 import { assertEquals, assertNotEquals } from "@std/assert";
 import {
+  _displayIdReservationCount,
   _reset,
   _setNow,
+  isDisplayIdReserved,
   isReserved,
   mintReservedNumber,
   release,
+  releaseDisplayId,
   reserve,
   reservedNumbersFor,
 } from "./id_reservations.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { renderScaffoldSnippet } from "./completions.ts";
-import { makeDisplayId } from "../core/mod.ts";
+import {
+  displayIdScopeFilter,
+  formatDisplayId,
+  makeDisplayId,
+} from "../core/mod.ts";
 import type { Entry, SourceLocation } from "../core/mod.ts";
 
 function teardown() {
@@ -151,15 +158,16 @@ Deno.test(
     // change between the two resolves (the parse that would add the first
     // accept's entry is still debounced). This mirrors exactly what
     // server.ts's onCompletionResolve composes: mintReservedNumber wrapping
-    // index.getNextDisplayIdNumber, then renderScaffoldSnippet.
+    // index.getNextFreeDisplayIdNumber, then renderScaffoldSnippet.
     const index = new WorkspaceIndex();
     index.updateFile("reqs.md", [entry("STK_0001"), entry("STK_0002")]);
+    const shape = { prefix: "STK_", width: 4, suffix: "" };
 
     const resolveOnce = (): string => {
       const n = mintReservedNumber(
         "STK_",
         "",
-        (reserved) => index.getNextDisplayIdNumber("STK_", "", reserved),
+        (reserved) => index.getNextFreeDisplayIdNumber(shape, reserved),
       );
       return renderScaffoldSnippet({
         typeName: "StakeholderRequirement",
@@ -180,5 +188,124 @@ Deno.test(
     assertEquals(firstId, "STK_0003");
     assertEquals(secondId, "STK_0004");
     assertNotEquals(firstId, secondId);
+  },
+);
+
+Deno.test(
+  "id_reservations: resolves for a glued {scope} pattern skip an existing ID and a reserved number (#1041)",
+  () => {
+    teardown();
+    // G_{scope}{n:02d}: G_BR100 reads as scope BR1, so scope BR counts
+    // only G_BR99. The composition below is the one server.ts's
+    // onCompletionResolve runs for scope BR.
+    const index = new WorkspaceIndex();
+    index.updateFile("reqs.md", [
+      entry("G_BR99"),
+      entry("G_BR100"),
+      entry("G_BR102"),
+    ]);
+    const shape = { prefix: "G_BR", width: 2, suffix: "" };
+    const accept = displayIdScopeFilter("G_{scope}{n:02d}", "BR");
+    const resolveOnce = (): number =>
+      mintReservedNumber(
+        "G_BR",
+        "",
+        (reserved) => index.getNextFreeDisplayIdNumber(shape, reserved, accept),
+      );
+
+    // 100 exists (G_BR100): the first resolve takes 101 and reserves it.
+    assertEquals(resolveOnce(), 101);
+    // 101 is reserved and 102 exists (G_BR102): the second takes 103.
+    assertEquals(resolveOnce(), 103);
+    teardown();
+  },
+);
+
+/**
+ * One resolve for scope `scope` of `G_{scope}{n:02d}`, composed as
+ * server.ts's onCompletionResolve composes it. Returns the minted ID.
+ */
+function resolveGlued(index: WorkspaceIndex, scope: string): string {
+  const shape = { prefix: `G_${scope}`, width: 2, suffix: "" };
+  const accept = displayIdScopeFilter("G_{scope}{n:02d}", scope);
+  const n = mintReservedNumber(
+    shape.prefix,
+    shape.suffix,
+    (reserved) =>
+      index.getNextFreeDisplayIdNumber(
+        shape,
+        reserved,
+        accept,
+        isDisplayIdReserved,
+      ),
+    (num) => formatDisplayId(shape, num),
+  );
+  return formatDisplayId(shape, n);
+}
+
+Deno.test(
+  "id_reservations: resolves under two glued scopes never mint the same display ID (#1041)",
+  () => {
+    teardown();
+    // Scope BR counts G_BR99 and skips the existing G_BR100: it mints
+    // G_BR101 (number 101). Scope BR1 counts G_BR100 (number 00): its next
+    // number, 1, also formats to G_BR101, which the first resolve reserved.
+    const index = new WorkspaceIndex();
+    index.updateFile("reqs.md", [entry("G_BR99"), entry("G_BR100")]);
+    assertEquals(resolveGlued(index, "BR"), "G_BR101");
+    assertEquals(resolveGlued(index, "BR1"), "G_BR102");
+    assertEquals(isDisplayIdReserved("G_BR101"), true);
+    assertEquals(isDisplayIdReserved("G_BR102"), true);
+    teardown();
+  },
+);
+
+Deno.test(
+  "id_reservations: releaseDisplayId frees the ID and the number reservation that minted it (#1041)",
+  () => {
+    teardown();
+    const index = new WorkspaceIndex();
+    index.updateFile("reqs.md", [entry("G_BR99"), entry("G_BR100")]);
+    assertEquals(resolveGlued(index, "BR"), "G_BR101");
+    assertEquals(isReserved("G_BR", "", 101), true);
+    // The parse observes G_BR101, which reads as scope BR1: the release by
+    // ID still drops the reservation of prefix G_BR.
+    releaseDisplayId("G_BR101");
+    assertEquals(isDisplayIdReserved("G_BR101"), false);
+    assertEquals(isReserved("G_BR", "", 101), false);
+    // An unknown ID is a no-op.
+    releaseDisplayId("G_BR555");
+    teardown();
+  },
+);
+
+Deno.test(
+  "id_reservations: a display-ID reservation older than the TTL is evicted (#1041)",
+  () => {
+    teardown();
+    let now = 1_000_000;
+    _setNow(() => now);
+    mintReservedNumber("G_BR", "", () => 101, () => "G_BR101");
+    assertEquals(isDisplayIdReserved("G_BR101"), true);
+    now += 60_000;
+    assertEquals(isDisplayIdReserved("G_BR101"), false);
+    teardown();
+  },
+);
+
+Deno.test(
+  "id_reservations: a later mint drops a stale display-ID reservation that was never looked up (#1041)",
+  () => {
+    teardown();
+    let now = 1_000_000;
+    _setNow(() => now);
+    mintReservedNumber("G_BR", "", () => 101, () => "G_BR101");
+    assertEquals(_displayIdReservationCount(), 1);
+    now += 60_000;
+    // No lookup of G_BR101 happens: the next mint sweeps it.
+    mintReservedNumber("G_BR", "", () => 102, () => "G_BR102");
+    assertEquals(_displayIdReservationCount(), 1);
+    assertEquals(isDisplayIdReserved("G_BR102"), true);
+    teardown();
   },
 );

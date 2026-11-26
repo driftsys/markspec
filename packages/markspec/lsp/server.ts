@@ -45,6 +45,7 @@ import {
   type EditorConfigResolver,
   filterEntriesByTraceTargets,
   format,
+  formatDisplayId,
   formatEntryOrigin,
   formatFeatureText,
   isCorpusEntry,
@@ -124,7 +125,7 @@ import {
   type ScaffoldCompletionData,
 } from "./completions.ts";
 import { findEnclosingEntry } from "./find_entry.ts";
-import { mintReservedNumber } from "./id_reservations.ts";
+import { isDisplayIdReserved, mintReservedNumber } from "./id_reservations.ts";
 import {
   fencedLinesForFile,
   isDocCommentContext,
@@ -1128,11 +1129,21 @@ connection.onCompletionResolve((item): CompletionItem => {
     const { prefix, suffix } = data;
     // For a `{scope}` pattern, IDs of other scopes never count (#1038).
     const accept = ctx.scopeFilter(data.typeName, data.scope);
+    // The display ID is neither indexed nor reserved by a resolve under
+    // another prefix, which can format the same ID for a glued `{scope}`
+    // pattern (#1041). The minted ID is reserved too.
+    const shape = { prefix, width: data.width, suffix };
     const nextNumber = mintReservedNumber(
       prefix,
       suffix,
       (reserved) =>
-        ctx.index.getNextDisplayIdNumber(prefix, suffix, reserved, accept),
+        ctx.index.getNextFreeDisplayIdNumber(
+          shape,
+          reserved,
+          accept,
+          isDisplayIdReserved,
+        ),
+      (n) => formatDisplayId(shape, n),
     );
     rendered = renderScaffoldSnippet({
       typeName: data.typeName,

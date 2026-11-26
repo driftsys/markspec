@@ -10,6 +10,7 @@ import type {
   CaptionConventions,
   Diagnostic,
   DisplayId,
+  DisplayIdPatternShape,
   EffectiveProfile,
   Entry,
 } from "../core/mod.ts";
@@ -17,6 +18,7 @@ import {
   applyCorpusPostPass,
   classifyEntry,
   emittableEntries,
+  firstFreeDisplayIdNumber,
   formatEntryOrigin,
   isCorpusEntry,
   parseFile,
@@ -255,6 +257,38 @@ export class WorkspaceIndex {
       if (n > max) max = n;
     }
     return max + 1;
+  }
+
+  /**
+   * The number to mint for a numbered display-ID pattern of `shape`:
+   * {@linkcode getNextDisplayIdNumber} (max + 1 over the counted IDs and
+   * `reserved`), raised while the formatted display ID is already indexed
+   * or `isReserved` reports it. Every minting path of the LSP uses it, so a
+   * scaffold never offers an existing ID, even when `accept` dropped that
+   * ID: with nothing between `{scope}` and the counter (`G_{scope}{n:02d}`),
+   * `G_BR100` reads as scope `BR1`, yet it is the ID that number 100 of
+   * scope `BR` formats to (#1041).
+   *
+   * @param shape - The parsed pattern, with any `{scope}` already
+   *   substituted.
+   * @param reserved - As for {@linkcode getNextDisplayIdNumber}.
+   * @param accept - As for {@linkcode getNextDisplayIdNumber}.
+   * @param isReserved - `true` for a display ID that a resolve under
+   *   another `(prefix, suffix)` already handed out but the index does not
+   *   hold yet. The resolve handler passes `isDisplayIdReserved`; nothing is
+   *   reserved by default.
+   */
+  getNextFreeDisplayIdNumber(
+    shape: DisplayIdPatternShape,
+    reserved: ReadonlySet<number> = NO_RESERVATIONS,
+    accept: (displayId: string) => boolean = () => true,
+    isReserved: (displayId: string) => boolean = () => false,
+  ): number {
+    return firstFreeDisplayIdNumber(
+      shape,
+      this.getNextDisplayIdNumber(shape.prefix, shape.suffix, reserved, accept),
+      (id) => this.byDisplayId.has(id as DisplayId) || isReserved(id),
+    );
   }
 
   /** Return all tracked file paths. */

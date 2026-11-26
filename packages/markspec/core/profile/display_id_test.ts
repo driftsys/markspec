@@ -4,6 +4,7 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  firstFreeDisplayIdNumber,
   formatDisplayId,
   hasScopePlaceholder,
   highestDisplayIdNumber,
@@ -129,6 +130,34 @@ Deno.test("formatDisplayId: composes prefix + padded number + suffix", () => {
   assertEquals(formatDisplayId(wide, 7), "STK_AEB_000007");
   const withSuffix = { prefix: "REQ-", width: 3, suffix: "-draft" };
   assertEquals(formatDisplayId(withSuffix, 12), "REQ-012-draft");
+});
+
+Deno.test("firstFreeDisplayIdNumber: returns the start number when its ID is free", () => {
+  const shape = { prefix: "G_BR", width: 2, suffix: "" };
+  assertEquals(firstFreeDisplayIdNumber(shape, 7, () => false), 7);
+});
+
+Deno.test("firstFreeDisplayIdNumber: skips numbers whose formatted ID is taken (#1041)", () => {
+  const shape = { prefix: "G_BR", width: 2, suffix: "" };
+  const taken = new Set(["G_BR100", "G_BR101"]);
+  const seen: string[] = [];
+  const n = firstFreeDisplayIdNumber(shape, 100, (id) => {
+    seen.push(id);
+    return taken.has(id);
+  });
+  assertEquals(n, 102);
+  assertEquals(seen, ["G_BR100", "G_BR101", "G_BR102"]);
+});
+
+Deno.test("firstFreeDisplayIdNumber: passes the number to the predicate and pads it", () => {
+  const shape = { prefix: "REQ-", width: 3, suffix: "-draft" };
+  const calls: Array<[string, number]> = [];
+  const n = firstFreeDisplayIdNumber(shape, 4, (id, num) => {
+    calls.push([id, num]);
+    return num === 4;
+  });
+  assertEquals(n, 5);
+  assertEquals(calls, [["REQ-004-draft", 4], ["REQ-005-draft", 5]]);
 });
 
 Deno.test("highestDisplayIdNumber: finds max within prefix+suffix match", () => {

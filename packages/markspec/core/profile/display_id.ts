@@ -289,6 +289,27 @@ export function highestDisplayIdNumber(
 }
 
 /**
+ * The first number from `start` upward whose display ID, formatted with
+ * {@linkcode formatDisplayId}, `isTaken` rejects as already used. A minting
+ * caller passes the highest counted number plus one as `start`, and a test
+ * that the ID exists in the project (or is reserved). The
+ * highest number alone is not enough for a `{scope}` pattern with nothing
+ * between `{scope}` and the counter (`G_{scope}{n:02d}`): `G_BR100` reads as
+ * scope `BR1`, so it does not count for scope `BR`, but it is the ID that
+ * number 100 of scope `BR` formats to (#1041). Terminates when `isTaken`
+ * returns `true` for finitely many IDs.
+ */
+export function firstFreeDisplayIdNumber(
+  shape: DisplayIdPatternShape,
+  start: number,
+  isTaken: (displayId: string, n: number) => boolean,
+): number {
+  let n = start;
+  while (isTaken(formatDisplayId(shape, n), n)) n++;
+  return n;
+}
+
+/**
  * Escape `text` for literal use inside a RegExp source. Shared with the
  * classifier in `core/validator/pattern.ts`.
  */
