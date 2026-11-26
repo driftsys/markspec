@@ -592,14 +592,15 @@ Deno.test("previewBody and applyBody: accept a wrapped last line that starts wit
   }
 });
 
-Deno.test("previewBody: a loose list with a continuation paragraph is refused as format-failed", async () => {
-  // A real input for which the formatter emits MSL-F900 for the target
-  // (an SP3 residual): the body is not AST-equivalent after formatting.
-  const proposed = "1. one\n\n   para\n2. two";
+Deno.test("previewBody: a multi-line task list item is refused as format-failed", async () => {
+  // A real input for which the formatter emits MSL-F900 for the target:
+  // the list renderer does not keep a task item's continuation line
+  // (task lists are an excluded construct, MSL-B042).
+  const proposed = "- [x] one\n  two";
   const formatted = format(
     SYSTEM.replace(
       "  The braking system shall apply full braking torque within 200 ms of a\n  confirmed obstacle.",
-      "  1. one\n\n     para\n  2. two",
+      "  - [x] one\n    two",
     ),
     { file: FILE, formatMarkdownProse: prose },
   );
@@ -645,17 +646,31 @@ Deno.test("previewBody and applyBody: accept link reference and footnote definit
   }
 });
 
-Deno.test("previewBody: a tight ordered list with a nested list is refused as format-failed", async () => {
-  assertEquals(
-    await previewBody(
+// Blocks under an ordered marker stay in the item (#1033).
+Deno.test("previewBody and applyBody: accept blocks under an ordered list marker", async () => {
+  for (
+    const proposed of [
+      "1. one\n\n   para\n2. two",
+      "1. one\n2. two\n   - nested\n3. three",
+    ]
+  ) {
+    const preview = await previewBody(
       SYSTEM,
       FILE,
       "SYS_BRK_0001",
-      "1. one\n2. two\n   - nested\n3. three",
+      proposed,
       prose,
-    ),
-    { ok: false, refusal: "format-failed" },
-  );
+    );
+    assert(preview.ok, proposed);
+    const applied = await applyBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(applied.ok, proposed);
+  }
 });
 
 /**
@@ -702,7 +717,6 @@ Deno.test("applyBody: writes the preview body when a second format would drop a 
 });
 
 Deno.test("applyBody: writes the preview body of a wrapped ordered list item", async () => {
-  // A second format of the wrapped item raises MSL-F900 for the target.
   // Apply formats the raw proposal once, so it writes the preview body.
   const words: string[] = [];
   for (let i = 0; i < 30; i++) words.push(`word${i}`);

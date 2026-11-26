@@ -803,8 +803,7 @@ keeps its case.
 one the link reference and footnote definitions of its entry body, so a
 reference label or a footnote reference label keeps its case when its definition
 is in another block of the same body, also inside a list item, a blockquote or a
-note. A definition that is the first content of an ordered list item or of a
-nested list item still gives `MSL-F900` (#1026).
+note.
 
 #### 3.4.2 Entity references
 

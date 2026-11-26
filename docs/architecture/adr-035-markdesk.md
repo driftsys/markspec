@@ -619,33 +619,32 @@ built: the first prompt" below).
   one the preview saw, so the body written is the preview body (SAD_DESK_0031),
   and apply refuses everything the preview refuses. Sending the preview body
   back would format it a second time, and the formatter is not idempotent on its
-  own output: a second format can drop a tab at a wrap point, or raise
-  `MSL-F900` on a wrapped ordered list item. Every written body is the output of
-  the `markspec fmt` formatter. The splice keeps every other byte: other
-  entries, prose, front matter, line endings, and a UTF-8 BOM (SAD_DESK_0026). A
-  reparse must give the same entries with the same IDs, and the same title and
-  trailer for the target, or the change is refused. A target whose display ID
-  two entries of the file share is refused with `proposal-changes-entries`. An
-  `MSL-F900` on the target refuses with `format-failed`; `MSL-F012` is not
-  shown. A known limit: an ordered list that holds a nested block (a nested list
-  or a continuation paragraph) is an SP3 residual of the formatter, so a
-  proposal of that shape gets `MSL-F900` and is refused with `format-failed`.
-  The preview shows the formatted current body, or the current body as written
-  when formatting would lose or move its words. Apply writes through
-  `DeskSource.writeFile`, which the server backs with `writeTextFileAtomic`
-  (`desk/write.ts`): a new temporary file in the same folder, given the original
-  file's mode, then renamed over the original (SAD_DESK_0027). A file without
-  the owner write bit is not replaced, and apply answers 500 `write-failed`.
-  Applies are serialized in the handler, so a second Accept on the same tag
-  answers 412 and writes nothing. Just before the write, apply reads the file
-  again and answers 412 when its bytes changed, so a save from another
-  application during the pipeline is not overwritten; the time the pipeline
-  takes on a large file is not measured. A save in the short time between that
-  read and the rename is still lost. The rename gives the file a new inode: only
-  the mode of the original is copied, so its owner, group, ACLs, and extended
-  attributes are not kept, and a hard link to the original keeps the old
-  content. A process killed between the create of the temporary file and the
-  rename leaves a hidden `.<name>.markdesk-<hex>.tmp` file in the product
+  own output: a second format can drop a tab at a wrap point. Every written body
+  is the output of the `markspec fmt` formatter. The splice keeps every other
+  byte: other entries, prose, front matter, line endings, and a UTF-8 BOM
+  (SAD_DESK_0026). A reparse must give the same entries with the same IDs, and
+  the same title and trailer for the target, or the change is refused. A target
+  whose display ID two entries of the file share is refused with
+  `proposal-changes-entries`. An `MSL-F900` on the target refuses with
+  `format-failed`; `MSL-F012` is not shown. A known limit: a task list item with
+  a continuation line is not kept by the formatter (task lists are an excluded
+  construct, MSL-B042), so a proposal of that shape gets `MSL-F900` and is
+  refused with `format-failed`. The preview shows the formatted current body, or
+  the current body as written when formatting would lose or move its words.
+  Apply writes through `DeskSource.writeFile`, which the server backs with
+  `writeTextFileAtomic` (`desk/write.ts`): a new temporary file in the same
+  folder, given the original file's mode, then renamed over the original
+  (SAD_DESK_0027). A file without the owner write bit is not replaced, and apply
+  answers 500 `write-failed`. Applies are serialized in the handler, so a second
+  Accept on the same tag answers 412 and writes nothing. Just before the write,
+  apply reads the file again and answers 412 when its bytes changed, so a save
+  from another application during the pipeline is not overwritten; the time the
+  pipeline takes on a large file is not measured. A save in the short time
+  between that read and the rename is still lost. The rename gives the file a
+  new inode: only the mode of the original is copied, so its owner, group, ACLs,
+  and extended attributes are not kept, and a hard link to the original keeps
+  the old content. A process killed between the create of the temporary file and
+  the rename leaves a hidden `.<name>.markdesk-<hex>.tmp` file in the product
   folder; nothing removes it. The response carries the new document `ETag`. A
   write failure answers 500 `write-failed`.
 - **Prompt run.** The shell builds the prompt from a fixed template with the

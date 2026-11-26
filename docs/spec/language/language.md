@@ -1837,7 +1837,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 | Emphasis              | `_text_` (underscores)                                               |
 | Strong                | `**text**` (asterisks)                                               |
 | List marker           | `-` (dashes)                                                         |
-| List indent           | 2 spaces                                                             |
+| List indent           | the content column: 2 spaces for `-`, 3 for `1.`, 4 for `10.`        |
 | Code fences           | backticks, language required                                         |
 | Trailing whitespace   | removed, except U+FEFF and U+00A0 ending a free-text attribute value |
 | Final newline         | single `\n`                                                          |
