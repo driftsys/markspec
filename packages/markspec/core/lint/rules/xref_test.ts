@@ -525,4 +525,14 @@ Deno.test("runXrefRules: the longest glossary term with a keyword wins (#1028)",
 
 Deno.test("runXrefRules: words after a leading glossary term with a keyword are reported (#1028)", () => {
   assertEquals(q500Phrases("the Not Ready State Machine now."), ["Machine"]);
+  // The same at a sentence start.
+  assertEquals(q500Phrases("Not Ready State Machine runs."), ["Machine"]);
+});
+
+Deno.test("runXrefRules: a sentence-initial glossary term whose keyword is not the first word is defined (#1028)", () => {
+  const glossary = {
+    has: (s: string): boolean => s === "pump-when-protocol",
+    size: () => 1,
+  };
+  assertEquals(q500Phrases("Pump When Protocol applies.", glossary), []);
 });
