@@ -41,7 +41,10 @@
  */
 
 import {
+  escapeRegex,
+  hasScopePlaceholder,
   type PatternToken,
+  SEGMENT_CLASS,
   tokenizePattern,
   validateDisplayIdPattern,
 } from "../profile/display_id.ts";
@@ -55,13 +58,6 @@ import {
 const REST_OF_ID_CLASS = "[A-Za-z0-9._/-]+";
 
 /**
- * Character class for a medial named placeholder (e.g. `{scope}` between two
- * literal segments). A single free alphanumeric run that stops at the next
- * literal — never swallows an adjacent counter or separator.
- */
-const SEGMENT_CLASS = "[A-Za-z0-9]+";
-
-/**
  * Compile a display-ID pattern template into an anchored RegExp.
  *
  * Throws the {@linkcode validateDisplayIdPattern} reason when the template is
@@ -71,6 +67,18 @@ const SEGMENT_CLASS = "[A-Za-z0-9]+";
  * below never sees a duplicate capture name.
  */
 export function compileDisplayIdPattern(template: string): RegExp {
+  return buildPatternRegex(template, false);
+}
+
+/**
+ * Build the anchored RegExp of a display-ID pattern. With `widerCounter`
+ * `false` (classification), a padded counter matches exactly its width.
+ * With `widerCounter` `true` (scope reading for minting), it matches at
+ * least its width, because the next number after `9999` for `{n:04d}` is
+ * `10000`. Throws the {@linkcode validateDisplayIdPattern} reason for a
+ * malformed template.
+ */
+function buildPatternRegex(template: string, widerCounter: boolean): RegExp {
   const validation = validateDisplayIdPattern(template);
   if (!validation.ok) throw new Error(validation.message);
 
@@ -89,8 +97,14 @@ export function compileDisplayIdPattern(template: string): RegExp {
     if (t.kind === "literal") {
       regexSource += escapeRegex(t.text);
     } else if (t.kind === "counter") {
+      const width = t.padding ? Number(t.padding) : undefined;
       regexSource += "(" +
-        (t.padding ? `\\d{${Number(t.padding)}}` : `\\d+`) + ")";
+        (width === undefined
+          ? `\\d+`
+          : widerCounter
+          ? `\\d{${width},}`
+          : `\\d{${width}}`) +
+        ")";
     } else {
       const charClass = i === restOfIdNamedIndex
         ? REST_OF_ID_CLASS
@@ -124,6 +138,76 @@ export function tryCompileDisplayIdPattern(
   }
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * The scope value of `displayId` for a numbered `pattern` with a `{scope}`
+ * placeholder: the text the pattern regex captures in its `scope` group.
+ * A padded counter may be wider than its padding here (`SRS_BRK_10000` for
+ * `SRS_{scope}_{n:04d}` gives `BRK`), unlike in classification. Returns
+ * `undefined` when the pattern has no `{scope}`, is malformed, or does not
+ * match `displayId`.
+ */
+export function displayIdScope(
+  pattern: string,
+  displayId: string,
+): string | undefined {
+  return compileScopeReader(pattern)?.exec(displayId)?.groups?.scope;
+}
+
+/**
+ * The regex that reads the `scope` group of a display ID for minting: the
+ * pattern's regex with each padded counter matching at least its width, so
+ * a scope whose IDs have passed `9999` for `{n:04d}` is still found. The
+ * classifier ({@linkcode compileDisplayIdPattern}) keeps the exact width.
+ * `undefined` when the pattern has no `{scope}` or is malformed.
+ */
+function compileScopeReader(pattern: string): RegExp | undefined {
+  if (!hasScopePlaceholder(pattern)) return undefined;
+  try {
+    return buildPatternRegex(pattern, true);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A test for the display IDs that count toward the next number of `scope`
+ * under a numbered `pattern` with a `{scope}` placeholder: `false` for an ID
+ * that {@linkcode displayIdScope} reads under another scope, `true`
+ * otherwise. With nothing between `{scope}` and the counter
+ * (`G_{scope}{n:04d}`), `G_BR10001` starts with the prefix `G_BR` but reads
+ * as scope `BR1`, so it must not raise the next number of `BR`. An ID the
+ * pattern does not match passes, and the caller's prefix test decides. Every
+ * ID passes when the pattern has no `{scope}` or is malformed.
+ */
+export function displayIdScopeFilter(
+  pattern: string,
+  scope: string,
+): (displayId: string) => boolean {
+  const re = compileScopeReader(pattern);
+  if (!re) return () => true;
+  return (displayId) => {
+    const found = re.exec(displayId)?.groups?.scope;
+    return found === undefined || found === scope;
+  };
+}
+
+/**
+ * The scope values that {@linkcode displayIdScope} reads from the entries'
+ * display IDs, sorted and deduplicated, including a scope whose IDs are wider
+ * than the padding (`SRS_BRK_10000`). Empty when
+ * the pattern has no `{scope}` placeholder or is malformed. The CLI lists
+ * them when `--scope` is missing; the LSP offers one scaffold per scope.
+ */
+export function displayIdScopesInUse(
+  pattern: string,
+  entries: Iterable<{ readonly displayId: string }>,
+): string[] {
+  const re = compileScopeReader(pattern);
+  if (!re) return [];
+  const scopes = new Set<string>();
+  for (const entry of entries) {
+    const scope = re.exec(entry.displayId)?.groups?.scope;
+    if (scope !== undefined) scopes.add(scope);
+  }
+  return [...scopes].sort();
 }

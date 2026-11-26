@@ -24,9 +24,14 @@ import {
   type Diagnostic as CoreDiagnostic,
   discoverFiles,
   type DiscoveryDirEntry,
+  displayIdScope,
+  displayIdScopeFilter,
+  displayIdScopesInUse,
   type EffectiveProfile,
   type Entry,
   FEATURE_EXTENSIONS,
+  hasScopePlaceholder,
+  inferDisplayIdScope,
   isDiscoverable,
   loadConfig,
   loadDeliveredCorpus,
@@ -38,7 +43,9 @@ import {
   parseDisplayIdPattern,
   parseLockfile,
   type ProjectConfig,
+  scopeTemplateText,
   SOURCE_EXTENSIONS,
+  substituteScope,
   type ToolConfig,
   validateDisplayIdPattern,
 } from "../core/mod.ts";
@@ -823,9 +830,26 @@ export class ProjectContext {
   // Profile-derived helpers
   // -------------------------------------------------------------------------
 
-  /** Build the {@linkcode EntryTypeInfo} list for scaffold completions
-   * from this project's profile. */
-  getEntryTypes(): EntryTypeInfo[] {
+  /**
+   * Build the {@linkcode EntryTypeInfo} list for scaffold completions from
+   * this project's profile.
+   *
+   * A numbered type whose pattern has a `{scope}` placeholder (#1038) gives
+   * one item per scope already used in the index, with the scope in its
+   * prefix and the next number in that scope, plus one fill-in template
+   * (`scopeTemplate`). When `partial`, the text typed after `- [`, holds a
+   * full scope slot (`SRS_BRK_` or `SRS_BRK_00` for `SRS_{scope}_{n:04d}`),
+   * the type gives only the item of that scope, used or not, and no
+   * template. A `{scope}` after the counter (`R-{n:03d}-{scope}`) has no
+   * scope in the ID prefix, so a partial never selects a scope for it; it
+   * always gets its per-scope items and the template (`R-NNN-SCOPE`).
+   * An ID that `displayIdScope` reads under another scope never raises the
+   * next number of a scope ({@linkcode scopeFilter}).
+   *
+   * @param partial - The display-ID text typed so far, for the mid-typed
+   *   trigger. Omit it for the bare `- [` trigger.
+   */
+  getEntryTypes(partial?: string): EntryTypeInfo[] {
     const profile = this.profile;
     if (!profile) return [];
     const mode = profile.disciplineMode.value;
@@ -851,6 +875,49 @@ export class ProjectContext {
       // (`{n:6d}`) or a trailing literal don't produce mis-formatted
       // scaffolds.
       const shape = parseDisplayIdPattern(pattern);
+      // A `{scope}` pattern (#1038): never offer the literal `{scope}`.
+      if (shape && hasScopePlaceholder(pattern)) {
+        const inferred = partial === undefined
+          ? undefined
+          : inferDisplayIdScope(pattern, partial);
+        const scopes = inferred !== undefined
+          ? [inferred]
+          : displayIdScopesInUse(pattern, this.index.getAllEntries());
+        for (const scope of scopes) {
+          const scoped = parseDisplayIdPattern(substituteScope(pattern, scope));
+          if (!scoped) continue;
+          types.push({
+            name,
+            prefix: scoped.prefix,
+            width: scoped.width,
+            suffix: scoped.suffix,
+            nextNumber: this.index.getNextDisplayIdNumber(
+              scoped.prefix,
+              scoped.suffix,
+              undefined,
+              displayIdScopeFilter(pattern, scope),
+            ),
+            modeRecommended,
+            scope,
+          });
+        }
+        const template = scopeTemplateText(pattern);
+        if (template && inferred === undefined) {
+          types.push({
+            name,
+            prefix: template.anchor,
+            width: shape.width,
+            suffix: shape.suffix,
+            nextNumber: 0,
+            modeRecommended,
+            scopeTemplate: {
+              beforeScope: template.beforeScope,
+              afterScope: template.afterScope,
+            },
+          });
+        }
+        continue;
+      }
       if (shape) {
         const { prefix, width, suffix } = shape;
         const nextNumber = this.index.getNextDisplayIdNumber(prefix, suffix);
@@ -886,23 +953,65 @@ export class ProjectContext {
   }
 
   /**
+   * The test a display ID must pass to count toward the next number of
+   * `scope` for the profile type `typeName`: `undefined` when `scope` is
+   * absent, or the type has no `{scope}` pattern or is unknown. The resolve
+   * handler passes it to {@linkcode WorkspaceIndex.getNextDisplayIdNumber},
+   * as {@linkcode getEntryTypes} does (#1038).
+   */
+  scopeFilter(
+    typeName: string,
+    scope: string | undefined,
+  ): ((displayId: string) => boolean) | undefined {
+    if (scope === undefined) return undefined;
+    const pattern = this.profile?.types.get(typeName)?.value.displayIdPattern
+      .value;
+    if (!pattern || !hasScopePlaceholder(pattern)) return undefined;
+    return displayIdScopeFilter(pattern, scope);
+  }
+
+  /**
    * Lean `(prefix, suffix)` pairs for every profile type with a parseable
    * `display-id-pattern`. Unlike {@linkcode getEntryTypes} this skips the
    * per-type `getNextDisplayIdNumber` scan —
    * {@linkcode releaseObservedReservations} only needs the literal affixes
-   * to decompose a display ID, and it runs on every debounced parse.
+   * to decompose a display ID, and it runs on every debounced parse. A
+   * pattern with a `{scope}` placeholder also carries the `pattern`, so the
+   * affixes of each display ID are computed from its own scope (#1038).
    */
-  private getScaffoldPatterns(): Array<{ prefix: string; suffix: string }> {
+  private getScaffoldPatterns(): ScaffoldPattern[] {
     if (!this.profile) return [];
-    const out: Array<{ prefix: string; suffix: string }> = [];
+    const out: ScaffoldPattern[] = [];
     for (const [, typeDef] of this.profile.types) {
       const pattern = typeDef.value.displayIdPattern.value;
       if (!pattern) continue;
       const shape = parseDisplayIdPattern(pattern);
       if (!shape) continue;
-      out.push({ prefix: shape.prefix, suffix: shape.suffix });
+      out.push({
+        prefix: shape.prefix,
+        suffix: shape.suffix,
+        scopedPattern: hasScopePlaceholder(pattern) ? pattern : undefined,
+      });
     }
     return out;
+  }
+
+  /**
+   * The `(prefix, suffix)` of `displayId` under one scaffold pattern: the
+   * pattern's own affixes, or for a `{scope}` pattern the affixes with the
+   * scope that `displayIdScope` reads from `displayId`. `undefined` when the
+   * display ID does not match the `{scope}` pattern.
+   */
+  private affixesFor(
+    pattern: ScaffoldPattern,
+    displayId: string,
+  ): { prefix: string; suffix: string } | undefined {
+    if (pattern.scopedPattern === undefined) return pattern;
+    const scope = displayIdScope(pattern.scopedPattern, displayId);
+    if (scope === undefined) return undefined;
+    return parseDisplayIdPattern(
+      substituteScope(pattern.scopedPattern, scope),
+    );
   }
 
   /**
@@ -926,7 +1035,10 @@ export class ProjectContext {
     if (patterns.length === 0) return;
     for (const entry of this.index.getEntriesForFile(filePath)) {
       const id = entry.displayId as string;
-      for (const { prefix, suffix } of patterns) {
+      for (const pattern of patterns) {
+        const affixes = this.affixesFor(pattern, id);
+        if (!affixes) continue;
+        const { prefix, suffix } = affixes;
         if (!id.startsWith(prefix)) continue;
         if (suffix && !id.endsWith(suffix)) continue;
         const numberPart = id.slice(prefix.length, id.length - suffix.length);
@@ -936,6 +1048,16 @@ export class ProjectContext {
       }
     }
   }
+}
+
+/** The display-ID affixes of one profile type, for reservation release. */
+interface ScaffoldPattern {
+  /** Literal text before the counter; holds `{scope}` for a scoped type. */
+  readonly prefix: string;
+  /** Literal text after the counter. */
+  readonly suffix: string;
+  /** The whole pattern, set only when it has a `{scope}` placeholder. */
+  readonly scopedPattern?: string;
 }
 
 /**

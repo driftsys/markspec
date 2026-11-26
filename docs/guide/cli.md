@@ -846,13 +846,15 @@ from scripts or AI agents rather than hand-authoring new blocks.
 markspec insert <type> <file>
 ```
 
-| Flag      | Type | Default | Description                               |
-| --------- | ---- | ------- | ----------------------------------------- |
-| `--print` | bool | false   | Echo the inserted block to stdout as well |
+| Flag      | Type   | Default | Description                                                  |
+| --------- | ------ | ------- | ------------------------------------------------------------ |
+| `--print` | bool   | false   | Echo the inserted block to stdout as well                    |
+| `--scope` | string | —       | Value for the `{scope}` placeholder of the type's ID pattern |
 
 The command:
 
-1. Finds the highest existing display ID for `<type>` in `<file>`.
+1. Finds the highest existing display ID for `<type>` in `<file>` (for a scoped
+   type, in the `--scope` scope).
 2. Computes the next sequential display ID.
 3. Generates a fresh ULID.
 4. Appends the block with a blank separator.
@@ -875,6 +877,10 @@ Print a scaffolded entry block without writing it to any file.
 markspec create <type> <paths...>
 ```
 
+| Flag      | Type   | Default | Description                                                  |
+| --------- | ------ | ------- | ------------------------------------------------------------ |
+| `--scope` | string | —       | Value for the `{scope}` placeholder of the type's ID pattern |
+
 **Example:**
 
 ```sh
@@ -890,9 +896,10 @@ an entry.
 markspec next-id <type> <paths...>
 ```
 
-| Flag       | Type   | Default | Description                   |
-| ---------- | ------ | ------- | ----------------------------- |
-| `--format` | string | `text`  | Output format: `json`, `text` |
+| Flag       | Type   | Default | Description                                                  |
+| ---------- | ------ | ------- | ------------------------------------------------------------ |
+| `--format` | string | `text`  | Output format: `json`, `text`                                |
+| `--scope`  | string | —       | Value for the `{scope}` placeholder of the type's ID pattern |
 
 **Example:**
 
@@ -914,6 +921,37 @@ still passes `markspec check`):
 markspec next-id sw-component "docs/**/*.md"
 # → SWC_NAME   (with a note on stderr: author the identifier yourself)
 ```
+
+For a **scoped type** — a numbered `display-id-pattern` with a `{scope}`
+placeholder, e.g. `software-requirement: "SRS_{scope}_{n:04d}"` — `next-id`,
+`create`, and `insert` need `--scope <value>`. The value replaces `{scope}`, and
+the number is the highest number in that scope plus one; IDs of other scopes do
+not count. A scope is one or more ASCII letters or digits (`[A-Za-z0-9]+`). A
+counter-less pattern such as `SWC_{scope}` is a named type, not a scoped type:
+it takes no `--scope`. As for any type, the IDs that count are those of the
+files the command reads (the paths you pass for `next-id` and `create`, only the
+target file for `insert`), plus any entries that the profile delivers
+(`delivers:`) or that a locked upstream provides (`markspec.lock`).
+
+```sh
+# docs/requirements.md holds SRS_BRK_0001 and SRS_ENG_0007
+markspec next-id software-requirement "docs/**/*.md" --scope BRK
+# → SRS_BRK_0002
+
+markspec insert software-requirement docs/requirements.md --scope ENG
+# → appends SRS_ENG_0008 (the IDs in docs/requirements.md count, plus any
+#   delivered-corpus and locked-upstream entries)
+
+markspec next-id software-requirement "docs/**/*.md"
+# → exit 1: error: display-id-pattern 'SRS_{scope}_{n:04d}' has a {scope}
+#   placeholder; pass --scope <value> (scopes in use: BRK, ENG)
+```
+
+Each command exits 1 with an error, and `insert` writes nothing, when `--scope`
+is missing for a scoped type, when `--scope` is given for a type that is not a
+scoped type, or when the value is not letters and digits. The missing-flag error
+lists the scopes in use in those same IDs (for `insert`, the target file plus
+any delivered-corpus and locked-upstream entries).
 
 #### lint
 
@@ -1607,7 +1645,10 @@ bundled default profile applies unless `default-profile: false` is set.
 
 **Entry block completion** — type `- [` at the start of a line to get a
 pre-filled entry block scaffold with the next available display ID for each type
-defined in your profile.
+defined in your profile. For a type whose numbered pattern has a `{scope}`
+placeholder, you get one scaffold per scope already in the project, with the
+next number in that scope, plus one scaffold with a `SCOPE` tab stop. Typing the
+scope after the bracket (`- [SRS_BRK_`) offers the next number in that scope.
 
 **ID reference completion** — after a trace attribute keyword (`Satisfies:`,
 `Derived-from:`, `Verifies:`, `Tests:`, etc.) the server suggests all known

@@ -63,8 +63,10 @@ project". `kind` is one of `type`, `attribute`, `relation`, `label`,
 - Prefix comes from the active profile's type declaration (e.g. `STK_`, `SWE_`).
 - Numbers are zero-padded to a fixed width set by the profile (typically 4
   digits).
-- Use `markspec next-id <type> <files...>` to read the next safe number.
-- Use `markspec insert <type> <file>` to scaffold a full block with a valid ID.
+- Use `markspec next-id <type> <files...>` to read the next safe number (add
+  `--scope <value>` when the pattern has a `{scope}` placeholder).
+- Use `markspec insert <type> <file>` to scaffold a full block with a valid ID
+  (same `--scope` rule).
 - **Never invent a ULID by hand.** Leave `Id:` absent and run
   `markspec fmt <file>` to stamp it.
 

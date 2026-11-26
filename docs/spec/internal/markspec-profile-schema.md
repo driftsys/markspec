@@ -247,17 +247,17 @@ any concrete `Type:` value to its abstract parent".
 A `profile.types.<name>` entry recognizes this fixed key set (superseding
 ADR-008's per-type key set — Annex B):
 
-| Key                              | Meaning                                                                                              |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `extends`                        | Parent type (§3). Required.                                                                          |
-| `description`                    | Human-readable summary. Optional.                                                                    |
-| `display-id-pattern`             | Template (ADR-009 §5 grammar): literal prefix + `{n}`/`{n:Nd}` + optional `{scope}`. Optional.       |
-| `display-id-pattern-enforcement` | `off` \| `warn` \| `error`. Default `warn`. ADR-008 §6; ADR-010 §5.                                  |
-| `required`                       | List of attribute names that must be present on entries of this type. §4.2.                          |
-| `attributes`                     | Per-type attribute declarations (extend the inherited set). §4.1.                                    |
-| `traceability`                   | Map keyed by link-attribute name; per-relation `target` / `cardinality` / `required`. ADR-008 §7.    |
-| `body`                           | Allowed / required body-block constraint over the closed catalogue. §4.4.                            |
-| `color`                          | Render bucket hint (carried from the shipped implementation; consumed by render, out of scope here). |
+| Key                              | Meaning                                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `extends`                        | Parent type (§3). Required.                                                                                                   |
+| `description`                    | Human-readable summary. Optional.                                                                                             |
+| `display-id-pattern`             | Template (ADR-009 §5 grammar): literal prefix + `{n}`/`{n:Nd}` + optional `{scope}` (minting then needs `--scope`). Optional. |
+| `display-id-pattern-enforcement` | `off` \| `warn` \| `error`. Default `warn`. ADR-008 §6; ADR-010 §5.                                                           |
+| `required`                       | List of attribute names that must be present on entries of this type. §4.2.                                                   |
+| `attributes`                     | Per-type attribute declarations (extend the inherited set). §4.1.                                                             |
+| `traceability`                   | Map keyed by link-attribute name; per-relation `target` / `cardinality` / `required`. ADR-008 §7.                             |
+| `body`                           | Allowed / required body-block constraint over the closed catalogue. §4.4.                                                     |
+| `color`                          | Render bucket hint (carried from the shipped implementation; consumed by render, out of scope here).                          |
 
 Any other per-type key is `PROFILE-TYPE-005` (new, error). The ADR-008 per-type
 `shape:` key is **removed** (§1.3 / Annex B).

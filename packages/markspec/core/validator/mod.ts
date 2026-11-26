@@ -603,7 +603,12 @@ export type { ListingFileContext, ListingKind } from "./listing.ts";
 export { classifyEntriesStage, classifyEntry } from "./types.ts";
 export type { ClassifyResult, ClassifyStageResult } from "./types.ts";
 
-export { compileDisplayIdPattern } from "./pattern.ts";
+export {
+  compileDisplayIdPattern,
+  displayIdScope,
+  displayIdScopeFilter,
+  displayIdScopesInUse,
+} from "./pattern.ts";
 
 export { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 export type { EffectiveAttrScope } from "./attributes.ts";

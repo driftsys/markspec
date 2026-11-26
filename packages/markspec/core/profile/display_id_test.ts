@@ -5,9 +5,15 @@
 import { assertEquals } from "@std/assert";
 import {
   formatDisplayId,
+  hasScopePlaceholder,
   highestDisplayIdNumber,
+  inferDisplayIdScope,
+  isValidScope,
   padDisplayIdNumber,
   parseDisplayIdPattern,
+  parseScopeSlot,
+  scopeTemplateText,
+  substituteScope,
   validateDisplayIdPattern,
 } from "./display_id.ts";
 
@@ -154,4 +160,151 @@ Deno.test("highestDisplayIdNumber: returns 0 when no matching IDs", () => {
   const shape = { prefix: "STK_", width: 4, suffix: "" };
   const entries = [{ displayId: "SYS_0001" }];
   assertEquals(highestDisplayIdNumber(shape, entries), 0);
+});
+
+// ---------------------------------------------------------------------------
+// {scope} placeholder (#1038)
+// ---------------------------------------------------------------------------
+
+Deno.test("hasScopePlaceholder: a numbered pattern with {scope} has one", () => {
+  assertEquals(hasScopePlaceholder("SRS_{scope}_{n:04d}"), true);
+  assertEquals(hasScopePlaceholder("REQ-{n:03d}-{scope}"), true);
+});
+
+Deno.test("hasScopePlaceholder: a pattern without {scope} has none", () => {
+  assertEquals(hasScopePlaceholder("STK_{n:04d}"), false);
+  assertEquals(hasScopePlaceholder("SRS_{area}_{n:04d}"), false);
+});
+
+Deno.test("hasScopePlaceholder: a named (counter-less) pattern has none", () => {
+  assertEquals(hasScopePlaceholder("SWC_{scope}"), false);
+});
+
+Deno.test("isValidScope: accepts one or more letters or digits", () => {
+  assertEquals(isValidScope("BRK"), true);
+  assertEquals(isValidScope("brk2"), true);
+  assertEquals(isValidScope("7"), true);
+});
+
+Deno.test("isValidScope: rejects an empty value and non-alphanumeric characters", () => {
+  assertEquals(isValidScope(""), false);
+  assertEquals(isValidScope("B_K"), false);
+  assertEquals(isValidScope("B-K"), false);
+  assertEquals(isValidScope("BRK "), false);
+  assertEquals(isValidScope("{scope}"), false);
+});
+
+Deno.test("substituteScope: the value replaces {scope}, so the pattern parses with a scoped prefix", () => {
+  const pattern = substituteScope("SRS_{scope}_{n:04d}", "BRK");
+  assertEquals(pattern, "SRS_BRK_{n:04d}");
+  assertEquals(parseDisplayIdPattern(pattern), {
+    prefix: "SRS_BRK_",
+    width: 4,
+    suffix: "",
+  });
+});
+
+Deno.test("substituteScope: a {scope} after the counter lands in the suffix", () => {
+  assertEquals(
+    parseDisplayIdPattern(substituteScope("REQ-{n:03d}-{scope}", "ENG")),
+    { prefix: "REQ-", width: 3, suffix: "-ENG" },
+  );
+});
+
+Deno.test("substituteScope: other named placeholders keep their {name} form", () => {
+  assertEquals(
+    substituteScope("SRS_{scope}_{area}_{n:04d}", "BRK"),
+    "SRS_BRK_{area}_{n:04d}",
+  );
+});
+
+Deno.test("substituteScope: a pattern without {scope} is returned unchanged", () => {
+  assertEquals(substituteScope("STK_{n:04d}", "BRK"), "STK_{n:04d}");
+});
+
+Deno.test("highestDisplayIdNumber: a substituted scope counts only its own IDs", () => {
+  const shape = parseDisplayIdPattern(
+    substituteScope("SRS_{scope}_{n:04d}", "BRK"),
+  )!;
+  const entries = [
+    { displayId: "SRS_BRK_0001" },
+    { displayId: "SRS_ENG_0007" },
+  ];
+  assertEquals(highestDisplayIdNumber(shape, entries), 1);
+});
+
+Deno.test("parseScopeSlot: literal text before {scope} and between {scope} and the counter", () => {
+  assertEquals(parseScopeSlot("SRS_{scope}_{n:04d}"), {
+    beforeScope: "SRS_",
+    afterScope: "_",
+  });
+  assertEquals(parseScopeSlot("X-{scope}.{n}-draft"), {
+    beforeScope: "X-",
+    afterScope: ".",
+  });
+});
+
+Deno.test("parseScopeSlot: undefined without {scope}, or with {scope} after the counter", () => {
+  assertEquals(parseScopeSlot("STK_{n:04d}"), undefined);
+  assertEquals(parseScopeSlot("REQ-{n:03d}-{scope}"), undefined);
+  assertEquals(parseScopeSlot("SWC_{scope}"), undefined);
+});
+
+Deno.test("inferDisplayIdScope: a text that holds the full scope slot gives its scope", () => {
+  const pattern = "SRS_{scope}_{n:04d}";
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_"), "BRK");
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_00"), "BRK");
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_0001"), "BRK");
+});
+
+Deno.test("inferDisplayIdScope: a text shorter than the full scope slot gives no scope", () => {
+  const pattern = "SRS_{scope}_{n:04d}";
+  assertEquals(inferDisplayIdScope(pattern, "SRS_"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "SRS_B"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "STK_BRK_"), undefined);
+});
+
+Deno.test("inferDisplayIdScope: no scope for a pattern without a scope slot", () => {
+  assertEquals(inferDisplayIdScope("STK_{n:04d}", "STK_BRK_"), undefined);
+});
+
+Deno.test("inferDisplayIdScope: no scope when nothing separates {scope} from the counter", () => {
+  assertEquals(
+    inferDisplayIdScope("SRS{scope}{n:04d}", "SRSBRK0001"),
+    undefined,
+  );
+});
+
+Deno.test("scopeTemplateText: {scope} before the counter", () => {
+  assertEquals(scopeTemplateText("SRS_{scope}_{n:04d}"), {
+    anchor: "SRS_",
+    beforeScope: "SRS_",
+    afterScope: "_NNNN",
+  });
+});
+
+Deno.test("scopeTemplateText: {scope} after the counter", () => {
+  assertEquals(scopeTemplateText("R-{n:03d}-{scope}"), {
+    anchor: "R-",
+    beforeScope: "R-NNN-",
+    afterScope: "",
+  });
+  assertEquals(scopeTemplateText("R{n}.{scope}.x"), {
+    anchor: "R",
+    beforeScope: "RN.",
+    afterScope: ".x",
+  });
+});
+
+Deno.test("scopeTemplateText: undefined without {scope} or for a named pattern", () => {
+  assertEquals(scopeTemplateText("STK_{n:04d}"), undefined);
+  assertEquals(scopeTemplateText("SWC_{scope}"), undefined);
+});
+
+Deno.test("inferDisplayIdScope: no scope when the text after the scope slot is not digits (#1038)", () => {
+  const pattern = "SRS_{scope}_{n:04d}";
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BR_K_"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_0X"), undefined);
+  assertEquals(inferDisplayIdScope(pattern, "SRS_BRK_10000"), "BRK");
 });

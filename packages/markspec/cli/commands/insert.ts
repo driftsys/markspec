@@ -12,10 +12,15 @@ import { nextDisplayId, resolveTypePattern } from "./id_helpers.ts";
 export const insertCmd = new Command()
   .description("Append a scaffolded entry block to <file> (agent write path)")
   .option("--print", "Also echo the inserted block to stdout for inspection")
+  .option(
+    "--scope <scope:string>",
+    "Value for the {scope} placeholder: required when the type's " +
+      "display-id-pattern is numbered with {scope}, rejected otherwise",
+  )
   .arguments("<type:string> <file:string>")
   .action(
     async (
-      options: { print?: boolean },
+      options: { print?: boolean; scope?: string },
       typeName: string,
       filePath: string,
     ) => {
@@ -39,7 +44,11 @@ export const insertCmd = new Command()
       // a profile package's file (#700).
       assertNotDeliveredTarget([filePath], [chain]);
       const pattern = resolveTypePattern(typeName, chain, "insert");
-      const displayId = nextDisplayId(pattern, result.entries.values());
+      const displayId = nextDisplayId(
+        pattern,
+        result.entries.values(),
+        options.scope,
+      );
 
       const { ulid } = await import("@std/ulid");
       const id = ulid();

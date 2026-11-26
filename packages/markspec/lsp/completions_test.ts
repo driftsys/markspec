@@ -770,3 +770,138 @@ Deno.test("isTraceAttributeTrigger: fires after Verifies, not after generated Ve
   assertEquals(extractRelationName("      Verifies: TST"), "Verifies");
   assertEquals(isTraceAttributeTrigger("      Verified-by: "), false);
 });
+
+// --- {scope} placeholder (#1038) ---
+
+Deno.test("renderScaffoldSnippet: a scope template emits a ${1:SCOPE} tab stop and an NNNN number (#1038)", () => {
+  const rendered = renderScaffoldSnippet({
+    typeName: "software-requirement",
+    prefix: "SRS_",
+    width: 4,
+    suffix: "",
+    nextNumber: 0,
+    ulid: "01HFAKEULID00000000000000",
+    scopeTemplate: { beforeScope: "SRS_", afterScope: "_NNNN" },
+  });
+  assertEquals(rendered.label, "New software-requirement (SRS_SCOPE_NNNN)");
+  assertEquals(
+    rendered.insertText,
+    "SRS_${1:SCOPE}_NNNN] ${2:Title}\n\n  ${3:Body.}\n\n" +
+      "      Id: 01HFAKEULID00000000000000\n      ${4:Satisfies: }",
+  );
+});
+
+Deno.test("renderScaffoldSnippet: a scope template escapes both sides of the SCOPE tab stop (#1038)", () => {
+  const rendered = renderScaffoldSnippet({
+    typeName: "req",
+    prefix: "R$",
+    width: 2,
+    suffix: "-draft",
+    nextNumber: 0,
+    ulid: "01HFAKEULID00000000000000",
+    scopeTemplate: { beforeScope: "R$", afterScope: ".NN-$draft" },
+  });
+  assertEquals(
+    rendered.insertText.startsWith("R\\$${1:SCOPE}.NN-\\$draft] "),
+    true,
+  );
+});
+
+const SCOPED_TYPES = [
+  {
+    name: "software-requirement",
+    prefix: "SRS_BRK_",
+    width: 4,
+    suffix: "",
+    nextNumber: 2,
+  },
+  {
+    name: "software-requirement",
+    prefix: "SRS_",
+    width: 4,
+    suffix: "",
+    nextNumber: 0,
+    scopeTemplate: { beforeScope: "SRS_", afterScope: "_NNNN" },
+  },
+];
+
+Deno.test("buildBlockScaffoldItems: each item carries the type it renders, in item order (#1038)", () => {
+  const types = [
+    { name: "Aaa", prefix: "A_", width: 4, suffix: "", nextNumber: 1 },
+    {
+      name: "Bbb",
+      prefix: "B_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: true,
+    },
+  ];
+  const items = buildBlockScaffoldItems(
+    types,
+    () => "01HFAKEULID00000000000000",
+  );
+  assertEquals(items.map((i) => i.type?.name), ["Bbb", "Aaa"]);
+});
+
+Deno.test("buildBlockScaffoldItems: a scoped type offers its scope and a SCOPE template, never {scope} (#1038)", () => {
+  const items = buildBlockScaffoldItems(
+    SCOPED_TYPES,
+    () => "01HFAKEULID00000000000000",
+  );
+  assertEquals(items.map((i) => i.label), [
+    "New software-requirement (SRS_BRK_0002)",
+    "New software-requirement (SRS_SCOPE_NNNN)",
+  ]);
+  assertEquals(items[1].type?.scopeTemplate, {
+    beforeScope: "SRS_",
+    afterScope: "_NNNN",
+  });
+  for (const item of items) {
+    assertEquals(item.insertText?.includes("{scope}"), false);
+  }
+});
+
+Deno.test("buildMidTypedScaffoldItems: a scope template matches by the text before {scope} (#1038)", () => {
+  const range: ReplacementRange = {
+    start: { line: 0, character: 3 },
+    end: { line: 0, character: 8 },
+  };
+  const items = buildMidTypedScaffoldItems(
+    SCOPED_TYPES,
+    "SRS_B",
+    () => "01HFAKEULID00000000000000",
+    range,
+  );
+  assertEquals(items.map((i) => i.label), [
+    "New software-requirement (SRS_BRK_0002)",
+    "New software-requirement (SRS_SCOPE_NNNN)",
+  ]);
+  assertEquals(items[0].scopeTemplate, undefined);
+  assertEquals(items[1].scopeTemplate, {
+    beforeScope: "SRS_",
+    afterScope: "_NNNN",
+  });
+  assertEquals(
+    items[1].textEdit.newText.startsWith("SRS_${1:SCOPE}_NNNN] "),
+    true,
+  );
+});
+
+Deno.test("renderScaffoldSnippet: a scope template with {scope} after the counter ends with the SCOPE tab stop (#1038)", () => {
+  const rendered = renderScaffoldSnippet({
+    typeName: "release-requirement",
+    prefix: "R-",
+    width: 3,
+    suffix: "-{scope}",
+    nextNumber: 0,
+    ulid: "01HFAKEULID00000000000000",
+    scopeTemplate: { beforeScope: "R-NNN-", afterScope: "" },
+  });
+  assertEquals(rendered.label, "New release-requirement (R-NNN-SCOPE)");
+  assertEquals(
+    rendered.insertText,
+    "R-NNN-${1:SCOPE}] ${2:Title}\n\n  ${3:Body.}\n\n" +
+      "      Id: 01HFAKEULID00000000000000\n      ${4:Satisfies: }",
+  );
+});

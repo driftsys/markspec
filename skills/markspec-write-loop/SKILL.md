@@ -33,13 +33,21 @@ markspec insert <type> <file>
 
 Appends a scaffolded entry block to `<file>`. The block contains:
 
-- the next sequential display ID for `<type>` (computed from all entries in the
-  project),
+- the next sequential display ID for `<type>` (computed from the entries already
+  in `<file>`, plus any entries the profile delivers or a locked upstream
+  provides),
 - a generated ULID in the `Id:` trailer,
 - skeleton `Type:` and `Satisfies:` trailers.
 
 The file is modified in place. Only the new block is appended; existing content
 is never touched.
+
+If the type's `display-id-pattern` is numbered and has a `{scope}` placeholder
+(for example `SRS_{scope}_{n:04d}`), pass `--scope <value>`:
+`markspec insert <type> <file> --scope BRK`. The number is the next one in that
+scope among the same entries. Without the flag, `insert` exits 1, lists the
+scopes in use in those entries, and writes nothing. `next-id` and `create` take
+the same flag.
 
 **Then:** fill in the `Title` and `Body` prose in the editor. Do not touch `Id:`
 or the display ID — the formatter owns them.
