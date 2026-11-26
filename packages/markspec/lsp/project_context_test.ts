@@ -807,6 +807,50 @@ Deno.test("ProjectContext.releaseObservedReservations: releases a minted display
   assertEquals(ctx.reservations.isDisplayIdReserved("G_BR101"), false);
 });
 
+Deno.test("ProjectContext.reservations: a parse in another project never releases this project's reservation (#1041)", async () => {
+  const request = (id: string, ulid: string) =>
+    `- [${id}] Request
+
+  Body text.
+
+      Id: ${ulid}
+`;
+  const pattern = "G_{scope}{n:02d}";
+  const a = await contextWithPattern(
+    pattern,
+    request("G_BR99", "01SRS000000000000000000001") + "\n" +
+      request("G_BR100", "01SRS000000000000000000002"),
+  );
+  const b = await contextWithPattern(pattern, "# Empty\n");
+  // One resolve for scope BR in project A, composed as server.ts composes it.
+  const shape = { prefix: "G_BR", width: 2, suffix: "" };
+  const mintInA = () =>
+    a.reservations.mintReservedNumber(
+      "G_BR",
+      "",
+      (reserved) =>
+        a.index.getNextFreeDisplayIdNumber(
+          shape,
+          reserved,
+          a.scopeFilter("release-requirement", "BR"),
+          (id) => a.reservations.isDisplayIdReserved(id),
+        ),
+      (n) => `G_BR${n}`,
+    );
+  assertEquals(mintInA(), 101);
+  // Project B parses a file that holds G_BR101 before A's own parse runs.
+  const docB = join(ROOT, "other.md");
+  await b.index.parseAndUpdateFile(
+    docB,
+    request("G_BR101", "01SRS000000000000000000003"),
+  );
+  b.releaseObservedReservations(docB);
+  a.dispose();
+  b.dispose();
+  assertEquals(a.reservations.isDisplayIdReserved("G_BR101"), true);
+  assertEquals(mintInA(), 102);
+});
+
 Deno.test("ProjectContext.scopeFilter: filters by scope for a {scope} type only (#1038)", async () => {
   const ctx = await contextWithPattern("G_{scope}{n:04d}", "# Empty\n");
   const accept = ctx.scopeFilter("release-requirement", "BR");

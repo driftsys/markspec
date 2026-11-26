@@ -180,15 +180,15 @@ function compileScopeReader(pattern: string): RegExp | undefined {
  * ID passes when the pattern has no `{scope}` or is malformed.
  *
  * When the literal text between `{scope}` and the counter holds a character
- * that a scope cannot hold (not an ASCII letter or digit, as the `_` in
- * `SRS_{scope}_{n:04d}`), a number wider than the padding (`SRS_BRK_10000`)
- * is read under its own scope, so it still moves the counter on. With
- * nothing between them, or only letters and digits (`G_{scope}1{n:02d}`:
- * `G_BR1100` reads as scope `BR1`), such a number is read under another
- * scope
- * (`G_BR100` is scope `BR1`, number `00`, for `G_{scope}{n:02d}`) and this
- * filter drops it, so the counter of `BR` can reach a number whose ID
- * exists. The minting callers prevent that collision with a free-number
+ * that is not a digit (the `_` in `SRS_{scope}_{n:04d}`, or a letter), a
+ * number wider than the padding (`SRS_BRK_10000`) is read under its own
+ * scope, so it still moves the counter on. With nothing between them, such
+ * a number is read under another scope (`G_BR100` is scope `BR1`, number
+ * `00`, for `G_{scope}{n:02d}`). With only digits between them, a number
+ * whose digits start with those digits can be read under another scope
+ * (`G_BR1100` is scope `BR1`, number `00`, for `G_{scope}1{n:02d}`). This
+ * filter drops such an ID, so the counter of `BR` can reach a number whose
+ * ID exists. The minting callers prevent that collision with a free-number
  * check (`firstFreeDisplayIdNumber`, #1041).
  */
 export function displayIdScopeFilter(

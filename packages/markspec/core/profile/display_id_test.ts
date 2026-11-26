@@ -170,7 +170,7 @@ Deno.test("firstFreeDisplayIdNumber: stops at the largest safe integer instead o
     Number.MAX_SAFE_INTEGER,
   );
   assertEquals(
-    firstFreeDisplayIdNumber(shape, 2 ** 53 + 1, () => true),
+    firstFreeDisplayIdNumber(shape, 2 ** 53, () => true),
     2 ** 53,
   );
 });
