@@ -20,6 +20,12 @@ and the word `not`, or an EARS keyword (`when`, `while`, `where`, `unless`,
 a neighbouring term. An acronym spelled like a keyword, such as `IF`, is also
 skipped.
 
+The exception is a glossary term that contains a keyword. When a phrase that
+includes the keyword is a defined term, such as `May Day Protocol` or
+`NOT READY STATE`, the whole phrase is that term and nothing in it is reported.
+When the phrase is not a defined term, the keyword still splits it: with no
+glossary entry, `the May Day Protocol` reports `Day Protocol`.
+
 ## Why it matters
 
 Capitalization in requirement prose signals a defined term. An undefined

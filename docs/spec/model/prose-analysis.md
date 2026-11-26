@@ -76,7 +76,9 @@ profile tiers, capped, and explicitly excludes domain vocabulary and
 standards-body acronyms. Text in inline code, link destinations, titles and
 labels, autolinks, images, link reference definitions, footnote labels and raw
 HTML is not read as a term. The rule skips modal and EARS keywords in any
-casing, so it never reports `SHALL` or `WHEN`.
+casing, so it never reports `SHALL` or `WHEN`. A glossary term that contains a
+keyword, such as `May Day Protocol`, is matched as a whole and is not split at
+the keyword.
 
 ## Modal keyword analysis
 
