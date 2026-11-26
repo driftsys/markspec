@@ -160,6 +160,21 @@ Deno.test("firstFreeDisplayIdNumber: passes the number to the predicate and pads
   assertEquals(calls, [["REQ-004-draft", 4], ["REQ-005-draft", 5]]);
 });
 
+Deno.test("firstFreeDisplayIdNumber: stops at the largest safe integer instead of looping (#1041)", () => {
+  const shape = { prefix: "R_", width: 0, suffix: "" };
+  // Above 2^53 - 1, n + 1 can equal n: an always-taken predicate must not
+  // loop forever. The bound itself is returned, as is a start above it.
+  const near = Number.MAX_SAFE_INTEGER - 2;
+  assertEquals(
+    firstFreeDisplayIdNumber(shape, near, () => true),
+    Number.MAX_SAFE_INTEGER,
+  );
+  assertEquals(
+    firstFreeDisplayIdNumber(shape, 2 ** 53 + 1, () => true),
+    2 ** 53,
+  );
+});
+
 Deno.test("highestDisplayIdNumber: finds max within prefix+suffix match", () => {
   const shape = { prefix: "STK_AEB_", width: 4, suffix: "" };
   const entries = [

@@ -64,7 +64,7 @@ import {
   type MarkspecProfileResponse,
 } from "./profile_request.ts";
 import type { EntryTypeInfo } from "./completions.ts";
-import { release, releaseDisplayId } from "./id_reservations.ts";
+import { IdReservations } from "./id_reservations.ts";
 import { debounce, type DebouncedFunction, pathToUri } from "./util.ts";
 import type { EventFields, Level } from "./event_log.ts";
 import { time, timeAsync } from "./timing.ts";
@@ -136,6 +136,10 @@ export class ProjectContext {
   lockfile: Lockfile | undefined;
   /** In-memory entry index for the files this project owns. */
   readonly index = new WorkspaceIndex();
+  /** Display IDs that scaffold resolves in this project handed out and the
+   * index does not hold yet. Kept per project, so a parse in another
+   * project never releases them. */
+  readonly reservations = new IdReservations();
   /** Cached cross-file validation result. Updated by
    * {@linkcode publishAllDiagnostics} and read by request handlers (e.g.
    * `markspec/entryRanges`) so they don't re-run `validateAll()` on every
@@ -845,9 +849,10 @@ export class ProjectContext {
    * always gets its per-scope items and the template (`R-NNN-SCOPE`).
    * An ID that `displayIdScope` reads under another scope never raises the
    * next number of a scope ({@linkcode scopeFilter}). The next number of
-   * every item skips a number whose display ID is already indexed, which
-   * such an ID can be when nothing separates `{scope}` from the counter
-   * (#1041).
+   * every numbered item (per scope or without a scope) skips a number whose
+   * display ID is already indexed, which such an ID can be when nothing
+   * separates `{scope}` from the counter (#1041). The scope template and
+   * named types carry no number.
    *
    * @param partial - The display-ID text typed so far, for the mid-typed
    *   trigger. Omit it for the bare `- [` trigger.
@@ -1031,17 +1036,16 @@ export class ProjectContext {
    * when nothing is reserved for the file's IDs — cheap because
    * reservation buckets are typically empty.
    *
-   * Reservations live in the module-global `id_reservations.ts` table,
-   * keyed by `(prefix, suffix)` and by formatted display ID only, not by
-   * project. Two projects whose profiles share a prefix therefore share
-   * reservations. The effect is at most a skipped number in the other
-   * project during the short parse-debounce window, which is acceptable.
+   * Only this project's {@linkcode reservations} are released: a file of
+   * another project that holds the same display ID never drops them.
    */
   releaseObservedReservations(filePath: string): void {
     const entries = this.index.getEntriesForFile(filePath);
     // A minted ID releases the number reservation of the prefix that minted
     // it, even when the ID decomposes under another scope below (#1041).
-    for (const entry of entries) releaseDisplayId(entry.displayId);
+    for (const entry of entries) {
+      this.reservations.releaseDisplayId(entry.displayId);
+    }
     const patterns = this.getScaffoldPatterns();
     if (patterns.length === 0) return;
     for (const entry of entries) {
@@ -1054,7 +1058,7 @@ export class ProjectContext {
         if (suffix && !id.endsWith(suffix)) continue;
         const numberPart = id.slice(prefix.length, id.length - suffix.length);
         if (!/^\d+$/.test(numberPart)) continue;
-        release(prefix, suffix, parseInt(numberPart, 10));
+        this.reservations.release(prefix, suffix, parseInt(numberPart, 10));
         break; // one pattern matched this entry; move on
       }
     }

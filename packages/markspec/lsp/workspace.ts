@@ -275,7 +275,8 @@ export class WorkspaceIndex {
    * @param accept - As for {@linkcode getNextDisplayIdNumber}.
    * @param isReserved - `true` for a display ID that a resolve under
    *   another `(prefix, suffix)` already handed out but the index does not
-   *   hold yet. The resolve handler passes `isDisplayIdReserved`; nothing is
+   *   hold yet. The resolve handler passes the project's
+   *   `IdReservations.isDisplayIdReserved`; nothing is
    *   reserved by default.
    */
   getNextFreeDisplayIdNumber(

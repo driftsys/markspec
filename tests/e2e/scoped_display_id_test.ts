@@ -392,6 +392,15 @@ Deno.test("next-id --scope: an unpadded counter is never minted twice from 10 up
   assertEquals(stdout.trim(), "G_BR11");
 });
 
+Deno.test("create --scope: a number wider than the padding is never minted twice (#1041)", async () => {
+  const { code, stdout, stderr } = await markspec(
+    ["create", "glued", "--scope", "BR", "req.md"],
+    { files: gluedFiles("G_{scope}{n:02d}", ["G_BR99", "G_BR100"]) },
+  );
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stdout, "- [G_BR101] ");
+});
+
 Deno.test("insert --scope: a number wider than the padding is never minted twice (#1041)", async () => {
   const run = await markspecPersist(
     ["insert", "glued", "--scope", "BR", "req.md"],

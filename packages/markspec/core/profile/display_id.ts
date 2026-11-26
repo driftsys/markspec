@@ -290,14 +290,18 @@ export function highestDisplayIdNumber(
 
 /**
  * The first number from `start` upward whose display ID, formatted with
- * {@linkcode formatDisplayId}, `isTaken` rejects as already used. A minting
- * caller passes the highest counted number plus one as `start`, and a test
- * that the ID exists in the project (or is reserved). The
- * highest number alone is not enough for a `{scope}` pattern with nothing
- * between `{scope}` and the counter (`G_{scope}{n:02d}`): `G_BR100` reads as
- * scope `BR1`, so it does not count for scope `BR`, but it is the ID that
- * number 100 of scope `BR` formats to (#1041). Terminates when `isTaken`
- * returns `true` for finitely many IDs.
+ * {@linkcode formatDisplayId}, `isTaken` does not report as already used.
+ *
+ * A minting caller passes the highest counted number plus one as `start`.
+ * Its `isTaken` returns `true` for an ID that exists in the project or is
+ * reserved. The highest number alone is not enough for a `{scope}` pattern
+ * with nothing between `{scope}` and the counter (`G_{scope}{n:02d}`):
+ * `G_BR100` reads as scope `BR1`, so it does not count for scope `BR`, but
+ * it is the ID that number 100 of scope `BR` formats to (#1041).
+ *
+ * The search stops at `Number.MAX_SAFE_INTEGER`, because above it `n + 1`
+ * can equal `n`. A number at that bound, or a `start` above it, is returned
+ * even when its ID is taken; the validator then reports the duplicate ID.
  */
 export function firstFreeDisplayIdNumber(
   shape: DisplayIdPatternShape,
@@ -305,7 +309,9 @@ export function firstFreeDisplayIdNumber(
   isTaken: (displayId: string, n: number) => boolean,
 ): number {
   let n = start;
-  while (isTaken(formatDisplayId(shape, n), n)) n++;
+  while (n < Number.MAX_SAFE_INTEGER && isTaken(formatDisplayId(shape, n), n)) {
+    n++;
+  }
   return n;
 }
 

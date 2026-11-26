@@ -125,7 +125,6 @@ import {
   type ScaffoldCompletionData,
 } from "./completions.ts";
 import { findEnclosingEntry } from "./find_entry.ts";
-import { isDisplayIdReserved, mintReservedNumber } from "./id_reservations.ts";
 import {
   fencedLinesForFile,
   isDocCommentContext,
@@ -1133,7 +1132,7 @@ connection.onCompletionResolve((item): CompletionItem => {
     // another prefix, which can format the same ID for a glued `{scope}`
     // pattern (#1041). The minted ID is reserved too.
     const shape = { prefix, width: data.width, suffix };
-    const nextNumber = mintReservedNumber(
+    const nextNumber = ctx.reservations.mintReservedNumber(
       prefix,
       suffix,
       (reserved) =>
@@ -1141,7 +1140,7 @@ connection.onCompletionResolve((item): CompletionItem => {
           shape,
           reserved,
           accept,
-          isDisplayIdReserved,
+          (id) => ctx.reservations.isDisplayIdReserved(id),
         ),
       (n) => formatDisplayId(shape, n),
     );
