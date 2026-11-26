@@ -110,11 +110,14 @@ declaration/citation surface embedded in inline code spans — lowercase `ux:`
 refs, leading-slash / dot element forms, and `$`-prefixed shape citations — is
 likewise inert to every active rule, which lets the `@acme/hmi` profile host
 those vocabularies via an external linter before uxil lands in core (epic #717,
-Tier 1). The guarantee is scoped to that DSL surface, **not** to arbitrary text:
-inline code spans are not yet _structurally_ excluded (rules read a paragraph's
-verbatim `content.text`, which includes the span), so an uppercase modal keyword
-or a PascalCase term inside a span is still analyzed. Closing that structural
-gap is deferred follow-up #733. Regression-locked by
+Tier 1). The sentence rules (`MSL-Q100`–`MSL-Q104`, `MSL-Q200`–`MSL-Q201`,
+`MSL-Q300`–`MSL-Q301`, `MSL-Q306`–`MSL-Q309`, `MSL-Q311`, `MSL-Q312`,
+`MSL-Q402`) and `MSL-Q500` replace the text of inline code spans and link syntax
+(the ranges of `nonProseRanges`) with spaces before they scan a paragraph, so a
+modal keyword or a PascalCase term inside a span is not analyzed by them (#1017,
+#1029). The lexicon rules (`MSL-Q302`–`MSL-Q305`, `MSL-Q310`, `MSL-Q313`) still
+read a paragraph's verbatim `content.text`, which includes the span; closing
+that gap is deferred follow-up #733. Regression-locked by
 `tests/e2e/opaque_dsl_test.ts`.
 
 ### 1.3 Intent and non-goals

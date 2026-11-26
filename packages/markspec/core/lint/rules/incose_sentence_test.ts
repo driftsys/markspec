@@ -496,3 +496,21 @@ Deno.test("Q307: can co-fire with modal-multiple territory", () => {
   // runner, not via these rules).
   assertEquals(diags.some((d) => d.code === "MSL-Q200"), false);
 });
+
+// ---------------------------------------------------------------------------
+// Inline code and link syntax are not prose (#1029)
+// ---------------------------------------------------------------------------
+
+Deno.test("Q307: ignores a modal in inline code or a link title (#1029)", () => {
+  const entry = makeEntry(
+    'The system shall log faults and use `must` as [the level](http://x.example "must").',
+  );
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), false);
+});
+
+Deno.test("Q307: positive control, the same modals outside code fire (#1029)", () => {
+  const entry = makeEntry("The system shall log faults and must use a level.");
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), true);
+});

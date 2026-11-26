@@ -279,3 +279,21 @@ Deno.test("EARS: Q103 has warn severity and score 3", () => {
   assertEquals(q103?.severity, "warning");
   assertEquals(q103?.scoreContribution, 3);
 });
+
+// ---------------------------------------------------------------------------
+// Inline code and link syntax are not prose (#1029)
+// ---------------------------------------------------------------------------
+
+Deno.test("Q100: a modal only in inline code or a link URL is not normative (#1029)", () => {
+  const entry = makeEntry(
+    "Values use `shall` as a keyword, see [the list](http://x.example/shall).",
+  );
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), false);
+});
+
+Deno.test("Q100: positive control, the same modal outside code fires (#1029)", () => {
+  const entry = makeEntry("Values shall use a keyword.");
+  const diags = runEarsRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q100"), true);
+});

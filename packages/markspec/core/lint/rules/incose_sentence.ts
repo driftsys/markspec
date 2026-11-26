@@ -30,7 +30,8 @@ import type { BodyBlock, ParagraphNode } from "../../ast/nodes.ts";
 import type { LintDiagnostic } from "../types.ts";
 import { segmentSentences } from "../segmenter.ts";
 import { loadLexicon } from "../../lexicons/mod.ts";
-import { offsetToRange } from "../range_util.ts";
+import { maskNonProse, offsetToRange } from "../range_util.ts";
+import { collectDefinitions } from "../../ast/normalize.ts";
 // Re-use MODAL_COMPOUND_RE from modal_sentence to avoid further duplication.
 // Importing it avoids a separate modal_tokens.ts extraction (option b) while
 // keeping option c (copy/paste) off the table.
@@ -544,6 +545,7 @@ function checkQ402(
 export function runIncoseSentenceRules(entry: Entry): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
   const blocks: readonly BodyBlock[] = entry.bodyAst ?? [];
+  const definitions = collectDefinitions(blocks);
 
   // Q402 tracking across the whole entry body.
   let totalBodyModals = 0;
@@ -552,7 +554,9 @@ export function runIncoseSentenceRules(entry: Entry): LintDiagnostic[] {
   for (const block of blocks) {
     if (block.kind !== "paragraph") continue;
     const p = block as ParagraphNode;
-    const text = p.content.text;
+    // Inline code and link syntax (destinations, titles, images, ...) are
+    // not prose: blank them with spaces so offsets stay the same (#1029).
+    const text = maskNonProse(p.content.text, definitions);
 
     // Compute file-absolute base line for this paragraph.
     // p.range.start.line is body-relative (line 1 = first body line).
