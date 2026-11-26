@@ -93,7 +93,9 @@ only this vocabulary.
 Direction is declared per system (and optionally per attribute) in the mapping
 file. Inbound entries carry `Origin: synthesized`-class provenance
 (core-data-model §1 / ADR-003 §Part 4). `fmt` uses this provenance only to
-derive a missing `Id:` from the `Source:` value (core-data-model §3.5); it
+derive a missing `Id:` from the `Source:` value, and only for an Authored entry
+with the literal value `Origin: synthesized` and a non-empty `Source:`; any
+other entry without an `Id:` gets a random ULID (core-data-model §3.5). It
 formats the body and trailer of an externally owned entry like any other entry
 (§11.3).
 
@@ -291,7 +293,7 @@ reads back). Violations → `MSL-S020`.
 | Section | Source                                                                                        |
 | ------- | --------------------------------------------------------------------------------------------- |
 | §1      | Prompt-7 Context (core/connector split); ADR-006 §Out-of-scope; compile-output §1.2           |
-| §2      | core-data-model §1.4 / §1.6 / §1.8 / §5; ADR-002 (properties); ADR-006 §1 / §4                |
+| §2      | core-data-model §1.4 / §1.6 / §1.8 / §3.5 / §5; ADR-002 (properties); ADR-006 §1 / §4         |
 | §3      | ADR-006 §4 (connector model); ADR-011 (ingestion); profile-schema (YAML authoring convention) |
 | §4      | lockfile spec §1 / §3 / §5; ADR-012; core-data-model §1.6                                     |
 | §5      | ADR-006 §4 / §Out-of-scope; lockfile spec §3                                                  |
