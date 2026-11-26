@@ -48,9 +48,17 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  * link is prose and is normalized. Four-space and tab-indented lines remain
  * verbatim as before. The document is parsed once; every exclusion uses that
  * same AST.
+ *
+ * `definitions` is the text of link reference and footnote definitions that
+ * `text` can use but does not hold, such as the definitions of an entry body
+ * when `text` is one paragraph of it. It is parsed after `text`, so a label
+ * that one of these definitions defines is kept, but it is never changed or
+ * returned (#1014).
  */
-export function normalizeProseModals(text: string): string {
-  const regions = parseCodeRegions(text);
+export function normalizeProseModals(text: string, definitions = ""): string {
+  const regions = parseCodeRegions(
+    definitions === "" ? text : `${text}\n\n${definitions}`,
+  );
   const { fencedLines } = regions;
   const verbatimRanges = [...regions.inlineCode, ...regions.verbatimInline]
     .sort((a, b) => a.start - b.start);

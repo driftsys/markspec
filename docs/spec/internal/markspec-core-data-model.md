@@ -795,10 +795,12 @@ block, because changing it there changes a target or code. The visible text of a
 text of a shortcut `[label]` or collapsed `[label][]` reference is its label and
 keeps its case.
 
-`fmt` applies the rule to one paragraph at a time, so a reference label or a
-footnote reference label in an entry body is not recognized when its definition
-is in another block. `fmt` then reports `MSL-F900` and keeps the whole entry
-body unchanged.
+`fmt` applies the rule to one paragraph or table cell at a time, and gives each
+one the link reference and footnote definitions of its entry body, so a
+reference label or a footnote reference label keeps its case when its definition
+is in another block of the same body, also inside a list item, a blockquote or a
+note. A definition that is the first content of an ordered list item or of a
+nested list item still gives `MSL-F900` (#1026).
 
 #### 3.4.2 Entity references
 

@@ -116,3 +116,15 @@ Deno.test("normalizeProseModals: keeps a link URL before inline code on a later 
     "A [x](u/SHALL) b\nc `MAY` d must.",
   );
 });
+
+Deno.test("normalizeProseModals: definitions keep a reference label and are not returned (#1014)", () => {
+  const defs = "[SHALL]: http://x.example/\n\n[^MUST]: A note.";
+  assertEquals(
+    normalizeProseModals(
+      "See [SHALL] and [the rule MUST][SHALL][^MUST].",
+      defs,
+    ),
+    "See [SHALL] and [the rule must][SHALL][^MUST].",
+  );
+  assertEquals(normalizeProseModals("See [SHALL].", ""), "See [shall].");
+});

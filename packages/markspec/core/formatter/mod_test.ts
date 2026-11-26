@@ -1408,32 +1408,130 @@ function formatBody(body: string, conventions?: typeof PRESERVE_CONVENTIONS) {
   return { md, result, f900 };
 }
 
-// A body whose emission changes text keeps its original lines. These tests
-// use #1014 inputs: the casing pass sees one paragraph at a time, so it does
-// not see the link reference definition and lowercases the label, and the
-// guard keeps the body unchanged. When #1014 is fixed, the emission keeps
-// these inputs, so these tests fail and must be replaced by another input
-// that the emission changes. The tests in `md_equiv_test.ts` cover the
-// comparison directly.
+// The casing pass sees the body's link reference and footnote definitions,
+// so it keeps a reference label (#1014). No input the emission changes is
+// left for a guard-fallback test here; `md_equiv_test.ts` covers the
+// comparison that the guard runs.
 for (
-  const [name, body] of [
+  const [name, body, kept] of [
     [
       "a shortcut reference label",
       "See [SHALL].\n\n[SHALL]: http://a.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a collapsed reference label",
+      "See [SHALL][].\n\n[SHALL]: http://a.example/",
+      "See [SHALL][].",
     ],
     [
       "a full reference label",
       "See [the rule][SHALL].\n\n[SHALL]: http://a.example/",
+      "See [the rule][SHALL].",
     ],
-    ["a reference image label", "See ![SHALL][img].\n\n[img]: p.png"],
-    ["a footnote reference label", "A note[^SHALL].\n\n[^SHALL]: It holds."],
+    [
+      "a reference image label",
+      "See ![SHALL][img].\n\n[img]: p.png",
+      "See ![SHALL][img].",
+    ],
+    [
+      "a footnote reference label",
+      "A note[^SHALL].\n\n[^SHALL]: It holds.",
+      "A note[^SHALL].",
+    ],
+    [
+      "a link label defined after a footnote",
+      "A note[^n] and [SHALL].\n\n[^n]: It holds.\n\n[SHALL]: http://x.example/",
+      "A note[^n] and [SHALL].",
+    ],
+    [
+      "a label defined in a list item",
+      "See [SHALL].\n\n- [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a list in a blockquote",
+      "See [SHALL].\n\n> - [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a nested blockquote",
+      "See [SHALL].\n\n> > [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a note",
+      "See [SHALL].\n\n> [!NOTE]\n> [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
+    [
+      "a label defined in a blockquote",
+      "See [SHALL].\n\n> [SHALL]: http://x.example/",
+      "See [SHALL].",
+    ],
   ]
 ) {
-  Deno.test(`format: keeps the original body when the emission changes ${name} (#989, #1014)`, () => {
-    const { md, result, f900 } = formatBody(body);
-    assertEquals(result.output, md);
-    assertEquals(f900.length, 1);
-    assert(f900[0].message.startsWith("REQ-0001: "));
+  Deno.test(`format: keeps ${name} with no MSL-F900 (#1014)`, () => {
+    const { result, f900 } = formatBody(body);
+    assertEquals(f900, []);
+    assertStringIncludes(result.output, kept);
+    assertEquals(
+      format(result.output, { file: "req.md" }).output,
+      result.output,
+    );
+  });
+}
+
+Deno.test("format: lowercases the visible text of a full reference link (#1014)", () => {
+  const { result, f900 } = formatBody(
+    "See [SHALL] and [the rule MUST][MUST].\n\n[SHALL]: http://x.example/\n[MUST]: http://y.example/",
+  );
+  assertEquals(f900, []);
+  assertStringIncludes(result.output, "See [SHALL] and [the rule must][MUST].");
+});
+
+// A table renders from its raw text, so the casing pass must change the raw
+// text as well as the cells (#1015).
+for (
+  const [name, body, expected] of [
+    ["a header cell", "| SHALL |\n|---|\n| x |", "| shall |"],
+    ["a body cell", "| a |\n|---|\n| MUST |", "| must |"],
+    ["inline code in a cell", "| `SHALL` |\n|---|\n| x |", "| `SHALL` |"],
+    [
+      "an EARS keyword starting a cell",
+      "| When the car stops |\n|---|\n| a WHEN b MUST |",
+      "| When the car stops |\n  |---|\n  | a WHEN b must |",
+    ],
+    ["an escaped pipe", "| a \\| When x |\n|---|\n| y |", "| a \\| when x |"],
+    [
+      "a pipe inside a closed code span",
+      "| `a | SHALL` | y |\n|---|---|---|\n| 1 | 2 | 3 |",
+      "| `a | shall` | y |",
+    ],
+    [
+      "an unmatched backtick",
+      "| a ` | When x |\n|---|---|\n| y | z |",
+      "| a ` | When x |",
+    ],
+    [
+      "a reference label in a cell",
+      "| [SHALL] | [MUST][] |\n|---|---|\n| SHALL | y |\n\n[SHALL]: http://x.example/\n[MUST]: http://y.example/",
+      "| [SHALL] | [MUST][] |\n  |---|---|\n  | shall | y |",
+    ],
+  ]
+) {
+  Deno.test(`format: casing in ${name} of a table gives no MSL-F900 (#1015)`, () => {
+    const { result, f900 } = formatBody(body);
+    assertEquals(
+      result.diagnostics.filter((d) => d.code.startsWith("MSL-F9")),
+      [],
+    );
+    assertEquals(f900, []);
+    assertStringIncludes(result.output, expected);
+    assertEquals(
+      format(result.output, { file: "req.md" }).output,
+      result.output,
+    );
   });
 }
 
@@ -1496,8 +1594,7 @@ for (
 
 // The casing pass lowercases prose and the visible text of a link, but
 // keeps link URLs, link titles, autolinks and image paths and alt (#1009).
-// A footnote reference label or a reference image label is not kept yet;
-// the guard-fallback tests above cover them (#1014).
+// Reference labels are covered by the #1014 tests above.
 for (
   const [name, body, kept] of [
     [

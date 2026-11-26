@@ -5,7 +5,10 @@
  *
  * `normalizeBodyAst` is a deterministic, total, pure AST→AST transform
  * that applies the §3.4.1 modal-keyword case rule to every prose-bearing
- * node's `InlineContent.text`.
+ * node's `InlineContent.text`, and to the raw text of a table (which is
+ * what a table renders from). Each text is cased with the body's link
+ * reference and footnote definitions as parse context (#1014); these are
+ * held in module state for the length of one synchronous call only.
  *
  * §3.4.1 rule (`docs/specs/markspec-core-data-model.md` §3.4.1):
  *
@@ -34,6 +37,7 @@
  */
 
 import { normalizeProseModals } from "../util/modals.ts";
+import { buildBodyAst } from "./build.ts";
 import type {
   BlockquoteNode,
   BodyBlock,
@@ -47,6 +51,90 @@ import type {
   TableNode,
 } from "./nodes.ts";
 
+/**
+ * The link reference and footnote definitions of the body that
+ * {@linkcode normalizeBodyAst} is normalising, joined by blank lines. A
+ * definition is a separate block, so the casing pass of one paragraph would
+ * not see it and would lowercase a label it defines (#1014). Set for the
+ * duration of one synchronous `normalizeBodyAst` call only.
+ */
+let bodyDefinitions = "";
+
+/** A link reference definition (`[label]: dest`) or a footnote definition
+ * (`[^label]: text`), at the start of an `unknown` block's raw text or of a
+ * blockquote or note line with its container markers removed. */
+const DEFINITION_RE = /^ {0,3}\[[^\]\n]+\]:/;
+
+/** Leading blockquote (`>`) and list (`-`, `*`, `+`, `1.`, `1)`) markers of a
+ * flattened container line. */
+const CONTAINER_MARKERS_RE =
+  /^(?:[ \t]*(?:>|[-*+]|\d{1,9}[.)])(?=[ \t]|$))*[ \t]*/;
+
+/**
+ * The text of every definition in `blocks`, at any depth: an `unknown` block
+ * (top level or inside a list item), or a line of a blockquote or note. The
+ * definitions are joined by blank lines, so a link definition after a
+ * footnote definition is not read as the footnote's continuation text.
+ */
+function collectDefinitions(blocks: readonly BodyBlock[]): string {
+  const found: string[] = [];
+  const walk = (list: readonly BodyBlock[]): void => {
+    for (const b of list) {
+      if (b.kind === "unknown" && DEFINITION_RE.test(b.raw)) found.push(b.raw);
+      else if (b.kind === "list") {
+        for (const item of b.items) walk(item.blocks);
+      } else if (b.kind === "blockquote" || b.kind === "note") {
+        for (const line of b.content.text.split("\n")) {
+          // A blockquote or note holds flattened text, so a definition in a
+          // nested container keeps its `>` or list markers on the line.
+          const bare = line.replace(CONTAINER_MARKERS_RE, "");
+          if (DEFINITION_RE.test(bare)) found.push(bare);
+        }
+      }
+    }
+  };
+  walk(blocks);
+  return found.join("\n\n");
+}
+
+/**
+ * Apply the casing pass to each cell of the raw table text separately; the
+ * parsed cells are then read back from the result. A whole-line pass
+ * would not see the start of a cell as a sentence start, and would lowercase
+ * an EARS keyword (`When`) that the cell pass keeps. Cells are split on
+ * every `|` not escaped with `\`, as GFM splits them (also inside a code
+ * span).
+ */
+function normalizeTableRaw(raw: string): string {
+  return raw.split("\n").map((line) => {
+    let out = "";
+    let cell = "";
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === "\\" && i + 1 < line.length) {
+        cell += ch + line[++i];
+        continue;
+      }
+      if (ch === "|") {
+        out += normalizeCell(cell) + ch;
+        cell = "";
+        continue;
+      }
+      cell += ch;
+    }
+    return out + normalizeCell(cell);
+  }).join("\n");
+}
+
+/** Case one raw cell, keeping its surrounding whitespace. */
+function normalizeCell(cell: string): string {
+  const lead = cell.length - cell.trimStart().length;
+  const body = cell.trim();
+  if (body === "") return cell;
+  return cell.slice(0, lead) + normalizeProseModals(body, bodyDefinitions) +
+    cell.slice(lead + body.length);
+}
+
 // ---------------------------------------------------------------------------
 // InlineContent normalisation
 // ---------------------------------------------------------------------------
@@ -59,7 +147,7 @@ import type {
  * returned UNCHANGED (makes the no-op case allocation-free).
  */
 function normalizeInline(content: InlineContent): InlineContent {
-  const normalizedText = normalizeProseModals(content.text);
+  const normalizedText = normalizeProseModals(content.text, bodyDefinitions);
   if (normalizedText === content.text) return content;
   return { text: normalizedText };
 }
@@ -109,17 +197,30 @@ function normalizeBlock(block: BodyBlock): BodyBlock {
       return { ...block, items } satisfies DefinitionListNode;
     }
     case "table": {
-      // TableNode renders via `raw` (byte-exact round-trip preserved).
-      // Cell InlineContent is still normalised for validator-view
-      // consistency — it does NOT affect render output.
-      const header = block.header.map(normalizeInline);
-      const rows = block.rows.map((row) => row.map(normalizeInline));
-      const headerChanged = header.some((c, i) => c !== block.header[i]);
-      const rowsChanged = rows.some((row, i) =>
-        row.some((c, j) => c !== block.rows[i][j])
-      );
-      if (!headerChanged && !rowsChanged) return block;
-      return { ...block, header, rows } satisfies TableNode;
+      // TableNode renders via `raw`, so the casing pass cases the raw text,
+      // cell by cell, and the cells are read back from the cased raw text.
+      // Casing the flattened cell text instead would lowercase a reference
+      // label that the raw pass keeps, and the rendered table would no
+      // longer build to the cells (#1014, #1015).
+      const raw = normalizeTableRaw(block.raw);
+      if (raw === block.raw) return block;
+      let rebuilt: BodyBlock | undefined;
+      try {
+        // With the body's definitions, so a reference label in a cell reads
+        // as the full body reads it.
+        rebuilt = buildBodyAst(
+          bodyDefinitions === "" ? raw : `${raw}\n\n${bodyDefinitions}`,
+        )[0];
+      } catch {
+        return block;
+      }
+      if (rebuilt?.kind !== "table") return block;
+      return {
+        ...block,
+        header: rebuilt.header,
+        rows: rebuilt.rows,
+        raw,
+      } satisfies TableNode;
     }
     // Verbatim content (§2.5: no modal recognition) and structurally
     // modal-free nodes pass through UNCHANGED — same reference.
@@ -179,5 +280,11 @@ function normalizeBlocks(
 export function normalizeBodyAst(
   blocks: readonly BodyBlock[],
 ): BodyBlock[] {
-  return [...normalizeBlocks(blocks)];
+  const previous = bodyDefinitions;
+  bodyDefinitions = collectDefinitions(blocks);
+  try {
+    return [...normalizeBlocks(blocks)];
+  } finally {
+    bodyDefinitions = previous;
+  }
 }
