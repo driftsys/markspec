@@ -55,6 +55,9 @@ function renderList(node: ListNode): string {
   return itemLines.join(node.spread ? "\n\n" : "\n");
 }
 
+/** A thematic break line: 3 or more `-`, `*` or `_`, with optional spaces. */
+const THEMATIC_BREAK_RE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+
 function renderListItem(
   item: ListItemNode,
   ordered: boolean,
@@ -72,7 +75,9 @@ function renderListItem(
   const bullet = ordered ? `${index}.` : "-";
 
   // Render the first block. For a paragraph, the text follows the bullet
-  // directly. For any other block, we render it indented.
+  // directly. An unknown block that starts with a non-space character, other
+  // than a thematic break, also follows the bullet. Any other block is
+  // rendered on the lines below the bullet, indented by 2 spaces.
   let firstLine: string;
   let extraLines: string[] = [];
 
@@ -101,9 +106,24 @@ function renderListItem(
       // with the first character after the bullet (`- ` = 2 chars).
       extraLines = textLines.slice(1).map((l) => (l ? `  ${l}` : ""));
     }
+  } else if (
+    firstBlock.kind === "unknown" && /^\S/.test(renderBlock(firstBlock)) &&
+    !THEMATIC_BREAK_RE.test(renderBlock(firstBlock).split("\n")[0])
+  ) {
+    // An unknown block (e.g. a link reference definition) starts on the
+    // marker line. A thematic break is excluded: `- ---` is a top-level
+    // thematic break, not a list item. On the line after a bare marker, a fixed
+    // 2-space indent is below the content column of `1.` (3), so the block
+    // leaves the item, and a bare nested `-` under a paragraph reads as a
+    // setext underline (#1026). Continuation lines align to the content
+    // column.
+    const pad = " ".repeat(`${bullet} ${checkbox}`.length);
+    const [head, ...tail] = renderBlock(firstBlock).split("\n");
+    firstLine = `${bullet} ${checkbox}${head}`;
+    extraLines = tail.map((l) => (l ? `${pad}${l}` : ""));
   } else {
-    // Block content that isn't a paragraph: render on its own line(s),
-    // indented by 2 spaces.
+    // Any other first block: render on its own line(s), indented by 2
+    // spaces.
     firstLine = checkbox ? `${bullet} ${checkbox}`.trimEnd() : bullet;
     const blockStr = renderBlock(firstBlock);
     extraLines = blockStr.split("\n").map((l) => (l ? `  ${l}` : ""));
