@@ -2,8 +2,7 @@
  * @module core/validator/pipeline
  *
  * Validator pipeline. Composes Stage 1 (core hygiene — existing
- * `validate`),
- * Stage 2 (type classification — {@linkcode classifyEntriesStage}),
+ * `validate`), Stage 2 (type classification — {@linkcode classifyEntriesStage}),
  * Stage 2.5 (list-value normalization — {@linkcode normalizeListValues}),
  * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}),
  * Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}),

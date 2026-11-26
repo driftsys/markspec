@@ -8,12 +8,15 @@
  * (an `Id:`, a trace link, a label, ...) with JavaScript `trim()`, but it
  * keeps a U+FEFF or a non-breaking space (U+00A0) at either end of any other
  * value, as free text. A profile-declared attribute whose type is not `text`
- * must behave like a typed core attribute, so the validator pipeline,
- * `markspec fmt` and `markspec compile` trim its value with the functions of
- * this module once a profile is loaded.
+ * must behave like a typed core attribute. `markspec fmt`, the fmt-drift
+ * gate of `markspec check`, LSP formatting and `markspec compile` trim its
+ * value with the functions of this module once a profile is loaded.
+ * Attribute validation does not use them: Stage 2.5 of the validator
+ * pipeline (`validator/normalize.ts`) trims separately, by the type scope of
+ * the entry itself.
  *
  * The formatter and the compiler do not always know the type of an entry,
- * so the rule does not depend on it: a key is a profile typed key when the
+ * so this rule does not depend on it: a key is a profile typed key when the
  * effective profile declares it with a type other than `text` (as a
  * universal attribute, a type-scoped attribute, or a trace rule name, which
  * is an implicit `id-list` attribute) and no declaration gives it the type

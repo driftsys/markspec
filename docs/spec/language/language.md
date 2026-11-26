@@ -327,18 +327,21 @@ an identifier does not break it. A profile attribute that the active profile
 declares with a type other than `text` (as a universal attribute, a type-scoped
 attribute or a traceability relation), and never with the type `text`, is a
 typed attribute too: once the profile is loaded, its value loses all whitespace
-around it in validation, in `markspec fmt` output of a Markdown file (so the
-file loses the character, and `markspec check` agrees) and in the `compile`
-output; `markspec fmt` only stamps `Id:` in a `.feature` file, which keeps the
-character. For this trim the key is matched in canonical case (first letter
-upper case, all others lower case, as `markspec fmt` writes keys), so `HAZARD:`
-is trimmed like a declared `Hazard`; attribute validation still matches the
-declared name exactly. The rule does not depend on the entry type: a key
-declared `text` by any type is never trimmed by `markspec fmt` or `compile`,
-although attribute validation still trims it for an entry whose type declares it
-with another type. Two limits apply: a line whose value is made only of such
-characters is not a valid attribute line (MSL-P021), and `markspec fmt` removes
-it; and the line needs an ASCII space after the colon.
+around it in two ways. `markspec fmt` (of a Markdown file, so the file loses the
+character), the fmt-drift gate of `markspec check` (so `check` agrees with
+`fmt`) and `compile` trim a key that some type declares with a type other than
+`text`, when no type declares it `text`, whatever the type of the entry.
+Attribute validation trims the value for an entry whose own type declares the
+key with a type other than `text`. `markspec fmt` only stamps `Id:` in a
+`.feature` file, which keeps the character. For the `fmt`, `check` and `compile`
+trim the key is matched in canonical case (first letter upper case, all others
+lower case, as `markspec fmt` writes keys), so `HAZARD:` is trimmed like a
+declared `Hazard`; attribute validation still matches the declared name exactly.
+A key declared `text` by any type is never trimmed by `markspec fmt` or
+`compile`, although attribute validation still trims it for an entry whose type
+declares it with another type. Two limits apply: a line whose value is made only
+of such characters is not a valid attribute line (MSL-P021), and `markspec fmt`
+removes it; and the line needs an ASCII space after the colon.
 
 The block is indented 4 spaces relative to the entry body indent (CommonMark
 indented-code-block rule). Inside a Markdown list item, that means **6 spaces of

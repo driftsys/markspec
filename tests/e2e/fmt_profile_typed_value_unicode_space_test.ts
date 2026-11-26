@@ -5,11 +5,13 @@
  * all whitespace, like a typed core attribute (#990). `fmt` removes a
  * U+FEFF or a non-breaking space (U+00A0) at either end of its value, and
  * keeps them around the value of a profile `text` attribute and of an
- * undeclared key. A second `fmt` changes nothing, bare `check` reports
- * MSL-F010 for an untrimmed value, and `compile --format json` outputs the trimmed value.
+ * undeclared key. A second `fmt` changes nothing, bare `check` accepts the
+ * `fmt` output, bare `check` reports MSL-F010 for an untrimmed value,
+ * `compile --format json` outputs the trimmed value, and attribute
+ * validation accepts a typed value that starts with U+FEFF.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import { markspecInDir, markspecPersist } from "./helpers.ts";
 
@@ -67,7 +69,7 @@ function compiledValue(json: string, key: string): unknown {
   return found[0];
 }
 
-Deno.test("e2e: fmt, check and compile trim a profile typed value and keep free text (#990)", async () => {
+Deno.test("e2e: fmt trims a profile typed value, keeps free text, and check accepts the output (#990)", async () => {
   const { dir, code, stderr } = await markspecPersist(["fmt", "req.md"], {
     ...FILES,
     "req.md": DOC,
@@ -83,6 +85,10 @@ Deno.test("e2e: fmt, check and compile trim a profile typed value and keep free 
     const again = await markspecInDir(dir, ["fmt", "req.md"]);
     assertEquals(again.code, 0, again.stderr);
     assertEquals(await Deno.readTextFile(join(dir, "req.md")), out);
+
+    const check = await markspecInDir(dir, ["check"]);
+    assert(!check.stderr.includes("MSL-F010"), check.stderr);
+    assert(!check.stderr.includes("error["), check.stderr);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -145,6 +151,18 @@ Deno.test("e2e: fmt applies the profile of each project to its own files (#990)"
     assertStringIncludes(a, `      Hazard: HAZ-0001${NBSP}\n`);
     assertStringIncludes(b, "      Hazard: HAZ-0001\n");
     assertEquals(b.includes(NBSP), false);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("e2e: check accepts a profile integer value that starts with U+FEFF (#990)", async () => {
+  const { dir, stderr } = await markspecPersist(["check"], {
+    ...FILES,
+    "req.md": DOC.replace(`      COUNT: ${BOM}3\n`, `      Count: ${BOM}3\n`),
+  });
+  try {
+    assert(!stderr.includes("MSL-A004"), stderr);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

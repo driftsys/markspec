@@ -118,10 +118,11 @@ export function parseAttributeLine(
  * `text`, or a key that is neither a core attribute nor a core trace
  * relation. Only free text keeps a U+FEFF or a non-breaking space at either
  * end (#990). The parser has no profile: a profile-declared typed attribute
- * counts as free text here. Once a profile is loaded, the validator
- * pipeline, `markspec fmt` and `markspec compile` trim its value
- * (`profileTypedKeys` and `trimProfileTypedValues` in
- * `model/profile_typed_keys.ts`).
+ * counts as free text here. Once a profile is loaded, `markspec fmt`, the
+ * fmt-drift gate of `markspec check`, LSP formatting and `markspec compile`
+ * trim its value (`profileTypedKeys` and `trimProfileTypedValues` in
+ * `model/profile_typed_keys.ts`). Attribute validation trims it separately,
+ * by the type scope of the entry itself (Stage 2.5, `validator/normalize.ts`).
  */
 function isFreeTextKey(key: string): boolean {
   // The key in its canonical case, as `markspec fmt` writes it: `ID` is
