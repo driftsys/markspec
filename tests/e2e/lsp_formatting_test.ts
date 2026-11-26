@@ -348,3 +348,57 @@ profile:
     await client.shutdown();
   }
 });
+
+Deno.test("lsp formatting: a profile with modal-keywords.casing: rfc8174 uppercases shall and must", async () => {
+  const md = `- [REQ-0001] Wording
+
+  The system shall act When requested and may retry. It must not fail.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: rfc8174-lsp\nversion: 0.1.0\n",
+    ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+    "profiles/p/markspec.yaml": `markspec-schema: "1"
+id: "@acme/rfc8174"
+version: 0.1.0
+profile:
+  conventions:
+    modal-keywords:
+      casing: rfc8174
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    "reqs.md": md,
+  });
+  try {
+    await client.initialize();
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+    const edits = await client.request("textDocument/formatting", {
+      textDocument: { uri: fileUri },
+      options: { tabSize: 2, insertSpaces: true },
+    }) as Array<unknown>;
+    assertExists(edits);
+    const newText = edits.map((e) => (e as { newText: string }).newText)
+      .join("");
+    assert(
+      newText.includes(
+        "The system SHALL act When requested and may retry. It MUST NOT fail.",
+      ),
+      newText,
+    );
+  } finally {
+    await client.shutdown();
+  }
+});

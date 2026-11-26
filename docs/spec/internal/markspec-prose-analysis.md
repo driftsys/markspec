@@ -53,9 +53,9 @@ reconciliations the companion guide needs.
 | **companion guide**    | `requirements-writing-guide.md` — the narrative GtWR/EARS authoring guide. A Stage-2 user-docs artifact, not a normative spec (markspec-user-docs.md §1 "prose-quality lint docs … Stage 2"). |
 
 > **Naming overlap notice.** core-data-model §0's `MSL-M` "Marker" category
-> already owns modal-keyword **token** rules (`MSL-M060`, `MSL-M061`) and
-> `$Identifier` **resolution** (`MSL-M050`, `MSL-M051`). Prose analysis
-> introduces the new `MSL-Q` category for **sentence- and entry-level
+> already owns modal-keyword **token** rules (`MSL-M060`, `MSL-M061`,
+> `MSL-M062`) and `$Identifier` **resolution** (`MSL-M050`, `MSL-M051`). Prose
+> analysis introduces the new `MSL-Q` category for **sentence- and entry-level
 > requirement quality** and **cites — never re-emits** the `MSL-M` codes (§2.2,
 > §2.5). The two passes are orthogonal: `MSL-M` is "is this token a modal / does
 > this `$Id` resolve"; `MSL-Q` is "is this _requirement_ well formed".
@@ -177,14 +177,14 @@ block is recorded as §8 open question 1.
 To honor "do not duplicate or contradict the merged specs; cite them", prose
 analysis **defers to and never re-emits**:
 
-| Concern                                  | Owned by (authoritative)                                   | Prose-analysis behavior                                                                                           |
-| ---------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Modal token in **uppercase**             | `MSL-M060` (warning; `fmt` lowercases) — core §3.4.1, §4.6 | Cited by the `modal` group; not re-reported. Case policy is `fmt` + the marker pass, not prose analysis (§8 OQ3). |
-| Requirement entry with **no modal**      | `MSL-M061` (info; profile may promote) — core §4.6         | The `modal` group **references** `MSL-M061`; it does not mint a parallel "modal-missing" code.                    |
-| `$Identifier` **does not resolve**       | `MSL-M051` (error) — core §4.6, §2.5.2                     | The `xref` group consumes resolution results; it never re-emits unresolved-`$Id`.                                 |
-| `$Identifier` **case ≠ entity kind**     | `MSL-M050` (warning) — core §4.6, §2.5.2                   | Same — consumed, not duplicated.                                                                                  |
-| Trace target unknown / type-incompatible | `MSL-R080`/`MSL-R083` — core §4.8                          | The `xref` group is about _prose↔trace consistency_, not target existence/type (core owns that).                  |
-| Heading/HR/task-list/raw-HTML in body    | `MSL-B040..B043` — core §4.5                               | Structural; out of the prose pass entirely.                                                                       |
+| Concern                                  | Owned by (authoritative)                                                   | Prose-analysis behavior                                                                                           |
+| ---------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Modal token in **uppercase**             | `MSL-M060` (warning; default casing: `fmt` lowercases) — core §3.4.1, §4.6 | Cited by the `modal` group; not re-reported. Case policy is `fmt` + the marker pass, not prose analysis (§8 OQ3). |
+| Requirement entry with **no modal**      | `MSL-M061` (info; profile may promote) — core §4.6                         | The `modal` group **references** `MSL-M061`; it does not mint a parallel "modal-missing" code.                    |
+| `$Identifier` **does not resolve**       | `MSL-M051` (error) — core §4.6, §2.5.2                                     | The `xref` group consumes resolution results; it never re-emits unresolved-`$Id`.                                 |
+| `$Identifier` **case ≠ entity kind**     | `MSL-M050` (warning) — core §4.6, §2.5.2                                   | Same — consumed, not duplicated.                                                                                  |
+| Trace target unknown / type-incompatible | `MSL-R080`/`MSL-R083` — core §4.8                                          | The `xref` group is about _prose↔trace consistency_, not target existence/type (core owns that).                  |
+| Heading/HR/task-list/raw-HTML in body    | `MSL-B040..B043` — core §4.5                                               | Structural; out of the prose pass entirely.                                                                       |
 
 > **Dependency note.** `MSL-M050`/`MSL-M051` are **deferred-by-dependency** on
 > `main` (core-data-model §4.6 implementation-status note; ADR-012 §6): their
@@ -260,11 +260,12 @@ RFC 2119 vocabulary: `shall/should/may/must` (+ negations), recognized via
 | MSL-Q201 | `modal-soft-in-normative` | info | `should`/`may` in a `Requirement`-rooted entry where the profile expects `shall` — a hedge, not an obligation.                                                                | RFC 2119                                     |
 | MSL-Q202 | `modal-prohibited`        | warn | A modal tier disallowed by the active profile for this type (e.g. ISO 26262 forbids `should`/`may` in normative `Requirement`s). Profile-driven; inert with no profile.       | RFC 2119; profile-schema §4.3                |
 
-- **Not minted here:** "uppercase modal" (= `MSL-M060`, a `fmt` concern),
-  "requirement with no modal" (= `MSL-M061`). The `modal` group **cites** both
-  (§2.2). `modal-missing` is intentionally _not_ a `Q` code — it is `MSL-M061`
-  surfaced under the `modal` group label in `--format json` (§6) with
-  `code: "MSL-M061"`, so there is exactly one stable code per concept.
+- **Not minted here:** "uppercase modal" (= `MSL-M060`, a `fmt` concern; fires
+  under the default casing only), "requirement with no modal" (= `MSL-M061`).
+  The `modal` group **cites** both (§2.2). `modal-missing` is intentionally
+  _not_ a `Q` code — it is `MSL-M061` surfaced under the `modal` group label in
+  `--format json` (§6) with `code: "MSL-M061"`, so there is exactly one stable
+  code per concept.
 - **Trigger (MSL-Q200):**
   `When the pedal is pressed, the system shall
   apply pressure and shall log the event.`
@@ -718,7 +719,10 @@ Capped at seven (cross-cutting constraint).
    recommends **uppercase** `SHALL` (RFC 8174) against core-data-model §3.4.1 /
    `MSL-M060`'s **lowercase** canonical. Both must be corrected in the Stage-2
    user-docs. Does the `modal` group additionally need a profile "case policy =
-   upper|lower|either" that interacts with `fmt`?
+   upper|lower|either" that interacts with `fmt`? Answered by the profile
+   convention `modal-keywords.casing` (#1003): `rfc2119`/`iso` (lowercase),
+   `preserve` (either) and `rfc8174` (uppercase `shall`/`must`) change the `fmt`
+   output.
 
 4. **xref dependency gating.** `xref-glossary-undefined` and the
    `$Identifier`-consuming rules depend on the marker-pass resolver, which is
@@ -803,43 +807,43 @@ Capped at seven (cross-cutting constraint).
 
 ## Annex B — `MSL-Q` catalog index
 
-| Code     | Slug                                | Group  | Sev (core) | GtWR v4 / cites                    |
-| -------- | ----------------------------------- | ------ | ---------- | ---------------------------------- |
-| MSL-Q100 | `ears-no-pattern`                   | ears   | info       | EARS; R1                           |
-| MSL-Q101 | `ears-missing-actor`                | ears   | warn       | EARS; R2 / R3                      |
-| MSL-Q102 | `ears-negative-response`            | ears   | info       | EARS; R16 (rel. MSL-Q313)          |
-| MSL-Q103 | `ears-stacked-preconditions`        | ears   | warn       | EARS; R11 / R28                    |
-| MSL-Q104 | `ears-malformed-attempt`            | ears   | info       | EARS; R1                           |
-| MSL-Q200 | `modal-multiple`                    | modal  | warn       | R18 / R19                          |
-| MSL-Q201 | `modal-soft-in-normative`           | modal  | info       | RFC 2119                           |
-| MSL-Q202 | `modal-prohibited`                  | modal  | warn       | RFC 2119; profile-schema §4.3      |
-| —        | `modal-missing` (label only)        | modal  | (info)     | **MSL-M061** (core)                |
-| —        | `modal-uppercase` (label only)      | modal  | (warn)     | **MSL-M060** (core, `fmt`)         |
-| MSL-Q300 | `incose-r2-active-voice`            | incose | warn       | R2; aliased `struct-passive-voice` |
-| MSL-Q301 | `incose-r3-subject-verb`            | incose | info       | R3                                 |
-| MSL-Q302 | `incose-r7-vague-term`              | incose | warn       | R7                                 |
-| MSL-Q303 | `incose-r8-escape-clause`           | incose | warn       | R8                                 |
-| MSL-Q304 | `incose-r9-open-ended`              | incose | warn       | R9                                 |
-| MSL-Q305 | `incose-r10-superfluous-infinitive` | incose | info       | R10                                |
-| MSL-Q306 | `incose-r11-separate-clauses`       | incose | info       | R11; cf. R28                       |
-| MSL-Q307 | `incose-r18-single-thought`         | incose | warn       | R18; rel. MSL-Q200/Q402            |
-| MSL-Q308 | `incose-r19-combinator`             | incose | info       | R19; rel. MSL-Q307                 |
-| MSL-Q309 | `incose-r24-pronouns`               | incose | info       | R24                                |
-| MSL-Q310 | `incose-r26-absolute`               | incose | info       | R26                                |
-| MSL-Q311 | `incose-r27-explicit-conditions`    | incose | info       | R27                                |
-| MSL-Q312 | `incose-r33-range-of-values`        | incose | info       | R33; cf. R6 / R34                  |
-| MSL-Q313 | `incose-r16-not`                    | incose | info       | R16; rel. MSL-Q102                 |
-| MSL-Q400 | `struct-title-length`               | struct | info       | R18                                |
-| MSL-Q401 | `struct-body-length`                | struct | info       | R18                                |
-| MSL-Q402 | `struct-multiple-shall`             | struct | warn       | R18 / R19; de-dup vs MSL-Q200      |
-| —        | `struct-passive-voice`              | struct | (warn)     | **MSL-Q300** (alias, R2)           |
-| —        | `struct-identifier-unresolved`      | struct | (error)    | **MSL-M051** (core)                |
-| MSL-Q500 | `xref-glossary-undefined`           | xref   | warn       | R4 / R37; listing-directives §4    |
-| MSL-Q501 | `xref-prose-trace-mismatch`         | xref   | info       | R3 (weak); cites MSL-R080/R083     |
-| MSL-Q502 | `xref-term-inconsistent`            | xref   | info       | R36 / R38                          |
-| MSL-Q900 | `disable-without-rationale`         | —      | error      | —                                  |
-| MSL-Q901 | `disable-unknown-rule`              | —      | warn       | —                                  |
-| MSL-Q902 | `disable-unused`                    | —      | info       | —                                  |
+| Code     | Slug                                | Group  | Sev (core) | GtWR v4 / cites                            |
+| -------- | ----------------------------------- | ------ | ---------- | ------------------------------------------ |
+| MSL-Q100 | `ears-no-pattern`                   | ears   | info       | EARS; R1                                   |
+| MSL-Q101 | `ears-missing-actor`                | ears   | warn       | EARS; R2 / R3                              |
+| MSL-Q102 | `ears-negative-response`            | ears   | info       | EARS; R16 (rel. MSL-Q313)                  |
+| MSL-Q103 | `ears-stacked-preconditions`        | ears   | warn       | EARS; R11 / R28                            |
+| MSL-Q104 | `ears-malformed-attempt`            | ears   | info       | EARS; R1                                   |
+| MSL-Q200 | `modal-multiple`                    | modal  | warn       | R18 / R19                                  |
+| MSL-Q201 | `modal-soft-in-normative`           | modal  | info       | RFC 2119                                   |
+| MSL-Q202 | `modal-prohibited`                  | modal  | warn       | RFC 2119; profile-schema §4.3              |
+| —        | `modal-missing` (label only)        | modal  | (info)     | **MSL-M061** (core)                        |
+| —        | `modal-uppercase` (label only)      | modal  | (warn)     | **MSL-M060** (core, `fmt`, default casing) |
+| MSL-Q300 | `incose-r2-active-voice`            | incose | warn       | R2; aliased `struct-passive-voice`         |
+| MSL-Q301 | `incose-r3-subject-verb`            | incose | info       | R3                                         |
+| MSL-Q302 | `incose-r7-vague-term`              | incose | warn       | R7                                         |
+| MSL-Q303 | `incose-r8-escape-clause`           | incose | warn       | R8                                         |
+| MSL-Q304 | `incose-r9-open-ended`              | incose | warn       | R9                                         |
+| MSL-Q305 | `incose-r10-superfluous-infinitive` | incose | info       | R10                                        |
+| MSL-Q306 | `incose-r11-separate-clauses`       | incose | info       | R11; cf. R28                               |
+| MSL-Q307 | `incose-r18-single-thought`         | incose | warn       | R18; rel. MSL-Q200/Q402                    |
+| MSL-Q308 | `incose-r19-combinator`             | incose | info       | R19; rel. MSL-Q307                         |
+| MSL-Q309 | `incose-r24-pronouns`               | incose | info       | R24                                        |
+| MSL-Q310 | `incose-r26-absolute`               | incose | info       | R26                                        |
+| MSL-Q311 | `incose-r27-explicit-conditions`    | incose | info       | R27                                        |
+| MSL-Q312 | `incose-r33-range-of-values`        | incose | info       | R33; cf. R6 / R34                          |
+| MSL-Q313 | `incose-r16-not`                    | incose | info       | R16; rel. MSL-Q102                         |
+| MSL-Q400 | `struct-title-length`               | struct | info       | R18                                        |
+| MSL-Q401 | `struct-body-length`                | struct | info       | R18                                        |
+| MSL-Q402 | `struct-multiple-shall`             | struct | warn       | R18 / R19; de-dup vs MSL-Q200              |
+| —        | `struct-passive-voice`              | struct | (warn)     | **MSL-Q300** (alias, R2)                   |
+| —        | `struct-identifier-unresolved`      | struct | (error)    | **MSL-M051** (core)                        |
+| MSL-Q500 | `xref-glossary-undefined`           | xref   | warn       | R4 / R37; listing-directives §4            |
+| MSL-Q501 | `xref-prose-trace-mismatch`         | xref   | info       | R3 (weak); cites MSL-R080/R083             |
+| MSL-Q502 | `xref-term-inconsistent`            | xref   | info       | R36 / R38                                  |
+| MSL-Q900 | `disable-without-rationale`         | —      | error      | —                                          |
+| MSL-Q901 | `disable-unknown-rule`              | —      | warn       | —                                          |
+| MSL-Q902 | `disable-unused`                    | —      | info       | —                                          |
 
 ## Annex C — Source-citation convention & companion-guide reconciliation
 

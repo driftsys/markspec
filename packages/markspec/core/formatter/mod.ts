@@ -189,6 +189,21 @@ const CANONICAL_ORDER: readonly string[] = [
 ];
 
 /**
+ * How `fmt` treats keyword casing in entry bodies, from the profile's
+ * `modal-keywords.casing`: `"keep"` for `preserve` (no rewrite),
+ * `"rfc8174"` to uppercase `shall` and `must` (and a following `not`) and
+ * leave every other keyword as written, `"lower"` otherwise (the §3.4.1
+ * rule).
+ */
+function modalCasingMode(
+  conventions: EffectiveProfile["conventions"] | undefined,
+): "lower" | "keep" | "rfc8174" {
+  const casing = conventions?.get("modal-keywords")?.value.settings["casing"];
+  if (casing === "preserve") return "keep";
+  return casing === "rfc8174" ? "rfc8174" : "lower";
+}
+
+/**
  * Post-pass: route each entry's body through the canonical body-AST
  * (the load-bearing §5.2 emission path — SP3 Task 5 cutover).
  *
@@ -239,7 +254,8 @@ function emitBodyViaAst(
   cachedEntries: Entry[] | undefined,
   proseFormat: ProseFormatter | undefined,
   lineWidth: number = MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth,
-  preserveModalCasing = false,
+  // The result of `modalCasingMode(conventions)`.
+  modalCasing: "lower" | "keep" | "rfc8174" = "lower",
 ): boolean {
   // When the caller supplies pre-parsed entries whose line numbers are still
   // valid in `lines` (i.e., no line-count-changing operations occurred before
@@ -309,7 +325,7 @@ function emitBodyViaAst(
         undefined,
         proseFormat,
         lineWidth,
-        preserveModalCasing,
+        modalCasing,
       );
       for (const { token, original } of replacements) {
         const at = fragment.findIndex((line) => line.trim() === token);
@@ -366,8 +382,11 @@ function emitBodyViaAst(
     // emit; `render`+`build` is the inverse on canonical input for
     // every body shape under the equivalence gate.
     const ast0 = buildBodyAst(entry.body);
-    // `modal-keywords.casing: preserve` keeps the source keyword casing.
-    const canonical = preserveModalCasing ? ast0 : normalizeBodyAst(ast0);
+    // `modalCasingMode`: `preserve` keeps the source keyword casing;
+    // `rfc8174` only uppercases `shall` and `must`.
+    const canonical = modalCasing === "keep"
+      ? ast0
+      : normalizeBodyAst(ast0, modalCasing);
     const emittedBody = renderBodyAst(canonical);
 
     if (!astEquivalent(buildBodyAst(emittedBody), canonical)) {
@@ -518,7 +537,8 @@ export interface FormatOptions {
   /**
    * Effective profile conventions. `modal-keywords.casing: preserve` keeps
    * the source casing of modal and EARS keywords in entry bodies instead of
-   * the §3.4.1 canonical casing.
+   * the §3.4.1 canonical casing. `rfc8174` uppercases `shall` and `must`
+   * (and a following `not`) and keeps every other keyword as written.
    */
   readonly conventions?: EffectiveProfile["conventions"];
   /**
@@ -1126,8 +1146,7 @@ function formatEntries(
       changed ? undefined : entries,
       proseFormat,
       lineWidth,
-      options?.conventions?.get("modal-keywords")?.value.settings["casing"] ===
-        "preserve",
+      modalCasingMode(options?.conventions),
     )
   ) changed = true;
 

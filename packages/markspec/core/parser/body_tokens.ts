@@ -46,12 +46,16 @@ function classifyConvention(ident: string): EntityRefConvention {
 
 /** RFC 2119 modal verbs — matched case-insensitively as whole words.
  * Multi-word compounds (shall not, should not, must not) come first
- * so the leftmost-eager JS regex engine picks them before the bare verb. */
-const MODAL_RE =
+ * so the leftmost-eager JS regex engine picks them before the bare verb.
+ * The `g` flag makes the regex carry `lastIndex` state: set `lastIndex` to 0
+ * before an `exec` loop, or use `matchAll` or `replace`. Do not call `test`. */
+export const MODAL_RE =
   /\b(shall not|should not|must not|shall|should|may|must|will)\b/gi;
 
-/** EARS pattern triggers — capital-initial, whole word, case-sensitive. */
-const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
+/** EARS pattern triggers — capital-initial, whole word, case-sensitive. Carries
+ * `lastIndex` state like {@linkcode MODAL_RE}: set `lastIndex` to 0 before an
+ * `exec` loop, or use `matchAll` or `replace`. Do not call `test`. */
+export const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
 
 /** `$Identifier` entity reference (spec §2.5.2). */
 const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;

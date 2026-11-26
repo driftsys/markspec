@@ -11,6 +11,7 @@ import type { ParagraphNode } from "../../ast/nodes.ts";
 import type { LintDiagnostic } from "../types.ts";
 import type { GlossaryIndex } from "../glossary.ts";
 import { deriveTermSlug } from "../../parser/glossary.ts";
+import { KEYWORD_WORDS } from "../../util/modals.ts";
 import { offsetToRange } from "../range_util.ts";
 import { nonProseRanges } from "../../parser/code_regions.ts";
 import { collectDefinitions } from "../../ast/normalize.ts";
@@ -67,24 +68,12 @@ export function buildIsIdentifierHook(
   return (phrase) => index.has(phrase);
 }
 
-/** RFC 2119 modal verbs + EARS leading-clause keywords that must never
- * trigger Q500 mid-sentence. Sentence-initial exclusion is handled
- * separately by position; this set catches keyword uses elsewhere. */
-const PROTECTED_KEYWORDS: ReadonlySet<string> = new Set([
-  // RFC 2119 modal verbs
-  "Shall",
-  "Should",
-  "May",
-  "Must",
-  // EARS leading clauses (sometimes capitalized mid-sentence)
-  "When",
-  "While",
-  "Where",
-  "If",
-  "Then",
-  // Negation
-  "Not",
-]);
+/** Modal and EARS keywords never trigger Q500, in any casing: `Shall`,
+ * `SHALL` and `shall` are keywords, not undefined terms. The word list
+ * lives in `core/util/modals.ts`. */
+function isProtectedKeyword(word: string): boolean {
+  return KEYWORD_WORDS.has(word.toLowerCase());
+}
 
 /** Lowercase connector words that join adjacent Capitalized words into
  * a single multi-word phrase per ADR-021 Decision 2. The budget of
@@ -185,7 +174,7 @@ function scanPhrases(
     }
 
     // Skip RFC 2119 / EARS protected keywords.
-    if (PROTECTED_KEYWORDS.has(start.word)) {
+    if (isProtectedKeyword(start.word)) {
       i++;
       continue;
     }
@@ -204,7 +193,7 @@ function scanPhrases(
         // Protected keywords (RFC 2119 / EARS) must never be absorbed into
         // a phrase — even mid-extension. "Brake When System" must not emit
         // a single phrase "Brake When System".
-        if (PROTECTED_KEYWORDS.has(cur.word)) break;
+        if (isProtectedKeyword(cur.word)) break;
         // Consume the Capitalized word — extends the phrase.
         phraseWords.push(cur);
         j++;
@@ -230,6 +219,8 @@ function scanPhrases(
 
       // Is there a Capitalized word after the connector run?
       if (k < words.length && isCapitalized(words[k].word)) {
+        // A keyword after the connectors ends the phrase before them.
+        if (isProtectedKeyword(words[k].word)) break;
         // Would we exceed the connector budget?
         if (connectorBudget + pendingConnectors > MAX_CONNECTORS) {
           // Exceeds budget — stop the phrase here.

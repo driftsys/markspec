@@ -4,7 +4,9 @@
 
 Accepted (2026-07-02). Closes #649. Amended by #984: the line width and the line
 ending come from `.editorconfig`. Amended by #1010: an entry-body rewrite must
-also keep the body block kinds.
+also keep the body block kinds. Amended 2026-11-26 by #1003: the profile
+convention `modal-keywords.casing` changes modal keyword casing (see
+[Amendment 2026-11-26](#amendment-2026-11-26--modal-keyword-casing-from-the-profile)).
 
 ## Context
 
@@ -26,7 +28,8 @@ Style: `lineWidth` 80 by default (soft target — table rows, links/references,
 and inline code may exceed it and are never split), `textWrap` always, emphasis
 underscores, strong asterisks, dashes for lists. The line width and the line
 ending are the only two values a project can change, and only through
-`.editorconfig` (see below); every other value is fixed. dprint's
+`.editorconfig` (see below); every other value is fixed (amended 2026-11-26, see
+Amendment: a profile can also choose the modal keyword casing). dprint's
 `<!-- dprint-ignore -->` directives work as a per-block opt-out, but an
 ignore-start/end pair MUST NOT span an entry block (segments format
 independently).
@@ -122,6 +125,18 @@ Consequences:
 
 Idempotency (`format ∘ format === format`) is a tested hard requirement —
 MSL-F010 depends on it.
+
+## Amendment 2026-11-26 — modal keyword casing from the profile
+
+The statement above that the line width and the line ending are the only values
+a project can change no longer holds. The profile convention
+`modal-keywords.casing` also changes the output of `markspec fmt`: the default
+(and `rfc2119`, `iso`) lowercases `SHALL`, `SHOULD`, `MAY` and `MUST` and the
+mid-sentence EARS keywords `When`, `While`, `Where` and `Unless`, `preserve`
+keeps them as written, and `rfc8174` uppercases `shall` and `must`. The `check`
+fmt-drift gate (MSL-F010), LSP formatting and MarkDesk proposals apply the
+convention of the profile of their own project. The decision text above is
+otherwise unchanged. See `docs/spec/language/language.md` §9.1.
 
 ## Consequences
 

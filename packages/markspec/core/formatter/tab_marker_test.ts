@@ -320,6 +320,37 @@ Deno.test("tab marker: stamps a space-marker parent of a refused child", async (
   assertEquals(second.output, first.output);
 });
 
+for (
+  const [casing, parentWord, expected] of [
+    ["rfc8174", "shall", "SHALL"],
+    ["preserve", "SHALL", "SHALL"],
+  ] as const
+) {
+  Deno.test(`tab marker: ${casing} casing reaches the parent prose of a refused child`, async () => {
+    const child = "    -\t[REQ-002] Child\n\n      Body shall stay.\n\n\n";
+    const input =
+      `- [REQ-001] Parent\n\n  The parent ${parentWord}   do X.\n\n` + child +
+      "  The parent shall do Y.\n\n      Labels: READY\n";
+    const first = format(input, {
+      ...options,
+      formatMarkdownProse: await loadMarkdownFormatter(),
+      conventions: new Map([
+        ["modal-keywords", {
+          value: { name: "modal-keywords", settings: { casing } },
+          origin: "@test/casing",
+        }],
+      ]),
+    });
+    assertStringIncludes(first.output, `  The parent ${expected} do X.\n`);
+    // The child is kept byte for byte.
+    assertStringIncludes(first.output, child);
+    assertEquals(
+      first.output.includes("The parent SHALL do Y."),
+      casing === "rfc8174",
+    );
+  });
+}
+
 // Known main defect, issue #904: prose formatting dedents an unindexed
 // list item in isolation, changing the nesting of an adjacent entry. The
 // next run moves its Id or reformats the list again. Each excluded seed also

@@ -41,7 +41,8 @@ explicit.
    unless sentence-initial) directly on the AST. It is **called only from the
    formatter path**; the validate path never calls it and continues to see the
    un-normalized `Entry.bodyAst`. `MSL-M060` continues to fire on
-   uppercase/non-canonical modal keywords in the validate path.
+   uppercase/non-canonical modal keywords in the validate path. (2026-11-26: the
+   casing depends on `modal-keywords.casing`; see the ADR-029 amendment.)
 
 3. **The byte-identical guard in `emitBodyViaAst` is replaced by the
    `astEquivalent` guard, and `MSL-F900` is added.** The formatter's body

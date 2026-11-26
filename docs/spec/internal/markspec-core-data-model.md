@@ -477,7 +477,7 @@ content.
 
 Recognized verbatim words. RFC 2119 and EARS (ADR-005 §Part 2 “Modal keywords”):
 
-| Class    | Tokens (case-insensitive input; lowercase canonical)                    |
+| Class    | Tokens (case-insensitive input; lowercase canonical by default)         |
 | -------- | ----------------------------------------------------------------------- |
 | RFC 2119 | `shall`, `should`, `may`, `must`, `shall not`, `should not`, `must not` |
 | EARS     | `When`, `While`, `Where`, `If…then`, `Unless`, ubiquitous form          |
@@ -775,15 +775,19 @@ at the bottom of the trailers block in source order. The validator reports
 
 #### 3.4.1 Modal keywords
 
-Modal keywords (§2.5.1) are normalized to **lowercase** (ADR-005 §Part 2):
+Modal keywords (§2.5.1) are normalized to **lowercase** by default (ADR-005
+§Part 2). The profile convention `modal-keywords.casing` changes this: `rfc2119`
+and `iso` are aliases of the default, `preserve` keeps the source casing, and
+`rfc8174` uppercases `shall` and `must` (with a following `not`) and keeps the
+other keywords as written. The rest of this section describes the default:
 
 ```
 The driver SHALL debounce …    →    The driver shall debounce …
 ```
 
-Mixed-case combining `If…then` is normalized to lowercase `if…then`. The EARS
-keywords on a sentence-initial position retain CommonMark's natural
-capitalization (the sentence starts with a capital `W`/`I`/`U`); within a
+The formatter does not rewrite `If` or `Then`: the EARS keywords it normalizes
+are `When`, `While`, `Where` and `Unless`. These keep their capital when they
+start a sentence (the sentence starts with a capital `W` or `U`); within a
 sentence they normalize to lowercase. The rule is mechanical: lowercase unless
 the token is the first word of a sentence.
 
@@ -838,8 +842,13 @@ the colon-on-next-line variant is canonical for multi-paragraph definitions).
 These follow `prim` formatting for the surrounding Markdown (AGENTS.md “Code
 style”). `markspec fmt` does **not** override CommonMark formatting for these
 blocks — it delegates. The exception is the inline-marker normalization in
-§3.4.1 / §3.4.2 which runs inside Paragraph / List / Table-cell / Note /
-Blockquote / DefinitionList content.
+§3.4.1 / §3.4.2 which runs inside Paragraph / List / Note / Blockquote /
+DefinitionList content, and in Table cells. A table is emitted from its raw
+text, so the casing rule rewrites the raw text one cell at a time and the parsed
+cells are read back from it (#1015). This holds for every casing value: the
+default casing lowercases `SHALL` in a cell, `rfc8174` uppercases `shall` and
+`must` (and a following `not` in the same cell), and `preserve` keeps the cell
+as written.
 
 ### 3.5 Id assignment for new Authored entries
 
@@ -868,7 +877,7 @@ URI.
 | Multi-line canonical for repeatable values    | CSV canonical                            | CSV breaks for `citation` (locators may contain commas) and for any future value type that admits commas. Multi-line is grep-friendly and diff-friendly. ADR-002 §Part 1 “Repeatable attributes”.                                                          |
 | Keep source order for repeatable values       | Alphabetical canonical                   | Authors often have intentional ordering (priority of `Derived-from` parents, primary `Provides` interface first). Alphabetizing destroys that signal.                                                                                                      |
 | Fixed cross-key ordering in trailers (§3.3.2) | Preserve author order                    | Diff noise when two authors reorder identically-keyed trailers. The fixed order is the single canonical form mandated by the determinism contract (§3.1).                                                                                                  |
-| Lowercase modal-keyword canonical             | Uppercase `SHALL`                        | Uppercase RFC 2119 is loud and breaks sentence flow when used inside prose. Tools (lint, rendering) detect the words by lookup, not by case. ADR-005 §Part 2 picks lowercase.                                                                              |
+| Lowercase modal-keyword canonical (default)   | Uppercase `SHALL`                        | Uppercase RFC 2119 is loud and breaks sentence flow when used inside prose. Tools (lint, rendering) detect the words by lookup, not by case. ADR-005 §Part 2 picks lowercase. A profile can choose `modal-keywords.casing: rfc8174` or `preserve` instead. |
 | Case-significant `$Identifier`                | Case-folded identifiers                  | The three case conventions carry semantics (type / instance / constant) — folding would erase the signal. ADR-005 §Part 2 “Entity references”.                                                                                                             |
 | Drop leading `@` on title lines               | Keep `@` in both title and inline        | Inline `[@key]` is a Pandoc citation in prose; on the title line it is the **declaration** of the slug. Keeping `@` both places conflates declaration with use. ADR-002 §Part 3 “Pandoc compatibility”.                                                    |
 | No deletion of unknown trailers               | Strip unrecognized keys                  | A formatter must be **lossless** for keys it does not own. Stripping would destroy profile-declared attributes when running without the profile loaded.                                                                                                    |
@@ -969,18 +978,20 @@ invariants).
 
 ### 4.6 Markers (M)
 
-| Code       | Severity | Meaning                                                                                                                                                   |
-| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-M050` | warning  | `$Identifier` case convention does not match resolved entity kind (PascalCase ↔ type, camelCase ↔ instance, SCREAMING_SNAKE ↔ constant). ADR-005 §Part 2. |
-| `MSL-M051` | error    | `$Identifier` does not resolve to any known entity. ADR-005 §Part 2 “Validation”.                                                                         |
-| `MSL-M060` | warning  | Modal keyword appears in uppercase (`SHALL`). `fmt` normalizes it in prose; see §3.4.1 for the places where it keeps the case.                            |
-| `MSL-M061` | info     | Requirement-type entry contains no modal keyword. Style hint; profile may promote.                                                                        |
+| Code       | Severity | Meaning                                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-M050` | warning  | `$Identifier` case convention does not match resolved entity kind (PascalCase ↔ type, camelCase ↔ instance, SCREAMING_SNAKE ↔ constant). ADR-005 §Part 2.                                                                                                                                                                                                            |
+| `MSL-M051` | error    | `$Identifier` does not resolve to any known entity. ADR-005 §Part 2 “Validation”.                                                                                                                                                                                                                                                                                    |
+| `MSL-M060` | warning  | Modal keyword appears in uppercase (`SHALL`). Under the default casing, `fmt` lowercases it in prose; see §3.4.1 for the places where it keeps the case. Not emitted under `preserve` or `rfc8174`.                                                                                                                                                                  |
+| `MSL-M061` | info     | Requirement-type entry contains no modal keyword. Style hint; profile may promote.                                                                                                                                                                                                                                                                                   |
+| `MSL-M062` | info     | Under `modal-keywords.casing: rfc8174`, a modal keyword in an entry of type `Requirement` (or a profile type extending it) is lowercase (`shall`). Only uppercase keywords are normative there. Also reported for `may`, `should`, `will`; `fmt` uppercases only `shall` and `must`, so those stay until the author uppercases them or leaves them as plain English. |
 
-> **Implementation status (`main`).** `MSL-M060`/`MSL-M061` are implemented.
-> `MSL-M050`/`MSL-M051` are **deferred-by-dependency**: their resolution chain
-> ("ADR-005 §Part 2") is normative per the nextgen content-model ADR, which is
-> **not landed on `main`** — no in-project entity-resolution model is specified
-> here, so they cannot be implemented without inventing one. See
+> **Implementation status (`main`).** `MSL-M060`/`MSL-M061`/`MSL-M062` are
+> implemented. `MSL-M050`/`MSL-M051` are **deferred-by-dependency**: their
+> resolution chain ("ADR-005 §Part 2") is normative per the nextgen
+> content-model ADR, which is **not landed on `main`** — no in-project
+> entity-resolution model is specified here, so they cannot be implemented
+> without inventing one. See
 > [ADR-014](../architecture/adr-014-canonical-body-ast.md) (and
 > [ADR-012](../architecture/adr-012-diagnostic-code-scheme.md) §6). `MSL-B044`
 > (§4.5) and `MSL-C072` (§4.7) are implemented on the body-AST.
@@ -1015,7 +1026,7 @@ are not errors against the data model; they are reports.
 | `MSL-F100` | info     | Trailer key would be re-cased.                                  |
 | `MSL-F101` | info     | Trailer order would change.                                     |
 | `MSL-F102` | info     | Repeatable attribute would be rewritten from CSV to multi-line. |
-| `MSL-F103` | info     | Modal keyword would be lowercased.                              |
+| `MSL-F103` | info     | Modal keyword casing would change (`modal-keywords.casing`).    |
 | `MSL-F104` | info     | `[@…]` would be stripped to `[…]` on title line.                |
 | `MSL-F105` | info     | Multiple blank lines would collapse.                            |
 | `MSL-F106` | info     | `Id:` would be assigned (Authored shape only).                  |
@@ -1073,7 +1084,7 @@ implementation must uphold.
 - Trailer key ordering across keys (§3.3.2).
 - Repeatable-attribute form (CSV → multi-line, §3.3.3).
 - Trailer block column (start at column 7 inside `-` list item, §3.3.1).
-- Modal keyword case (→ lowercase except sentence-initial, §3.4.1).
+- Modal keyword case (depends on `modal-keywords.casing`, §3.4.1).
 - Caption keyword case (→ TitleCase, §3.4.3).
 - Blank-line runs inside the body (collapsed to one, §3.4.3).
 - `Id:` of an Authored entry that had no `Id:` (newly assigned, §3.5).

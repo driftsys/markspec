@@ -10,7 +10,13 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { BodyToken, Entry } from "../model/mod.ts";
+import type {
+  BodyToken,
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  ProvenancedMapEntry,
+} from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { validateModalKeywords } from "./modal_keywords.ts";
@@ -286,4 +292,296 @@ Deno.test("MSL-M060: no warning for keywords that fmt keeps (#1017)", async () =
     d.code === "MSL-M060"
   );
   assertEquals(m060, []);
+});
+
+// ---------------------------------------------------------------------------
+// MSL-M062 — lowercase modal keyword under `casing: rfc8174`
+// ---------------------------------------------------------------------------
+
+function casingConventions(casing: string) {
+  return new Map([
+    ["modal-keywords", {
+      value: { name: "modal-keywords", settings: { casing } },
+      origin: "@test/rfc8174",
+    }],
+  ]);
+}
+
+function modalToken(text: string, kind: "upper" | "lower"): BodyToken {
+  return {
+    kind: "modal",
+    text,
+    case: kind,
+    location: { file: "test.md", line: 11, column: 12 },
+  };
+}
+
+Deno.test("validateModalKeywords: rfc8174 emits no MSL-M060 for uppercase", () => {
+  const entry = makeEntry(
+    "REQ-001",
+    "The system SHALL act.",
+    "Requirement",
+    [modalToken("SHALL", "upper")],
+  );
+  const diags = validateModalKeywords(entry, casingConventions("rfc8174"));
+  assertEquals(diags.length, 0);
+});
+
+Deno.test("validateModalKeywords: rfc8174 emits MSL-M062 (info) for lowercase in a Requirement", () => {
+  const entry = makeEntry(
+    "REQ-001",
+    "The system shall act.",
+    "Requirement",
+    [modalToken("shall", "lower")],
+  );
+  const diags = validateModalKeywords(entry, casingConventions("rfc8174"));
+  assertEquals(diags.map((d) => d.code), ["MSL-M062"]);
+  assertEquals(diags[0].severity, "info");
+  assertEquals(
+    diags[0].message,
+    "modal keyword 'shall' is lowercase; under RFC 8174 only uppercase " +
+      "keywords are normative",
+  );
+  assertEquals(diags[0].location, { file: "test.md", line: 11, column: 12 });
+});
+
+Deno.test("validateModalKeywords: rfc8174 emits no MSL-M062 outside a Requirement", () => {
+  const entry = makeEntry(
+    "TST-001",
+    "The tester may retry.",
+    "Test",
+    [modalToken("may", "lower")],
+  );
+  assertEquals(
+    validateModalKeywords(entry, casingConventions("rfc8174")).length,
+    0,
+  );
+});
+
+Deno.test("validateModalKeywords: MSL-M062 only under rfc8174", () => {
+  const entry = makeEntry(
+    "REQ-001",
+    "The system shall act.",
+    "Requirement",
+    [modalToken("shall", "lower")],
+  );
+  for (const casing of ["preserve", "iso", "rfc2119"]) {
+    assertEquals(
+      validateModalKeywords(entry, casingConventions(casing)).length,
+      0,
+      casing,
+    );
+  }
+  assertEquals(validateModalKeywords(entry).length, 0);
+});
+
+Deno.test("validateModalKeywords: rfc8174 keeps MSL-M061 for a Requirement without a modal", () => {
+  const entry = makeEntry("REQ-002", "No obligation verb.", "Requirement");
+  assertEquals(
+    validateModalKeywords(entry, casingConventions("rfc8174")).map((d) =>
+      d.code
+    ),
+    ["MSL-M061"],
+  );
+});
+
+// MSL-M062 for profile types (classification needs the profile).
+
+function profileType(
+  name: string,
+  extendsType: string,
+  displayIdPattern: string,
+): ProvenancedMapEntry<EffectiveTypeDef> {
+  const origin = "@test/profile";
+  return {
+    value: {
+      name,
+      extends: extendsType,
+      displayIdPattern: { value: displayIdPattern, origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+    origin,
+  };
+}
+
+function rfc8174Profile(): EffectiveProfile {
+  const types = new Map([
+    [
+      "stakeholder-requirement",
+      profileType(
+        "stakeholder-requirement",
+        "Requirement",
+        "STK_{n:04d}",
+      ),
+    ],
+    ["design-record", profileType("design-record", "Record", "DRC_{n:04d}")],
+  ]);
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    colors: new Map(),
+    conventions: casingConventions("rfc8174"),
+    types,
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  } as EffectiveProfile;
+}
+
+function m062Codes(entry: Entry): string[] {
+  const profile = rfc8174Profile();
+  return validateModalKeywords(entry, profile.conventions, profile)
+    .map((d) => d.code);
+}
+
+Deno.test("validateModalKeywords: M062 fires for a profile Requirement subtype with explicit Type", () => {
+  const base = makeEntry(
+    "STK_0001",
+    "The system shall act.",
+    undefined,
+    [modalToken("shall", "lower")],
+  );
+  const entry: Entry = {
+    ...base,
+    rawAttributes: [{ key: "Type", value: "stakeholder-requirement" }],
+  };
+  assertEquals(m062Codes(entry), ["MSL-M062"]);
+});
+
+Deno.test("validateModalKeywords: M062 fires when only the profile display-ID pattern classifies", () => {
+  const entry = makeEntry(
+    "STK_0001",
+    "The system shall act.",
+    undefined,
+    [modalToken("shall", "lower")],
+  );
+  assertEquals(m062Codes(entry), ["MSL-M062"]);
+});
+
+Deno.test("validateModalKeywords: no M062 for a profile type that is not a Requirement", () => {
+  const entry = makeEntry(
+    "DRC_0001",
+    "The team may revisit this.",
+    undefined,
+    [modalToken("may", "lower")],
+  );
+  assertEquals(m062Codes(entry), []);
+});
+
+Deno.test("validateModalKeywords: M062 fires once per lowercase token", () => {
+  const entry = makeEntry(
+    "STK_0001",
+    "The system shall act and may retry; it MUST log.",
+    undefined,
+    [
+      modalToken("shall", "lower"),
+      modalToken("may", "lower"),
+      modalToken("MUST", "upper"),
+    ],
+  );
+  assertEquals(m062Codes(entry), ["MSL-M062", "MSL-M062"]);
+});
+
+Deno.test("validateModalKeywords: M061 scope is unchanged by the profile", () => {
+  // A profile Requirement subtype with no modal keyword: M061 stays core-only.
+  const entry = makeEntry("STK_0002", "No obligation verb.", undefined);
+  assertEquals(m062Codes(entry), []);
+});
+
+Deno.test("validateModalKeywords: a classified entry.type that extends Requirement counts for MSL-M062", () => {
+  // The display ID matches no pattern, so only `entry.type` (set by an
+  // earlier classification) makes this a Requirement.
+  const entry = makeEntry(
+    "ZZZ_0001",
+    "The system shall act.",
+    "stakeholder-requirement",
+    [modalToken("shall", "lower")],
+  );
+  assertEquals(m062Codes(entry), ["MSL-M062"]);
+  const other = makeEntry(
+    "ZZZ_0002",
+    "The system shall act.",
+    "design-record",
+    [modalToken("shall", "lower")],
+  );
+  assertEquals(m062Codes(other), []);
+});
+
+Deno.test("validateModalKeywords: a compound `shall not` gives exactly one MSL-M062", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const doc =
+    "- [STK_0001] Probe\n\n  The system shall not fail.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  assertEquals(m062Codes(entries[0]), ["MSL-M062"]);
+});
+
+// The body tokens leave out keywords that fmt keeps (#1017), so MSL-M062
+// does not report them; the lowercase `shall` in the prose still counts.
+Deno.test("validateModalKeywords: MSL-M062 does not report a keyword inside inline code", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const doc =
+    "- [STK_0001] Probe\n\n  The system shall write `shall` in code.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const m062 = validateModalKeywords(
+    entries[0],
+    rfc8174Profile().conventions,
+    rfc8174Profile(),
+  ).filter((d) => d.code === "MSL-M062");
+  assertEquals(m062.map((d) => d.location?.column), [14]);
+});
+
+for (
+  const [name, prose] of [
+    ["a link URL", "See [the page](https://example.com/shall) here."],
+    ["a link title", 'See [the page](https://example.com "shall") here.'],
+    ["an autolink", "See <https://example.com/shall> here."],
+    ["an image", "See ![a shall picture](https://example.com/a.png) here."],
+  ] as const
+) {
+  Deno.test(`validateModalKeywords: MSL-M062 does not report a keyword inside ${name}`, async () => {
+    const { parseFile } = await import("../mod.ts");
+    const doc =
+      `- [STK_0001] Probe\n\n  ${prose}\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n`;
+    const { entries } = await parseFile(doc, { file: "t.md" });
+    assertEquals(m062Codes(entries[0]), []);
+  });
+}
+
+Deno.test("validateModalKeywords: MSL-M062 fires for the built-in REQ prefix without Type", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const doc =
+    "- [REQ-001] Probe\n\n  The system shall act.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  assertEquals(entries[0].rawAttributes.some((a) => a.key === "Type"), false);
+  assertEquals(m062Codes(entries[0]), ["MSL-M062"]);
+});
+
+Deno.test("validateModalKeywords: MSL-M062 fires for a `.feature` Feature entry", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const text = [
+    "# [ZZZ_0001] Probe",
+    "Feature: F",
+    "  The system shall stop.",
+    "",
+    "  Scenario: S",
+    "    Then a",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "t.feature" });
+  assertEquals(m062Codes(entries[0]), ["MSL-M062"]);
 });

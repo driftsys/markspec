@@ -84,3 +84,29 @@ for (const newline of ["\n", "\r\n"]) {
     }]);
   });
 }
+
+// The formatter path: the body AST passes each paragraph to the casing
+// helper alone.
+Deno.test("normalizeBodyAst: rfc8174 keeps a `not` that starts a paragraph", () => {
+  const rfc = (s: string) =>
+    render(normalizeBodyAst(buildBodyAst(s), "rfc8174"));
+  // Regression: a `not` with no keyword before it, at the start of a block.
+  assertEquals(
+    rfc("Not all inputs are valid."),
+    "Not all inputs are valid.",
+  );
+  assertEquals(
+    rfc("> # It must\n> not fail."),
+    "> # It MUST\n> not fail.",
+  );
+  assertEquals(
+    rfc("> [!NOTE]\n> # It must\n> not fail."),
+    "> [!NOTE]\n> # It MUST\n> not fail.",
+  );
+  assertEquals(
+    rfc("> It must\n> not fail\n> ==="),
+    "> It MUST\n> NOT fail\n> ===",
+  );
+  assertEquals(rfc("It must\n\nnot fail."), "It MUST\n\nnot fail.");
+  assertEquals(rfc("It must\n    not fail."), "It MUST\n    NOT fail.");
+});
