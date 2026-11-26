@@ -92,8 +92,9 @@ only this vocabulary.
 
 Direction is declared per system (and optionally per attribute) in the mapping
 file. Inbound entries carry `Origin: synthesized`-class provenance
-(core-data-model §1 / ADR-003 §Part 4) so `fmt`/`compile` know they are
-externally owned.
+(core-data-model §1 / ADR-003 §Part 4) so `compile` and the sync tooling know
+they are externally owned. `fmt` does not use this provenance: it formats an
+externally owned entry like any other entry (§11.3).
 
 ## 3. Mapping file schema — `.markspec/sync/<system>.yaml`
 
@@ -269,8 +270,16 @@ reads back). Violations → `MSL-S020`.
    `local-wins` / `remote-wins`. Per-direction sensible defaults. Revisit
    post-1.0.
 3. **Inbound entries + `fmt`: no special-casing.** `fmt` is non-reordering;
-   inbound entries get the same indentation/backslash treatment as Authored
-   entries. Sync pull rewrites idempotently anyway.
+   inbound entries get the same treatment as Authored entries, including the
+   whole-document Markdown pass (ADR-029). `fmt` has one canonical form and does
+   not keep the native spelling of imported content, such as code span padding.
+   Round-trip fidelity is a connector concern (§1): to detect an unchanged
+   entry, the connector compares the external value and the body in the
+   canonical form, for example by formatting the converted native value with
+   `fmt` before the comparison. It does not compare against the spelling of the
+   import. Sync pull rewrites idempotently anyway. A profile can keep modal
+   keyword casing as written with `modal-keywords.casing: preserve`; that is a
+   profile convention for all entries, not a sync exception (#992).
 4. **Log retention: tooling concern.** No `retention:` field in mapping schema;
    rely on logrotate / journald / cron. Revisit post-1.0.
 5. **Multi-system binding: at most one local writer per attribute.** Rejected at
