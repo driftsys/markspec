@@ -101,6 +101,19 @@ function renderListItem(
       // with the first character after the bullet (`- ` = 2 chars).
       extraLines = textLines.slice(1).map((l) => (l ? `  ${l}` : ""));
     }
+  } else if (
+    firstBlock.kind === "unknown" && /^\S/.test(renderBlock(firstBlock))
+  ) {
+    // An unknown block (e.g. a link reference definition) starts on the
+    // marker line, as in source. On the line after a bare marker, a fixed
+    // 2-space indent is below the content column of `1.` (3), so the block
+    // leaves the item, and a bare nested `-` under a paragraph reads as a
+    // setext underline (#1026). Continuation lines align to the content
+    // column.
+    const pad = " ".repeat(`${bullet} ${checkbox}`.length);
+    const [head, ...tail] = renderBlock(firstBlock).split("\n");
+    firstLine = `${bullet} ${checkbox}${head}`;
+    extraLines = tail.map((l) => (l ? `${pad}${l}` : ""));
   } else {
     // Block content that isn't a paragraph: render on its own line(s),
     // indented by 2 spaces.

@@ -1449,6 +1449,22 @@ for (
       "See [SHALL].\n\n- [SHALL]: http://x.example/",
       "See [SHALL].",
     ],
+    // An unknown first block stays on the marker line (#1026).
+    [
+      "a label defined in an ordered list item",
+      "See [SHALL].\n\n1. [SHALL]: http://x.example/",
+      "  1. [SHALL]: http://x.example/",
+    ],
+    [
+      "a label defined in a tight nested list item",
+      "See [SHALL].\n\n- a\n  - [SHALL]: http://x.example/",
+      "  - a\n    - [SHALL]: http://x.example/",
+    ],
+    [
+      "a lowercase label defined in an ordered list item",
+      "See [x].\n\n1. [x]: http://x.example/",
+      "  1. [x]: http://x.example/",
+    ],
     [
       "a label defined in a list in a blockquote",
       "See [SHALL].\n\n> - [SHALL]: http://x.example/",
