@@ -5,12 +5,13 @@
  * up to the root, producing a multi-tier {@linkcode ProfileChain} ordered
  * root → leaf.
  *
- * Supports both local and git specifiers, with cycle + depth detection. Git
+ * Supports local, git and npm specifiers, with cycle + depth detection. Git
  * specifiers route through {@linkcode resolveGitSpecifier} (per-project
- * shallow+sparse clone cache); local specifiers route through
- * {@linkcode resolveLocalSpecifier}. A local `extends:` in the manifest of a
- * git tier is the exception: it becomes a git specifier for the same
- * repository and tag (#1002), and routes through
+ * shallow+sparse clone cache); npm specifiers route through
+ * `resolveNpmSpecifier` (unpacked-package cache); local specifiers route
+ * through {@linkcode resolveLocalSpecifier}. A local `extends:` in the
+ * manifest of a git tier is the exception: it becomes a git specifier for
+ * the same repository and tag (#1002), and routes through
  * {@linkcode resolveGitSpecifier}. A local `extends:` in the manifest of an
  * npm tier, or of a local tier loaded from inside an npm package, resolves
  * inside the unpacked package; a path that leaves the package root is
@@ -293,7 +294,17 @@ function gitSiblingSpecifier(
   };
 }
 
-/** `true` when the absolute path `target` lies outside `root`. */
+/**
+ * `true` when the absolute path `target` lies outside `root`. `relative`
+ * returns `..` for the parent of `root` itself, and a path that starts with
+ * `../` (POSIX) or `..\` (Windows) for any other path outside `root`. The
+ * npm escape tests in `chain_test.ts` reach these clauses; on the Windows CI
+ * runner they reach the `..\` clause. On Windows, `relative` returns an
+ * absolute path when `target` has another root (another drive, or another
+ * UNC server or share). A local specifier must start with `./` or `../`, so
+ * it cannot reach another root, and that clause is a defensive check that
+ * no test reaches.
+ */
 function leavesDirectory(root: string, target: string): boolean {
   const rel = relative(root, target);
   return rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") ||
