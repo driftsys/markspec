@@ -321,3 +321,17 @@ Deno.test("buildIdentifierIndex: ignores non-entity-ref body tokens", () => {
   assertEquals(index.has("shall"), false);
   assertEquals(index.has("When"), false);
 });
+
+Deno.test("Q500: does not read link destinations, titles or images as terms (#1017)", () => {
+  const entry = makeEntry(
+    'See [the rule](http://a.example/p "MAY") and ![SHALL](img/SHALL.png).',
+  );
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.map((d) => d.message), []);
+});
+
+Deno.test("Q500: still fires on a term in link text (#1017)", () => {
+  const entry = makeEntry("See [the BrakeController](http://a.example/p).");
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.length, 1);
+});

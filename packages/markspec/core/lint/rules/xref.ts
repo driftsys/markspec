@@ -12,6 +12,7 @@ import type { LintDiagnostic } from "../types.ts";
 import type { GlossaryIndex } from "../glossary.ts";
 import { deriveTermSlug } from "../../parser/glossary.ts";
 import { offsetToRange } from "../range_util.ts";
+import { nonProseRanges } from "../../parser/code_regions.ts";
 
 /** Hook signature for the $Identifier registry leg. Returns true when
  * the token is a resolvable $Identifier (i.e. should be skipped by
@@ -274,6 +275,23 @@ function scanPhrases(
   return phrases;
 }
 
+/** Replace every character of the non-prose ranges of `text` with a
+ * space, keeping all offsets. */
+function maskNonProse(text: string): string {
+  const ranges = nonProseRanges(text);
+  if (ranges.length === 0) return text;
+  // Offsets are UTF-16 code units; index the string, not code points.
+  let out = "";
+  let pos = 0;
+  for (const { start, end } of ranges) {
+    if (end <= pos) continue;
+    const from = Math.max(start, pos);
+    out += text.slice(pos, from) + " ".repeat(end - from);
+    pos = end;
+  }
+  return out + text.slice(pos);
+}
+
 /** Public entry point: run Q500 against an entry's paragraph bodies. */
 export function runXrefRules(
   entry: Entry,
@@ -286,7 +304,9 @@ export function runXrefRules(
   for (const block of blocks) {
     if (block.kind !== "paragraph") continue;
     const p = block as ParagraphNode;
-    const text = p.content.text;
+    // Inline code and link syntax (destinations, titles, images, ...) are
+    // not prose: blank them with spaces so offsets stay the same (#1017).
+    const text = maskNonProse(p.content.text);
 
     // Compute sentence-initial offsets using a simple heuristic:
     // offset 0 is always sentence-initial; after a sentence terminator

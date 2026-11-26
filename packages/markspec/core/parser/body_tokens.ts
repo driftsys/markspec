@@ -3,7 +3,8 @@
  *
  * Inline-construct token extraction (ADR-016). Scans entry body prose for
  * the six BodyTokenKind variants, skipping verbatim regions (code, math,
- * inline-code spans). Inside ` ```feature ` / ` ```gherkin ` fences the
+ * inline-code spans). The modal and EARS scans also skip link
+ * destinations, titles and labels, autolinks and images (#1017). Inside ` ```feature ` / ` ```gherkin ` fences the
  * modal/EARS/entity-ref scanners are suppressed and the gherkin
  * section/step tokens come from the normalized Gherkin AST instead.
  *
@@ -19,6 +20,7 @@ import type {
 } from "../model/mod.ts";
 import type { BodyBlock, SourceRange } from "../ast/nodes.ts";
 import { processor } from "./remark.ts";
+import { nonProseRanges } from "./code_regions.ts";
 import type { Root, RootContent } from "mdast";
 
 /**
@@ -214,14 +216,24 @@ export function extractBodyTokens(
 ): readonly BodyToken[] {
   const tokens: BodyToken[] = [];
   const verbatimLines = collectVerbatimLines(bodyAst);
+  const tree = mdastTree ?? processor.parse(body) as Root;
+  // Inline code and verbatim inline syntax (link destinations, titles,
+  // images, autolinks, ...): the ranges the fmt casing pass keeps (#1017).
+  const skipRanges = nonProseRanges(body, tree);
+  const inSkipRange = (offset: number): boolean =>
+    skipRanges.some((r) => offset >= r.start && offset < r.end);
   const lines = body.split("\n");
+  let lineStart = 0;
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
+    const lineOffset = lineStart;
+    lineStart += line.length + 1;
     const lineNo = baseLocation.line + li;
     if (verbatimLines.has(li + 1)) continue;
     MODAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = MODAL_RE.exec(line)) !== null) {
+      if (inSkipRange(lineOffset + m.index)) continue;
       const text = m[1];
       tokens.push({
         kind: "modal",
@@ -237,6 +249,7 @@ export function extractBodyTokens(
 
     EARS_RE.lastIndex = 0;
     while ((m = EARS_RE.exec(line)) !== null) {
+      if (inSkipRange(lineOffset + m.index)) continue;
       const text = m[1] as "When" | "While" | "If" | "Where" | "Then";
       tokens.push({
         kind: "ears-trigger",
@@ -272,7 +285,6 @@ export function extractBodyTokens(
   }
 
   emitGherkin(bodyAst, tokens, baseLocation, columnOffset);
-  const tree = mdastTree ?? processor.parse(body) as Root;
   emitInlineCode(tree, tokens, baseLocation, columnOffset);
 
   tokens.sort((a, b) =>

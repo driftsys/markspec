@@ -328,3 +328,48 @@ Deno.test("gherkin tokens: Scenario Outline and Examples sections", () => {
     ],
   );
 });
+
+// #1017: modal and EARS tokens are not emitted inside the ranges that the
+// fmt casing pass keeps (inline code and verbatim inline link syntax).
+
+function modalAndEars(body: string): string[] {
+  return tokensOf(body)
+    .filter((t) => t.kind === "modal" || t.kind === "ears-trigger")
+    .map((t) => `${t.kind}:${t.text}`);
+}
+
+Deno.test("modal: no token inside inline code (#1017)", () => {
+  assertEquals(modalAndEars("The system shall use `SHALL` here."), [
+    "modal:shall",
+  ]);
+});
+
+Deno.test("modal: no token inside a link URL or title; link text counts (#1017)", () => {
+  assertEquals(
+    modalAndEars('Follow [shall](http://x.example/SHALL "MAY") now.'),
+    ["modal:shall"],
+  );
+});
+
+Deno.test("modal: no token inside an image or autolink (#1017)", () => {
+  assertEquals(
+    modalAndEars("See ![SHALL](img/SHALL.png) and <http://x.example/must>."),
+    [],
+  );
+});
+
+Deno.test("ears-trigger: no token inside inline code or a link URL (#1017)", () => {
+  assertEquals(
+    modalAndEars("Use `When` and [x](http://x.example/If)."),
+    [],
+  );
+});
+
+Deno.test("modal: token on a later line keeps its column with ranges before it (#1017)", () => {
+  const tokens = tokensOf("Use `SHALL` here.\nThe system shall run.").filter(
+    (t) => t.kind === "modal",
+  );
+  assertEquals(tokens.length, 1);
+  assertEquals(tokens[0].location.line, 2);
+  assertEquals(tokens[0].location.column, 12);
+});

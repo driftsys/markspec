@@ -97,6 +97,22 @@ export function parseCodeRegions(
 }
 
 /**
+ * Sorted half-open source offsets of text that is not prose: inline code
+ * (with its delimiters) and the verbatim inline syntax of
+ * {@linkcode CodeRegions.verbatimInline}. The `fmt` modal casing pass keeps
+ * these ranges unchanged, and the body-token scanner and the MSL-Q500 rule
+ * skip them, so all three use this one definition (#1017).
+ */
+export function nonProseRanges(
+  markdown: string,
+  tree?: Root,
+): { start: number; end: number }[] {
+  const regions = parseCodeRegions(markdown, tree);
+  return [...regions.inlineCode, ...regions.verbatimInline]
+    .sort((a, b) => a.start - b.start);
+}
+
+/**
  * For a `[text](url)` or `[text][label]` link, push the source around its
  * visible text (the destination, title or label) to `out` and return `true`.
  * Return `false` when the visible text is not prose: an autolink (`<url>` or
