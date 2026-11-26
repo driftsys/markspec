@@ -76,7 +76,7 @@ const CONTAINER_MARKERS_RE =
  * definitions are joined by blank lines, so a link definition after a
  * footnote definition is not read as the footnote's continuation text.
  */
-function collectDefinitions(blocks: readonly BodyBlock[]): string {
+export function collectDefinitions(blocks: readonly BodyBlock[]): string {
   const found: string[] = [];
   const walk = (list: readonly BodyBlock[]): void => {
     for (const b of list) {

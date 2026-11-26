@@ -328,3 +328,100 @@ Deno.test("gherkin tokens: Scenario Outline and Examples sections", () => {
     ],
   );
 });
+
+// #1017: modal and EARS tokens are not emitted inside the ranges that the
+// fmt casing pass keeps (inline code and verbatim inline link syntax).
+
+function modalAndEars(body: string): string[] {
+  return tokensOf(body)
+    .filter((t) => t.kind === "modal" || t.kind === "ears-trigger")
+    .map((t) => `${t.kind}:${t.text}`);
+}
+
+Deno.test("modal: no token inside inline code (#1017)", () => {
+  assertEquals(modalAndEars("The system shall use `SHALL` here."), [
+    "modal:shall",
+  ]);
+});
+
+Deno.test("modal: no token inside a link URL or title; link text counts (#1017)", () => {
+  assertEquals(
+    modalAndEars('Follow [shall](http://x.example/SHALL "MAY") now.'),
+    ["modal:shall"],
+  );
+});
+
+Deno.test("modal: no token inside an image or autolink (#1017)", () => {
+  assertEquals(
+    modalAndEars("See ![SHALL](img/SHALL.png) and <http://x.example/must>."),
+    [],
+  );
+});
+
+Deno.test("ears-trigger: no token inside inline code or a link URL (#1017)", () => {
+  assertEquals(
+    modalAndEars("Use `When` and [x](http://x.example/If)."),
+    [],
+  );
+});
+
+Deno.test("modal: token on a later line keeps its column with ranges before it (#1017)", () => {
+  const tokens = tokensOf("Use `SHALL` here.\nThe system shall run.").filter(
+    (t) => t.kind === "modal",
+  );
+  assertEquals(tokens.length, 1);
+  assertEquals(tokens[0].location.line, 2);
+  assertEquals(tokens[0].location.column, 12);
+});
+
+function modalPositions(body: string): string[] {
+  return tokensOf(body).filter((t) => t.kind === "modal").map((t) =>
+    `${t.text}@${t.location.line}:${t.location.column}`
+  );
+}
+
+Deno.test("modal: line offsets stay right on line 3 and line 9+ (#1017)", () => {
+  const filler = "Plain text.\n";
+  // Line 3: `SHALL` right after a backtick, then a prose shall after it.
+  assertEquals(
+    modalPositions(`${filler}${filler}x\`SHALL\` shall run.`),
+    ["shall@3:10"],
+  );
+  // Line 10.
+  assertEquals(
+    modalPositions(`${filler.repeat(9)}\`SHALL\`shall x.`),
+    ["shall@10:8"],
+  );
+  assertEquals(
+    modalPositions(`${filler.repeat(9)}\`SHALL\` shall x.`),
+    ["shall@10:9"],
+  );
+});
+
+Deno.test("modal: a prose keyword right after a link URL is a token (#1017)", () => {
+  assertEquals(
+    modalPositions("a\nb\n[x](http://x.example/SHALL) MAY go."),
+    ["MAY@3:29"],
+  );
+});
+
+Deno.test("ears-trigger: skipped in a range while the modal after it counts (#1017)", () => {
+  assertEquals(modalAndEars("Use `When` and the system shall go."), [
+    "modal:shall",
+  ]);
+  assertEquals(modalAndEars("<http://When.example/> shall."), [
+    "modal:shall",
+  ]);
+});
+
+Deno.test("modal: no token for a keyword that begins an email autolink (#1017)", () => {
+  assertEquals(
+    modalAndEars("Mail <SHALL@x.example> or <MUST@y.example> now."),
+    [],
+  );
+  // A GFM literal email autolink: the range starts at the keyword itself.
+  assertEquals(
+    modalAndEars("Mail SHALL@x.example or MUST@y.example now."),
+    [],
+  );
+});

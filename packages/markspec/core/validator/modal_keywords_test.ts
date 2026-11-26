@@ -263,3 +263,27 @@ Deno.test("MSL-M060: uppercase modal still flagged (validate does not normalize)
   );
   assertEquals(m060.length, 1);
 });
+
+Deno.test("MSL-M061: a keyword in a link URL is not the entry's modal (#1017)", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateModalKeywords } = await import("./modal_keywords.ts");
+  const doc =
+    "- [TST_MK_0003] Probe\n\n  The driver follows [the rule](http://x.example/shall).\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n      Type: Requirement\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const codes = validateModalKeywords(entries[0]).map((d) => d.code);
+  assertEquals(codes, ["MSL-M061"]);
+});
+
+Deno.test("MSL-M060: no warning for keywords that fmt keeps (#1017)", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateModalKeywords } = await import("./modal_keywords.ts");
+  const doc = "- [TST_MK_0004] Probe\n\n" +
+    "  The system shall use `SHALL` here and follow [shall](http://x.example/SHALL).\n\n" +
+    '  See [the rule](http://a.example/p "MAY") and ![SHALL](img/SHALL.png).\n\n' +
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const m060 = validateModalKeywords(entries[0]).filter((d) =>
+    d.code === "MSL-M060"
+  );
+  assertEquals(m060, []);
+});

@@ -7,7 +7,8 @@
  * `ast → formatter` is not.
  */
 
-import { parseCodeRegions } from "../parser/code_regions.ts";
+import { nonProseRanges, parseCodeRegions } from "../parser/code_regions.ts";
+import { processor } from "../parser/remark.ts";
 import { walkProseLines } from "./fence.ts";
 
 /**
@@ -56,12 +57,10 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  * returned (#1014).
  */
 export function normalizeProseModals(text: string, definitions = ""): string {
-  const regions = parseCodeRegions(
-    definitions === "" ? text : `${text}\n\n${definitions}`,
-  );
-  const { fencedLines } = regions;
-  const verbatimRanges = [...regions.inlineCode, ...regions.verbatimInline]
-    .sort((a, b) => a.start - b.start);
+  const source = definitions === "" ? text : `${text}\n\n${definitions}`;
+  const tree = processor.parse(source);
+  const { fencedLines } = parseCodeRegions(source, tree);
+  const verbatimRanges = nonProseRanges(source, tree);
   const lines = text.split("\n");
   let lineOffset = 0;
   let rangeIndex = 0;

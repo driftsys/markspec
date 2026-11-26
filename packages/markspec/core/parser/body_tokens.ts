@@ -3,7 +3,10 @@
  *
  * Inline-construct token extraction (ADR-016). Scans entry body prose for
  * the six BodyTokenKind variants, skipping verbatim regions (code, math,
- * inline-code spans). Inside ` ```feature ` / ` ```gherkin ` fences the
+ * inline-code spans). The modal and EARS scans also skip the ranges of
+ * `nonProseRanges`: inline code, link destinations, titles and labels,
+ * autolinks, images, link reference definitions, footnote labels and raw
+ * HTML (#1017). Inside ` ```feature ` / ` ```gherkin ` fences the
  * modal/EARS/entity-ref scanners are suppressed and the gherkin
  * section/step tokens come from the normalized Gherkin AST instead.
  *
@@ -19,6 +22,7 @@ import type {
 } from "../model/mod.ts";
 import type { BodyBlock, SourceRange } from "../ast/nodes.ts";
 import { processor } from "./remark.ts";
+import { nonProseRanges } from "./code_regions.ts";
 import type { Root, RootContent } from "mdast";
 
 /**
@@ -189,6 +193,22 @@ function emitInlineCode(
 }
 
 /**
+ * A test of whether an offset lies inside one of the sorted half-open
+ * `ranges`. The offsets passed must not decrease between calls: one pointer
+ * moves forward over the ranges.
+ */
+function skipRangeTester(
+  ranges: readonly { start: number; end: number }[],
+): (offset: number) => boolean {
+  let index = 0;
+  return (offset) => {
+    while (index < ranges.length && ranges[index].end <= offset) index++;
+    const range = ranges[index];
+    return range !== undefined && offset >= range.start;
+  };
+}
+
+/**
  * Extract body-token stream from an entry body.
  *
  * @param body - entry body string (post-`splitBodyAndAttributes`)
@@ -214,14 +234,23 @@ export function extractBodyTokens(
 ): readonly BodyToken[] {
   const tokens: BodyToken[] = [];
   const verbatimLines = collectVerbatimLines(bodyAst);
+  const tree = mdastTree ?? processor.parse(body) as Root;
+  // The ranges the fmt casing pass keeps (#1017); see nonProseRanges.
+  const skipRanges = nonProseRanges(body, tree);
+  const inModalSkip = skipRangeTester(skipRanges);
+  const inEarsSkip = skipRangeTester(skipRanges);
   const lines = body.split("\n");
+  let lineStart = 0;
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
+    const lineOffset = lineStart;
+    lineStart += line.length + 1;
     const lineNo = baseLocation.line + li;
     if (verbatimLines.has(li + 1)) continue;
     MODAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = MODAL_RE.exec(line)) !== null) {
+      if (inModalSkip(lineOffset + m.index)) continue;
       const text = m[1];
       tokens.push({
         kind: "modal",
@@ -237,6 +266,7 @@ export function extractBodyTokens(
 
     EARS_RE.lastIndex = 0;
     while ((m = EARS_RE.exec(line)) !== null) {
+      if (inEarsSkip(lineOffset + m.index)) continue;
       const text = m[1] as "When" | "While" | "If" | "Where" | "Then";
       tokens.push({
         kind: "ears-trigger",
@@ -272,7 +302,6 @@ export function extractBodyTokens(
   }
 
   emitGherkin(bodyAst, tokens, baseLocation, columnOffset);
-  const tree = mdastTree ?? processor.parse(body) as Root;
   emitInlineCode(tree, tokens, baseLocation, columnOffset);
 
   tokens.sort((a, b) =>

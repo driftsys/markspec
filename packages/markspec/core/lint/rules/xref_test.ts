@@ -4,7 +4,7 @@
  * Unit tests for the MSL-Q500 xref-glossary-undefined rule.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { BodyBlock } from "../../ast/nodes.ts";
 import type { BodyToken, Entry } from "../../model/mod.ts";
 import { makeDisplayId } from "../../model/mod.ts";
@@ -320,4 +320,59 @@ Deno.test("buildIdentifierIndex: ignores non-entity-ref body tokens", () => {
   assertEquals(index.has("RealIdentifier"), true);
   assertEquals(index.has("shall"), false);
   assertEquals(index.has("When"), false);
+});
+
+Deno.test("Q500: does not read link destinations, titles or images as terms (#1017)", () => {
+  const entry = makeEntry(
+    'See [the rule](http://a.example/p "MAY") and ![SHALL](img/SHALL.png).',
+  );
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.map((d) => d.message), []);
+});
+
+Deno.test("Q500: still fires on a term in link text (#1017)", () => {
+  const entry = makeEntry("See [the BrakeController](http://a.example/p).");
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.length, 1);
+  assertStringIncludes(diags[0].message, "'BrakeController'");
+});
+
+function entryWithBlocks(blocks: BodyBlock[]): Entry {
+  return { ...makeEntry("x"), bodyAst: blocks };
+}
+
+Deno.test("Q500: labels defined in another block are not terms (#1017)", () => {
+  const entry = entryWithBlocks([
+    makeParagraph(
+      "See [the rule][BrakeRef], [BrakeController] and the note[^BigNote]. The PumpUnit runs.",
+    ),
+    {
+      kind: "unknown",
+      raw:
+        "[BrakeRef]: http://a.example/\n[BrakeController]: http://b.example/",
+      range: { start: { line: 3, column: 1 }, end: { line: 4, column: 1 } },
+    } as BodyBlock,
+    {
+      kind: "unknown",
+      raw: "[^BigNote]: some text.",
+      range: { start: { line: 6, column: 1 }, end: { line: 6, column: 1 } },
+    } as BodyBlock,
+  ]);
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.length, 1);
+  assertStringIncludes(diags[0].message, "'PumpUnit'");
+});
+
+Deno.test("Q500: does not read inline code as a term (#1017)", () => {
+  const entry = makeEntry("The value uses `BrakeController` here.");
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.length, 0);
+});
+
+Deno.test("Q500: a term after a multi-line code span keeps its line (#1017)", () => {
+  const entry = makeEntry("Use `a\nb` and\nthe BrakeController now.");
+  const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
+  assertEquals(diags.length, 1);
+  // Paragraph line 3; the body starts on file line 2.
+  assertEquals(diags[0].range?.start.line, 4);
 });

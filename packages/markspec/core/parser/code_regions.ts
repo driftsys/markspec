@@ -97,6 +97,34 @@ export function parseCodeRegions(
 }
 
 /**
+ * Sorted half-open source offsets of text that is not prose: inline code
+ * (with its delimiters) and the verbatim inline syntax of
+ * {@linkcode CodeRegions.verbatimInline}. The `fmt` modal casing pass keeps
+ * these ranges unchanged, and the modal and EARS scans of the body-token
+ * scanner and the MSL-Q500 rule skip them, so all three use this one
+ * definition (#1017). The entity-ref scan does not skip them.
+ *
+ * `tree` is the parse of `markdown` alone, used when `definitions` is empty.
+ * `definitions` is the text of link reference and footnote definitions that
+ * `markdown` can use but does not hold (#1014). It is parsed after
+ * `markdown`, so a label it defines is a range, but only the ranges that
+ * start inside `markdown` are returned. An inline range cannot cross the
+ * blank line between the two.
+ */
+export function nonProseRanges(
+  markdown: string,
+  tree?: Root,
+  definitions = "",
+): { start: number; end: number }[] {
+  const regions = definitions === ""
+    ? parseCodeRegions(markdown, tree)
+    : parseCodeRegions(`${markdown}\n\n${definitions}`);
+  return [...regions.inlineCode, ...regions.verbatimInline]
+    .filter((r) => r.start < markdown.length)
+    .sort((a, b) => a.start - b.start);
+}
+
+/**
  * For a `[text](url)` or `[text][label]` link, push the source around its
  * visible text (the destination, title or label) to `out` and return `true`.
  * Return `false` when the visible text is not prose: an autolink (`<url>` or
