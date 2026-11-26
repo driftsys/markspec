@@ -100,11 +100,11 @@ externally owned.
 This spec defines the **schema**; a connector ADR supplies the values.
 
 ```yaml
-system: jira                       # scheme used in External-id
-direction: bidirectional           # outbound | inbound | bidirectional (§2.3)
+system: jira # scheme used in External-id
+direction: bidirectional # outbound | inbound | bidirectional (§2.3)
 identity:
-  external-id-scheme: jira         # which External-id scheme binds here
-attributes:                        # MarkSpec attr ↔ external field
+  external-id-scheme: jira # which External-id scheme binds here
+attributes: # MarkSpec attr ↔ external field
   - markspec: Title
     external: summary
     direction: bidirectional
@@ -113,12 +113,12 @@ attributes:                        # MarkSpec attr ↔ external field
     direction: outbound
   - markspec: Labels
     external: labels
-    locked: true                   # upstream-owned while bound (§4)
+    locked: true # upstream-owned while bound (§4)
 conflict:
-  default: manual                  # manual | local-wins | remote-wins
-                                   # (newest-wins removed pre-1.0)
+  default: manual # manual | local-wins | remote-wins
+# (newest-wins removed pre-1.0)
 cache:
-  ttl: 15m                         # §6
+  ttl: 15m # §6
 ```
 
 ### 3.1 ReqIF MCP-server approach

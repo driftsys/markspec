@@ -303,7 +303,7 @@ attach descriptions:
 ```yaml
 profile:
   labels:
-    DRAFT: "Work in progress; not reviewed"   # string shorthand → flag
+    DRAFT: "Work in progress; not reviewed" # string shorthand → flag
     asil:
       kind: enum
       description: "Automotive Safety Integrity Level"
@@ -349,7 +349,7 @@ mapping to a settings object (plus an optional `description`).
 profile:
   conventions:
     modal-keywords:
-      casing: rfc8174   # rfc2119 | iso | preserve | rfc8174
+      casing: rfc8174 # rfc2119 | iso | preserve | rfc8174
       description: "Write shall and must in uppercase (RFC 8174)"
 ```
 
@@ -382,8 +382,8 @@ rules:
 profile:
   prose:
     lexicons:
-      capitalized-allow: [API, ECU, LiDAR]       # allowed mid-sentence capitals
-      sentence-abbrev: ["e.g.", "i.e.", "etc."]  # non-terminal abbreviations
+      capitalized-allow: [API, ECU, LiDAR] # allowed mid-sentence capitals
+      sentence-abbrev: ["e.g.", "i.e.", "etc."] # non-terminal abbreviations
 ```
 
 Both lists default to empty when absent.
@@ -424,7 +424,7 @@ A profile may declare `discipline-mode:` to make its tiering intent explicit:
 
 ```yaml
 profile:
-  discipline-mode: tiered   # flat | tiered | none
+  discipline-mode: tiered # flat | tiered | none
 ```
 
 When omitted, the mode is inferred from the type graph: `tiered` when any
@@ -503,7 +503,7 @@ is rejected (`PROFILE-SCHEMA-001`). When the pin is absent the profile loads
 with a `PROFILE-SCHEMA-002` warning recommending you add it.
 
 ```yaml
-markspec-schema: "1"   # integer string; "1" is the current value
+markspec-schema: "1" # integer string; "1" is the current value
 ```
 
 ### Profile `version` and semver rules

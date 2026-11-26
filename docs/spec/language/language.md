@@ -411,8 +411,7 @@ reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
 
   Sensor driver shall debounce raw inputs.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDE
-  Satisfies: SYS_BRK_0042
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDE Satisfies: SYS_BRK_0042
 ```
 
 **Nested entry.** In a Markdown file, a list item inside an entry that is itself
@@ -1837,7 +1836,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 | Emphasis              | `_text_` (underscores)                                               |
 | Strong                | `**text**` (asterisks)                                               |
 | List marker           | `-` (dashes)                                                         |
-| List indent           | 2 spaces                                                             |
+| List indent           | the content column: 2 spaces for `-`, 3 for `1.`, 4 for `10.`        |
 | Code fences           | backticks, language required                                         |
 | Trailing whitespace   | removed, except U+FEFF and U+00A0 ending a free-text attribute value |
 | Final newline         | single `\n`                                                          |

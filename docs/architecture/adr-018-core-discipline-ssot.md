@@ -322,8 +322,8 @@ const CORE_TYPE_TO_KIND = new Map([
   ["HardwareComponent", "hardware"],
   ["SoftwareInterface", "software"],
   ["HardwareInterface", "hardware"],
-  ["SoftwareUnit",      "software"],
-  ["HardwareUnit",      "hardware"],
+  ["SoftwareUnit", "software"],
+  ["HardwareUnit", "hardware"],
 ]);
 
 // profiles extend, e.g. an aerospace profile:

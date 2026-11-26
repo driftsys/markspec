@@ -335,7 +335,7 @@ Promise<{
   result: CompileResult;
   chain: ProfileChain | null;
   corpusIndex: ReadonlyMap<string, DeliveredDocument>;
-}>
+}>;
 ```
 
 to
@@ -346,7 +346,7 @@ Promise<{
   chain: ProfileChain | null;
   corpusIndex: ReadonlyMap<string, DeliveredDocument>;
   config: ProjectConfig;
-}>
+}>;
 ```
 
 and the final `return { result, chain, corpusIndex };` (at the end of

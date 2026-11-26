@@ -94,7 +94,10 @@ profile:
     result.diagnostics.filter((d) => d.severity === "error"),
     [],
   );
-  assertEquals(result.manifest?.types.get("ux-contract")?.declares, "ux-surface");
+  assertEquals(
+    result.manifest?.types.get("ux-contract")?.declares,
+    "ux-surface",
+  );
 });
 
 Deno.test("parseManifest: unknown declares value is PROFILE-TYPE-009 (#727)", () => {
@@ -285,14 +288,21 @@ Deno.test("uxilDiagnosticAt: file-anchored core diagnostic (#727)", () => {
   );
   assertEquals(d.code, "UXIL-024");
   assertEquals(d.severity, "error");
-  assertEquals(d.message, "Relative reference '.confirm' has no base in scope.");
+  assertEquals(
+    d.message,
+    "Relative reference '.confirm' has no base in scope.",
+  );
   assertEquals(d.location, { file: "a.md", line: 7, column: 5 });
 });
 
 Deno.test("UXIL-023/025/026 templates substitute their params (#727)", () => {
   const loc = { file: "a.md", line: 1, column: 1 };
   assertEquals(
-    uxilDiagnosticAt("UXIL-023", { entry: "REQ_0001", type: "requirement" }, loc)
+    uxilDiagnosticAt(
+      "UXIL-023",
+      { entry: "REQ_0001", type: "requirement" },
+      loc,
+    )
       .message,
     "uxil declaration outside a declaring entry type: 'REQ_0001' (type 'requirement') may not declare surfaces (requires 'declares: ux-surface').",
   );
@@ -637,9 +647,7 @@ function anchorBulletDiagnostic(
 
 ```ts
 diagnostics.push(
-  ...parseDiags.map((d) =>
-    anchorSpanDiagnostic(entry.location.file, span, d)
-  ),
+  ...parseDiags.map((d) => anchorSpanDiagnostic(entry.location.file, span, d)),
 );
 ```
 
@@ -1162,7 +1170,10 @@ Deno.test("family: root declaration outside the declaring type is UXIL-023 (#727
     "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },
     "requirement": { pattern: "REQ_{n:4d}" },
   });
-  const diags = validateUxilFamily(entriesOf({ "b.md": REQ_WITH_ROOT }), profile);
+  const diags = validateUxilFamily(
+    entriesOf({ "b.md": REQ_WITH_ROOT }),
+    profile,
+  );
   const d = diags.find((x) => x.code === "UXIL-023");
   assertEquals(d?.location, { file: "b.md", line: 3, column: 3 });
   assert(d?.message.includes("'REQ_0001'"));
@@ -1549,10 +1560,14 @@ Deno.test("toLspDiagnostic: UXIL codes carry a spec-chapter codeDescription (#72
   const lsp = toLspDiagnostic({
     code: "UXIL-009",
     severity: "error",
-    message: "Unknown surface kind 'widget' (expected screen, panel, or agent).",
+    message:
+      "Unknown surface kind 'widget' (expected screen, panel, or agent).",
     location: { file: "a.md", line: 3, column: 3 },
   });
-  assertEquals(lsp.codeDescription?.href, "https://markspec.dev/spec/uxil#uxil-009");
+  assertEquals(
+    lsp.codeDescription?.href,
+    "https://markspec.dev/spec/uxil#uxil-009",
+  );
 });
 ```
 

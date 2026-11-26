@@ -717,7 +717,6 @@ Deno.test("applyBody: writes the preview body when a second format would drop a 
 });
 
 Deno.test("applyBody: writes the preview body of a wrapped ordered list item", async () => {
-  // A second format of the wrapped item raises MSL-F900 for the target.
   // Apply formats the raw proposal once, so it writes the preview body.
   const words: string[] = [];
   for (let i = 0; i < 30; i++) words.push(`word${i}`);

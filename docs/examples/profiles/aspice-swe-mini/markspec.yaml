@@ -72,7 +72,11 @@ profile:
       description: Source-code unit (function, method, module)
       # display-id-pattern-enforcement: off  # namespace-path IDs
       attributes:
-        - { name: Element-kind, type: enum, values: [module, class, function, source] }
+        - {
+            name: Element-kind,
+            type: enum,
+            values: [module, class, function, source],
+          }
 
     unit-test:
       extends: Test

@@ -131,15 +131,15 @@ id: "@markspec/profile-aspice-4"
 version: 1.2.0
 description: ASPICE 4.0 software engineering profile
 license: MIT
-extends: "npm:@markspec/profile-default@^1.0"   # one parent, ADR-008 §5
-markspec-schema: "1"                              # core schema pin, §8
+extends: "npm:@markspec/profile-default@^1.0" # one parent, ADR-008 §5
+markspec-schema: "1" # core schema pin, §8
 
 # ── Content subtree (participates in extends merge, §5) ────────────
 profile:
-  attributes: []          # universal-scope attribute declarations
-  labels: []              # well-known label values
-  types: {}               # concrete-type declarations, §3 / §4
-  documents:              # ADR-007 / ADR-008 §4 "document types"
+  attributes: [] # universal-scope attribute declarations
+  labels: [] # well-known label values
+  types: {} # concrete-type declarations, §3 / §4
+  documents: # ADR-007 / ADR-008 §4 "document types"
     types: []
     frontMatter: []
 ```
@@ -190,17 +190,17 @@ Every profile type is declared as a keyed entry under `profile.types:` and
 profile:
   types:
     software-requirement:
-      extends: Requirement              # a core concrete type
+      extends: Requirement # a core concrete type
       display-id-pattern: "SRS_{scope}_{n:04d}"
     stakeholder-requirement:
       extends: Requirement
       display-id-pattern: "STK_{scope}_{n:04d}"
     hazard:
-      extends: Risk                     # core concrete type
+      extends: Risk # core concrete type
     ecu:
-      extends: HardwareComponent        # core concrete type
+      extends: HardwareComponent # core concrete type
     safety-requirement:
-      extends: software-requirement     # another *profile* type (same chain)
+      extends: software-requirement # another *profile* type (same chain)
 ```
 
 Rules (ADR-003 §Part 7 "Profiles cannot remove or replace core types … Only
@@ -337,8 +337,8 @@ types:
   contract:
     extends: Contract
     body:
-      require: [Code]        # a Contract entry's body must contain a Code block
-      forbid:  [Feature]     # … and must not contain a Gherkin Feature block
+      require: [Code] # a Contract entry's body must contain a Code block
+      forbid: [Feature] # … and must not contain a Gherkin Feature block
 ```
 
 `require:` / `forbid:` name body-AST node types from core-data-model §2.4.
@@ -356,7 +356,7 @@ feeding type inference (§6) and listing validation
 types:
   dependency:
     extends: SoftwareComponent
-    id-schemes: ["pkg:cargo", "pkg:npm"]   # purl, listing-directives §5
+    id-schemes: ["pkg:cargo", "pkg:npm"] # purl, listing-directives §5
   hardware-part:
     extends: HardwareComponent
     id-schemes: ["mfg:", "gtin:", "urn:system:"]
@@ -592,7 +592,7 @@ catalogue (§1.4–1.6), value types (§1.8), and lint codes (§4). A profile
 declares the core schema it targets with a new manifest field:
 
 ```yaml
-markspec-schema: "1"          # major contract version of core-data-model.md
+markspec-schema: "1" # major contract version of core-data-model.md
 ```
 
 - `markspec-schema:` is a single integer naming the **major** version of the
@@ -711,7 +711,7 @@ profile:
       attributes:
         - name: ASIL
           type: enum
-          values: [A, B, C, D]        # tightened: QM not valid for a hazard
+          values: [A, B, C, D] # tightened: QM not valid for a hazard
       traceability:
         Mitigated-by:
           target: [safety-requirement]
@@ -719,7 +719,7 @@ profile:
           required: true
 
     safety-requirement:
-      extends: software-requirement   # extends an ASPICE *profile* type …
+      extends: software-requirement # extends an ASPICE *profile* type …
       display-id-pattern: "SAF_{scope}_{n:04d}"
       required: [ASIL]
 ```

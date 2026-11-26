@@ -146,7 +146,11 @@ Deno.test("sameOriginSource: profile vs upstream → false", () => {
     profileId: "product",
     profileVersion: "1",
   };
-  const b: EntryOrigin = { kind: "upstream", upstreamId: "product", version: "1" };
+  const b: EntryOrigin = {
+    kind: "upstream",
+    upstreamId: "product",
+    version: "1",
+  };
   assertEquals(sameOriginSource(a, b), false);
 });
 ```
@@ -416,7 +420,10 @@ git commit -m "feat(core): deserializeEntry inverse of serializeEntry"
 Append to `deserialize_test.ts`:
 
 ```ts
-import { checkSnapshotSchema, extractSerializedEntries } from "./deserialize.ts";
+import {
+  checkSnapshotSchema,
+  extractSerializedEntries,
+} from "./deserialize.ts";
 
 const GOOD_MANIFEST = {
   markspecSchemaVersion: 1,
@@ -431,11 +438,17 @@ const GOOD_MANIFEST = {
 };
 
 Deno.test("checkSnapshotSchema: matching versions → undefined", () => {
-  assertEquals(checkSnapshotSchema(GOOD_MANIFEST, "/c/manifest.json"), undefined);
+  assertEquals(
+    checkSnapshotSchema(GOOD_MANIFEST, "/c/manifest.json"),
+    undefined,
+  );
 });
 
 Deno.test("checkSnapshotSchema: core-schema skew → UPSTREAM-SNAPSHOT-001", () => {
-  const skewed = { ...GOOD_MANIFEST, generator: { release: "9", coreSchema: 99 } };
+  const skewed = {
+    ...GOOD_MANIFEST,
+    generator: { release: "9", coreSchema: 99 },
+  };
   const d = checkSnapshotSchema(skewed, "/c/manifest.json");
   assertEquals(d?.code, "UPSTREAM-SNAPSHOT-001");
   assertEquals(d?.severity, "error");
@@ -459,7 +472,8 @@ Deno.test("extractSerializedEntries: inline compiled.json", async () => {
 
 Deno.test("extractSerializedEntries: ndjson block", async () => {
   const { entries } = await parseFile(FIXTURE, { file: "/up/sample.md" });
-  const ndjson = entries.map((e) => JSON.stringify(serializeEntry(e))).join("\n") + "\n";
+  const ndjson =
+    entries.map((e) => JSON.stringify(serializeEntry(e))).join("\n") + "\n";
   const manifest = {
     ...GOOD_MANIFEST,
     entries: { format: "ndjson", file: "entries.ndjson", index: "entries.idx" },
@@ -523,8 +537,12 @@ export function checkSnapshotSchema(
     code: "UPSTREAM-SNAPSHOT-001",
     severity: "error",
     message:
-      `upstream snapshot schema mismatch (manifest v${String(m?.markspecSchemaVersion)}, ` +
-      `core-schema ${String(m?.generator?.coreSchema)} vs expected 1/${CORE_SCHEMA_VERSION}); ` +
+      `upstream snapshot schema mismatch (manifest v${
+        String(m?.markspecSchemaVersion)
+      }, ` +
+      `core-schema ${
+        String(m?.generator?.coreSchema)
+      } vs expected 1/${CORE_SCHEMA_VERSION}); ` +
       `re-run 'markspec lock' with a compatible markspec version`,
     location: { file: manifestPath, line: 1, column: 1 },
   };
@@ -545,7 +563,12 @@ export function extractSerializedEntries(
     ?.entries;
   const file = block?.file;
   if (!file || (block?.format !== "inline" && block?.format !== "ndjson")) {
-    diagnostics.push(malformed(manifestPath, "manifest entries block missing or unknown format"));
+    diagnostics.push(
+      malformed(
+        manifestPath,
+        "manifest entries block missing or unknown format",
+      ),
+    );
     return { entries: [], diagnostics };
   }
   const raw = readSnapshotFile(file);
@@ -553,8 +576,7 @@ export function extractSerializedEntries(
     diagnostics.push({
       code: "UPSTREAM-SNAPSHOT-002",
       severity: "error",
-      message:
-        `upstream snapshot file '${file}' is missing or unreadable; ` +
+      message: `upstream snapshot file '${file}' is missing or unreadable; ` +
         `run 'markspec lock' to restore the cache`,
       location: { file: manifestPath, line: 1, column: 1 },
     });
@@ -562,7 +584,9 @@ export function extractSerializedEntries(
   }
   try {
     if (block.format === "inline") {
-      const json = JSON.parse(raw) as { entries?: Record<string, SerializedEntry> };
+      const json = JSON.parse(raw) as {
+        entries?: Record<string, SerializedEntry>;
+      };
       return { entries: Object.values(json.entries ?? {}), diagnostics };
     }
     const entries = raw
@@ -573,7 +597,9 @@ export function extractSerializedEntries(
   } catch (err) {
     diagnostics.push(malformed(
       manifestPath,
-      `snapshot file '${file}' is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      `snapshot file '${file}' is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     ));
     return { entries: [], diagnostics };
   }
@@ -672,7 +698,9 @@ async function snapshotFiles(
   const { entries } = await parseFile(md, { file });
   const serialized = entries.map((e) =>
     serializeEntry(
-      reexport ? { ...e, origin: { kind: "upstream" as const, ...reexport } } : e,
+      reexport
+        ? { ...e, origin: { kind: "upstream" as const, ...reexport } }
+        : e,
     )
   );
   const manifest = {

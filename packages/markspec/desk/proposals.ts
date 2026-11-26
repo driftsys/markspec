@@ -96,9 +96,9 @@ function fromEditRefusal(refusal: EntryBodyRefusal): ProposalRefusal {
  * canonicalization. The message starts with `<displayId>:`, so an ID
  * that only shares a prefix (`SYS_BRK_00011`) does not match.
  *
- * @internal Exported for tests. An ordered list that holds a nested
- *   block (a nested list or a continuation paragraph, an SP3 residual) is
- *   one real input that makes the formatter emit `MSL-F900` for a body.
+ * @internal Exported for tests. A task list item with a continuation
+ *   line (task lists are an excluded construct, MSL-B042) is one real
+ *   input that makes the formatter emit `MSL-F900` for a body.
  */
 export function isTargetF900(
   diagnostics: readonly Diagnostic[],
@@ -196,9 +196,8 @@ interface CheckedProposal {
  * The length limit applies to the raw proposal and to the formatted body.
  *
  * `format` catches a prose formatter that throws (MSL-F012), so that
- * `format-failed` branch is defensive. A target `MSL-F900` is real: an
- * ordered list that holds a nested block (a nested list or a continuation
- * paragraph, an SP3 residual) causes it. The final identity check is
+ * `format-failed` branch is defensive. A target `MSL-F900` is real: a
+ * task list item with a continuation line causes it. The final identity check is
  * defensive: no known formatter output fails the second splice. Tests
  * reach the defensive branches through `formatDocument`.
  */
@@ -325,8 +324,7 @@ export async function previewBody(
  * formatter is deterministic, and the caller's `If-Match` check makes
  * `text` the file the preview saw, so the body written equals the preview
  * body. The formatter is not idempotent on its own output (a second format
- * can drop a tab at a wrap point, or raise `MSL-F900` on a wrapped ordered
- * list item), so a preview body sent back here can be written differently
+ * can drop a tab at a wrap point), so a preview body sent back here can be written differently
  * or refused. Apply refuses everything the preview refuses. Writes nothing;
  * the caller writes the returned text. `formatDocument` and `lineWidth`
  * are as in {@linkcode previewBody}.

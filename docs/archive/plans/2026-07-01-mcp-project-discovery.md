@@ -571,7 +571,7 @@ export const mcpCmd = new Command()
     const { startServer } = await import("../../mcp/server.ts");
     await startServer({ rootFlags: options.root ?? [] });
   })
-  .command("install")
+  .command("install");
 ```
 
 - [ ] **Step 4: Run tests + type-check + manual smoke.**

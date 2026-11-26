@@ -108,8 +108,8 @@ is no type-alias feature and none is added:
 
 ```yaml
 types:
-  API: { extends: SoftwareInterface }   # services profile
-  ICD: { extends: Contract }            # automotive / system profile
+  API: { extends: SoftwareInterface } # services profile
+  ICD: { extends: Contract } # automotive / system profile
 ```
 
 ### Rejected / out of scope

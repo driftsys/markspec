@@ -403,15 +403,15 @@ git commit -m "feat(repo): store the MarkDesk assistant choice and add commands"
       a probe component inside `BridgeContext.Provider` + `AssistantProvider`):
 
 ```ts
-it("detects and loads settings on mount")           // detectAssistants and getAssistantSettings each called once; statuses/settings exposed
-it("reports detecting until detection returns")
-it("select stores the choice")                      // setAssistantSettings called with {...settings, selected: "codex"}
-it("dismissCard stores cardDismissed")
-it("runTest calls testAssistant with the selected id and exposes the result")
-it("runTest is a no-op while a test is running")     // two calls → testAssistant called once
-it("runTest re-reads settings and re-detects after a Copilot test") // getAssistantSettings ×2, detectAssistants ×2
-it("cancelTest calls cancelAssistantTest")
-it("recheck runs detection again")
+it("detects and loads settings on mount"); // detectAssistants and getAssistantSettings each called once; statuses/settings exposed
+it("reports detecting until detection returns");
+it("select stores the choice"); // setAssistantSettings called with {...settings, selected: "codex"}
+it("dismissCard stores cardDismissed");
+it("runTest calls testAssistant with the selected id and exposes the result");
+it("runTest is a no-op while a test is running"); // two calls → testAssistant called once
+it("runTest re-reads settings and re-detects after a Copilot test"); // getAssistantSettings ×2, detectAssistants ×2
+it("cancelTest calls cancelAssistantTest");
+it("recheck runs detection again");
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**
@@ -480,19 +480,21 @@ version `2.1.292 (Claude Code)`, Codex `needs-sign-in`, Copilot
 `not-installed`):
 
 ```ts
-it("lists the three assistants with their state")    // "Ready", "Needs sign-in", "Not installed"; version text shown
-it("shows the Copilot sign-in note when Copilot needs sign-in") // "Sign-in not confirmed. Sign in, then press Test."
-it("offers a radio per installed assistant plus None") // radios: Claude Code, Codex, None; none for Copilot
-it("selecting a radio stores the choice")
-it("Re-check runs detection again")
-it("Test is disabled when no assistant is selected")
-it("Test shows Testing… and Cancel, then the reply")   // reply "ready" → text "Reply: ready"
-it("Test shows the usage message")                     // "This version of Claude Code does not support the test command. Update it and try again."
-it("Test shows the timeout message")                   // "Claude Code did not answer within 60 seconds."
-it("Test shows the failure with its error")            // "Test failed: exit code 1 …"
-it("Back calls onBack")
-it("install guide shows each assistant's commands, page link, and sign-in step") // link click → openExternal("https://code.claude.com/docs/en/setup")
-it("Copy writes the command to the clipboard")         // navigator.clipboard.writeText mocked
+it("lists the three assistants with their state"); // "Ready", "Needs sign-in", "Not installed"; version text shown
+it("shows the Copilot sign-in note when Copilot needs sign-in"); // "Sign-in not confirmed. Sign in, then press Test."
+it("offers a radio per installed assistant plus None"); // radios: Claude Code, Codex, None; none for Copilot
+it("selecting a radio stores the choice");
+it("Re-check runs detection again");
+it("Test is disabled when no assistant is selected");
+it("Test shows Testing… and Cancel, then the reply"); // reply "ready" → text "Reply: ready"
+it("Test shows the usage message"); // "This version of Claude Code does not support the test command. Update it and try again."
+it("Test shows the timeout message"); // "Claude Code did not answer within 60 seconds."
+it("Test shows the failure with its error"); // "Test failed: exit code 1 …"
+it("Back calls onBack");
+it(
+  "install guide shows each assistant's commands, page link, and sign-in step",
+); // link click → openExternal("https://code.claude.com/docs/en/setup")
+it("Copy writes the command to the clipboard"); // navigator.clipboard.writeText mocked
 ```
 
 `ProductMenu.test.tsx`: `it("Settings calls onSettings and closes the menu")`.
@@ -563,22 +565,28 @@ git commit -m "feat(repo): add MarkDesk settings with assistant panel and instal
 `SetupCard.test.tsx`:
 
 ```ts
-it("shows Looking for assistants… while detecting")
-it("offers Use for each ready assistant")             // Claude Code and Codex ready → two "Use" buttons; click → select("codex")
-it("offers Use for an installed Copilot that needs sign-in")
-it("shows the sign-in command and Re-check for a signed-out Claude Code or Codex") // no Use button for that row
-it("links Install… to the install guide")              // click → onOpenSettings("install")
-it("leads with No assistant found when none is installed") // text "No assistant found. Set one up"; button opens onOpenSettings("install")
-it("Not now dismisses the card")                       // dismissCard called
+it("shows Looking for assistants… while detecting");
+it("offers Use for each ready assistant"); // Claude Code and Codex ready → two "Use" buttons; click → select("codex")
+it("offers Use for an installed Copilot that needs sign-in");
+it(
+  "shows the sign-in command and Re-check for a signed-out Claude Code or Codex",
+); // no Use button for that row
+it("links Install… to the install guide"); // click → onOpenSettings("install")
+it("leads with No assistant found when none is installed"); // text "No assistant found. Set one up"; button opens onOpenSettings("install")
+it("Not now dismisses the card"); // dismissCard called
 ```
 
 `AssistantColumn.test.tsx` (replace the existing test):
 
 ```ts
-it("shows the setup card when nothing is selected and the card is not dismissed")
-it("shows the setup pointer when nothing is selected and the card is dismissed") // text "Set up an assistant to ask questions about this product.", disabled textbox, button "Set up" → onOpenSettings()
-it("shows the selected assistant when it is ready") // "Claude Code · Ready", disabled textbox with placeholder "Prompts arrive in a later release", button "Settings"
-it("shows the state when the selected assistant needs sign-in") // "Claude Code needs sign-in", button "Settings"
+it(
+  "shows the setup card when nothing is selected and the card is not dismissed",
+);
+it(
+  "shows the setup pointer when nothing is selected and the card is dismissed",
+); // text "Set up an assistant to ask questions about this product.", disabled textbox, button "Set up" → onOpenSettings()
+it("shows the selected assistant when it is ready"); // "Claude Code · Ready", disabled textbox with placeholder "Prompts arrive in a later release", button "Settings"
+it("shows the state when the selected assistant needs sign-in"); // "Claude Code needs sign-in", button "Settings"
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail**

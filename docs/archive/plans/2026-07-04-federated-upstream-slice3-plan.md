@@ -88,18 +88,18 @@ an **in-process, deterministic compile** of the acquired tree.
 - Produces:
   ```ts
   export interface GitRef {
-    readonly name: string;              // "v2.1.0" | "main"
+    readonly name: string; // "v2.1.0" | "main"
     readonly kind: "tag" | "branch";
-    readonly sha: string;               // 40-hex commit sha
+    readonly sha: string; // 40-hex commit sha
   }
   export interface RefList {
     readonly refs: readonly GitRef[];
-    readonly headSha?: string;          // remote HEAD tip
-    readonly defaultBranch?: string;    // branch HEAD points at, when derivable
+    readonly headSha?: string; // remote HEAD tip
+    readonly defaultBranch?: string; // branch HEAD points at, when derivable
   }
   export interface ResolvedIntent {
     readonly sha: string;
-    readonly resolved: string;          // "tag:v2.1.0" | "branch:main" | "sha:<40hex>"
+    readonly resolved: string; // "tag:v2.1.0" | "branch:main" | "sha:<40hex>"
   }
   export function parseLsRemote(stdout: string): RefList;
   export function resolveIntent(
@@ -378,7 +378,7 @@ git commit -m "feat(core): git ls-remote parsing + version-intent resolution"
   export interface CompiledSnapshot {
     readonly manifestJson: ManifestJson;
     readonly compiledBytes: Uint8Array; // exact bytes written to compiled.json
-    readonly snapshot: string;          // sha256(compiledBytes)
+    readonly snapshot: string; // sha256(compiledBytes)
   }
   export async function compileAcquiredTree(
     treeRoot: string,
@@ -626,7 +626,7 @@ git commit -m "feat(core): deterministic in-process compile of an acquired depen
     readonly compileTree: (
       treeRoot: string,
     ) => Promise<CompiledSnapshot | { error: string }>;
-    readonly readFile: ReadFile;         // bytes reader for probeCacheSnapshot
+    readonly readFile: ReadFile; // bytes reader for probeCacheSnapshot
     readonly writeFile: (
       path: string,
       bytes: Uint8Array,
@@ -961,7 +961,9 @@ export async function resolveProjectDependencies(
       continue;
     }
     if (seen.has(id)) {
-      diagnostics.push(l213(id, "duplicate upstream id — set distinct 'name:'"));
+      diagnostics.push(
+        l213(id, "duplicate upstream id — set distinct 'name:'"),
+      );
       continue;
     }
     seen.add(id);
@@ -1067,8 +1069,8 @@ export {
   type GitRef,
   parseLsRemote,
   type RefList,
-  resolveIntent,
   type ResolvedIntent,
+  resolveIntent,
 } from "./git_intent.ts";
 ```
 
@@ -1181,7 +1183,10 @@ async function runGit(
     });
     const out = await cmd.output();
     if (!out.code) return { stdout: new TextDecoder().decode(out.stdout) };
-    return { error: new TextDecoder().decode(out.stderr).trim() || `git exit ${out.code}` };
+    return {
+      error: new TextDecoder().decode(out.stderr).trim() ||
+        `git exit ${out.code}`,
+    };
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -1200,7 +1205,17 @@ const denoGitIO: GitIO = {
       const args of [
         ["-C", destDir, "init", "-q"],
         ["-C", destDir, "remote", "add", "origin", url],
-        ["-C", destDir, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", sha],
+        [
+          "-C",
+          destDir,
+          "fetch",
+          "-q",
+          "--depth",
+          "1",
+          "--filter=blob:none",
+          "origin",
+          sha,
+        ],
         ["-C", destDir, "checkout", "-q", "FETCH_HEAD"],
       ]
     ) {
@@ -1232,27 +1247,27 @@ Delete the placeholder loop
 and, right after the `resolveProjectReferences` block, add:
 
 ```ts
-  const existingDependencies = (existingLockfile?.upstreams ?? [])
-    .filter((u): u is UpstreamDependency => u.kind === "dependency");
+const existingDependencies = (existingLockfile?.upstreams ?? [])
+  .filter((u): u is UpstreamDependency => u.kind === "dependency");
 
-  const depResult = await resolveProjectDependencies({
-    dependencies: config.dependencies,
-    existing: existingDependencies,
-    cacheRoot: upstreamCacheRoot(projectRoot),
-    update: options.update ?? false,
-    io: {
-      git: denoGitIO,
-      compileTree: denoCompileTree,
-      readFile: defaultReadFile,
-      writeFile: defaultWriteFile,
-      makeTempDir: () => Deno.makeTempDir({ prefix: "markspec-dep-" }),
-      removeDir: (p) => Deno.remove(p, { recursive: true }).catch(() => {}),
-    },
-    lockedAt: resolved.lockedAt,
-  });
-  for (const d of depResult.diagnostics) {
-    console.error(`${d.severity}: ${d.code}: ${d.message}`);
-  }
+const depResult = await resolveProjectDependencies({
+  dependencies: config.dependencies,
+  existing: existingDependencies,
+  cacheRoot: upstreamCacheRoot(projectRoot),
+  update: options.update ?? false,
+  io: {
+    git: denoGitIO,
+    compileTree: denoCompileTree,
+    readFile: defaultReadFile,
+    writeFile: defaultWriteFile,
+    makeTempDir: () => Deno.makeTempDir({ prefix: "markspec-dep-" }),
+    removeDir: (p) => Deno.remove(p, { recursive: true }).catch(() => {}),
+  },
+  lockedAt: resolved.lockedAt,
+});
+for (const d of depResult.diagnostics) {
+  console.error(`${d.severity}: ${d.code}: ${d.message}`);
+}
 ```
 
 - [ ] **Step 3: Drop the ref-error abort; merge dependency rows**
@@ -1486,7 +1501,8 @@ can spawn `git`.
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 
-const CLI = new URL("../../packages/markspec/main.ts", import.meta.url).pathname;
+const CLI =
+  new URL("../../packages/markspec/main.ts", import.meta.url).pathname;
 
 async function run(args: string[], cwd: string) {
   const cmd = new Deno.Command("deno", {
@@ -1512,7 +1528,12 @@ async function run(args: string[], cwd: string) {
 }
 
 async function git(args: string[], cwd: string) {
-  const o = await new Deno.Command("git", { args, cwd, stdout: "piped", stderr: "piped" }).output();
+  const o = await new Deno.Command("git", {
+    args,
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
   if (o.code) throw new Error(new TextDecoder().decode(o.stderr));
   return new TextDecoder().decode(o.stdout).trim();
 }
@@ -1521,7 +1542,10 @@ async function git(args: string[], cwd: string) {
 async function makeUpstream(root: string) {
   const work = join(root, "up-work");
   await Deno.mkdir(join(work, "docs"), { recursive: true });
-  await Deno.writeTextFile(join(work, "project.yaml"), "name: aeb-icd\nversion: 1.0.0\n");
+  await Deno.writeTextFile(
+    join(work, "project.yaml"),
+    "name: aeb-icd\nversion: 1.0.0\n",
+  );
   await Deno.writeTextFile(
     join(work, "docs", "icd.md"),
     [
@@ -1588,10 +1612,14 @@ Deno.test("lock acquires a git dependency and resolves a cross-repo Satisfies", 
     assertEquals(chk.code, 0);
 
     // Idempotence — second lock does not re-acquire (cache intact).
-    const before = (await Deno.stat(join(proj, ".markspec/cache/upstreams/icd/compiled.json"))).mtime;
+    const before = (await Deno.stat(
+      join(proj, ".markspec/cache/upstreams/icd/compiled.json"),
+    )).mtime;
     const lock2 = await run(["lock"], proj);
     assertEquals(lock2.code, 0);
-    const after = (await Deno.stat(join(proj, ".markspec/cache/upstreams/icd/compiled.json"))).mtime;
+    const after = (await Deno.stat(
+      join(proj, ".markspec/cache/upstreams/icd/compiled.json"),
+    )).mtime;
     assertEquals(before?.getTime(), after?.getTime());
   } finally {
     await Deno.remove(root, { recursive: true });

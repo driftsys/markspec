@@ -961,7 +961,7 @@ Expected: FAIL — module missing.
  */
 import type { BodyBlock } from "../ast/nodes.ts";
 import type { BodyToken, Diagnostic } from "../model/mod.ts";
-import type { Binding, TyplBlock, Typedef } from "./ast.ts";
+import type { Binding, Typedef, TyplBlock } from "./ast.ts";
 import { type BaseScope, resolveRef } from "../decl/mod.ts";
 import { bridgeTyplDiagnostic } from "./bridge.ts";
 import { typlDiagnostic } from "./diagnostics.ts";
@@ -1023,7 +1023,9 @@ export function assembleTyplTypes(
     const result = parseTyplBlock(inline.source);
     const lineOffset = inline.location.line - 1;
     for (const td of result.diagnostics) {
-      diagnostics.push(bridgeTyplDiagnostic(td, inline.location.file, lineOffset));
+      diagnostics.push(
+        bridgeTyplDiagnostic(td, inline.location.file, lineOffset),
+      );
     }
     blocks.push({ ...result.ast, file: inline.location.file, lineOffset });
   }
@@ -1252,7 +1254,11 @@ Deno.test("citations: text predicate", () => {
 Deno.test("citations: extracted from inline-code body tokens", () => {
   const loc = { file: "a.md", line: 5, column: 10 };
   const tokens: BodyToken[] = [
-    { kind: "inline-code", text: "`$powertrain.brake.pedal_position`", location: loc },
+    {
+      kind: "inline-code",
+      text: "`$powertrain.brake.pedal_position`",
+      location: loc,
+    },
     { kind: "inline-code", text: "`$speed`", location: loc },
     { kind: "inline-code", text: "`$a.b : signal`", location: loc },
   ] as BodyToken[];
@@ -1414,72 +1420,72 @@ Expected: FAIL — 002/003 still emitted; 009/011/010 absent.
       loop (lines 32–74) with:
 
 ```typescript
-  // Published tier (#723): dotted names are declared exactly once
-  // corpus-wide — every declaration after the first is TYPL-009. Plain
-  // (entry-local) names have no cross-entry rule: TYPL-002/003 are
-  // retired (deprecated, never emitted — see diagnostics.ts).
-  for (const [name, decls] of registry.bindings) {
-    if (decls.length < 2) continue;
-    if (!name.includes(".")) continue;
-    const first = decls[0];
-    for (let i = 1; i < decls.length; i++) {
-      const dup = decls[i];
+// Published tier (#723): dotted names are declared exactly once
+// corpus-wide — every declaration after the first is TYPL-009. Plain
+// (entry-local) names have no cross-entry rule: TYPL-002/003 are
+// retired (deprecated, never emitted — see diagnostics.ts).
+for (const [name, decls] of registry.bindings) {
+  if (decls.length < 2) continue;
+  if (!name.includes(".")) continue;
+  const first = decls[0];
+  for (let i = 1; i < decls.length; i++) {
+    const dup = decls[i];
+    const td = typlDiagnostic(
+      "TYPL-009",
+      {
+        name,
+        otherFile: first.entryFile,
+        otherLine: first.binding.position.line,
+      },
+      dup.binding.position,
+    );
+    diagnostics.push({
+      code: td.code,
+      severity: td.severity,
+      message: td.message,
+      location: { file: dup.entryFile, line: 1, column: 1 },
+    });
+  }
+}
+
+// Citation validation (#723): bare published-shaped code spans must
+// resolve (relative → entry root namespace) to a declared symbol.
+for (const entry of entries) {
+  const citations = extractTyplCitations(entry.bodyTokens);
+  if (citations.length === 0) continue;
+  const root = entry.types?.rootNamespace;
+  const scope = root !== undefined ? { base: root } : undefined;
+  for (const citation of citations) {
+    const res = resolveRef(citation.name, scope, TYPL_REF_OPS);
+    if (!res.ok) {
       const td = typlDiagnostic(
-        "TYPL-009",
-        {
-          name,
-          otherFile: first.entryFile,
-          otherLine: first.binding.position.line,
-        },
-        dup.binding.position,
+        "TYPL-010",
+        { name: citation.name },
+        { line: citation.location.line, column: citation.location.column },
       );
       diagnostics.push({
         code: td.code,
         severity: td.severity,
         message: td.message,
-        location: { file: dup.entryFile, line: 1, column: 1 },
+        location: citation.location,
+      });
+      continue;
+    }
+    if (!registry.bindings.has(res.ref)) {
+      const td = typlDiagnostic(
+        "TYPL-011",
+        { name: res.ref },
+        { line: citation.location.line, column: citation.location.column },
+      );
+      diagnostics.push({
+        code: td.code,
+        severity: td.severity,
+        message: td.message,
+        location: citation.location,
       });
     }
   }
-
-  // Citation validation (#723): bare published-shaped code spans must
-  // resolve (relative → entry root namespace) to a declared symbol.
-  for (const entry of entries) {
-    const citations = extractTyplCitations(entry.bodyTokens);
-    if (citations.length === 0) continue;
-    const root = entry.types?.rootNamespace;
-    const scope = root !== undefined ? { base: root } : undefined;
-    for (const citation of citations) {
-      const res = resolveRef(citation.name, scope, TYPL_REF_OPS);
-      if (!res.ok) {
-        const td = typlDiagnostic(
-          "TYPL-010",
-          { name: citation.name },
-          { line: citation.location.line, column: citation.location.column },
-        );
-        diagnostics.push({
-          code: td.code,
-          severity: td.severity,
-          message: td.message,
-          location: citation.location,
-        });
-        continue;
-      }
-      if (!registry.bindings.has(res.ref)) {
-        const td = typlDiagnostic(
-          "TYPL-011",
-          { name: res.ref },
-          { line: citation.location.line, column: citation.location.column },
-        );
-        diagnostics.push({
-          code: td.code,
-          severity: td.severity,
-          message: td.message,
-          location: citation.location,
-        });
-      }
-    }
-  }
+}
 ```
 
 Add imports: `import { extractTyplCitations } from "./citations.ts";`,

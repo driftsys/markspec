@@ -364,7 +364,9 @@ export function parseGitignore(
     const anchored = pattern.includes("/");
     if (pattern.startsWith("/")) pattern = pattern.slice(1);
     if (pattern === "") continue;
-    const prefix = baseDir === "" ? "" : `${baseDir.replace(/[.+^${}()|\\]/g, "\\$&")}/`;
+    const prefix = baseDir === ""
+      ? ""
+      : `${baseDir.replace(/[.+^${}()|\\]/g, "\\$&")}/`;
     const depth = anchored ? "" : "(?:.*/)?";
     rules.push({
       regex: new RegExp(`^${prefix}${depth}${globToRegexSource(pattern)}$`),
@@ -424,7 +426,7 @@ git commit -m "feat(core): gitignore pattern matcher for project discovery"
 ```typescript
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
-import { type DiscoveryIO, discoverFiles, MARKDOWN_EXTENSIONS } from "./mod.ts";
+import { discoverFiles, type DiscoveryIO, MARKDOWN_EXTENSIONS } from "./mod.ts";
 
 function realIO(): DiscoveryIO {
   return {
@@ -752,7 +754,8 @@ git commit -m "feat(core): gitignore-aware project file discovery walker"
 
 ```typescript
 Deno.test("loadConfig: parses exclude as string array", async () => {
-  const yaml = `name: t\nversion: 0.1.0\nexclude:\n  - "skills/"\n  - "*.gen.md"\n`;
+  const yaml =
+    `name: t\nversion: 0.1.0\nexclude:\n  - "skills/"\n  - "*.gen.md"\n`;
   const result = await loadConfig(
     "/proj",
     (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
@@ -961,11 +964,15 @@ export async function resolveScope(
       // Other errors: discovery proceeds without exclude patterns.
     }
     const files: string[] = [];
-    for await (const f of discoverFiles(projectRoot, io, { extensions, exclude })) {
+    for await (
+      const f of discoverFiles(projectRoot, io, { extensions, exclude })
+    ) {
       files.push(f);
     }
     if (!opts.quiet) {
-      console.error(`${opts.verb} ${files.length} file(s) under ${projectRoot}`);
+      console.error(
+        `${opts.verb} ${files.length} file(s) under ${projectRoot}`,
+      );
     }
     return { files, projectRoot, projectWide: true };
   }
@@ -1383,7 +1390,8 @@ Deno.test("check: gitignored files are not validated", async () => {
       ".gitignore": "drafts/\n",
       "docs/req.md": CLEAN_REQ,
       // Broken entry that would fail hard if it were scanned.
-      "drafts/broken.md": `# Draft\n\n- [REQ-0001] Duplicate id\n\n  Dup.\n\n      Id: 01REQ000000000000000000001\n`,
+      "drafts/broken.md":
+        `# Draft\n\n- [REQ-0001] Duplicate id\n\n  Dup.\n\n      Id: 01REQ000000000000000000001\n`,
     },
   });
   assertEquals(code, 0, `expected clean; stderr: ${stderr}`);

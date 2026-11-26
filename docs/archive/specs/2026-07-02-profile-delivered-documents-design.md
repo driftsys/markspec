@@ -31,7 +31,7 @@ New `profile.delivers:` section in `markspec.yaml`:
 profile:
   delivers:
     - path: reference/platform-architecture.md
-      corpus: true                    # entries join the consumer's graph
+      corpus: true # entries join the consumer's graph
       description: Shared platform components and interfaces
     - path: reference/integration-guide.md
       # corpus defaults to false → documentation-only
@@ -66,10 +66,10 @@ effective profile:
 
 ```ts
 interface DeliveredDocument {
-  profileId: string;        // which tier delivered it
+  profileId: string; // which tier delivered it
   profileVersion: string;
-  path: string;             // as declared, relative to the profile dir
-  absPath: string;          // resolved against that tier's baseDir
+  path: string; // as declared, relative to the profile dir
+  absPath: string; // resolved against that tier's baseDir
   corpus: boolean;
   description?: string;
 }

@@ -180,7 +180,7 @@ Deno.test("pipeline: upstream entry violating every emit stage stays silent but 
   // - Stage 4  traceability: unresolvable Satisfies (MSL-L006/T014)
   // (exact fixture shape: copy the file's existing upstream-entry builder)
   const upstream: Entry = {
-    ...makeEntry("UP_9999", { /* per the file's helper */ }),
+    ...makeEntry("UP_9999", {/* per the file's helper */}),
     origin: { kind: "upstream", upstreamId: "prod", version: "v1" },
   };
   const project = makeEntry("STK_0001", {

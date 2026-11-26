@@ -493,7 +493,8 @@ function parseProjectRefList(
   if (!Array.isArray(value)) {
     errors.push({
       field,
-      message: "must be a list of projectRef objects ({ url, version?, name? })",
+      message:
+        "must be a list of projectRef objects ({ url, version?, name? })",
       line: findLineNumber(yaml, field),
     });
     return [];
@@ -513,7 +514,8 @@ function parseProjectRefList(
       if (!PROJECT_REF_KEYS.has(key)) {
         errors.push({
           field: `${field}[${i}]`,
-          message: `unknown projectRef key '${key}' (allowed: url, version, name)`,
+          message:
+            `unknown projectRef key '${key}' (allowed: url, version, name)`,
           line: findLineNumber(yaml, key),
         });
       }
@@ -541,7 +543,8 @@ function parseProjectRefList(
     }
     if (record.name !== undefined) {
       if (
-        typeof record.name !== "string" || !PROJECT_REF_NAME_RE.test(record.name)
+        typeof record.name !== "string" ||
+        !PROJECT_REF_NAME_RE.test(record.name)
       ) {
         errors.push({
           field: `${field}[${i}].name`,
@@ -562,8 +565,18 @@ function parseProjectRefList(
 Wire into `parseProjectConfig` beside the other optional-field blocks:
 
 ```ts
-const dependencies = parseProjectRefList(obj["dependencies"], "dependencies", yaml, errors);
-const references = parseProjectRefList(obj["references"], "references", yaml, errors);
+const dependencies = parseProjectRefList(
+  obj["dependencies"],
+  "dependencies",
+  yaml,
+  errors,
+);
+const references = parseProjectRefList(
+  obj["references"],
+  "references",
+  yaml,
+  errors,
+);
 ```
 
 and include both in the returned config object. (Match the function's actual
@@ -891,8 +904,14 @@ const SITE = {
 };
 
 Deno.test("deriveUpstreamId: from URL path, strips .git and trailing slash", () => {
-  assertEquals(deriveUpstreamId({ url: "https://x.example/refhub/" }), "refhub");
-  assertEquals(deriveUpstreamId({ url: "git@github.com:acme/aeb-icd.git" }), "aeb-icd");
+  assertEquals(
+    deriveUpstreamId({ url: "https://x.example/refhub/" }),
+    "refhub",
+  );
+  assertEquals(
+    deriveUpstreamId({ url: "git@github.com:acme/aeb-icd.git" }),
+    "aeb-icd",
+  );
   assertEquals(deriveUpstreamId({ url: "../aeb-sensor" }), "aeb-sensor");
   assertEquals(deriveUpstreamId({ url: "https://x.example/", name: "n" }), "n");
 });
@@ -1386,7 +1405,9 @@ export async function resolveProjectReferences(
       continue;
     }
     const manifestHash = await sha256Bytes(fetched.manifestBytes);
-    registries.push(buildRow(id, baseUrl, fetched, manifestHash, opts.lockedAt));
+    registries.push(
+      buildRow(id, baseUrl, fetched, manifestHash, opts.lockedAt),
+    );
   }
   return { registries, diagnostics };
 }
@@ -1501,7 +1522,13 @@ Deno.test("buildManifest: records project.version and references federation", ()
     version: "1.4.0",
     references: [{ url: "https://driftsys.github.io/refhub" }],
   };
-  const manifest = buildManifest(emptyResult(), config, "/proj", null, "0.0.0-test");
+  const manifest = buildManifest(
+    emptyResult(),
+    config,
+    "/proj",
+    null,
+    "0.0.0-test",
+  );
   assertEquals(manifest.project.version, "1.4.0");
   assertEquals(manifest.federation, ["https://driftsys.github.io/refhub"]);
 });

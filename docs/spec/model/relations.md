@@ -160,7 +160,7 @@ Core relations are many-to-many by default. Profiles can restrict cardinality:
 ```yaml
 relations:
   - key: Superseded-by
-    cardinality: single   # only one successor
+    cardinality: single # only one successor
 ```
 
 If a single-cardinality relation appears more than once on the same entry, the

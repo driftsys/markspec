@@ -803,8 +803,7 @@ keeps its case.
 one the link reference and footnote definitions of its entry body, so a
 reference label or a footnote reference label keeps its case when its definition
 is in another block of the same body, also inside a list item, a blockquote or a
-note. A definition that is the first content of an ordered list item or of a
-nested list item still gives `MSL-F900` (#1026).
+note.
 
 #### 3.4.2 Entity references
 
@@ -1464,22 +1463,22 @@ Always JSON, always small (target < 100 KB at 100k entries — holds no bodies):
   "project": {
     "name": "...",
     "root": "urn:markspec:project:<id>",
-    "version": "1.2.0", // optional; from project.yaml `version:`
+    "version": "1.2.0" // optional; from project.yaml `version:`
   },
   "counts": {
     "entries": 1234,
     "edges": 5678,
-    "byType": { "Requirement": 900 },
+    "byType": { "Requirement": 900 }
   },
   "entries": {
     "format": "ndjson",
     "file": "entries.ndjson",
-    "index": "entries.idx",
+    "index": "entries.idx"
   },
   "edges": { "format": "ndjson", "file": "edges.ndjson" },
   "sqliteMirror": null,
   "federation": [],
-  "reserved": {},
+  "reserved": {}
 }
 ```
 

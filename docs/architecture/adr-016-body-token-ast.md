@@ -67,22 +67,37 @@ relation remains the formatter's correctness gate and is not affected.
 
    ```typescript
    type BodyTokenKind =
-     | "modal"            // shall, should, may, must, will
-     | "ears-trigger"     // When, While, If, Where, Then (in prose)
-     | "gherkin-section"  // Feature, Background, Rule, Scenario, Examples
-     | "gherkin-step"     // Given, When, Then, And, But
-     | "entity-ref"       // $Identifier (any case convention)
-     | "inline-code";     // `…` span
+     | "modal" // shall, should, may, must, will
+     | "ears-trigger" // When, While, If, Where, Then (in prose)
+     | "gherkin-section" // Feature, Background, Rule, Scenario, Examples
+     | "gherkin-step" // Given, When, Then, And, But
+     | "entity-ref" // $Identifier (any case convention)
+     | "inline-code"; // `…` span
 
    type ModalCase = "lower" | "upper";
    type EarsTrigger = "When" | "While" | "If" | "Where" | "Then";
 
    type BodyToken =
-     | { kind: "modal"; text: string; case: ModalCase; location: SourceLocation }
-     | { kind: "ears-trigger"; text: string; trigger: EarsTrigger; location: SourceLocation }
+     | {
+       kind: "modal";
+       text: string;
+       case: ModalCase;
+       location: SourceLocation;
+     }
+     | {
+       kind: "ears-trigger";
+       text: string;
+       trigger: EarsTrigger;
+       location: SourceLocation;
+     }
      | { kind: "gherkin-section"; text: string; location: SourceLocation }
      | { kind: "gherkin-step"; text: string; location: SourceLocation }
-     | { kind: "entity-ref"; text: string; convention: EntityRefConvention; location: SourceLocation }
+     | {
+       kind: "entity-ref";
+       text: string;
+       convention: EntityRefConvention;
+       location: SourceLocation;
+     }
      | { kind: "inline-code"; text: string; location: SourceLocation };
    ```
 
@@ -136,8 +151,10 @@ relation remains the formatter's correctness gate and is not affected.
 
    ```typescript
    interface LineMap {
-     translate(bufferLine: number, bufferColumn: number):
-       { line: number; column: number } | undefined;
+     translate(
+       bufferLine: number,
+       bufferColumn: number,
+     ): { line: number; column: number } | undefined;
    }
 
    interface ParseMarkdownOptions {

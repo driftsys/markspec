@@ -190,14 +190,33 @@ interface StepAst {
   readonly range: SourceRange; // relative to source: line 1 = first source line
 }
 interface ScenarioAst {
-  name; keyword; tags; ruleName?; description; isOutline: boolean;
+  name;
+  keyword;
+  tags;
+  ruleName?;
+  description;
+  isOutline: boolean;
   background: readonly StepAst[]; // Feature then Rule background, in order
-  steps: readonly StepAst[]; examples: readonly ExamplesAst[]; range;
+  steps: readonly StepAst[];
+  examples: readonly ExamplesAst[];
+  range;
 }
-interface ExamplesAst { name; keyword; tags; header; rows; range }
+interface ExamplesAst {
+  name;
+  keyword;
+  tags;
+  header;
+  rows;
+  range;
+}
 interface FeatureAst {
-  name; keyword; synthetic: boolean; language: string; description;
-  tags: readonly string[]; scenarios: readonly ScenarioAst[];
+  name;
+  keyword;
+  synthetic: boolean;
+  language: string;
+  description;
+  tags: readonly string[];
+  scenarios: readonly ScenarioAst[];
   sections: readonly { keyword: string; range: SourceRange }[]; // for tokens
 }
 type FeatureParse =

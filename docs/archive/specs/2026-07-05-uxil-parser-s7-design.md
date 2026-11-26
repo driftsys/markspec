@@ -139,28 +139,31 @@ tables.
 ## 5. AST
 
 ```ts
-export interface Position { readonly line: number; readonly column: number }
+export interface Position {
+  readonly line: number;
+  readonly column: number;
+}
 
 /** A ux: reference — citation, nav target, or the surface head of a decl. */
 export interface UxRef {
-  readonly hasScheme: boolean;          // "ux:" present (false = wire form)
-  readonly surface: readonly string[];  // ["media","home"]
-  readonly state?: string;              // "@" state (single, per ref grammar)
-  readonly element?: string;            // "/" element
-  readonly key?: UxKey;                 // ":" key (only after element)
-  readonly verb?: string;               // "!" verb
+  readonly hasScheme: boolean; // "ux:" present (false = wire form)
+  readonly surface: readonly string[]; // ["media","home"]
+  readonly state?: string; // "@" state (single, per ref grammar)
+  readonly element?: string; // "/" element
+  readonly key?: UxKey; // ":" key (only after element)
+  readonly verb?: string; // "!" verb
   readonly position: Position;
 }
 
 export type UxKey =
   | { readonly kind: "concrete"; readonly value: string }
-  | { readonly kind: "template"; readonly name: string };   // "{id}"
+  | { readonly kind: "template"; readonly name: string }; // "{id}"
 
 export interface RootDecl {
   readonly form: "root";
   readonly surface: readonly string[];
-  readonly kind: string;                // captured raw; validated in S8
-  readonly states: readonly string[];   // @-set; may be empty
+  readonly kind: string; // captured raw; validated in S8
+  readonly states: readonly string[]; // @-set; may be empty
   readonly position: Position;
 }
 
@@ -168,16 +171,16 @@ export interface ElementDecl {
   readonly form: "element";
   readonly element: string;
   readonly keyTemplate?: UxKey;
-  readonly verbs: readonly string[];    // ": verb set" (>= 1)
+  readonly verbs: readonly string[]; // ": verb set" (>= 1)
   readonly states?: readonly string[];
-  readonly nav?: UxRef;                 // "-> target"
-  readonly eventDictionary: string;     // raw trailing prose (mandatory)
+  readonly nav?: UxRef; // "-> target"
+  readonly eventDictionary: string; // raw trailing prose (mandatory)
   readonly position: Position;
 }
 
 export interface ChildSurfaceDecl {
   readonly form: "child";
-  readonly path: readonly string[];     // segments after the leading dot
+  readonly path: readonly string[]; // segments after the leading dot
   readonly states?: readonly string[];
   readonly position: Position;
 }
@@ -214,10 +217,10 @@ checks against `KINDS`.
 
 ```ts
 export interface UxilDiagnostic {
-  readonly code: UxilCode;      // "UXIL-001" | …
+  readonly code: UxilCode; // "UXIL-001" | …
   readonly severity: Severity;
   readonly message: string;
-  readonly position: Position;  // 1-based, source-local (no file yet)
+  readonly position: Position; // 1-based, source-local (no file yet)
 }
 ```
 

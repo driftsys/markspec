@@ -84,7 +84,9 @@ function renderListItem(
   // Every line after the marker line is indented to the item's content
   // column: 2 for `-`, 3 for `1.`, 4 for `10.`. A smaller indent moves a
   // block out of an ordered item (#1026, #1033). The checkbox is inline
-  // content, so it does not move the content column.
+  // content, so it does not move the content column. Known limitation: a
+  // continuation line of a task item is not kept (`- [x] one\n  two` gives
+  // MSL-F900); task lists are an excluded construct (MSL-B042).
   const pad = " ".repeat(bullet.length + 1);
   const indent = (l: string) => (l ? `${pad}${l}` : "");
 

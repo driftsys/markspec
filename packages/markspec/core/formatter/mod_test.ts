@@ -1548,15 +1548,42 @@ for (
   });
 }
 
+// A first block that starts with a non-space character starts on the
+// marker line; later lines use the content column (#1033).
+for (
+  const [body, kept] of [
+    ["1. > quote", "  1. > quote"],
+    ["1. ```\n   code\n   ```", "  1. ```\n     code\n     ```"],
+    ["1. 1. nested", "  1. 1. nested"],
+    ["-\n  - nested", "  - - nested"],
+    ["1. # Heading", "  1. # Heading"],
+    ["1. <div>html</div>", "  1. <div>html</div>"],
+    ["1. [^n]: A footnote.", "  1. [^n]: A footnote."],
+    [
+      `${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `${n}. i${n}`).join("\n")}\n` +
+      "10. [x]: http://x.example/\n    [y]: http://y.example/",
+      "  10. [x]: http://x.example/\n      [y]: http://y.example/",
+    ],
+    ["1.\n   ---", "  1.\n     ---"],
+  ]
+) {
+  Deno.test(`format: places ${JSON.stringify(body)} at the content column (#1033)`, () => {
+    const { result, f900 } = formatBody(`Intro.\n\n${body}`);
+    assertEquals(f900, []);
+    assertStringIncludes(result.output, kept);
+  });
+}
+
 // Continuation lines of `1.` use the 3-column content column (#1033).
 Deno.test("format: indents ordered item continuation lines to the content column (#1033)", () => {
-  const { result } = formatBody(
+  const { result, f900 } = formatBody(
     "Intro.\n\n1. [x]: http://x.example/\n   [y]: http://y.example/",
   );
   assertStringIncludes(
     result.output,
     "  1. [x]: http://x.example/\n     [y]: http://y.example/",
   );
+  assertEquals(f900, []);
 });
 
 Deno.test("format: lowercases the visible text of a full reference link (#1014)", () => {

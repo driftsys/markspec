@@ -290,7 +290,10 @@ Deno.test("renderEntry: upstream entry shows 'from upstream' origin (slice 5)", 
     location: { file: "docs/product/stk.md", line: 12, column: 1 },
   };
   const md = renderEntry(upstream, [], [], TITLES);
-  assertStringIncludes(md, "**Origin**: from upstream product@v2.1.0 (read-only)");
+  assertStringIncludes(
+    md,
+    "**Origin**: from upstream product@v2.1.0 (read-only)",
+  );
 });
 
 Deno.test("renderEntry: upstream entry annotates its Location as upstream (slice 5)", () => {
@@ -302,7 +305,10 @@ Deno.test("renderEntry: upstream entry annotates its Location as upstream (slice
   // projectRoot undefined → relativeToRoot returns the (already relative)
   // upstream path unchanged; the annotation marks it as non-local.
   const md = renderEntry(upstream, [], [], TITLES);
-  assertStringIncludes(md, "**Location**: docs/product/stk.md:12 (in upstream product)");
+  assertStringIncludes(
+    md,
+    "**Location**: docs/product/stk.md:12 (in upstream product)",
+  );
 });
 ```
 
@@ -317,7 +323,10 @@ Deno.test("renderShow: upstream entry surfaces the 'from upstream' origin", () =
   } as unknown as Entry;
   const result = compiled([upstream], []);
   const md = renderShow(result, "PRODUCT_STK_0001", undefined);
-  assertStringIncludes(md, "**Origin**: from upstream product@v2.1.0 (read-only)");
+  assertStringIncludes(
+    md,
+    "**Origin**: from upstream product@v2.1.0 (read-only)",
+  );
 });
 ```
 
@@ -484,7 +493,9 @@ for (const node of chain) {
   const indent = "  ".repeat(node.depth);
   const originSuffix = node.origin ? ` — from ${node.origin}` : "";
   if (node.depth === 0) {
-    lines.push(`${indent}- **${node.displayId}** — ${node.title}${originSuffix}`);
+    lines.push(
+      `${indent}- **${node.displayId}** — ${node.title}${originSuffix}`,
+    );
   } else {
     lines.push(
       `${indent}- satisfies → [${node.displayId}](${
