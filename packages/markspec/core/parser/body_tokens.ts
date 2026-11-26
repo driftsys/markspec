@@ -235,8 +235,7 @@ export function extractBodyTokens(
   const tokens: BodyToken[] = [];
   const verbatimLines = collectVerbatimLines(bodyAst);
   const tree = mdastTree ?? processor.parse(body) as Root;
-  // Inline code and verbatim inline syntax (link destinations, titles,
-  // images, autolinks, ...): the ranges the fmt casing pass keeps (#1017).
+  // The ranges the fmt casing pass keeps (#1017); see nonProseRanges.
   const skipRanges = nonProseRanges(body, tree);
   const inModalSkip = skipRangeTester(skipRanges);
   const inEarsSkip = skipRangeTester(skipRanges);

@@ -344,7 +344,7 @@ function entryWithBlocks(blocks: BodyBlock[]): Entry {
 Deno.test("Q500: labels defined in another block are not terms (#1017)", () => {
   const entry = entryWithBlocks([
     makeParagraph(
-      "See [the rule][BrakeRef], [BrakeController] and the note[^BigNote].",
+      "See [the rule][BrakeRef], [BrakeController] and the note[^BigNote]. The PumpUnit runs.",
     ),
     {
       kind: "unknown",
@@ -359,7 +359,8 @@ Deno.test("Q500: labels defined in another block are not terms (#1017)", () => {
     } as BodyBlock,
   ]);
   const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
-  assertEquals(diags.map((d) => d.message), []);
+  assertEquals(diags.length, 1);
+  assertStringIncludes(diags[0].message, "'PumpUnit'");
 });
 
 Deno.test("Q500: does not read inline code as a term (#1017)", () => {

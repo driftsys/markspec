@@ -404,3 +404,24 @@ Deno.test("modal: a prose keyword right after a link URL is a token (#1017)", ()
     ["MAY@3:29"],
   );
 });
+
+Deno.test("ears-trigger: skipped in a range while the modal after it counts (#1017)", () => {
+  assertEquals(modalAndEars("Use `When` and the system shall go."), [
+    "modal:shall",
+  ]);
+  assertEquals(modalAndEars("<http://When.example/> shall."), [
+    "modal:shall",
+  ]);
+});
+
+Deno.test("modal: no token for a keyword that begins an email autolink (#1017)", () => {
+  assertEquals(
+    modalAndEars("Mail <SHALL@x.example> or <MUST@y.example> now."),
+    [],
+  );
+  // A GFM literal email autolink: the range starts at the keyword itself.
+  assertEquals(
+    modalAndEars("Mail SHALL@x.example or MUST@y.example now."),
+    [],
+  );
+});

@@ -64,7 +64,8 @@ of universally-true capitalized words (calendar / geography / languages) at
 `packages/markspec/core/lexicons/capitalized-allow.txt` — list-additive across
 profile tiers, capped, and explicitly excludes domain vocabulary and
 standards-body acronyms. Text in inline code, link destinations, titles and
-labels, autolinks and images is not read as a term.
+labels, autolinks, images, link reference definitions, footnote labels and raw
+HTML is not read as a term.
 
 ## Modal keyword analysis
 
@@ -86,9 +87,9 @@ the RFC 2119 / EARS convention that modals appear in **lowercase**:
 Fires when any of the above keywords appears in uppercase (`SHALL`, `MUST`, …)
 inside body prose. The formatter (`markspec fmt`) rewrites uppercase modals in
 prose to lowercase automatically. It keeps the case of a keyword in inline code,
-a link URL, title or label, an autolink, an image, a link reference definition,
-a footnote label or raw HTML, and this diagnostic does not report a keyword in
-those places either, so a formatted file does not show it.
+link destinations, titles and labels, autolinks, images, link reference
+definitions, footnote labels and raw HTML, and this diagnostic does not report a
+keyword in those places either, so a formatted file does not show it.
 
 ```text
 warning[MSL-M060]: requirements.md:12 modal keyword 'SHALL' in body prose is
@@ -102,9 +103,10 @@ keywords inside code examples are not checked.
 **MSL-M061 — missing-modal-keyword** (info)
 
 Fires on `Requirement` entries (and profile subtypes) whose body contains no
-modal keyword at all. A keyword in inline code, a link URL or title, an autolink
-or an image does not count. This is a style hint: a requirement without an
-obligation word is often a description masquerading as a requirement.
+modal keyword at all. A keyword in inline code, link destinations, titles and
+labels, autolinks, images, link reference definitions, footnote labels and raw
+HTML does not count. This is a style hint: a requirement without an obligation
+word is often a description masquerading as a requirement.
 
 ```text
 info[MSL-M061]: requirements.md:7 Requirement entry contains no modal keyword

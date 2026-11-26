@@ -106,8 +106,9 @@ relation remains the formatter's correctness gate and is not affected.
    clicks" is no `ears-trigger`. (Amended by ADR-038: Gherkin tokens now come
    from the Gherkin AST, so a keyword inside step text gives no token.) (Amended
    by #1017, 2026-11-26: modal and EARS-trigger tokens are also not emitted
-   inside inline code or verbatim inline link syntax, the ranges that the `fmt`
-   modal casing pass keeps.)
+   inside inline code, link destinations, titles and labels, autolinks, images,
+   link reference definitions, footnote labels and raw HTML, the ranges that the
+   `fmt` modal casing pass keeps.)
 
    This rule unifies behaviour that today diverges per consumer
    (`entity_refs.ts` excludes verbatim regions via the AST; the LSP scanner does
