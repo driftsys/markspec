@@ -8,6 +8,7 @@
 import {
   displayIdScopeFilter,
   displayIdScopesInUse,
+  firstFreeDisplayIdNumber,
   formatDisplayId,
   hasScopePlaceholder,
   highestDisplayIdNumber,
@@ -46,7 +47,8 @@ export function namedIdTemplate(pattern: string): string {
  *
  * For a *numbered* pattern, parses the `{n:Nd}` counter, scans `entries`
  * for the highest existing number with the same prefix/suffix, and returns
- * `prefix + (max+1 zero-padded to N digits) + suffix`.
+ * `prefix + (max+1 zero-padded to N digits) + suffix`, or the first higher
+ * number whose display ID is not already in `entries`.
  *
  * A *named* (counter-less) type — e.g. `sw-component: "SWC_{name}"` (ADR-025)
  * — has no counter to mint. Rather than failing, this prints a "named type,
@@ -58,8 +60,9 @@ export function namedIdTemplate(pattern: string): string {
  * needs `scope`, the `--scope` value: it replaces the placeholder, so the
  * number is the highest number in that scope plus one (#1038); an ID that
  * `displayIdScope` reads under another scope never counts
- * (`displayIdScopeFilter`). See {@linkcode resolveScopedPattern} for the
- * errors.
+ * (`displayIdScopeFilter`). The number goes up further while its ID already
+ * exists in `entries`, which happens when nothing separates `{scope}` from
+ * the counter (#1041). See {@linkcode resolveScopedPattern} for the errors.
  *
  * Exits when `pattern` is genuinely malformed (which profile-load now
  * rejects upstream via PROFILE-TYPE-008, so this is a defensive fallback),
@@ -86,9 +89,17 @@ export function nextDisplayId(
     const counted = accept
       ? entryList.filter((e) => accept(e.displayId))
       : entryList;
+    // An ID the filter dropped can still be the formatted candidate
+    // (`G_BR100` is scope `BR1` for `G_{scope}{n:02d}`), so skip every number
+    // whose ID already exists (#1041).
+    const existing = new Set(entryList.map((e) => e.displayId));
     return formatDisplayId(
       shape,
-      highestDisplayIdNumber(shape, counted) + 1,
+      firstFreeDisplayIdNumber(
+        shape,
+        highestDisplayIdNumber(shape, counted) + 1,
+        (id) => existing.has(id),
+      ),
     );
   }
   const validation = validateDisplayIdPattern(pattern);

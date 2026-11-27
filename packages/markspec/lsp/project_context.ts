@@ -24,12 +24,14 @@ import {
   type Diagnostic as CoreDiagnostic,
   discoverFiles,
   type DiscoveryDirEntry,
+  type DisplayIdPatternShape,
   displayIdScope,
   displayIdScopeFilter,
   displayIdScopesInUse,
   type EffectiveProfile,
   type Entry,
   FEATURE_EXTENSIONS,
+  formatDisplayId,
   hasScopePlaceholder,
   inferDisplayIdScope,
   isDiscoverable,
@@ -64,7 +66,7 @@ import {
   type MarkspecProfileResponse,
 } from "./profile_request.ts";
 import type { EntryTypeInfo } from "./completions.ts";
-import { release } from "./id_reservations.ts";
+import { IdReservations } from "./id_reservations.ts";
 import { debounce, type DebouncedFunction, pathToUri } from "./util.ts";
 import type { EventFields, Level } from "./event_log.ts";
 import { time, timeAsync } from "./timing.ts";
@@ -136,6 +138,10 @@ export class ProjectContext {
   lockfile: Lockfile | undefined;
   /** In-memory entry index for the files this project owns. */
   readonly index = new WorkspaceIndex();
+  /** Display IDs that scaffold resolves in this project handed out and the
+   * index does not hold yet. Kept per project, so a parse in another
+   * project never releases them. */
+  readonly reservations = new IdReservations();
   /** Cached cross-file validation result. Updated by
    * {@linkcode publishAllDiagnostics} and read by request handlers (e.g.
    * `markspec/entryRanges`) so they don't re-run `validateAll()` on every
@@ -844,7 +850,11 @@ export class ProjectContext {
    * scope in the ID prefix, so a partial never selects a scope for it; it
    * always gets its per-scope items and the template (`R-NNN-SCOPE`).
    * An ID that `displayIdScope` reads under another scope never raises the
-   * next number of a scope ({@linkcode scopeFilter}).
+   * next number of a scope ({@linkcode scopeFilter}). The next number of
+   * every numbered item (per scope or without a scope) skips a number whose
+   * display ID is already indexed, which such an ID can be when nothing
+   * separates `{scope}` from the counter (#1041). The scope template and
+   * named types carry no number.
    *
    * @param partial - The display-ID text typed so far, for the mid-typed
    *   trigger. Omit it for the bare `- [` trigger.
@@ -891,9 +901,8 @@ export class ProjectContext {
             prefix: scoped.prefix,
             width: scoped.width,
             suffix: scoped.suffix,
-            nextNumber: this.index.getNextDisplayIdNumber(
-              scoped.prefix,
-              scoped.suffix,
+            nextNumber: this.index.getNextFreeDisplayIdNumber(
+              scoped,
               undefined,
               displayIdScopeFilter(pattern, scope),
             ),
@@ -920,7 +929,7 @@ export class ProjectContext {
       }
       if (shape) {
         const { prefix, width, suffix } = shape;
-        const nextNumber = this.index.getNextDisplayIdNumber(prefix, suffix);
+        const nextNumber = this.index.getNextFreeDisplayIdNumber(shape);
         types.push({
           name,
           prefix,
@@ -953,11 +962,42 @@ export class ProjectContext {
   }
 
   /**
+   * Mint and reserve the number of a numbered scaffold of the profile type
+   * `typeName` whose pattern, with any `{scope}` substituted, is `shape`.
+   * The scaffold-completion resolve handler calls it. For a `{scope}`
+   * pattern, IDs of other scopes never count ({@linkcode scopeFilter},
+   * #1038). The number's display ID is neither indexed nor reserved by a
+   * resolve under another prefix, which can format the same ID for a glued
+   * `{scope}` pattern (#1041). The number and its display ID are reserved in
+   * this project's {@linkcode reservations}.
+   */
+  mintScaffoldNumber(
+    typeName: string,
+    scope: string | undefined,
+    shape: DisplayIdPatternShape,
+  ): number {
+    const accept = this.scopeFilter(typeName, scope);
+    return this.reservations.mintReservedNumber(
+      shape.prefix,
+      shape.suffix,
+      (reserved) =>
+        this.index.getNextFreeDisplayIdNumber(
+          shape,
+          reserved,
+          accept,
+          (id) => this.reservations.isDisplayIdReserved(id),
+        ),
+      (n) => formatDisplayId(shape, n),
+    );
+  }
+
+  /**
    * The test a display ID must pass to count toward the next number of
    * `scope` for the profile type `typeName`: `undefined` when `scope` is
    * absent, or the type has no `{scope}` pattern or is unknown. The resolve
-   * handler passes it to {@linkcode WorkspaceIndex.getNextDisplayIdNumber},
-   * as {@linkcode getEntryTypes} does (#1038).
+   * handler passes it to
+   * {@linkcode WorkspaceIndex.getNextFreeDisplayIdNumber}, as
+   * {@linkcode getEntryTypes} does (#1038).
    */
   scopeFilter(
     typeName: string,
@@ -973,7 +1013,7 @@ export class ProjectContext {
   /**
    * Lean `(prefix, suffix)` pairs for every profile type with a parseable
    * `display-id-pattern`. Unlike {@linkcode getEntryTypes} this skips the
-   * per-type `getNextDisplayIdNumber` scan —
+   * per-type `getNextFreeDisplayIdNumber` scan —
    * {@linkcode releaseObservedReservations} only needs the literal affixes
    * to decompose a display ID, and it runs on every debounced parse. A
    * pattern with a `{scope}` placeholder also carries the `pattern`, so the
@@ -1021,19 +1061,26 @@ export class ProjectContext {
    * parse) the reservation is redundant and must be dropped so the number
    * is not blocked. Each entry's display ID is decomposed against this
    * project's profile type affixes to recover the `(prefix, suffix,
-   * number)` triple. A no-op when no profile is loaded or nothing matches
-   * — cheap because reservation buckets are typically empty.
+   * number)` triple. Each entry's display ID is also released by itself
+   * (`releaseDisplayId`), which drops the number reservation of the prefix
+   * that minted it: with nothing between `{scope}` and the counter, that
+   * prefix can differ from the decomposed one (#1041). Nothing changes
+   * when nothing is reserved for the file's IDs — cheap because
+   * reservation buckets are typically empty.
    *
-   * Reservations live in the module-global `id_reservations.ts` table,
-   * keyed by `(prefix, suffix)` only, not by project. Two projects whose
-   * profiles share a prefix therefore share reservations. The effect is
-   * at most a skipped number in the other project during the short
-   * parse-debounce window, which is acceptable.
+   * Only this project's {@linkcode reservations} are released: a file of
+   * another project that holds the same display ID never drops them.
    */
   releaseObservedReservations(filePath: string): void {
+    const entries = this.index.getEntriesForFile(filePath);
+    // A minted ID releases the number reservation of the prefix that minted
+    // it, even when the ID decomposes under another scope below (#1041).
+    for (const entry of entries) {
+      this.reservations.releaseDisplayId(entry.displayId);
+    }
     const patterns = this.getScaffoldPatterns();
     if (patterns.length === 0) return;
-    for (const entry of this.index.getEntriesForFile(filePath)) {
+    for (const entry of entries) {
       const id = entry.displayId as string;
       for (const pattern of patterns) {
         const affixes = this.affixesFor(pattern, id);
@@ -1043,7 +1090,7 @@ export class ProjectContext {
         if (suffix && !id.endsWith(suffix)) continue;
         const numberPart = id.slice(prefix.length, id.length - suffix.length);
         if (!/^\d+$/.test(numberPart)) continue;
-        release(prefix, suffix, parseInt(numberPart, 10));
+        this.reservations.release(prefix, suffix, parseInt(numberPart, 10));
         break; // one pattern matched this entry; move on
       }
     }

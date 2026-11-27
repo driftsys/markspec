@@ -342,3 +342,75 @@ Deno.test("next-id: --scope on a counter-less pattern with {scope} fails", async
       "placeholder; 'XREQ_{scope}' is not one",
   );
 });
+
+// ---------------------------------------------------------------------------
+// nothing between {scope} and the counter: never mint an existing ID (#1041)
+// ---------------------------------------------------------------------------
+
+/** Files for a `glued` type with `pattern`, and `req.md` holding `ids`. */
+function gluedFiles(pattern: string, ids: readonly string[]) {
+  const blocks = ids.map((id, i) =>
+    `- [${id}] Request ${i + 1}
+
+  The controller shall respond within 100 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDE${i}
+`
+  ).join("\n");
+  return {
+    ...BASE_FILES,
+    "profiles/acme/markspec.yaml": `id: "@acme/glued"
+version: 0.1.0
+profile:
+  types:
+    glued:
+      extends: Requirement
+      display-id-pattern: "${pattern}"
+`,
+    "req.md": `# Requirements\n\n${blocks}`,
+  };
+}
+
+Deno.test("next-id --scope: a number wider than the padding is never minted twice (#1041)", async () => {
+  // G_BR100 reads as scope BR1, number 00, so scope BR counts only
+  // G_BR99. The next number, 100, gives G_BR100, which exists.
+  const { code, stdout, stderr } = await markspec(
+    ["next-id", "glued", "--scope", "BR", "req.md"],
+    { files: gluedFiles("G_{scope}{n:02d}", ["G_BR99", "G_BR100"]) },
+  );
+  assertEquals(code, 0, stderr);
+  assertEquals(stdout.trim(), "G_BR101");
+});
+
+Deno.test("next-id --scope: an unpadded counter is never minted twice from 10 upward (#1041)", async () => {
+  // G_BR10 reads as scope BR1, number 0.
+  const { code, stdout, stderr } = await markspec(
+    ["next-id", "glued", "--scope", "BR", "req.md"],
+    { files: gluedFiles("G_{scope}{n}", ["G_BR9", "G_BR10"]) },
+  );
+  assertEquals(code, 0, stderr);
+  assertEquals(stdout.trim(), "G_BR11");
+});
+
+Deno.test("create --scope: a number wider than the padding is never minted twice (#1041)", async () => {
+  const { code, stdout, stderr } = await markspec(
+    ["create", "glued", "--scope", "BR", "req.md"],
+    { files: gluedFiles("G_{scope}{n:02d}", ["G_BR99", "G_BR100"]) },
+  );
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stdout, "- [G_BR101] ");
+});
+
+Deno.test("insert --scope: a number wider than the padding is never minted twice (#1041)", async () => {
+  const run = await markspecPersist(
+    ["insert", "glued", "--scope", "BR", "req.md"],
+    { files: gluedFiles("G_{scope}{n:02d}", ["G_BR99", "G_BR100"]) },
+  );
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const text = await Deno.readTextFile(`${run.dir}/req.md`);
+    assertStringIncludes(text, "- [G_BR101] ");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

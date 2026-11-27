@@ -674,3 +674,61 @@ Deno.test("lsp completions: resolve ignores a scaffold payload with a malformed 
     await client.shutdown();
   }
 });
+
+const GLUED_TWO_DIGIT_PROFILE_YAML = `id: "@acme/glued-two-digit"
+version: 0.1.0
+profile:
+  types:
+    glued:
+      extends: Requirement
+      display-id-pattern: "G_{scope}{n:02d}"
+`;
+
+const GLUED_TWO_DIGIT_ENTRIES_MD = `# Requirements
+
+- [G_BR99] Scope BR request
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [G_BR100] Scope BR1 request
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+
+Deno.test("lsp completions: glued {scope} scaffolds and their resolves never mint an existing or a reserved ID (#1041)", async () => {
+  const { client, items } = await scopedCompletion(
+    "- [",
+    3,
+    GLUED_TWO_DIGIT_PROFILE_YAML,
+    GLUED_TWO_DIGIT_ENTRIES_MD,
+  );
+  try {
+    // G_BR100 reads as scope BR1, so scope BR counts only G_BR99; its next
+    // number, 100, gives the existing G_BR100 and is skipped.
+    const ofScope = (scope: string) => {
+      const item = items.find((i) =>
+        (i.data as { scope?: string } | undefined)?.scope === scope
+      );
+      assertExists(item, JSON.stringify(items));
+      return item;
+    };
+    const br = ofScope("BR");
+    const br1 = ofScope("BR1");
+    assertEquals(br.label, "New glued (G_BR101)");
+    const resolve = async (item: ScopedItem) =>
+      (await client.request("completionItem/resolve", item) as ScopedItem)
+        .label;
+    assertEquals(await resolve(br), "New glued (G_BR101)");
+    // Number 1 of scope BR1 also formats to G_BR101, which the BR resolve
+    // reserved: the BR1 resolve takes the next free ID.
+    assertEquals(await resolve(br1), "New glued (G_BR102)");
+    // 101 is reserved for scope BR, and G_BR102 is reserved by ID.
+    assertEquals(await resolve(br), "New glued (G_BR103)");
+  } finally {
+    await client.shutdown();
+  }
+});

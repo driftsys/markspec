@@ -124,7 +124,6 @@ import {
   type ScaffoldCompletionData,
 } from "./completions.ts";
 import { findEnclosingEntry } from "./find_entry.ts";
-import { mintReservedNumber } from "./id_reservations.ts";
 import {
   fencedLinesForFile,
   isDocCommentContext,
@@ -1126,14 +1125,11 @@ connection.onCompletionResolve((item): CompletionItem => {
     // window — before this entry reaches the index — sees the number as
     // taken and picks the next one, closing the duplicate-ID race.
     const { prefix, suffix } = data;
-    // For a `{scope}` pattern, IDs of other scopes never count (#1038).
-    const accept = ctx.scopeFilter(data.typeName, data.scope);
-    const nextNumber = mintReservedNumber(
+    const nextNumber = ctx.mintScaffoldNumber(data.typeName, data.scope, {
       prefix,
+      width: data.width,
       suffix,
-      (reserved) =>
-        ctx.index.getNextDisplayIdNumber(prefix, suffix, reserved, accept),
-    );
+    });
     rendered = renderScaffoldSnippet({
       typeName: data.typeName,
       prefix: data.prefix,

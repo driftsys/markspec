@@ -853,9 +853,11 @@ markspec insert <type> <file>
 
 The command:
 
-1. Finds the highest existing display ID for `<type>` in `<file>` (for a scoped
+1. Finds the highest existing display ID for `<type>` among the entries of
+   `<file>`, delivered-corpus entries and locked upstream entries (for a scoped
    type, in the `--scope` scope).
-2. Computes the next sequential display ID.
+2. Computes the next sequential display ID, skipping any display ID that already
+   exists.
 3. Generates a fresh ULID.
 4. Appends the block with a blank separator.
 
@@ -926,12 +928,16 @@ For a **scoped type** — a numbered `display-id-pattern` with a `{scope}`
 placeholder, e.g. `software-requirement: "SRS_{scope}_{n:04d}"` — `next-id`,
 `create`, and `insert` need `--scope <value>`. The value replaces `{scope}`, and
 the number is the highest number in that scope plus one; IDs of other scopes do
-not count. A scope is one or more ASCII letters or digits (`[A-Za-z0-9]+`). A
-counter-less pattern such as `SWC_{scope}` is a named type, not a scoped type:
-it takes no `--scope`. As for any type, the IDs that count are those of the
-files the command reads (the paths you pass for `next-id` and `create`, only the
-target file for `insert`), plus any entries that the profile delivers
-(`delivers:`) or that a locked upstream provides (`markspec.lock`).
+not count. When the ID of that number already exists, the number goes up until
+the ID is free. This can happen when nothing separates `{scope}` from the
+counter: for `G_{scope}{n:02d}`, `G_BR100` reads as scope `BR1`, so with
+`G_BR99` and `G_BR100` present, `--scope BR` gives `G_BR101`. A scope is one or
+more ASCII letters or digits (`[A-Za-z0-9]+`). A counter-less pattern such as
+`SWC_{scope}` is a named type, not a scoped type: it takes no `--scope`. As for
+any type, the IDs that count are those of the files the command reads (the paths
+you pass for `next-id` and `create`, only the target file for `insert`), plus
+any entries that the profile delivers (`delivers:`) or that a locked upstream
+provides (`markspec.lock`).
 
 ```sh
 # docs/requirements.md holds SRS_BRK_0001 and SRS_ENG_0007

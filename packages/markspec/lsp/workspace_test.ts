@@ -13,7 +13,7 @@ import type {
   ProvenancedMapEntry,
   SourceLocation,
 } from "../core/mod.ts";
-import { makeDisplayId, parseFile } from "../core/mod.ts";
+import { displayIdScopeFilter, makeDisplayId, parseFile } from "../core/mod.ts";
 
 /** Helper to create a minimal identified entry. */
 function entry(
@@ -182,6 +182,55 @@ Deno.test("WorkspaceIndex: getNextDisplayIdNumber ignores reservations under a d
   assertEquals(
     index.getNextDisplayIdNumber("STK_AEB_", "", new Set()),
     2,
+  );
+});
+
+Deno.test("WorkspaceIndex: getNextFreeDisplayIdNumber returns max + 1 when that ID is free", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("reqs.md", [
+    entry("STK_AEB_0001", { file: "reqs.md" }),
+    entry("STK_AEB_0010", { file: "reqs.md" }),
+  ]);
+  assertEquals(
+    index.getNextFreeDisplayIdNumber({
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+    }),
+    11,
+  );
+});
+
+Deno.test("WorkspaceIndex: getNextFreeDisplayIdNumber skips an indexed ID that the scope filter dropped (#1041)", () => {
+  const index = new WorkspaceIndex();
+  // G_{scope}{n:02d}: G_BR100 reads as scope BR1, number 00.
+  index.updateFile("reqs.md", [
+    entry("G_BR99", { file: "reqs.md" }),
+    entry("G_BR100", { file: "reqs.md" }),
+  ]);
+  const accept = displayIdScopeFilter("G_{scope}{n:02d}", "BR");
+  const shape = { prefix: "G_BR", width: 2, suffix: "" };
+  assertEquals(
+    index.getNextDisplayIdNumber("G_BR", "", undefined, accept),
+    100,
+  );
+  assertEquals(index.getNextFreeDisplayIdNumber(shape, undefined, accept), 101);
+});
+
+Deno.test("WorkspaceIndex: getNextFreeDisplayIdNumber skips a display ID that isReserved reports (#1041)", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("reqs.md", [entry("STK_0001", { file: "reqs.md" })]);
+  const shape = { prefix: "STK_", width: 4, suffix: "" };
+  const reservedIds = new Set(["STK_0002", "STK_0003"]);
+  assertEquals(index.getNextFreeDisplayIdNumber(shape), 2);
+  assertEquals(
+    index.getNextFreeDisplayIdNumber(
+      shape,
+      undefined,
+      undefined,
+      (id) => reservedIds.has(id),
+    ),
+    4,
   );
 });
 

@@ -14,11 +14,6 @@ import {
   buildMidTypedScaffoldItems,
   type EntryTypeInfo,
 } from "./completions.ts";
-import {
-  _reset as _resetReservations,
-  isReserved,
-  reserve,
-} from "./id_reservations.ts";
 
 /** Absolute project root: on Windows it carries a drive letter. */
 const ROOT = resolve("/proj");
@@ -627,29 +622,24 @@ Deno.test("ProjectContext.getEntryTypes: a shorter partial offers the matching s
 });
 
 Deno.test("ProjectContext.releaseObservedReservations: releases a reservation of a scoped display ID (#1038)", async () => {
-  _resetReservations();
-  try {
-    const ctx = await scopedContext();
-    reserve("SRS_BRK_", "", 2);
-    reserve("SRS_ENG_", "", 5);
-    const docPath = join(ROOT, "doc.md");
-    await ctx.index.parseAndUpdateFile(
-      docPath,
-      SCOPED_MD + `
+  const ctx = await scopedContext();
+  ctx.reservations.reserve("SRS_BRK_", "", 2);
+  ctx.reservations.reserve("SRS_ENG_", "", 5);
+  const docPath = join(ROOT, "doc.md");
+  await ctx.index.parseAndUpdateFile(
+    docPath,
+    SCOPED_MD + `
 - [SRS_BRK_0002] Second brake request
 
   Body text.
 
       Id: 01SRS000000000000000000003
 `,
-    );
-    ctx.releaseObservedReservations(docPath);
-    ctx.dispose();
-    assertEquals(isReserved("SRS_BRK_", "", 2), false);
-    assertEquals(isReserved("SRS_ENG_", "", 5), true);
-  } finally {
-    _resetReservations();
-  }
+  );
+  ctx.releaseObservedReservations(docPath);
+  ctx.dispose();
+  assertEquals(ctx.reservations.isReserved("SRS_BRK_", "", 2), false);
+  assertEquals(ctx.reservations.isReserved("SRS_ENG_", "", 5), true);
 });
 
 /** A loaded context with one type of `pattern` and `md` indexed. */
@@ -739,6 +729,120 @@ Deno.test("ProjectContext.getEntryTypes: with nothing between {scope} and the co
   ]);
 });
 
+Deno.test("ProjectContext.getEntryTypes: a glued {scope} scaffold never offers an existing ID (#1041)", async () => {
+  const ctx = await contextWithPattern(
+    "G_{scope}{n:02d}",
+    `- [G_BR99] Scope BR request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+
+- [G_BR100] Scope BR1 request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`,
+  );
+  const types = ctx.getEntryTypes();
+  ctx.dispose();
+  // G_BR100 reads as scope BR1, number 00, so scope BR counts only
+  // G_BR99: 100 is taken by G_BR100, and the scaffold offers 101.
+  assertEquals(
+    types.filter((t) => t.scope === "BR").map((t) => t.nextNumber),
+    [101],
+  );
+});
+
+Deno.test("ProjectContext.releaseObservedReservations: a glued ID releases the reservation of the scope that minted it (#1041)", async () => {
+  const glued = `- [G_BR99] Scope BR request
+
+  Body text.
+
+      Id: 01SRS000000000000000000001
+`;
+  const ctx = await contextWithPattern("G_{scope}{n:02d}", glued);
+  // A resolve for scope BR minted number 101, which formats to G_BR101.
+  ctx.reservations.mintReservedNumber("G_BR", "", () => 101, () => "G_BR101");
+  const docPath = join(ROOT, "doc.md");
+  await ctx.index.parseAndUpdateFile(
+    docPath,
+    glued + `
+- [G_BR101] Second request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`,
+  );
+  // G_BR101 reads as scope BR1, number 01, yet the reservation of G_BR
+  // (scope BR) is released.
+  ctx.releaseObservedReservations(docPath);
+  ctx.dispose();
+  assertEquals(ctx.reservations.isReserved("G_BR", "", 101), false);
+  assertEquals(ctx.reservations.isDisplayIdReserved("G_BR101"), false);
+});
+
+Deno.test("ProjectContext.releaseObservedReservations: releases a minted display ID with no scaffold pattern (#1041)", async () => {
+  // No .markspec.yaml: only the default profile loads, which declares no
+  // display-ID pattern, yet a parsed ID that a resolve minted still drops
+  // both reservations.
+  const { ctx } = await fixture({});
+  ctx.reservations.mintReservedNumber("G_BR", "", () => 101, () => "G_BR101");
+  const docPath = join(ROOT, "doc.md");
+  await ctx.index.parseAndUpdateFile(
+    docPath,
+    `- [G_BR101] Request
+
+  Body text.
+
+      Id: 01SRS000000000000000000002
+`,
+  );
+  ctx.releaseObservedReservations(docPath);
+  ctx.dispose();
+  assertEquals(ctx.getEntryTypes(), []);
+  assertEquals(ctx.reservations.isReserved("G_BR", "", 101), false);
+  assertEquals(ctx.reservations.isDisplayIdReserved("G_BR101"), false);
+});
+
+Deno.test("ProjectContext.reservations: a parse in another project never releases this project's reservation (#1041)", async () => {
+  const request = (id: string, ulid: string) =>
+    `- [${id}] Request
+
+  Body text.
+
+      Id: ${ulid}
+`;
+  const pattern = "G_{scope}{n:02d}";
+  const a = await contextWithPattern(
+    pattern,
+    request("G_BR99", "01SRS000000000000000000001") + "\n" +
+      request("G_BR100", "01SRS000000000000000000002"),
+  );
+  const b = await contextWithPattern(pattern, "# Empty\n");
+  // One resolve for scope BR in project A, as the resolve handler mints it.
+  const mintInA = () =>
+    a.mintScaffoldNumber("release-requirement", "BR", {
+      prefix: "G_BR",
+      width: 2,
+      suffix: "",
+    });
+  assertEquals(mintInA(), 101);
+  // Project B parses a file that holds G_BR101 before A's own parse runs.
+  const docB = join(ROOT, "other.md");
+  await b.index.parseAndUpdateFile(
+    docB,
+    request("G_BR101", "01SRS000000000000000000003"),
+  );
+  b.releaseObservedReservations(docB);
+  a.dispose();
+  b.dispose();
+  assertEquals(a.reservations.isDisplayIdReserved("G_BR101"), true);
+  assertEquals(mintInA(), 102);
+});
+
 Deno.test("ProjectContext.scopeFilter: filters by scope for a {scope} type only (#1038)", async () => {
   const ctx = await contextWithPattern("G_{scope}{n:04d}", "# Empty\n");
   const accept = ctx.scopeFilter("release-requirement", "BR");
@@ -770,14 +874,12 @@ Deno.test("ProjectContext.getEntryTypes: offers a scope whose only ID is wider t
 });
 
 Deno.test("ProjectContext.releaseObservedReservations: releases a reservation of an ID wider than the padding (#1038)", async () => {
-  _resetReservations();
-  try {
-    const ctx = await contextWithPattern("SRS_{scope}_{n:04d}", OVERFLOW_MD);
-    reserve("SRS_BRK_", "", 10001);
-    const docPath = join(ROOT, "doc.md");
-    await ctx.index.parseAndUpdateFile(
-      docPath,
-      OVERFLOW_MD + `
+  const ctx = await contextWithPattern("SRS_{scope}_{n:04d}", OVERFLOW_MD);
+  ctx.reservations.reserve("SRS_BRK_", "", 10001);
+  const docPath = join(ROOT, "doc.md");
+  await ctx.index.parseAndUpdateFile(
+    docPath,
+    OVERFLOW_MD + `
 - [SRS_BRK_10001] Second brake request
 
   Body text.
@@ -785,11 +887,8 @@ Deno.test("ProjectContext.releaseObservedReservations: releases a reservation of
       Id: 01SRS000000000000000000002
       Type: software-requirement
 `,
-    );
-    ctx.releaseObservedReservations(docPath);
-    ctx.dispose();
-    assertEquals(isReserved("SRS_BRK_", "", 10001), false);
-  } finally {
-    _resetReservations();
-  }
+  );
+  ctx.releaseObservedReservations(docPath);
+  ctx.dispose();
+  assertEquals(ctx.reservations.isReserved("SRS_BRK_", "", 10001), false);
 });
