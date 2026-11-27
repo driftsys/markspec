@@ -541,3 +541,12 @@ Deno.test("replaceEntryBody: edits an entry whose body ends in a trailer-like li
     );
   }
 });
+
+Deno.test("replaceEntryBody: refuses an entry whose body ends in an Id-like line and a malformed line (#1034)", async () => {
+  const text =
+    "- [REQ_0001] First\n\n  The lamp is on.\n  id: 01JBRK00000000000000000001\n  below:\n";
+  assertEquals(await replaceEntryBody(text, FILE, "REQ_0001", "New."), {
+    ok: false,
+    refusal: "trailer-invalid",
+  });
+});

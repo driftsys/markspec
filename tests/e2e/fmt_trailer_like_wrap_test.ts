@@ -43,6 +43,35 @@ const CASES: ReadonlyArray<
     wrapped: "  The controller shall publish the value of the following " +
       "signal on change\n  some_signal_name: the speed.\n\n      Id: ",
   },
+  {
+    name: "a word and a colon after a Note: lead-in",
+    doc: `# Repro
+
+- [REQ_0003] Wrap a Note paragraph before a colon
+
+  The lamp shall light within 100 ms.
+
+  Note: each section of this chapter shall follow the functional lamp layout below:
+
+      Id: 01M4K302WXTJ1ENHY3AX47HNAJ
+`,
+    wrapped:
+      "  Note: each section of this chapter shall follow the functional " +
+      "lamp layout\n  below:\n\n      Id: ",
+  },
+  {
+    name: "a word and a colon after a Rationale: lead-in",
+    doc: `# Repro
+
+- [REQ_0004] Wrap a Rationale paragraph before a colon
+
+  Rationale: each section of this chapter shall follow the functional layout below:
+
+      Id: 01M4K302WXTJ1ENHY3AX47HNAK
+`,
+    wrapped: "  Rationale: each section of this chapter shall follow the " +
+      "functional layout\n  below:\n\n      Id: ",
+  },
 ];
 
 for (const { name, doc, wrapped } of CASES) {

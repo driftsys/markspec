@@ -76,9 +76,7 @@ function suspectTrailerLine(
   // link is not silently dropped (#697). Detect it by turning whitespace
   // and the punctuation `.`, `/`, `,`, `'`, `"` into hyphens, trimming
   // hyphens at both ends, and checking the recognized key vocabulary.
-  const typoOfKnownKey = RECOGNIZED_TRAILER_KEYS.has(
-    key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, ""),
-  );
+  const typoOfKnownKey = RECOGNIZED_TRAILER_KEYS.has(normalizeSuspectKey(key));
   // A time (`10:30`), an abbreviation (`e.g.:`), a version (`v2.0:`) or a
   // word pair (`and/or:`) is prose. The 80-column wrap of the formatter
   // can put one at the start of the last body line. A trailer key starts
@@ -93,35 +91,84 @@ function suspectTrailerLine(
 }
 
 /**
- * `true` when the suspected trailer line `bodyLines[index]` is body text in
- * a prose paragraph, so MSL-P021 and MSL-P022 do not apply to it (#1034).
- * `bodyLines` are body lines with the list-item indent removed.
- *
- * The line and the run of suspected trailer lines directly above it (no
- * blank line between) are unindented, and a prose line is directly above
- * that run. The parser keeps such a run in the body unless it holds an
- * `Id:` line (`findTrailerStart`, Id run under prose), so a run with an
- * `Id:` line still gets the diagnostics. A line in an indented block, or
- * in a run that starts the body or follows a blank line (a trailer
- * paragraph, #927), is in a trailer-shaped block and is not prose here.
+ * Normalize a suspected trailer key for the typo checks (#697): turn
+ * whitespace and the punctuation `.`, `/`, `,`, `'`, `"` into hyphens, and
+ * trim hyphens at both ends. `Verified by` becomes `Verified-by`.
  */
-function isProseParagraphLine(
+function normalizeSuspectKey(key: string): string {
+  return key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+/** An `Id:`-like line: the key `id` in any case, with any spacing before
+ * the colon (the rule of `findIdLikeIndex`). */
+const ID_LIKE_LINE_RE = /^id\s*:/i;
+
+/** The key of a valid `Key: Value` line, or `undefined`. */
+function validTrailerKey(trimmed: string): string | undefined {
+  return ATTR_LINE_RE.test(trimmed)
+    ? /^([A-Z][A-Za-z-]*):/.exec(trimmed)?.[1]
+    : undefined;
+}
+
+/**
+ * `true` when the suspected trailer line `bodyLines[index]`, whose key is
+ * `key`, is body text, so MSL-P021 and MSL-P022 do not apply to it (#1034).
+ * `bodyLines` are body lines with the list-item indent removed;
+ * `hasTrailer` is `true` when the entry has a trailer below the body.
+ *
+ * The run is the line and the non-blank suspected trailer lines (valid or
+ * not) directly above and below it. The line is reported, so this returns
+ * `false`, when:
+ *
+ * - its key, normalized as for the #697 typo check and compared
+ *   case-sensitively, is `Id` or a core trace-relation key (the MSL-P020
+ *   key set): a malformed identity or trace link is never silently prose;
+ * - a line of the run is indented by 4 or more columns (an indented block);
+ * - a line of the run is an `Id:` or `Id:`-like line (`id:`, `Id :`): the
+ *   author meant a trailer, as in the Id run rule of `findTrailerStart`;
+ * - the run starts the body or follows a blank line, it is the final block
+ *   of the entry (no trailer and no other content below it), and every
+ *   valid key of the run is a recognized trailer key: the trailer
+ *   paragraph rule of `findTrailerStart` (#916, #927).
+ *
+ * Otherwise the line is body text: the run is directly under a non-blank
+ * line that is not a suspected trailer line (prose, a heading, a list item,
+ * a closing fence), or it is a body paragraph that the parser never reads
+ * as the trailer (it is not the final block, or it has a key such as
+ * `Note:` that is not recognized).
+ */
+function isBodyTextLine(
   bodyLines: readonly string[],
   index: number,
+  key: string,
+  hasTrailer: boolean,
 ): boolean {
-  let hasId = false;
-  for (let j = index; j >= 0; j--) {
-    const line = bodyLines[j];
-    const trimmed = line.trim();
-    if (trimmed === "") return false; // the run follows a blank line
-    if (isIndented(line)) return false; // an indented block
-    if (isMarkspecDirectiveComment(trimmed)) continue;
-    if (suspectTrailerLine(trimmed) === undefined) {
-      return !hasId; // a prose line is directly above the run
-    }
-    if (ATTR_LINE_RE.test(trimmed) && /^id:/i.test(trimmed)) hasId = true;
+  const normalized = normalizeSuspectKey(key);
+  if (normalized === IDENTITY_KEY || TRACE_RELATION_KEYS.has(normalized)) {
+    return false;
   }
-  return false; // the run starts the body
+  const inRun = (j: number): boolean => {
+    const trimmed = bodyLines[j].trim();
+    return trimmed !== "" &&
+      (isMarkspecDirectiveComment(trimmed) ||
+        suspectTrailerLine(trimmed) !== undefined);
+  };
+  let start = index;
+  while (start > 0 && inRun(start - 1)) start--;
+  let end = index + 1;
+  while (end < bodyLines.length && inRun(end)) end++;
+  const run = bodyLines.slice(start, end);
+  if (run.some((line) => isIndented(line))) return false;
+  if (run.some((line) => ID_LIKE_LINE_RE.test(line.trim()))) return false;
+  // Directly under a non-blank line that is not in the run: body text.
+  if (start > 0 && bodyLines[start - 1].trim() !== "") return true;
+  const final = !hasTrailer &&
+    bodyLines.slice(end).every((line) => line.trim() === "");
+  if (!final) return true;
+  return !run.every((line) => {
+    const valid = validTrailerKey(line.trim());
+    return valid === undefined || RECOGNIZED_TRAILER_KEYS.has(valid);
+  });
 }
 
 /** Options for {@linkcode parseMarkdown}. */
@@ -727,9 +774,8 @@ function extractEntry(
   // If the body's last non-empty lines look like they belong to an
   // indented code block with colon-separated content that has invalid
   // keys, emit P022. Lines without colons that appear in what looks
-  // like a trailer block emit P021. A line that the parser keeps in a
-  // prose paragraph (directly under a prose line, see
-  // `isProseParagraphLine`) is body text and is not reported (#1034).
+  // like a trailer block emit P021. A line that the parser keeps in the
+  // body as text (see `isBodyTextLine`) is not reported (#1034).
   if (body.length > 0) {
     const bodyLines = body.split("\n");
     // Walk backward from the end of the body to find lines in a trailing
@@ -754,8 +800,8 @@ function extractEntry(
       const { key, value } = suspect;
       const keyIsValid = TRAILER_KEY_RE.test(key);
       if (keyIsValid && value.length > 0) break;
-      // The line continues a prose paragraph: body text (#1034).
-      if (isProseParagraphLine(bodyLines, i)) break;
+      // The parser keeps the line in the body as text (#1034).
+      if (isBodyTextLine(bodyLines, i, key, attrLines.length > 0)) break;
       if (!keyIsValid) {
         diagnostics.push({
           code: "MSL-P022",

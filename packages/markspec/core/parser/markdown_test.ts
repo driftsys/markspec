@@ -1032,12 +1032,81 @@ Deno.test("parseMarkdown: a malformed line in an Id run directly under prose sti
   }
 });
 
-Deno.test("parseMarkdown: a malformed line alone after a blank line still raises MSL-P021 or MSL-P022 (#1034)", () => {
+Deno.test("parseMarkdown: a malformed line alone in the final paragraph still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  // A final paragraph after a blank line is a trailer paragraph when its
+  // keys are recognized (`findTrailerStart`); it holds no other keys here.
   for (const [last, code] of MALFORMED_LAST_LINES) {
     const md = `- [STK_0035] Title
 
   The lamp shall follow the layout.
 
+  ${last}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === code).length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line alone in a body paragraph above the trailer is body text (#1034)", () => {
+  // The paragraph is not the final block, so the parser never reads it as
+  // the trailer.
+  for (const [last] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0036] Title
+
+  The lamp shall follow the layout.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a wrapped Note: or Rationale: paragraph that ends in a trailer-like line is body text (#1034)", () => {
+  for (const lead of ["Note", "Rationale"]) {
+    for (const [last] of MALFORMED_LAST_LINES) {
+      for (
+        const body of [
+          `The lamp shall follow the layout.\n\n  ${lead}: each section is\n  ${last}`,
+          `${lead}: each section is\n  ${last}`,
+        ]
+      ) {
+        const md = `- [STK_0037] Title\n\n  ${body}\n\n      Id: ${ULID}\n`;
+        const { entries, diagnostics } = parseMarkdown(md);
+        assertEquals(
+          diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+          [],
+          md,
+        );
+        assertEquals(entries[0].id, ULID);
+      }
+    }
+  }
+});
+
+Deno.test("parseMarkdown: a malformed Id or trace-relation key line directly under prose still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  for (
+    const [last, code] of [
+      ["Verified by: TST_1", "MSL-P022"],
+      ["Derived from: STK_0001", "MSL-P022"],
+      ["Satisfies:", "MSL-P021"],
+      ["Satisfies :", "MSL-P021"],
+      ["Id :", "MSL-P021"],
+    ]
+  ) {
+    const md = `- [STK_0038] Title
+
+  The lamp shall follow the layout
   ${last}
 
       Id: ${ULID}
@@ -1049,6 +1118,54 @@ Deno.test("parseMarkdown: a malformed line alone after a blank line still raises
       last,
     );
   }
+});
+
+Deno.test("parseMarkdown: a lowercase trace key or another key directly under prose is body text (#1034)", () => {
+  // The Id and trace-relation keys are compared case-sensitively.
+  for (
+    const last of ["satisfies:", "below:", "Example:", "Note:", "snake_key:"]
+  ) {
+    const md = `- [STK_0039] Title
+
+  The lamp shall follow the layout
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line below an Id-like line under prose still raises MSL-P021 (#1034)", () => {
+  for (const idLike of [`id: ${ULID}`, `Id : ${ULID}`]) {
+    const md = `- [STK_0040] Title
+
+  The lamp is on.
+  ${idLike}
+  below:
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P021").length,
+      1,
+      idLike,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: an indented malformed line directly under prose still raises MSL-P021 (#1034)", () => {
+  const md = `- [STK_0041] Title
+
+  The lamp shall follow the layout
+      below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
 });
 
 // ---------------------------------------------------------------------------
