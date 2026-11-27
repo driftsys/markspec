@@ -35,14 +35,18 @@ ignore-start/end pair MUST NOT span an entry block (segments format
 independently).
 
 Entry-block coexistence (approach B): prose segments outside entry blocks and
-each entry's AST-canonical body go through dprint; title lines and trailers
-never do. Every dprint rewrite is gated by a CommonMark-semantic equivalence
-comparator (`markdownSemanticallyEquivalent`, mdast-based: positions elided,
-whitespace runs in text values collapsed) — soft-wrap positions and delimiter
-styles compare equal, content changes do not. A rejected rewrite is kept as-was
-and reported as MSL-F012 (info). Entry bodies have a second gate, described in
-the #1010 amendment below. ADR-015's byte-verbatim `astEquivalent` is unchanged
-and still guards §5.2 body emission (MSL-F900).
+each entry's AST-canonical body go through dprint; trailers never do. An entry
+title longer than the line width goes through dprint alone, as a one-item list,
+to wrap it as `prim fmt` does (amended by #984); the wrap is kept only when it
+holds the same words and every continuation line is indented 2 columns past the
+list marker, else the title stays on one line. Every dprint rewrite is gated by
+a CommonMark-semantic equivalence comparator (`markdownSemanticallyEquivalent`,
+mdast-based: positions elided, whitespace runs in text values collapsed) —
+soft-wrap positions and delimiter styles compare equal, content changes do not.
+A rejected rewrite is kept as-was and reported as MSL-F012 (info). Entry bodies
+have a second gate, described in the #1010 amendment below. ADR-015's
+byte-verbatim `astEquivalent` is unchanged and still guards §5.2 body emission
+(MSL-F900).
 
 Because a body is formatted dedented and re-indented afterward, the body pass
 budgets its `lineWidth` at `width − indent` (floor 20, via a per-call

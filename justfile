@@ -37,6 +37,10 @@ fmt:
     deno fmt
     prim fmt .
 
+# Check that markspec fmt and prim fmt give the same Markdown output (#984)
+fmt-parity:
+    scripts/check_fmt_parity.sh
+
 # Regenerate theme files from spec tokens
 tokens:
     deno run --allow-read --allow-write scripts/gen_theme.ts

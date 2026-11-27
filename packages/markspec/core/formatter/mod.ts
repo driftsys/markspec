@@ -59,6 +59,7 @@ import {
   type ProseFormatter,
 } from "./dprint.ts";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
+import { wrapEntryTitles } from "./title_wrap.ts";
 
 /**
  * Decide whether the EARS keyword at `offset` in `line` is at sentence
@@ -1206,6 +1207,20 @@ function formatEntries(
       });
     }
     proseLines = prose.lines;
+
+    // #984: wrap entry titles at the line width, as prim does. The #686
+    // join above kept each title on one line for the line-based passes.
+    const titled = parseMarkdown(proseLines.join("\n"), { file }).entries;
+    const wrapped = wrapEntryTitles(
+      proseLines,
+      titled.map((e) => ({
+        line: e.location.line - 1,
+        column: e.location.column - 1,
+      })),
+      proseFormat,
+      lineWidth,
+    );
+    proseLines = wrapped.lines;
   }
 
   let formattedBody = proseLines.join("\n");
@@ -1225,11 +1240,13 @@ function formatEntries(
     const outputLf = canonicalFm + formattedBody;
     if (outputLf !== normalisedMarkdown) changed = true;
     const output = applyLineEnding(outputLf, sourceLineEnding);
-    return { output, diagnostics, changed };
+    return { output, diagnostics, changed: changed && output !== markdown };
   }
 
+  // The #686 title join marks a wrapped title as changed, and the title wrap
+  // restores it, so `changed` also requires the output to differ.
   const output = applyLineEnding(formattedBody, sourceLineEnding);
-  return { output, diagnostics, changed };
+  return { output, diagnostics, changed: changed && output !== markdown };
 }
 
 /**
