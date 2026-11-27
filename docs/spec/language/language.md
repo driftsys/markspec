@@ -463,20 +463,21 @@ block quote), the block is not the trailer: its lines are body text, and its
 whose lines are all `Key: Value` lines, or a paragraph that ends with a run of
 `Key: Value` lines (the git-style trailer and the run under prose, see
 "Unindented trailers"); for a paragraph, the `Id:` line must be in that final
-run. A line that a tab indents to less than 4 columns past the list-item content
-is such a paragraph: for example, in a list item with a 2-column content indent,
-a tab at column 0 expands to column 4, which is 2 columns past the content. The
-entry has an `Id:` only when a later trailer that holds one is read; when no
-trailer is read, or the later trailer has no `Id:`, the entry has none. In
-Markdown files, when the entry has no `Id:` attribute and holds no nested entry
-(`MSL-P024`), `check` reports `MSL-P025` (warning) at the first line after the
-last such block, instead of the `MSL-P020` error, and the `MSL-I003` message
-names `MSL-P025`. A block without an `Id:` line (for example `Satisfies:` only)
-keeps the `MSL-P020` rule. `markspec fmt` leaves such an entry unchanged and
-stamps no `Id:` on it. Two things still apply, as for `MSL-P024`: tab-marker
-normalization of the entry's own list marker, when it does not change the list
-structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
-the whole file. Move the content above the trailer.
+run. A `Key: Value` line that starts a paragraph and that a tab indents less
+than 4 columns past the list-item content is such a paragraph: for example, in a
+list item with a 2-column content indent, a tab at column 0 expands to column 4,
+which is 2 columns past the content. The entry has an `Id:` only when a later
+trailer that holds one is read; when no trailer is read, or the later trailer
+has no `Id:`, the entry has none. In Markdown files, when the entry has no `Id:`
+attribute and holds no nested entry (`MSL-P024`), `check` reports `MSL-P025`
+(warning) at the first line after the last such block, instead of the `MSL-P020`
+error, and the `MSL-I003` message names `MSL-P025`. A block without an `Id:`
+line (for example `Satisfies:` only) keeps the `MSL-P020` rule. `markspec fmt`
+leaves such an entry unchanged and stamps no `Id:` on it. Two things still
+apply, as for `MSL-P024`: tab-marker normalization of the entry's own list
+marker, when it does not change the list structure, and the trace-value
+canonicalization of ADR-026 that `fmt` does for the whole file. Move the content
+above the trailer.
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both
