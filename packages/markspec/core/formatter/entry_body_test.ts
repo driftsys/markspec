@@ -520,3 +520,24 @@ Deno.test("replaceEntryBody: refuses an entry whose Id run sits under prose (MSL
     refusal: "trailer-invalid",
   });
 });
+
+Deno.test("replaceEntryBody: edits an entry whose body ends in a trailer-like line under prose (#1034)", async () => {
+  // `markspec fmt` can wrap a body onto `below:` or `snake_key: text`. The
+  // parser keeps such a line in the body and reports no MSL-P021 or
+  // MSL-P022, so the entry is editable.
+  for (const last of ["below:", "some_signal_name: the speed."]) {
+    const text = `- [REQ_0001] First\n\n  The layout is\n  ${last}\n\n` +
+      "      Id: 01JBRK00000000000000000001\n";
+    assertEquals(
+      await readEntryBody(text, FILE, "REQ_0001"),
+      `The layout is\n${last}`,
+    );
+    const r = await replaceEntryBody(text, FILE, "REQ_0001", "New.");
+    assert(r.ok, JSON.stringify(r));
+    assertEquals(
+      r.text,
+      "- [REQ_0001] First\n\n  New.\n\n" +
+        "      Id: 01JBRK00000000000000000001\n",
+    );
+  }
+});

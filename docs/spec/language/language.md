@@ -516,6 +516,17 @@ link:
 - warning, when the line is in the trailing `Key: Value` run of an entry that
   has no trailer.
 
+A trailing line that looks like a trailer line but is not a valid attribute line
+is body prose too when it is directly under a prose line, in the same paragraph:
+for example `below:` (no value), `architecture :` (a space before the colon), or
+`some_signal_name: the speed.` (a key with characters outside
+`[A-Za-z][A-Za-z0-9-]*`). Lines between the prose line and it can be other
+`Key: value` lines. The 80-column wrap of `markspec fmt` can produce such a
+line. `check` reports no diagnostic for it. `MSL-P021` and `MSL-P022` apply to
+the lines of a trailer block: the indented block, an unindented paragraph after
+a blank line (git style), and an `Id:` run directly under prose, where the `Id:`
+line shows that the author meant a trailer.
+
 An indented block directly under body prose, with no blank line, continues the
 paragraph in CommonMark. The parser still reads it as the trailer, as it did
 before, and `markspec fmt` inserts the blank line.
