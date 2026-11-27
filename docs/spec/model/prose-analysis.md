@@ -20,6 +20,9 @@ prose MarkSpec does not own. Core types outside the Specification family (e.g.
 `SoftwareComponent`, `Definition`, `Annotation`) are also excluded; structural
 descriptions and glossary entries follow different writing conventions.
 
+A profile subtype counts whether the entry names it in `Type:` or matches its
+display-ID pattern. `markspec lint` and `markspec check` apply the same scope.
+
 Suppression-hygiene rules (`MSL-Q9xx`) run on **all** authored entries
 regardless of type.
 

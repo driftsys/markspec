@@ -10,6 +10,7 @@
 import type { EffectiveProfile, Entry } from "../model/mod.ts";
 import { CORE_TYPE_HIERARCHY, isCorpusEntry } from "../model/mod.ts";
 import { resolvedCoreType } from "../validator/type_resolution.ts";
+import { classifyEntry } from "../validator/types.ts";
 import type { LintDiagnostic } from "./types.ts";
 import { runLexiconRules } from "./rules/lexicon.ts";
 import { runStructRules } from "./rules/struct.ts";
@@ -60,13 +61,22 @@ function isSpecificationDescendant(typeName: string): boolean {
  * display-id pattern, e.g. `platform-component`) resolves to its core
  * ancestor through the profile's `extends:` chain. Without it (#675),
  * such entries never enter prose scope and are silently skipped.
+ *
+ * An entry with no `Entry.type` is classified with the profile first, so an
+ * entry that only a profile display-ID pattern types is scoped too (#1039).
+ * `markspec check` passes parsed, unclassified entries; `markspec lint`
+ * passes entries that compilation already classified, which are not
+ * classified again. Without a profile nothing is classified.
  */
 export function isProseScope(
   entry: Entry,
   profile?: EffectiveProfile,
 ): boolean {
   if (entry.shape === "Reference") return false;
-  const coreType = resolvedCoreType(entry, profile);
+  const classified = profile && entry.type === undefined
+    ? { ...entry, type: classifyEntry(entry, profile).type }
+    : entry;
+  const coreType = resolvedCoreType(classified, profile);
   if (!coreType) return false;
   return isSpecificationDescendant(coreType);
 }
