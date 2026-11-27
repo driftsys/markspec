@@ -1364,6 +1364,7 @@ const TRACE_KEY_VALUE_LINES: readonly string[] = [
   "Satisfies : STK_1",
   "Verifies : TST_1",
   "Satisfies:STK_1",
+  "Verified-by : TST_1",
 ];
 
 Deno.test("parseMarkdown: a trace-key line with a value directly under prose raises MSL-P021 (#1051)", () => {

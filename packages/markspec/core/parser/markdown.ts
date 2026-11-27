@@ -832,7 +832,9 @@ function extractEntry(
       // stops the scan unreported, except a core trace-relation key
       // (`Satisfies : X`, `Satisfies:X`): the line creates no trace link,
       // so it is reported like `Satisfies :` (#1051). An `Id : X` line also
-      // stops the scan here; MSL-I009 reports it.
+      // stops the scan here; MSL-I009 reports it when it is in the final run
+      // of `Key: value` lines of the body (`findIdLikeIndex`). A directive
+      // comment below the line ends that run, and then nothing reports it.
       if (
         keyIsValid && value.length > 0 &&
         !TRACE_RELATION_KEYS.has(normalizeSuspectKey(key))

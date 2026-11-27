@@ -532,18 +532,20 @@ lines that are body text (see below), so it can reach a line in an earlier
 paragraph. It stops at the first line it reports, at a prose line, or at a line
 with a value whose key has only valid characters but that is not a valid
 attribute line (`note: x`, `Key2: x`, `Id : X`), which it does not report.
-`MSL-I009` reports the `Id : X` line (see "Id-like line"). A line with a value
-whose key is a core trace relation key after normalization (`Satisfies : X`,
-`Satisfies:X`) is the exception: `check` reports it as `MSL-P021`, because it
-creates no trace link. So it reports at most one line; the author sees the next
-one after fixing it. Because the scan stops at a prose line, a malformed trace
-relation line with more prose below it (`Satisfies : X`, then `and more text.`)
-is not checked and gets no diagnostic.
+`MSL-I009` reports the `Id : X` line when it is in the final run of `Key: value`
+lines at the end of the body (see "Id-like line"). A directive comment ends that
+run, so an `Id : X` line with a `<!-- markspec:* -->` comment below it gets no
+diagnostic. A line with a value whose key is a core trace relation key after
+normalization (`Satisfies : X`, `Satisfies:X`) is the exception: `check` reports
+it as `MSL-P021`, because it creates no trace link. So it reports at most one
+line; the author sees the next one after fixing it. Because the scan stops at a
+prose line, a malformed trace relation line with more prose below it
+(`Satisfies : X`, then `and more text.`) is not checked and gets no diagnostic.
 
-For each other line it reads, `check` decides from the run of that line: the
-line together with the trailer-like lines (valid or not) and directive comments
-directly above and below it, with no blank line between. `MSL-P021` and
-`MSL-P022` report the line in these cases:
+For each line it reads, except a line where it stops without a report, `check`
+decides from the run of that line: the line together with the trailer-like lines
+(valid or not) and directive comments directly above and below it, with no blank
+line between. `MSL-P021` and `MSL-P022` report the line in these cases:
 
 - a line of the run is indented by 4 or more columns (the indented block);
 - the run holds an `Id:` line or an Id-like line (`id:`, `Id :`), which shows

@@ -297,6 +297,19 @@ Deno.test("headerEntry: parse diagnostics carry file positions", () => {
   ]);
 });
 
+Deno.test("headerEntry: a trace-key line with a space before the colon above # Id: raises MSL-P021 (#1051)", () => {
+  const text =
+    `Feature: F\n  # [SRS_A_0001] Stop\n  #\n  # The lamp is on.\n  # Satisfies : STK_1\n  # Id: ${ulid()}\n  Scenario: S\n    Given a\n`;
+  const { diagnostics } = entryAt(text, 7);
+  assertEquals(
+    diagnostics.map((d) => [d.code, d.severity, d.location]),
+    [
+      ["MSL-P020", "warning", { file: "f.feature", line: 2, column: 3 }],
+      ["MSL-P021", "error", { file: "f.feature", line: 5, column: 5 }],
+    ],
+  );
+});
+
 // ---------------------------------------------------------------------------
 // parseFeatureFile (Task 3)
 // ---------------------------------------------------------------------------
