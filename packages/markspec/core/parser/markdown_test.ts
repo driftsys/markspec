@@ -1455,6 +1455,18 @@ Deno.test("parseMarkdown: note: x and Key2: x still stop the trailing scan above
   }
 });
 
+Deno.test("parseMarkdown: an Id : X line stops the trailing scan above it (#1051)", () => {
+  // The scan stops at the Id-like line without a report, so the trace-key
+  // line above it is not reached.
+  const md = `- [STK_0068] Title
+
+  The lamp is on
+  Satisfies : STK_1
+  Id : ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(md).diagnostics), []);
+});
+
 Deno.test("parseMarkdown: an Id-like line with a value under prose gets no MSL-P021 (MSL-I009 reports it) (#1051)", () => {
   for (const idLike of [`Id : ${ULID}`, `id: ${ULID}`]) {
     const md = `- [STK_0065] Title
