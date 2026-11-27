@@ -6,7 +6,12 @@
 
 import { assertEquals } from "@std/assert";
 import type { BodyBlock } from "../../ast/nodes.ts";
-import type { Entry } from "../../model/mod.ts";
+import type {
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  ProvenancedMapEntry,
+} from "../../model/mod.ts";
 import { makeDisplayId } from "../../model/mod.ts";
 import { runModalSentenceRules } from "./modal_sentence.ts";
 
@@ -28,6 +33,10 @@ function makeParagraph(text: string, line = 1, column = 1): BodyBlock {
 interface MakeEntryOpts {
   /** Resolved core type string (e.g. "Requirement", "Test"). */
   type?: string;
+  /** Display ID of the entry. Defaults to `STK_0001`. */
+  displayId?: string;
+  /** `Entry.type` set by profile classification, with no `Type:` trailer. */
+  classifiedAs?: string;
   location?: { file: string; line: number; column: number };
   bodyStartLine?: number;
 }
@@ -40,7 +49,7 @@ function makeEntry(
   const location = opts.location ?? { file: "test.md", line: 1, column: 1 };
   const entryType = opts.type;
   return {
-    displayId: makeDisplayId("STK_0001"),
+    displayId: makeDisplayId(opts.displayId ?? "STK_0001"),
     title: "Test requirement",
     body,
     bodyAst,
@@ -53,7 +62,7 @@ function makeEntry(
       ...(entryType ? [["Type", [entryType]] as [string, string[]]] : []),
     ]),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    type: entryType,
+    type: entryType ?? opts.classifiedAs,
     shape: "Authored",
     location,
     ...(opts.bodyStartLine !== undefined
@@ -155,6 +164,120 @@ Deno.test("Q201: silent for 'should' in entry with no resolved type", () => {
   const entry = makeEntry("The system should retry on failure.");
   const diags = runModalSentenceRules(entry);
   assertEquals(diags.some((d) => d.code === "MSL-Q201"), false);
+});
+
+// MSL-Q201 for profile types (#1039): the profile classifies the entry.
+
+function profileType(
+  name: string,
+  extendsType: string,
+  displayIdPattern: string,
+): ProvenancedMapEntry<EffectiveTypeDef> {
+  const origin = "@test/profile";
+  return {
+    value: {
+      name,
+      extends: extendsType,
+      displayIdPattern: { value: displayIdPattern, origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+    origin,
+  };
+}
+
+/** A profile with a Requirement subtype (`STK_`) and a Record subtype. */
+function subtypeProfile(): EffectiveProfile {
+  const types = new Map([
+    [
+      "stakeholder-requirement",
+      profileType("stakeholder-requirement", "Requirement", "STK_{n:04d}"),
+    ],
+    ["design-record", profileType("design-record", "Record", "DRC_{n:04d}")],
+  ]);
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    colors: new Map(),
+    types,
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  } as unknown as EffectiveProfile;
+}
+
+function hasQ201(entry: Entry, profile?: EffectiveProfile): boolean {
+  return runModalSentenceRules(entry, profile).some((d) =>
+    d.code === "MSL-Q201"
+  );
+}
+
+Deno.test("Q201: fires for a profile Requirement subtype with explicit Type (#1039)", () => {
+  const entry = makeEntry("The system should log faults.", {
+    displayId: "STK_0001",
+    type: "stakeholder-requirement",
+  });
+  assertEquals(hasQ201(entry, subtypeProfile()), true);
+});
+
+Deno.test("Q201: fires when only the profile display-ID pattern classifies (#1039)", () => {
+  const entry = makeEntry("The system should log faults.", {
+    displayId: "STK_0001",
+  });
+  assertEquals(hasQ201(entry, subtypeProfile()), true);
+});
+
+Deno.test("Q201: fires for an entry the pipeline classified as a profile Requirement subtype (#1039)", () => {
+  // `markspec lint` passes entries that classification already typed.
+  const entry = makeEntry("The system should log faults.", {
+    displayId: "STK_0001",
+    classifiedAs: "stakeholder-requirement",
+  });
+  assertEquals(hasQ201(entry, subtypeProfile()), true);
+});
+
+Deno.test("Q201: fires for an explicit profile Type when the display ID matches no pattern (#1039)", () => {
+  const entry = makeEntry("The system should log faults.", {
+    displayId: "ZZZ_0001",
+    type: "stakeholder-requirement",
+  });
+  assertEquals(hasQ201(entry, subtypeProfile()), true);
+});
+
+Deno.test("Q201: an explicit non-Requirement profile Type wins over a Requirement display-ID pattern (#1039)", () => {
+  const entry = makeEntry("The team should record the decision.", {
+    displayId: "STK_0009",
+    type: "design-record",
+  });
+  assertEquals(hasQ201(entry, subtypeProfile()), false);
+});
+
+Deno.test("Q201: with a profile, still fires for the built-in REQ prefix (#1039)", () => {
+  const entry = makeEntry("The system should log faults.", {
+    displayId: "REQ-0001",
+  });
+  assertEquals(hasQ201(entry, subtypeProfile()), true);
+});
+
+Deno.test("Q201: without a profile, ignores a profile display-ID prefix (#1039)", () => {
+  const entry = makeEntry("The system should log faults.", {
+    displayId: "STK_0001",
+  });
+  assertEquals(hasQ201(entry), false);
 });
 
 // ---------------------------------------------------------------------------

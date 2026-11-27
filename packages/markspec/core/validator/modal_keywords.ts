@@ -41,8 +41,7 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
-import { resolvedCoreType } from "./type_resolution.ts";
-import { classifyEntry } from "./types.ts";
+import { isRequirementWithProfile } from "./types.ts";
 
 type ModalToken = Extract<BodyToken, { kind: "modal" }>;
 
@@ -120,20 +119,4 @@ export function validateModalKeywords(
   }
 
   return diagnostics;
-}
-
-/**
- * `true` when the entry resolves to the core type `Requirement`, using the
- * profile to classify it (display-ID pattern) and to map a profile type to
- * the core type it extends. Without a profile this is the core-only result.
- */
-function isRequirementWithProfile(
-  entry: Entry,
-  profile: EffectiveProfile | undefined,
-): boolean {
-  if (!profile) return resolvedCoreType(entry) === "Requirement";
-  const classified = entry.type === undefined
-    ? { ...entry, type: classifyEntry(entry, profile).type }
-    : entry;
-  return resolvedCoreType(classified, profile) === "Requirement";
 }

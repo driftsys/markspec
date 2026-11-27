@@ -184,8 +184,9 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     diags.push(...runXrefRules(entry, glossary, allow, isIdHook));
     // Step 6: EARS rules (Q100–Q104)
     diags.push(...runEarsRules(entry));
-    // Step 7: modal sentence rules (Q200–Q201)
-    diags.push(...runModalSentenceRules(entry));
+    // Step 7: modal sentence rules (Q200–Q201); the profile classifies
+    // profile subtypes of Requirement for Q201 (#1039).
+    diags.push(...runModalSentenceRules(entry, profile));
     // Step 8: INCOSE sentence rules (Q306–Q312, Q402)
     diags.push(...runIncoseSentenceRules(entry));
     // Step 9: passive-voice rules (Q300–Q301)

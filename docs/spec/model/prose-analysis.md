@@ -65,6 +65,14 @@ reference link keep their visible text as prose, and the rules read it. In a
 shortcut or collapsed reference that has a definition (`[shall]`, `[shall][]`),
 the text is the label, so the rules skip it.
 
+`MSL-Q201` reports a soft modal (`should`, `may`, with or without `not`) in an
+entry whose core type is `Requirement`. With a profile, the entry is classified
+with it, so a profile type that extends `Requirement` counts, whether the entry
+names it in `Type:` or matches its display-ID pattern. This is the same check
+that `MSL-M061` and `MSL-M062` use. Without a profile, only types that core
+resolves on its own count, such as `Type: Requirement` or the built-in `REQ`
+display-ID prefix.
+
 The flagship rule **MSL-Q500 `xref-glossary-undefined`** flags capitalized
 proper-noun usage in normative prose that has no corresponding `Definition`
 entry in the glossary. It ships with a glossary-only subset resolver

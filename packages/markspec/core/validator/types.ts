@@ -260,6 +260,24 @@ export function classifyEntry(
   return { type: undefined, diagnostics };
 }
 
+/**
+ * `true` when the entry resolves to the core type `Requirement`, using the
+ * profile to classify it (display-ID pattern) and to map a profile type to
+ * the core type it extends. Without a profile this is the core-only result.
+ * Shared by the modal-keyword validator (MSL-M061, MSL-M062) and the
+ * modal-sentence lint rule (MSL-Q201).
+ */
+export function isRequirementWithProfile(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+): boolean {
+  if (!profile) return resolvedCoreType(entry) === "Requirement";
+  const classified = entry.type === undefined
+    ? { ...entry, type: classifyEntry(entry, profile).type }
+    : entry;
+  return resolvedCoreType(classified, profile) === "Requirement";
+}
+
 /** Result of running the classification stage over a batch of entries. */
 export interface ClassifyStageResult {
   /** Entries with `type` set on successful classification. */

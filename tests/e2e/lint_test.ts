@@ -284,3 +284,102 @@ profile:
   });
   assertStringIncludes(stderr, "MSL-L006");
 });
+
+// ---------------------------------------------------------------------------
+// MSL-Q201 for profile subtypes of Requirement (#1039)
+// ---------------------------------------------------------------------------
+
+const Q201_PROFILE = `markspec-schema: "1"
+id: "@acme/q201-subtype"
+version: 0.1.0
+profile:
+  types:
+    stakeholder-requirement:
+      extends: Requirement
+      display-id-pattern: "STK_{n:4d}"
+    design-record:
+      extends: Record
+      display-id-pattern: "DRC_{n:4d}"
+`;
+
+/** Display IDs of the entries that got MSL-Q201 in `markspec lint` JSON. */
+function q201DisplayIds(stdout: string, fixture: string): string[] {
+  const lines = fixture.split("\n");
+  const parsed = JSON.parse(stdout) as {
+    diagnostics: { code: string; location: { file: string; line: number } }[];
+  };
+  return parsed.diagnostics
+    .filter((d) => d.code === "MSL-Q201")
+    .map((d) => /\[([^\]]+)\]/.exec(lines[d.location.line - 1])?.[1] ?? "?")
+    .sort();
+}
+
+Deno.test("lint: MSL-Q201 fires for profile subtypes of Requirement (#1039)", async () => {
+  const fixture = `# Test
+
+- [STK_0001] Explicit profile type
+
+  The system should log faults.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: stakeholder-requirement
+
+- [STK_0002] Display-ID pattern only
+
+  The system should log faults.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [ZZZ_0001] Explicit profile type, no matching pattern
+
+  The system should log faults.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEJ
+      Type: stakeholder-requirement
+
+- [STK_0009] Requirement pattern, explicit non-requirement type
+
+  The team should record the decision.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+      Type: design-record
+`;
+  const { stdout, stderr } = await markspec(
+    ["lint", "--format", "json", "stk.md"],
+    {
+      files: {
+        "project.yaml": PROJECT_YAML,
+        ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+        "profiles/p/markspec.yaml": Q201_PROFILE,
+        "stk.md": fixture,
+      },
+    },
+  );
+  assertEquals(
+    q201DisplayIds(stdout, fixture),
+    ["STK_0001", "STK_0002", "ZZZ_0001"],
+    stderr,
+  );
+});
+
+Deno.test("lint: without a profile, MSL-Q201 ignores a profile display-ID prefix (#1039)", async () => {
+  const fixture = `# Test
+
+- [STK_0001] No profile
+
+  The system should log faults.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [REQ-0001] Core prefix
+
+  The system should log faults.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+  const { stdout, stderr } = await markspec(
+    ["lint", "--format", "json", "stk.md"],
+    { files: { "project.yaml": PROJECT_YAML, "stk.md": fixture } },
+  );
+  assertEquals(q201DisplayIds(stdout, fixture), ["REQ-0001"], stderr);
+});
