@@ -257,11 +257,13 @@ without tooling.
 
 A list item starting with `- [DISPLAY_ID]` followed by a title on the same line,
 and indented body content on subsequent lines. The display ID is the entry's
-human-readable identifier. The title is the text after the closing `]`, up to
-the first blank line. A title that soft-wraps onto more physical lines is one
+human-readable identifier. The title is the rest of the paragraph that starts
+after the closing `]`. A title that soft-wraps onto more physical lines is one
 logical title; `markspec fmt` wraps a title that is longer than the line width
-onto continuation lines indented 2 columns past the list marker, as `prim fmt`
-does, and joins a wrapped title that fits on one line.
+onto continuation lines indented at the list item's content column, as
+`prim fmt` does, and joins a wrapped title that fits on one line. When the
+wrapped form is not equivalent to the title, the title stays on one line
+(MSL-F012).
 
 ```markdown
 - [DISPLAY_ID] Title
@@ -1859,7 +1861,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 - **Attribute blocks** — sorted to canonical order, trailing backslashes
   normalized.
 - **Entry titles** — wrapped at the line width, with continuation lines indented
-  2 columns past the list marker (§1).
+  at the list item's content column (§1).
 - **Tabs after entry list markers** — normalized to a dash followed by one space
   only when the complete document retains the same CommonMark structure under
   the ADR-029 semantic equivalence comparator. List hierarchy, body and trailer

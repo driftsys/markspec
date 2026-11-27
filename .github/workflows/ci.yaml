@@ -39,6 +39,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - run: deno task fetch-grammars
       - run: scripts/install_prim.sh
       - run: scripts/check_fmt_parity.sh
 

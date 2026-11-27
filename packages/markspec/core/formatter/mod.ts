@@ -59,7 +59,7 @@ import {
   type ProseFormatter,
 } from "./dprint.ts";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
-import { wrapEntryTitles } from "./title_wrap.ts";
+import { exceedsWidth, wrapEntryTitles } from "./title_wrap.ts";
 
 /**
  * Decide whether the EARS keyword at `offset` in `line` is at sentence
@@ -561,8 +561,9 @@ export interface FormatOptions {
   readonly today?: () => string;
   /**
    * Whole-document Markdown formatter (ADR-029). When supplied, prose
-   * segments outside entry blocks and each entry body are routed
-   * through it (dprint-markdown), gated by GFM-semantic
+   * segments outside entry blocks, each entry body, and each entry title
+   * wider than the line width (#984) are routed through it
+   * (dprint-markdown), gated by GFM-semantic
    * equivalence (entry bodies also by their body block kinds, #1010).
    * When absent, format() is entry-only — the exact
    * pre-ADR-029 behaviour. The entry-body polish passes a per-call
@@ -581,7 +582,8 @@ export interface FormatOptions {
    * Line width of the Markdown pass, in columns. Default 80. The CLI and
    * the LSP resolve it from the `max_line_length` key of the nearest
    * `.editorconfig` files (see `resolveEditorConfigStyle`). An entry body
-   * is formatted at this width minus its indent.
+   * is formatted at this width minus its indent, and an entry title is
+   * wrapped at this width.
    */
   readonly lineWidth?: number;
   /**
@@ -1210,17 +1212,31 @@ function formatEntries(
 
     // #984: wrap entry titles at the line width, as prim does. The #686
     // join above kept each title on one line for the line-based passes.
-    const titled = parseMarkdown(proseLines.join("\n"), { file }).entries;
-    const wrapped = wrapEntryTitles(
-      proseLines,
-      titled.map((e) => ({
-        line: e.location.line - 1,
-        column: e.location.column - 1,
-      })),
-      proseFormat,
-      lineWidth,
-    );
-    proseLines = wrapped.lines;
+    // Entries that fmt leaves unchanged (`formattable`) keep their titles.
+    if (proseLines.some((line) => exceedsWidth(line, lineWidth))) {
+      const titled = parseMarkdown(proseLines.join("\n"), { file }).entries
+        .filter(formattable);
+      const wrapped = wrapEntryTitles(
+        proseLines,
+        titled.map((e) => ({
+          line: e.location.line - 1,
+          column: e.location.column - 1,
+        })),
+        proseFormat,
+        lineWidth,
+      );
+      if (wrapped.changed) changed = true;
+      for (const line of wrapped.rejected) {
+        diagnostics.push({
+          code: "MSL-F012",
+          severity: "info",
+          message: "Markdown pass produced non-equivalent output for this " +
+            "entry title — kept the title on one line",
+          location: { file, line: line + 1, column: 1 },
+        });
+      }
+      proseLines = wrapped.lines;
+    }
   }
 
   let formattedBody = proseLines.join("\n");
@@ -1240,13 +1256,11 @@ function formatEntries(
     const outputLf = canonicalFm + formattedBody;
     if (outputLf !== normalisedMarkdown) changed = true;
     const output = applyLineEnding(outputLf, sourceLineEnding);
-    return { output, diagnostics, changed: changed && output !== markdown };
+    return { output, diagnostics, changed };
   }
 
-  // The #686 title join marks a wrapped title as changed, and the title wrap
-  // restores it, so `changed` also requires the output to differ.
   const output = applyLineEnding(formattedBody, sourceLineEnding);
-  return { output, diagnostics, changed: changed && output !== markdown };
+  return { output, diagnostics, changed };
 }
 
 /**
