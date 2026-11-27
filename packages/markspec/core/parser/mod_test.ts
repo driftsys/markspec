@@ -58,3 +58,43 @@ fn foo() {}
   const { entries } = await parseFile(rust, { file: "a.rs" });
   assertEquals(entries[0].contentAfterTrailerLine, undefined);
 });
+
+Deno.test("parseFile: a malformed trailer-like header line under prose in a .feature file raises no MSL-P021 (#1034)", async () => {
+  const feature = `# [REQ_0001] Title
+#
+# The lamp shall follow the layout
+# below:
+#
+# Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+Feature: Lamp
+
+  Scenario: One
+    Given a
+    Then b
+`;
+  const { entries, diagnostics } = await parseFile(feature, {
+    file: "a.feature",
+  });
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(
+    diagnostics.filter((d) => d.code === "MSL-P021" || d.code === "MSL-P022"),
+    [],
+  );
+});
+
+Deno.test("parseFile: a malformed line in a .feature header trailer still raises MSL-P021 (#1034)", async () => {
+  const feature = `# [REQ_0001] Title
+#
+# The lamp shall follow the layout.
+#
+# Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+# below:
+Feature: Lamp
+
+  Scenario: One
+    Given a
+    Then b
+`;
+  const { diagnostics } = await parseFile(feature, { file: "a.feature" });
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
+});

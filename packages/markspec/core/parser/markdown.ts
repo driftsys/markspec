@@ -18,6 +18,7 @@ import {
   ATTR_LINE_RE,
   collateAttributes,
   findTrailerStart,
+  isIndented,
   isTrailerUnderProse,
   leadingColumns,
   parseAttributes,
@@ -40,6 +41,151 @@ const TRACE_RELATION_KEYS: ReadonlySet<string> = new Set([
   ...CORE_RELATIONS.map((r) => r.attr),
   ...LOCK_EXTRA_INVERSE_KEYS,
 ]);
+
+/** A trailer key that MSL-P022 accepts. */
+const TRAILER_KEY_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
+
+/** Split a line at its first colon into the text before and after it. */
+const COLON_SPLIT_RE = /^([^:]+):\s*(.*)$/;
+
+/**
+ * Read a trimmed body line as a suspected trailer line: a line with a colon
+ * whose text before the colon could be a trailer key, possibly a malformed
+ * one (`below:`, `Key :`, `snake_key: x`, `Verified by: x`). Returns the
+ * key (trimmed) and the value (trimmed), or `undefined` for a line that is
+ * prose: no colon, or text before the colon that a trailer key never holds.
+ */
+function suspectTrailerLine(
+  trimmed: string,
+): { key: string; value: string } | undefined {
+  const colonMatch = COLON_SPLIT_RE.exec(trimmed);
+  if (!colonMatch) return undefined;
+  const key = colonMatch[1].trim();
+  // A colon inside prose ("modes are: fast") or a Markdown table row
+  // ("| Fast | latency: 200ms |") is body content, not a malformed
+  // trailer (#648). A pipe always means a table cell; the checks below
+  // handle Markdown punctuation, internal whitespace, and the other
+  // punctuation.
+  if (key.includes("|")) return undefined;
+  // Markdown punctuation before the colon (`**Rationale:**`,
+  // `[link](http://…)`, `` `mode:fast` ``, `<mailto:…>`) means inline
+  // Markdown in prose. A trailer key never holds it.
+  if (/[*[\]()<>`]/.test(key)) return undefined;
+  // A typo of a recognized trailer key (`Verified by`, `Verified.by`,
+  // `Verified,by`, `Satisfies"`) must still fire MSL-P022, so the trace
+  // link is not silently dropped (#697). Detect it by turning whitespace
+  // and the punctuation `.`, `/`, `,`, `'`, `"` into hyphens, trimming
+  // hyphens at both ends, and checking the recognized key vocabulary.
+  const typoOfKnownKey = RECOGNIZED_TRAILER_KEYS.has(normalizeSuspectKey(key));
+  // A time (`10:30`), an abbreviation (`e.g.:`), a version (`v2.0:`) or a
+  // word pair (`and/or:`) is prose. The 80-column wrap of the formatter
+  // can put one at the start of the last body line. A trailer key starts
+  // with a letter and never holds `.`, `/`, `,`, `'` or `"`, so the line
+  // is prose unless the key is a typo of a known key. Lowercase and
+  // underscored keys are suspects.
+  if ((!/^[A-Za-z]/.test(key) || /[./,'"]/.test(key)) && !typoOfKnownKey) {
+    return undefined;
+  }
+  if (/\s/.test(key) && !typoOfKnownKey) return undefined;
+  return { key, value: colonMatch[2].trim() };
+}
+
+/**
+ * Normalize a suspected trailer key for the typo checks (#697): replace
+ * each run of whitespace and the punctuation `.`, `/`, `,`, `'`, `"` with
+ * one hyphen, and trim hyphens at both ends. `Verified by` becomes
+ * `Verified-by`.
+ */
+function normalizeSuspectKey(key: string): string {
+  return key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+/** An `Id:`-like line: the key `id` in any case, with any spacing before
+ * the colon (the rule of `findIdLikeIndex`). */
+const ID_LIKE_LINE_RE = /^id\s*:/i;
+
+/** The key of a valid `Key: Value` line, or `undefined`. */
+function validTrailerKey(trimmed: string): string | undefined {
+  return ATTR_LINE_RE.test(trimmed)
+    ? /^([A-Z][A-Za-z-]*):/.exec(trimmed)?.[1]
+    : undefined;
+}
+
+/** Where the trailer the parser read sits, seen from the body. */
+type TrailerPlacement =
+  /** The entry has no trailer. */
+  | "none"
+  /** A blank line separates the trailer from the body. */
+  | "separate"
+  /** The trailer starts on the line directly below the last body line. */
+  | "adjacent";
+
+/**
+ * `true` when the suspected trailer line `bodyLines[index]`, whose key is
+ * `key`, is body text, so MSL-P021 and MSL-P022 do not apply to it (#1034).
+ * `bodyLines` are body lines with the list-item indent removed;
+ * `trailer` tells where the trailer the parser read sits.
+ *
+ * The run is the line and the non-blank lines directly above and below it
+ * that are suspected trailer lines (valid or not) or `<!-- markspec:* -->`
+ * directive comments. The line is reported, so this returns `false`, when:
+ *
+ * - its key, normalized as for the #697 typo check and compared
+ *   case-sensitively, is `Id` or a core trace-relation key (the MSL-P020
+ *   key set): a malformed identity or trace link is reported even directly
+ *   under prose;
+ * - a line of the run is indented by 4 or more columns (an indented block);
+ * - a line of the run is an `Id:` or `Id:`-like line (`id:`, `Id :`): the
+ *   author meant a trailer, as in the Id run rule of `findTrailerStart`;
+ * - the run reaches the end of the body and the trailer starts directly
+ *   below it, with no blank line: the run touches the trailer, which is an
+ *   indented block or holds an `Id:` line;
+ * - the run starts the body or follows a blank line, it is the final block
+ *   of the entry (no trailer and no other content below it), and it holds
+ *   no valid key other than recognized trailer keys. A run of only
+ *   malformed lines is reported too, although the parser reads no trailer
+ *   from it: it can be a broken trailer written by hand.
+ *
+ * Otherwise the line is body text: the run is directly under a non-blank
+ * line that is not in the run (prose, a heading, a list item, a closing
+ * fence), or it is a body paragraph that the parser never reads as the
+ * trailer (it is not the final block, or it has a valid key such as
+ * `Note:` that is not recognized).
+ */
+function isBodyTextLine(
+  bodyLines: readonly string[],
+  index: number,
+  key: string,
+  trailer: TrailerPlacement,
+): boolean {
+  const normalized = normalizeSuspectKey(key);
+  if (normalized === IDENTITY_KEY || TRACE_RELATION_KEYS.has(normalized)) {
+    return false;
+  }
+  const inRun = (j: number): boolean => {
+    const trimmed = bodyLines[j].trim();
+    return trimmed !== "" &&
+      (isMarkspecDirectiveComment(trimmed) ||
+        suspectTrailerLine(trimmed) !== undefined);
+  };
+  let start = index;
+  while (start > 0 && inRun(start - 1)) start--;
+  let end = index + 1;
+  while (end < bodyLines.length && inRun(end)) end++;
+  const run = bodyLines.slice(start, end);
+  if (run.some((line) => isIndented(line))) return false;
+  if (run.some((line) => ID_LIKE_LINE_RE.test(line.trim()))) return false;
+  if (end === bodyLines.length && trailer === "adjacent") return false;
+  // Directly under a non-blank line that is not in the run: body text.
+  if (start > 0 && bodyLines[start - 1].trim() !== "") return true;
+  const final = trailer === "none" &&
+    bodyLines.slice(end).every((line) => line.trim() === "");
+  if (!final) return true;
+  return !run.every((line) => {
+    const valid = validTrailerKey(line.trim());
+    return valid === undefined || RECOGNIZED_TRAILER_KEYS.has(valid);
+  });
+}
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
@@ -533,8 +679,6 @@ function extractEntry(
   // should all match `Key: Value` syntax. We check both the parsed
   // attrLines AND the trailing body lines that might be in a code block
   // but failed ATTR_LINE_RE (thus stayed in the body).
-  const TRAILER_KEY_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
-  const COLON_SPLIT_RE = /^([^:]+):\s*(.*)$/;
 
   // P021/P022 point at the offending trailer line itself, not the title, so
   // editors underline the bad line and quick fixes can target it directly.
@@ -646,9 +790,22 @@ function extractEntry(
   // If the body's last non-empty lines look like they belong to an
   // indented code block with colon-separated content that has invalid
   // keys, emit P022. Lines without colons that appear in what looks
-  // like a trailer block emit P021.
+  // like a trailer block emit P021. The scan reads the trailing lines from
+  // the bottom up, skipping blank lines and directive comments. It skips a
+  // line that the parser keeps in the body as text (see `isBodyTextLine`,
+  // #1034) and a valid `Key: value` line. It stops at the first reported
+  // line, at a prose line, or at a line with a value whose key has only
+  // valid characters but that is not a valid attribute line (`Satisfies :
+  // X`, `note: x`). So the trailing lines report at most one line; the
+  // author sees the next one after fixing it.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
+    const trailerStart = findTrailerStart(contentLines);
+    const trailer: TrailerPlacement = attrLines.length === 0
+      ? "none"
+      : trailerStart > 0 && contentLines[trailerStart - 1].trim() !== ""
+      ? "adjacent"
+      : "separate";
     // Walk backward from the end of the body to find lines in a trailing
     // code-block-like region that have colons (suspected trailers).
     for (let i = bodyLines.length - 1; i >= 0; i--) {
@@ -662,45 +819,19 @@ function extractEntry(
       // so a genuine leaked-trailer typo sitting above a directive comment
       // still fires MSL-P022 (#687, preserves #697).
       if (isMarkspecDirectiveComment(trimmed)) continue;
-      const colonMatch = COLON_SPLIT_RE.exec(trimmed);
-      if (!colonMatch) break; // stop at non-colon line
-      const key = colonMatch[1].trim();
-      // A colon inside prose ("modes are: fast") or a Markdown table row
-      // ("| Fast | latency: 200ms |") is body content, not a malformed
-      // trailer — stop scanning at it (#648). A pipe always means a table
-      // cell; the checks below handle Markdown punctuation, internal
-      // whitespace, and the other punctuation.
-      if (key.includes("|")) break;
-      // Markdown punctuation before the colon (`**Rationale:**`,
-      // `[link](http://…)`, `` `mode:fast` ``, `<mailto:…>`) means inline
-      // Markdown in prose. A trailer key never holds it, so stop here too.
-      if (/[*[\]()<>`]/.test(key)) break;
-      // A typo of a recognized trailer key (`Verified by`, `Verified.by`,
-      // `Verified,by`, `Satisfies"`) must still fire MSL-P022 below, so the
-      // trace link is not silently dropped (#697). Detect it by turning
-      // whitespace and the punctuation `.`, `/`, `,`, `'`, `"` into
-      // hyphens, trimming hyphens at both ends, and checking the recognized
-      // key vocabulary.
-      const typoOfKnownKey = RECOGNIZED_TRAILER_KEYS.has(
-        key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, ""),
-      );
-      // A time (`10:30`), an abbreviation (`e.g.:`), a version (`v2.0:`)
-      // or a word pair (`and/or:`) is prose. The 80-column wrap of the
-      // formatter can put one at the start of the last body line. A
-      // trailer key starts with a letter and never holds `.`, `/`, `,`,
-      // `'` or `"`, so stop here unless the key is a typo of a known key.
-      // Lowercase and underscored keys still reach the checks below.
-      if (
-        (!/^[A-Za-z]/.test(key) || /[./,'"]/.test(key)) && !typoOfKnownKey
-      ) {
-        break;
-      }
-      if (/\s/.test(key) && !typoOfKnownKey) break;
+      const suspect = suspectTrailerLine(trimmed);
+      if (suspect === undefined) break; // stop at a prose line
       if (ATTR_LINE_RE.test(trimmed)) {
         // Valid attr line in body → already caught by P020
         continue;
       }
-      if (!TRAILER_KEY_RE.test(key)) {
+      const { key, value } = suspect;
+      const keyIsValid = TRAILER_KEY_RE.test(key);
+      if (keyIsValid && value.length > 0) break;
+      // The parser keeps the line in the body as text (#1034). Skip it:
+      // a line higher up gets its own verdict.
+      if (isBodyTextLine(bodyLines, i, key, trailer)) continue;
+      if (!keyIsValid) {
         diagnostics.push({
           code: "MSL-P022",
           severity: "error",
@@ -708,7 +839,7 @@ function extractEntry(
             `outside [A-Za-z][A-Za-z0-9-]* (spec section 4.1)`,
           location: trailerLocation,
         });
-      } else if (colonMatch[2].trim().length === 0) {
+      } else {
         diagnostics.push({
           code: "MSL-P021",
           severity: "error",
@@ -717,7 +848,7 @@ function extractEntry(
           location: trailerLocation,
         });
       }
-      break; // one diagnostic per trailing suspect line is sufficient
+      break; // report at most one line of the trailing lines
     }
   }
 

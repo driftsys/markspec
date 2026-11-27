@@ -923,6 +923,439 @@ Deno.test("parseMarkdown: a lowercase or underscored key on the last body line s
 });
 
 // ---------------------------------------------------------------------------
+// A trailer-like line directly under body prose is body text (#1034)
+// ---------------------------------------------------------------------------
+
+/** Malformed trailer-like lines that `markspec fmt` can wrap onto the last
+ * body line, with the diagnostic each raises inside a trailer block. */
+const MALFORMED_LAST_LINES: ReadonlyArray<[string, string]> = [
+  ["below:", "MSL-P021"],
+  ["architecture :", "MSL-P021"],
+  ["some_signal_name: the speed.", "MSL-P022"],
+];
+
+Deno.test("parseMarkdown: a malformed trailer-like line directly under prose is body text, with no MSL-P021 or MSL-P022 (#1034)", () => {
+  for (const [last] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0030] Title
+
+  The lamp shall follow the layout
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { entries, diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+    assertEquals(entries[0].body, `The lamp shall follow the layout\n${last}`);
+    assertEquals(
+      entries[0].rawAttributes.map((a) => a.key),
+      ["Id"],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed trailer-like line under prose and a valid Key: value line is body text (#1034)", () => {
+  for (const [last] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0031] Title
+
+  The lamp shall follow the layout
+  Note: see annex A.
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line in an indented trailer block still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  for (const [last, code] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0032] Title
+
+  The lamp shall follow the layout.
+
+      Id: ${ULID}
+      ${last}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === code).length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line in an unindented trailer after a blank line still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  for (const [last, code] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0033] Title
+
+  The lamp shall follow the layout.
+
+  Id: ${ULID}
+  ${last}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === code).length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line in an Id run directly under prose still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  // The `Id:` line shows that the author meant a trailer, as in the
+  // parser's trailer rule for an Id run under prose.
+  for (const [last, code] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0034] Title
+
+  The lamp shall follow the layout.
+  Id: ${ULID}
+  ${last}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === code).length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a final paragraph of only a malformed line still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  // A final unindented paragraph after a blank line is reported when it
+  // holds no valid key other than recognized trailer keys. This paragraph
+  // holds no valid key at all, so it is reported, although the parser
+  // reads no trailer from it: it can be a broken trailer written by hand.
+  for (const [last, code] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0035] Title
+
+  The lamp shall follow the layout.
+
+  ${last}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === code).length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line alone in a body paragraph above the trailer is body text (#1034)", () => {
+  // The paragraph is not the final block, so the parser never reads it as
+  // the trailer.
+  for (const [last] of MALFORMED_LAST_LINES) {
+    const md = `- [STK_0036] Title
+
+  The lamp shall follow the layout.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a wrapped Note: or Rationale: paragraph that ends in a trailer-like line is body text (#1034)", () => {
+  for (const lead of ["Note", "Rationale"]) {
+    for (const [last] of MALFORMED_LAST_LINES) {
+      for (
+        const body of [
+          `The lamp shall follow the layout.\n\n  ${lead}: each section is\n  ${last}`,
+          `${lead}: each section is\n  ${last}`,
+        ]
+      ) {
+        const md = `- [STK_0037] Title\n\n  ${body}\n\n      Id: ${ULID}\n`;
+        const { entries, diagnostics } = parseMarkdown(md);
+        assertEquals(
+          diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+          [],
+          md,
+        );
+        assertEquals(entries[0].id, ULID);
+      }
+    }
+  }
+});
+
+Deno.test("parseMarkdown: a malformed Id or trace-relation key line directly under prose still raises MSL-P021 or MSL-P022 (#1034)", () => {
+  for (
+    const [last, code] of [
+      ["Verified by: TST_1", "MSL-P022"],
+      ["Derived from: STK_0001", "MSL-P022"],
+      ["Satisfies:", "MSL-P021"],
+      ["Satisfies :", "MSL-P021"],
+      ["Id :", "MSL-P021"],
+    ]
+  ) {
+    const md = `- [STK_0038] Title
+
+  The lamp shall follow the layout
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === code).length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a lowercase trace key or another key directly under prose is body text (#1034)", () => {
+  // The Id and trace-relation keys are compared case-sensitively.
+  for (
+    const last of ["satisfies:", "below:", "Example:", "Note:", "snake_key:"]
+  ) {
+    const md = `- [STK_0039] Title
+
+  The lamp shall follow the layout
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line below an Id-like line under prose still raises MSL-P021 (#1034)", () => {
+  for (const idLike of [`id: ${ULID}`, `Id : ${ULID}`]) {
+    const md = `- [STK_0040] Title
+
+  The lamp is on.
+  ${idLike}
+  below:
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P021").length,
+      1,
+      idLike,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: an indented malformed line directly under prose still raises MSL-P021 (#1034)", () => {
+  const md = `- [STK_0041] Title
+
+  The lamp shall follow the layout
+      below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
+});
+
+Deno.test("parseMarkdown: a malformed line directly under prose in an entry with no trailer is body text (#1034)", () => {
+  const md = `- [STK_0042] Title
+
+  The lamp is on
+  below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+});
+
+Deno.test("parseMarkdown: a final paragraph with a Note: line and a malformed line is body text (#1034)", () => {
+  // `Note` is not a recognized trailer key, so the final paragraph is not a
+  // trailer paragraph.
+  const md = `- [STK_0043] Title
+
+  The lamp is on.
+
+  Note: x
+  below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+});
+
+Deno.test("parseMarkdown: a malformed line above an Id line and a directive comment still raises MSL-P021 (#1034)", () => {
+  // The run extends below the malformed line, over the `Id:` line and the
+  // directive comment.
+  const md = `- [STK_0044] Title
+
+  The lamp is on
+  below:
+  Id: ${ULID}
+  <!-- markspec:pending Q-001 -->
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
+});
+
+/** Every `MSL-P02*` diagnostic of `diagnostics`, as `line:code` strings. */
+function codeLines(
+  diagnostics: readonly { code: string; location?: { line: number } }[],
+): string[] {
+  return diagnostics.filter((d) => d.code.startsWith("MSL-P02"))
+    .map((d) => `${d.location?.line}:${d.code}`);
+}
+
+Deno.test("parseMarkdown: a trace key line higher in the trailing run is still reported below a body-text line (#1034)", () => {
+  const md = `- [STK_0045] Title
+
+  The lamp is on
+  Satisfies:
+  below:
+
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["4:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: each line of a trailing run under prose gets its own verdict (#1034)", () => {
+  const md = `- [STK_0046] Title
+
+  The lamp is on
+  Note: see annex A.
+  Verified by: TST_1
+  some_key: x
+  below:
+
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["5:MSL-P022"]);
+  const clean = `- [STK_0047] Title
+
+  The lamp is on
+  some_key: x
+  below:
+
+      Id: ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(clean).diagnostics), []);
+});
+
+Deno.test("parseMarkdown: a malformed line directly above an unindented Id trailer still raises MSL-P021 (#1034)", () => {
+  const md = `- [STK_0048] Title
+
+  The lamp is on
+  below:
+  Id: ${ULID}
+`;
+  const { entries, diagnostics } = parseMarkdown(md);
+  assertEquals(entries[0].id, ULID);
+  assertEquals(codeLines(diagnostics), ["1:MSL-P020", "4:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: a malformed line above an indented trailer with no blank line still raises MSL-P021 (#1034)", () => {
+  for (const last of ["below:", "satisfies:"]) {
+    const md = `- [STK_0053] Title
+
+  The lamp is on
+  ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(codeLines(diagnostics), ["4:MSL-P021"], last);
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line that does not reach the end of the body is not part of an adjacent trailer (#1034)", () => {
+  // The trailer starts directly below the directive comment, not below
+  // `below:`, so `below:` is body text under prose.
+  const md = `- [STK_0054] Title
+
+  The lamp is on
+  below:
+
+  <!-- markspec:pending Q-001 -->
+  Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["1:MSL-P020"]);
+});
+
+Deno.test("parseMarkdown: the trailing scan reports at most one line of a run (#1034)", () => {
+  // The scan reads from the bottom up and stops at the first reported
+  // line; `Verifies:` is reported once `Satisfies:` is fixed.
+  const md = `- [STK_0055] Title
+
+  The lamp is on
+  Verifies:
+  Satisfies:
+
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["5:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: a final paragraph of recognized keys and a malformed line still raises MSL-P021 (#1034)", () => {
+  const md = `- [STK_0049] Title
+
+  The lamp is on.
+
+  Labels: a
+  below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["6:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: a directive comment joins the run of a final paragraph (#1034)", () => {
+  const md = `- [STK_0050] Title
+
+  The lamp is on.
+
+  <!-- markspec:pending Q-001 -->
+  below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["6:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: a malformed line in a paragraph with other content below it is body text (#1034)", () => {
+  const md = `- [STK_0051] Title
+
+  The lamp is on.
+
+  below:
+
+  Note: see annex A.
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), []);
+});
+
+Deno.test("parseMarkdown: a malformed Id key directly under prose still raises MSL-P022 (#1034)", () => {
+  const md = `- [STK_0052] Title
+
+  The lamp is on
+  Id.: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["4:MSL-P022"]);
+});
+
+// ---------------------------------------------------------------------------
 // P021 / P022 locate the offending trailer line, not the title line
 // ---------------------------------------------------------------------------
 

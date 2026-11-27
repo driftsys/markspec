@@ -516,6 +516,50 @@ link:
 - warning, when the line is in the trailing `Key: Value` run of an entry that
   has no trailer.
 
+A trailing line that looks like a trailer line but is not a valid attribute
+line, for example `below:` (no value), `architecture :` (a space before the
+colon), or `some_signal_name: the speed.` (a key with characters outside
+`[A-Za-z][A-Za-z0-9-]*`), is not read as an attribute and stays in the body. The
+80-column wrap of `markspec fmt` can produce such a line.
+
+`check` reads the trailing lines of the body from the bottom up. It skips blank
+lines, `<!-- markspec:* -->` directive comments, valid `Key: value` lines and
+lines that are body text (see below), so it can reach a line in an earlier
+paragraph. It stops at the first line it reports, at a prose line, or at a line
+with a value whose key has only valid characters but that is not a valid
+attribute line (`Satisfies : X`, `note: x`), which it does not report. So it
+reports at most one line; the author sees the next one after fixing it.
+
+For each line it reads, `check` decides from the run of that line: the line
+together with the trailer-like lines (valid or not) and directive comments
+directly above and below it, with no blank line between. `MSL-P021` and
+`MSL-P022` report the line in these cases:
+
+- a line of the run is indented by 4 or more columns (the indented block);
+- the run holds an `Id:` line or an Id-like line (`id:`, `Id :`), which shows
+  that the author meant a trailer;
+- the run reaches the end of the body and the trailer starts on the next line,
+  with no blank line between (`Some prose here.`, then `satisfies:`, then an
+  indented `Id:` line);
+- the run is a final unindented paragraph (it starts the body or follows a blank
+  line, and nothing follows it) that holds no valid key other than recognized
+  trailer keys. A paragraph of only malformed lines, such as a lone `satisfies:`
+  or `below:`, is reported too, although the parser reads no trailer from it: it
+  can be a broken trailer written by hand;
+- the line has an empty value or an invalid key, and its key is `Id` or a core
+  trace relation key after normalization, compared case-sensitively
+  (`Verified by: TST_1`, `Satisfies:`), even directly under prose. The
+  normalization replaces each run of whitespace and `.`, `/`, `,`, `'`, `"`
+  characters with one hyphen, and removes hyphens at both ends of the key.
+
+In any other case the line is body text, and `check` reports no diagnostic for
+it. This holds when the run is directly under a non-blank line that is not in
+the run (prose, a heading, a list item or a closing fence), or when the run
+starts the body or follows a blank line and other content or a trailer follows
+it, or it holds a valid key that is not a recognized trailer key (for example a
+`Note:` lead-in). So a lowercase `satisfies:` directly under prose is body text,
+unless its run touches the trailer, is indented or holds an `Id:` line.
+
 An indented block directly under body prose, with no blank line, continues the
 paragraph in CommonMark. The parser still reads it as the trailer, as it did
 before, and `markspec fmt` inserts the blank line.
