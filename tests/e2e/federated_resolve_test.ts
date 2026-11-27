@@ -674,3 +674,34 @@ Deno.test(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// insert counts a locked upstream ID for a target in a project (#1047).
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "insert: a locked upstream ID counts for a target in a project (#1047)",
+  async () => {
+    const root = await Deno.makeTempDir();
+    try {
+      const dirA = `${root}/a`;
+      const dirB = `${root}/b`;
+      const fileUrl = await setupProducerA(dirA);
+      // B's own files hold no SYS_ ID; the locked upstream holds SYS_0001.
+      await setupConsumerB(dirB, fileUrl, REQS_B_COVERAGE);
+
+      const lock = await markspecInDir(dirB, ["lock"], LOCK_PERMISSIONS);
+      assertEquals(lock.code, 0, lock.stderr);
+
+      const insert = await markspecInDir(dirB, [
+        "insert",
+        "requirement",
+        "reqs.md",
+      ]);
+      assertEquals(insert.code, 0, insert.stderr);
+      assertMatch(insert.stderr, /appended SYS_0002 to reqs\.md/);
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  },
+);

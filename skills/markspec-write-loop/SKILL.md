@@ -34,8 +34,9 @@ markspec insert <type> <file>
 Appends a scaffolded entry block to `<file>`. The block contains:
 
 - the next sequential display ID for `<type>` (computed from the entries already
-  in `<file>`, plus any entries the profile delivers or a locked upstream
-  provides),
+  in `<file>` and in the other files of its project — the files a bare
+  `markspec check` of that project reads — plus any entries the profile delivers
+  or a locked upstream provides),
 - a generated ULID in the `Id:` trailer,
 - skeleton `Type:` and `Satisfies:` trailers.
 

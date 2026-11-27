@@ -677,6 +677,32 @@ export async function projectCollectOptions(
 }
 
 /**
+ * The parsed entries of every file of the project that owns `filePath`:
+ * the project root is resolved from the file's own folder, as `check`,
+ * `fmt` and `lint` resolve it ({@linkcode cliProjectRootResolver}), and the
+ * file set is the one a bare `check` of that project walks
+ * ({@linkcode projectCollectOptions}: `.gitignore`, `.markspec.yaml`
+ * `exclude:`, nested projects skipped). Returns an empty list when no
+ * `project.yaml` or `.markspec.yaml` is at or above the file's folder.
+ * `insert` adds these entries before it mints a display ID (#1047). Parse
+ * diagnostics are not printed. Exits 1 when a discovered file cannot be
+ * read or the project's `.markspec.yaml` is malformed.
+ */
+export async function owningProjectEntries(
+  filePath: string,
+  resolver?: ProjectRootResolver,
+): Promise<Entry[]> {
+  const projectResolver = resolver ?? await cliProjectRootResolver();
+  const root = await projectResolver.ownerOf(dirname(resolve(filePath)));
+  if (root === undefined) return [];
+  return await collectProjectEntriesOrExit(
+    root,
+    denoDiscoveryIO(),
+    await projectCollectOptions(root, projectResolver),
+  );
+}
+
+/**
  * Walk `root` and every project nested below it (the nested roots the
  * resolver sees from the outermost project root above `root`) the way the
  * LSP indexes a
