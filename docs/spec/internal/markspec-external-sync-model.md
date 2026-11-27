@@ -92,8 +92,12 @@ only this vocabulary.
 
 Direction is declared per system (and optionally per attribute) in the mapping
 file. Inbound entries carry `Origin: synthesized`-class provenance
-(core-data-model §1 / ADR-003 §Part 4) so `fmt`/`compile` know they are
-externally owned.
+(core-data-model §1 / ADR-003 §Part 4). `fmt` uses this provenance only to
+derive a missing `Id:` from the `Source:` value, and only for an Authored entry
+with the literal value `Origin: synthesized` and a non-empty `Source:`; any
+other entry without an `Id:` gets a random ULID (core-data-model §3.5). It
+formats the body and trailer of an externally owned entry like any other entry
+(§11.3).
 
 ## 3. Mapping file schema — `.markspec/sync/<system>.yaml`
 
@@ -268,9 +272,17 @@ reads back). Violations → `MSL-S020`.
 2. **`newest-wins` clock trust: dropped from MVP.** Vocabulary is `manual` /
    `local-wins` / `remote-wins`. Per-direction sensible defaults. Revisit
    post-1.0.
-3. **Inbound entries + `fmt`: no special-casing.** `fmt` is non-reordering;
-   inbound entries get the same indentation/backslash treatment as Authored
-   entries. Sync pull rewrites idempotently anyway.
+3. **Inbound entries + `fmt`: no special-casing.** Apart from the `Id:`
+   derivation (§2.3), inbound entries get the same treatment as Authored
+   entries, including the whole-document Markdown pass (ADR-029). `fmt` has one
+   canonical form and does not keep the native spelling of imported content,
+   such as code span padding. Round-trip fidelity is a connector concern (§1):
+   to detect an unchanged entry, the connector compares the external value and
+   the body in the canonical form, for example by formatting the converted
+   native value with `fmt` before the comparison. It does not compare against
+   the spelling of the import. A profile can keep modal keyword casing as
+   written with `modal-keywords.casing: preserve`; that is a profile convention
+   for all entries, not a sync exception (#992).
 4. **Log retention: tooling concern.** No `retention:` field in mapping schema;
    rely on logrotate / journald / cron. Revisit post-1.0.
 5. **Multi-system binding: at most one local writer per attribute.** Rejected at
@@ -281,7 +293,7 @@ reads back). Violations → `MSL-S020`.
 | Section | Source                                                                                        |
 | ------- | --------------------------------------------------------------------------------------------- |
 | §1      | Prompt-7 Context (core/connector split); ADR-006 §Out-of-scope; compile-output §1.2           |
-| §2      | core-data-model §1.4 / §1.6 / §1.8 / §5; ADR-002 (properties); ADR-006 §1 / §4                |
+| §2      | core-data-model §1.4 / §1.6 / §1.8 / §3.5 / §5; ADR-002 (properties); ADR-006 §1 / §4         |
 | §3      | ADR-006 §4 (connector model); ADR-011 (ingestion); profile-schema (YAML authoring convention) |
 | §4      | lockfile spec §1 / §3 / §5; ADR-012; core-data-model §1.6                                     |
 | §5      | ADR-006 §4 / §Out-of-scope; lockfile spec §3                                                  |
