@@ -1168,6 +1168,44 @@ Deno.test("parseMarkdown: an indented malformed line directly under prose still 
   assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
 });
 
+Deno.test("parseMarkdown: a malformed line directly under prose in an entry with no trailer is body text (#1034)", () => {
+  const md = `- [STK_0042] Title
+
+  The lamp is on
+  below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+});
+
+Deno.test("parseMarkdown: a final paragraph with a Note: line and a malformed line is body text (#1034)", () => {
+  // `Note` is not a recognized trailer key, so the final paragraph is not a
+  // trailer paragraph.
+  const md = `- [STK_0043] Title
+
+  The lamp is on.
+
+  Note: x
+  below:
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+});
+
+Deno.test("parseMarkdown: a malformed line above an Id line and a directive comment still raises MSL-P021 (#1034)", () => {
+  // The run extends below the malformed line, over the `Id:` line and the
+  // directive comment.
+  const md = `- [STK_0044] Title
+
+  The lamp is on
+  below:
+  Id: ${ULID}
+  <!-- markspec:pending Q-001 -->
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
+});
+
 // ---------------------------------------------------------------------------
 // P021 / P022 locate the offending trailer line, not the title line
 // ---------------------------------------------------------------------------

@@ -521,9 +521,9 @@ line, for example `below:` (no value), `architecture :` (a space before the
 colon), or `some_signal_name: the speed.` (a key with characters outside
 `[A-Za-z][A-Za-z0-9-]*`), is not read as an attribute and stays in the body. The
 80-column wrap of `markspec fmt` can produce such a line. Its run is the line
-together with the trailer-like lines (valid or not) directly above and below it,
-with no blank line between. The line is body text, and `check` reports no
-diagnostic for it, in two cases:
+together with the trailer-like lines (valid or not) and `<!-- markspec:* -->`
+directive comments directly above and below it, with no blank line between. The
+line is body text, and `check` reports no diagnostic for it, in two cases:
 
 - the run is directly under a non-blank line that is not a trailer-like line:
   prose, a heading, a list item or a closing fence;
@@ -531,14 +531,15 @@ diagnostic for it, in two cases:
   paragraph: other content or a trailer follows it, or one of its valid keys is
   outside the recognized trailer keys (for example a `Note:` lead-in).
 
-`MSL-P021` and `MSL-P022` still report the line in a trailer block: the indented
-block, a final unindented paragraph whose valid keys are all recognized trailer
-keys (git style), and a run that holds an `Id:` line or an Id-like line (`id:`,
-`Id :`), which shows that the author meant a trailer. They also report a line
-whose key is `Id` or a core trace relation key after whitespace and `.`, `/`,
-`,`, `'`, `"` become hyphens, compared case-sensitively (`Verified by: TST_1`,
-`Satisfies:`), wherever the line is: a malformed identity or trace link is never
-read as text without a diagnostic. A lowercase `satisfies:` is body text.
+`MSL-P021` and `MSL-P022` still report the line in a trailer block: a run with a
+line indented by 4 or more columns (the indented block), a final unindented
+paragraph whose valid keys are all recognized trailer keys (git style), and a
+run that holds an `Id:` line or an Id-like line (`id:`, `Id :`), which shows
+that the author meant a trailer. They also report a line in the trailing run of
+trailer-like lines of the body that has an empty value or an invalid key, when
+its key is `Id` or a core trace relation key after whitespace and `.`, `/`, `,`,
+`'`, `"` become hyphens, compared case-sensitively (`Verified by: TST_1`,
+`Satisfies:`), even directly under prose. A lowercase `satisfies:` is body text.
 
 An indented block directly under body prose, with no blank line, continues the
 paragraph in CommonMark. The parser still reads it as the trailer, as it did
