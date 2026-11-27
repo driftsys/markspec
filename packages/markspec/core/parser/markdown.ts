@@ -91,9 +91,10 @@ function suspectTrailerLine(
 }
 
 /**
- * Normalize a suspected trailer key for the typo checks (#697): turn
- * whitespace and the punctuation `.`, `/`, `,`, `'`, `"` into hyphens, and
- * trim hyphens at both ends. `Verified by` becomes `Verified-by`.
+ * Normalize a suspected trailer key for the typo checks (#697): replace
+ * each run of whitespace and the punctuation `.`, `/`, `,`, `'`, `"` with
+ * one hyphen, and trim hyphens at both ends. `Verified by` becomes
+ * `Verified-by`.
  */
 function normalizeSuspectKey(key: string): string {
   return key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, "");
@@ -110,38 +111,52 @@ function validTrailerKey(trimmed: string): string | undefined {
     : undefined;
 }
 
+/** Where the trailer the parser read sits, seen from the body. */
+type TrailerPlacement =
+  /** The entry has no trailer. */
+  | "none"
+  /** A blank line separates the trailer from the body. */
+  | "separate"
+  /** The trailer starts on the line directly below the last body line. */
+  | "adjacent";
+
 /**
  * `true` when the suspected trailer line `bodyLines[index]`, whose key is
  * `key`, is body text, so MSL-P021 and MSL-P022 do not apply to it (#1034).
  * `bodyLines` are body lines with the list-item indent removed;
- * `hasTrailer` is `true` when the entry has a trailer below the body.
+ * `trailer` tells where the trailer the parser read sits.
  *
- * The run is the line and the non-blank suspected trailer lines (valid or
- * not) directly above and below it. The line is reported, so this returns
- * `false`, when:
+ * The run is the line and the non-blank lines directly above and below it
+ * that are suspected trailer lines (valid or not) or `<!-- markspec:* -->`
+ * directive comments. The line is reported, so this returns `false`, when:
  *
  * - its key, normalized as for the #697 typo check and compared
  *   case-sensitively, is `Id` or a core trace-relation key (the MSL-P020
- *   key set): a malformed identity or trace link is never silently prose;
+ *   key set): a malformed identity or trace link is reported even directly
+ *   under prose;
  * - a line of the run is indented by 4 or more columns (an indented block);
  * - a line of the run is an `Id:` or `Id:`-like line (`id:`, `Id :`): the
  *   author meant a trailer, as in the Id run rule of `findTrailerStart`;
+ * - the run reaches the end of the body and the trailer starts directly
+ *   below it, with no blank line: the run touches the trailer, which is an
+ *   indented block or holds an `Id:` line;
  * - the run starts the body or follows a blank line, it is the final block
- *   of the entry (no trailer and no other content below it), and every
- *   valid key of the run is a recognized trailer key: the trailer
- *   paragraph rule of `findTrailerStart` (#916, #927).
+ *   of the entry (no trailer and no other content below it), and it holds
+ *   no valid key other than recognized trailer keys. A run of only
+ *   malformed lines is reported too, although the parser reads no trailer
+ *   from it: it can be a broken trailer written by hand.
  *
  * Otherwise the line is body text: the run is directly under a non-blank
- * line that is not a suspected trailer line (prose, a heading, a list item,
- * a closing fence), or it is a body paragraph that the parser never reads
- * as the trailer (it is not the final block, or it has a key such as
+ * line that is not in the run (prose, a heading, a list item, a closing
+ * fence), or it is a body paragraph that the parser never reads as the
+ * trailer (it is not the final block, or it has a valid key such as
  * `Note:` that is not recognized).
  */
 function isBodyTextLine(
   bodyLines: readonly string[],
   index: number,
   key: string,
-  hasTrailer: boolean,
+  trailer: TrailerPlacement,
 ): boolean {
   const normalized = normalizeSuspectKey(key);
   if (normalized === IDENTITY_KEY || TRACE_RELATION_KEYS.has(normalized)) {
@@ -160,9 +175,10 @@ function isBodyTextLine(
   const run = bodyLines.slice(start, end);
   if (run.some((line) => isIndented(line))) return false;
   if (run.some((line) => ID_LIKE_LINE_RE.test(line.trim()))) return false;
+  if (end === bodyLines.length && trailer === "adjacent") return false;
   // Directly under a non-blank line that is not in the run: body text.
   if (start > 0 && bodyLines[start - 1].trim() !== "") return true;
-  const final = !hasTrailer &&
+  const final = trailer === "none" &&
     bodyLines.slice(end).every((line) => line.trim() === "");
   if (!final) return true;
   return !run.every((line) => {
@@ -775,9 +791,16 @@ function extractEntry(
   // indented code block with colon-separated content that has invalid
   // keys, emit P022. Lines without colons that appear in what looks
   // like a trailer block emit P021. A line that the parser keeps in the
-  // body as text (see `isBodyTextLine`) is not reported (#1034).
+  // body as text (see `isBodyTextLine`) is not reported, and the scan goes
+  // on to the line above it (#1034).
   if (body.length > 0) {
     const bodyLines = body.split("\n");
+    const trailerStart = findTrailerStart(contentLines);
+    const trailer: TrailerPlacement = attrLines.length === 0
+      ? "none"
+      : trailerStart > 0 && contentLines[trailerStart - 1].trim() !== ""
+      ? "adjacent"
+      : "separate";
     // Walk backward from the end of the body to find lines in a trailing
     // code-block-like region that have colons (suspected trailers).
     for (let i = bodyLines.length - 1; i >= 0; i--) {
@@ -800,8 +823,9 @@ function extractEntry(
       const { key, value } = suspect;
       const keyIsValid = TRAILER_KEY_RE.test(key);
       if (keyIsValid && value.length > 0) break;
-      // The parser keeps the line in the body as text (#1034).
-      if (isBodyTextLine(bodyLines, i, key, attrLines.length > 0)) break;
+      // The parser keeps the line in the body as text (#1034). Keep
+      // scanning: a line higher in the run gets its own verdict.
+      if (isBodyTextLine(bodyLines, i, key, trailer)) continue;
       if (!keyIsValid) {
         diagnostics.push({
           code: "MSL-P022",
