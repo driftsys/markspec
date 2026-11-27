@@ -250,10 +250,11 @@ Deno.test("Q201: fires for an entry the pipeline classified as a profile Require
   assertEquals(hasQ201(entry, subtypeProfile()), true);
 });
 
-Deno.test("Q201: fires for a `Type:` raw attribute when Entry.type is unset (#1039)", () => {
+Deno.test("Q201: fires for a profile `Type:` raw attribute when Entry.type is unset (#1039)", () => {
+  // A profile type name, so only the profile maps it to `Requirement`.
   const entry = makeEntry("The system should log faults.", {
     displayId: "ZZZ_0001",
-    type: "Requirement",
+    type: "stakeholder-requirement",
   });
   // The parser output before classification: the trailer holds `Type:`, and
   // `Entry.type` is not set.

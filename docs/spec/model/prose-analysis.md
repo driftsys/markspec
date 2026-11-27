@@ -2,8 +2,9 @@
 
 MarkSpec performs quality analysis on the body prose of authored entries — the
 paragraphs and list items that describe _what_ a requirement means, not just its
-identity. Prose analysis runs as a separate `markspec lint` pass after parsing
-and validation; it does not block `markspec check`.
+identity. Prose analysis runs after parsing and validation, in `markspec lint`
+and in a project-wide `markspec check`. Its diagnostics are warnings and
+information only, so they never make `markspec check` exit with code 1.
 
 ## Scope
 
