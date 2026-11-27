@@ -225,11 +225,19 @@ Deno.test("insert: an ID in another file of the project counts for a pattern wit
 });
 
 Deno.test("insert: the project of the target file counts, not the current directory (#1047)", async () => {
+  // The current directory is project `a` (which gives the profile and holds
+  // no entry); the target file is in the separate project `b`, whose other
+  // file holds SRS_BRK_0002.
   const run = await markspecPersist(
-    ["insert", "software-requirement", "--scope", "BRK", "../docs/b.md"],
+    ["insert", "software-requirement", "--scope", "BRK", "../b/b.md"],
     {
-      files: { ...projectFiles(""), "docs/a.md": A_MD, "docs/b.md": B_MD },
-      cwd: "profiles",
+      files: {
+        ...projectFiles("a"),
+        "b/project.yaml": PROJECT_YAML,
+        "b/a.md": A_MD,
+        "b/b.md": B_MD,
+      },
+      cwd: "a",
     },
   );
   try {

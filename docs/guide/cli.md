@@ -877,8 +877,12 @@ project of an explicit file. Its files are the files that a bare
 exists only in an excluded file can be minted again. When no `project.yaml` or
 `.markspec.yaml` is at or above the folder of `<file>`, only the entries of
 `<file>`, the delivered-corpus entries and the locked upstream entries count.
-The profile still comes from the `project.yaml` found from the current
-directory. Only `<file>` is written.
+The profile, the corpus that it delivers and the locked upstreams still come
+from the `project.yaml` found from the current directory. `insert` exits 1 when
+a discovered file of the project of `<file>` cannot be read, or when the
+`.markspec.yaml` of that project is malformed, as `check`, `lock` and `compile`
+do; a file whose content does not parse does not stop it. Only `<file>` is
+written.
 
 Follow with `markspec fmt` to normalize indentation and `markspec check` to
 confirm no broken references.
