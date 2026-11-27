@@ -21,7 +21,8 @@ prose MarkSpec does not own. Core types outside the Specification family (e.g.
 descriptions and glossary entries follow different writing conventions.
 
 A profile subtype counts whether the entry names it in `Type:` or matches its
-display-ID pattern. `markspec lint` and `markspec check` apply the same scope.
+display-ID pattern. `markspec lint` and a project-wide (bare) `markspec check`
+apply the same scope. `markspec check <file>` runs no prose lint.
 
 Suppression-hygiene rules (`MSL-Q9xx`) run on **all** authored entries
 regardless of type.

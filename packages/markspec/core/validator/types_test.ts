@@ -5,7 +5,12 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { classifyEntriesStage, classifyEntry } from "./types.ts";
+import {
+  classifyEntriesStage,
+  classifyEntry,
+  isRequirementWithProfile,
+  resolvedCoreTypeWithProfile,
+} from "./types.ts";
 import type {
   EffectiveProfile,
   EffectiveTypeDef,
@@ -558,4 +563,27 @@ Deno.test("classifyEntry: a Reference-shape .feature entry resolves through the 
     ).type,
     "Test",
   );
+});
+
+Deno.test("resolvedCoreTypeWithProfile: an already-classified entry is not classified again", () => {
+  // Type X (`design-record`, extends Record) is set on the entry. Its display
+  // ID matches the pattern of type Y (`stakeholder-requirement`, extends
+  // Requirement). Reclassifying by pattern would give Requirement.
+  const typeX = buildType({
+    name: "design-record",
+    displayIdPattern: "DRC_{n:4d}",
+  });
+  const recordX = { ...typeX, value: { ...typeX.value, extends: "Record" } };
+  const typeY = buildType({
+    name: "stakeholder-requirement",
+    displayIdPattern: "STK_{n:4d}",
+  });
+  const profile = buildProfile([recordX, typeY]);
+  const entry = buildEntry({
+    displayId: "STK_0001",
+    shape: "Authored",
+    type: "design-record",
+  });
+  assertEquals(isRequirementWithProfile(entry, profile), false);
+  assertEquals(resolvedCoreTypeWithProfile(entry, profile), "Record");
 });

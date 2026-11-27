@@ -58,3 +58,31 @@ Deno.test("check (bare): MSL-Q201 fires for a pattern-only profile Requirement s
     .sort();
   assertEquals(q201, ["STK_0001", "STK_0002"], stderr);
 });
+
+Deno.test("check (bare): a prose warning on a pattern-only profile Requirement subtype exits 2 (#1039)", async () => {
+  // MSL-Q200 is a warning. The only entry is typed by the display-ID
+  // pattern, so the warning exists only when the prose scope sees the entry.
+  const doc = `# Test
+
+- [STK_0001] Display-ID pattern only
+
+  The system shall log faults and shall retry the write.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const { code, stdout, stderr } = await markspec(
+    ["check", "--format", "json"],
+    {
+      files: {
+        "project.yaml": "name: check-prose-scope\nversion: 0.1.0\n",
+        ".markspec.yaml": "profiles:\n  - ./profiles/p\n",
+        "profiles/p/markspec.yaml": PROFILE,
+        "stk.md": doc,
+      },
+    },
+  );
+  const codes = (JSON.parse(stdout) as { code: string; severity: string }[])
+    .filter((d) => d.severity !== "info").map((d) => d.code);
+  assertEquals(codes.includes("MSL-Q200"), true, stderr);
+  assertEquals(code, 2, stderr);
+});
