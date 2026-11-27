@@ -1208,7 +1208,7 @@ Deno.test("parseMarkdown: a malformed line above an Id line and a directive comm
   assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
 });
 
-/** Lines of `diagnostics` with `code`, as `line:code` strings. */
+/** Every `MSL-P02*` diagnostic of `diagnostics`, as `line:code` strings. */
 function codeLines(
   diagnostics: readonly { code: string; location?: { line: number } }[],
 ): string[] {
@@ -1262,7 +1262,50 @@ Deno.test("parseMarkdown: a malformed line directly above an unindented Id trail
 `;
   const { entries, diagnostics } = parseMarkdown(md);
   assertEquals(entries[0].id, ULID);
-  assertEquals(codeLines(diagnostics).includes("4:MSL-P021"), true);
+  assertEquals(codeLines(diagnostics), ["1:MSL-P020", "4:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: a malformed line above an indented trailer with no blank line still raises MSL-P021 (#1034)", () => {
+  for (const last of ["below:", "satisfies:"]) {
+    const md = `- [STK_0053] Title
+
+  The lamp is on
+  ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(codeLines(diagnostics), ["4:MSL-P021"], last);
+  }
+});
+
+Deno.test("parseMarkdown: a malformed line that does not reach the end of the body is not part of an adjacent trailer (#1034)", () => {
+  // The trailer starts directly below the directive comment, not below
+  // `below:`, so `below:` is body text under prose.
+  const md = `- [STK_0054] Title
+
+  The lamp is on
+  below:
+
+  <!-- markspec:pending Q-001 -->
+  Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["1:MSL-P020"]);
+});
+
+Deno.test("parseMarkdown: the trailing scan reports at most one line of a run (#1034)", () => {
+  // The scan reads from the bottom up and stops at the first reported
+  // line; `Verifies:` is reported once `Satisfies:` is fixed.
+  const md = `- [STK_0055] Title
+
+  The lamp is on
+  Verifies:
+  Satisfies:
+
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(codeLines(diagnostics), ["5:MSL-P021"]);
 });
 
 Deno.test("parseMarkdown: a final paragraph of recognized keys and a malformed line still raises MSL-P021 (#1034)", () => {

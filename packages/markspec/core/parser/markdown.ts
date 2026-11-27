@@ -790,9 +790,14 @@ function extractEntry(
   // If the body's last non-empty lines look like they belong to an
   // indented code block with colon-separated content that has invalid
   // keys, emit P022. Lines without colons that appear in what looks
-  // like a trailer block emit P021. A line that the parser keeps in the
-  // body as text (see `isBodyTextLine`) is not reported, and the scan goes
-  // on to the line above it (#1034).
+  // like a trailer block emit P021. The scan reads the trailing lines from
+  // the bottom up, skipping blank lines and directive comments. It skips a
+  // line that the parser keeps in the body as text (see `isBodyTextLine`,
+  // #1034) and a valid `Key: value` line. It stops at the first reported
+  // line, at a prose line, or at a line with a value whose key has only
+  // valid characters but that is not a valid attribute line (`Satisfies :
+  // X`, `note: x`). So the trailing lines report at most one line; the
+  // author sees the next one after fixing it.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
     const trailerStart = findTrailerStart(contentLines);
@@ -823,8 +828,8 @@ function extractEntry(
       const { key, value } = suspect;
       const keyIsValid = TRAILER_KEY_RE.test(key);
       if (keyIsValid && value.length > 0) break;
-      // The parser keeps the line in the body as text (#1034). Keep
-      // scanning: a line higher in the run gets its own verdict.
+      // The parser keeps the line in the body as text (#1034). Skip it:
+      // a line higher up gets its own verdict.
       if (isBodyTextLine(bodyLines, i, key, trailer)) continue;
       if (!keyIsValid) {
         diagnostics.push({
@@ -843,7 +848,7 @@ function extractEntry(
           location: trailerLocation,
         });
       }
-      break; // one diagnostic per trailing suspect line is sufficient
+      break; // report at most one line of the trailing lines
     }
   }
 
