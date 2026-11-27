@@ -798,7 +798,9 @@ function extractEntry(
   // valid characters but that is not a valid attribute line (`note: x`,
   // `Id : X`), unless the key is a core trace-relation key (`Satisfies :
   // X`), which is reported (#1051). So the trailing lines report at most
-  // one line; the author sees the next one after fixing it.
+  // one line; the author sees the next one after fixing it. A line above a
+  // line where the scan stops is never checked, so a `Satisfies : X` line
+  // above a prose line, `note: x` or `Id : X` gets no diagnostic.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
     const trailerStart = findTrailerStart(contentLines);

@@ -1417,9 +1417,11 @@ Deno.test("parseMarkdown: a valid trace line, a lowercase trace key or another k
     const [last, expected] of [
       // A valid attribute line under prose: MSL-P020, no MSL-P021.
       ["Satisfies: STK_1", ["1:MSL-P020"]],
-      // The trace keys are compared case-sensitively.
+      // Directly under prose these lines are body text by the run rule of
+      // `isBodyTextLine` too, so this row does not show why they are not
+      // reported. The tests below pin the case-sensitive trace key and the
+      // stop of the scan at such a line.
       ["satisfies : x", []],
-      // A key of valid characters with a value stops the scan unreported.
       ["note: x", []],
       ["Key2: x", []],
     ] as const
@@ -1475,6 +1477,40 @@ Deno.test("parseMarkdown: a trace-key line with a value followed by more prose i
       Id: ${ULID}
 `;
   assertEquals(codeLines(parseMarkdown(md).diagnostics), []);
+});
+
+Deno.test("parseMarkdown: a lowercase trace key with a value in a final paragraph is not reported (#1051)", () => {
+  // In a final paragraph with no trailer the run rule would report the line,
+  // so only the case-sensitive trace-key comparison keeps `satisfies : x`
+  // unreported.
+  const final = (last: string) =>
+    `- [STK_0067] Title
+
+  The lamp is on.
+
+  ${last}
+`;
+  assertEquals(
+    codeLines(parseMarkdown(final("satisfies : x")).diagnostics),
+    [],
+  );
+  assertEquals(
+    codeLines(parseMarkdown(final("Satisfies : x")).diagnostics),
+    ["5:MSL-P021"],
+  );
+});
+
+Deno.test("parseMarkdown: a trace key with a trailing hyphen and a value under prose raises MSL-P021 (#1051)", () => {
+  // The key is normalized before the trace-key comparison: `Satisfies-`
+  // becomes `Satisfies`.
+  const md = `- [STK_0068] Title
+
+  The lamp is on
+  Satisfies- : x
+
+      Id: ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(md).diagnostics), ["4:MSL-P021"]);
 });
 
 // ---------------------------------------------------------------------------

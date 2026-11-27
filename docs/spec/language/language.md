@@ -539,8 +539,10 @@ diagnostic. A line with a value whose key is a core trace relation key after
 normalization (`Satisfies : X`, `Satisfies:X`) is the exception: `check` reports
 it as `MSL-P021`, because it creates no trace link. So it reports at most one
 line; the author sees the next one after fixing it. Because the scan stops at a
-prose line, a malformed trace relation line with more prose below it
-(`Satisfies : X`, then `and more text.`) is not checked and gets no diagnostic.
+prose line and, without a report, at a line such as `note: x`, `Key2: x` or
+`Id : X`, a malformed trace relation line above one of these lines is never
+reached and gets no diagnostic: for example `Satisfies : X`, then
+`and more text.`, or `Satisfies : X`, then `note: x`.
 
 For each line it reads, except a line where it stops without a report, `check`
 decides from the run of that line: the line together with the trailer-like lines
