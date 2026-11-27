@@ -854,9 +854,8 @@ markspec insert <type> <file>
 The command:
 
 1. Finds the highest existing display ID for `<type>` among the entries of
-   `<file>`, of every other file of the project of `<file>`, delivered-corpus
-   entries and locked upstream entries (for a scoped type, in the `--scope`
-   scope).
+   `<file>` and of the other files in its project, the delivered-corpus entries
+   and the locked upstream entries (for a scoped type, in the `--scope` scope).
 2. Computes the next sequential display ID, skipping any display ID that already
    exists.
 3. Generates a fresh ULID.
@@ -869,20 +868,24 @@ markspec insert requirement docs/requirements.md --print
 # → appends SRS_PRJ_0003, prints block to stdout
 ```
 
-The project of `<file>` is the nearest `project.yaml`, else the nearest
-`.markspec.yaml`, at or above the folder of `<file>`, found as `check` finds the
-project of an explicit file. Its files are the files that a bare
-`markspec check` of that project reads: `.gitignore` entries, `.markspec.yaml`
-`exclude:` patterns and the files of nested projects are skipped, so an ID that
-exists only in an excluded file can be minted again. When no `project.yaml` or
-`.markspec.yaml` is at or above the folder of `<file>`, only the entries of
-`<file>`, the delivered-corpus entries and the locked upstream entries count.
-The profile, the corpus that it delivers and the locked upstreams still come
-from the `project.yaml` found from the current directory. `insert` exits 1 when
-a discovered file of the project of `<file>` cannot be read, or when the
-`.markspec.yaml` of that project is malformed, as `check`, `lock` and `compile`
-do; a file whose content does not parse does not stop it. Only `<file>` is
-written.
+The project of `<file>` is resolved from the folder of `<file>` by the same
+resolver that `check`, `fmt` and `lint` use for an explicit file (see
+[Which project a file belongs to](#which-project-a-file-belongs-to)): the
+nearest `project.yaml`, else the nearest `.markspec.yaml`, unless an enclosing
+project hides that config, in which case the enclosing project owns the file.
+Its files are the files that a bare `markspec check` of that project reads:
+`.gitignore` entries, `.markspec.yaml` `exclude:` patterns and the files of
+nested projects are skipped, so an ID that exists only in an excluded file can
+be minted again. `insert` parses every one of these files, as a bare `check`
+does, so on a large project it takes about as long as the parse step of `check`.
+When no `project.yaml` or `.markspec.yaml` is at or above the folder of
+`<file>`, only the entries of `<file>`, the delivered-corpus entries and the
+locked upstream entries count. The profile, the corpus that it delivers and the
+locked upstreams still come from the `project.yaml` found from the current
+directory. `insert` exits 1 when a discovered file of the project of `<file>`
+cannot be read, or when the `.markspec.yaml` of that project is malformed, as
+`check`, `fmt`, `lock` and `compile --frozen` do; a file whose content does not
+parse does not stop it. Only `<file>` is written.
 
 Follow with `markspec fmt` to normalize indentation and `markspec check` to
 confirm no broken references.

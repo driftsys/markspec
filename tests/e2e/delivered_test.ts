@@ -583,3 +583,21 @@ Deno.test("insert: refuses to append to an explicitly-named delivered corpus fil
   assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
   assertStringIncludes(stderr, "read-only");
 });
+
+Deno.test("insert: a delivered corpus ID counts for a target in a project (#1047)", async () => {
+  // The corpus delivers PLT_0001; `profile/` is excluded, so only the corpus
+  // loader reads it. docs/requirements.md is an ordinary project file.
+  const run = await markspecPersist(
+    ["insert", "platform-component", "docs/requirements.md"],
+    fixture(WITH_DELIVERS),
+  );
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertStringIncludes(
+      run.stderr,
+      "appended PLT_0002 to docs/requirements.md",
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

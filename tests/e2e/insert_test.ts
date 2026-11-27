@@ -272,13 +272,15 @@ Deno.test("insert: a file excluded by .markspec.yaml exclude: is not read (#1047
 
 Deno.test("insert: a target file with no project config above it reads only its own entries (#1047)", async () => {
   // The profile comes from the project.yaml of the current directory, as
-  // before; the target file lies outside that project, so the other file
-  // next to it is not read.
+  // before; the target file lies outside that project, so neither the other
+  // file next to it nor the files of the current directory's project
+  // (SRS_BRK_0005 in proj/x.md) are read.
   const run = await markspecPersist(
     ["insert", "software-requirement", "--scope", "BRK", "../loose/b.md"],
     {
       files: {
         ...projectFiles("proj"),
+        "proj/x.md": `# X\n\n${block("SRS_BRK_0005", 7)}`,
         "loose/a.md": A_MD,
         "loose/b.md": B_MD,
       },
@@ -288,6 +290,31 @@ Deno.test("insert: a target file with no project config above it reads only its 
   try {
     assertEquals(run.code, 0, run.stderr);
     assertStringIncludes(run.stderr, "appended SRS_BRK_0002");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("insert: a file of a nested project that the outer .gitignore hides is not read (#1047)", async () => {
+  // `inner/` is a project nested in `outer/`. The walk of `inner/` applies
+  // the `.gitignore` files of the outermost project, as a bare `check` does,
+  // so `inner/hidden/a.md` (SRS_BRK_0002) does not count.
+  const run = await markspecPersist(
+    ["insert", "software-requirement", "--scope", "BRK", "inner/b.md"],
+    {
+      files: {
+        ...projectFiles("outer"),
+        "outer/.gitignore": "inner/hidden/\n",
+        "outer/inner/project.yaml": PROJECT_YAML,
+        "outer/inner/hidden/a.md": A_MD,
+        "outer/inner/b.md": B_MD,
+      },
+      cwd: "outer",
+    },
+  );
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertStringIncludes(run.stderr, "appended SRS_BRK_0002 to inner/b.md");
   } finally {
     await Deno.remove(run.dir, { recursive: true });
   }

@@ -14,6 +14,7 @@ import {
 } from "./helpers.ts";
 import {
   createProjectRootResolver,
+  isWithin,
   type ProjectRootResolver,
 } from "../core/mod.ts";
 
@@ -92,6 +93,20 @@ async function tempTree(files: Record<string, string>): Promise<string> {
   return root;
 }
 
+/**
+ * A project-root resolver that sees no file outside `root`, so a
+ * `project.yaml` or `.markspec.yaml` above the temp dir (on a developer
+ * machine or a CI runner) cannot become the project root.
+ */
+function confinedResolver(root: string): ProjectRootResolver {
+  const io = denoDiscoveryIO();
+  return createProjectRootResolver({
+    readDir: io.readDir,
+    readFile: (path) =>
+      isWithin(root, path) ? io.readFile(path) : Promise.resolve(undefined),
+  });
+}
+
 /** One entry block with display ID `id` and a ULID ending in `n`. */
 function entryBlock(id: string, n: number): string {
   return `- [${id}] Title ${n}\n\n  Body.\n\n      Id: ` +
@@ -109,7 +124,7 @@ Deno.test("owningProjectEntries: reads the files of the target file's project, w
     "proj/sub/c.md": entryBlock("REQ-0003", 3),
   });
   try {
-    const resolver = createProjectRootResolver(denoDiscoveryIO());
+    const resolver = confinedResolver(root);
     const ids = (await owningProjectEntries(
       join(root, "proj/docs/b.md"),
       resolver,
@@ -132,7 +147,7 @@ Deno.test("owningProjectEntries: no project config above the file gives no entri
     "loose/b.md": entryBlock("REQ-0002", 2),
   });
   try {
-    const resolver = createProjectRootResolver(denoDiscoveryIO());
+    const resolver = confinedResolver(root);
     assertEquals(
       await owningProjectEntries(join(root, "loose/b.md"), resolver),
       [],
