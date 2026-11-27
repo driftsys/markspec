@@ -6,8 +6,16 @@
 
 import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
 import { join } from "@std/path";
-import { collectProjectEntriesOrExit, syncMappingFolders } from "./helpers.ts";
-import type { ProjectRootResolver } from "../core/mod.ts";
+import {
+  collectProjectEntriesOrExit,
+  denoDiscoveryIO,
+  owningProjectEntries,
+  syncMappingFolders,
+} from "./helpers.ts";
+import {
+  createProjectRootResolver,
+  type ProjectRootResolver,
+} from "../core/mod.ts";
 
 Deno.test("collectProjectEntriesOrExit: rethrows unrelated errors", async () => {
   const root = await Deno.makeTempDir();
@@ -72,3 +80,64 @@ for (
     );
   });
 }
+
+/** Write `files` (relative path → content) below a new temp dir. */
+async function tempTree(files: Record<string, string>): Promise<string> {
+  const root = await Deno.makeTempDir();
+  for (const [name, content] of Object.entries(files)) {
+    const path = join(root, ...name.split("/"));
+    await Deno.mkdir(join(path, ".."), { recursive: true });
+    await Deno.writeTextFile(path, content);
+  }
+  return root;
+}
+
+/** One entry block with display ID `id` and a ULID ending in `n`. */
+function entryBlock(id: string, n: number): string {
+  return `- [${id}] Title ${n}\n\n  Body.\n\n      Id: ` +
+    `01HGW2Q8MNP3RSTVWXYZABCD${String(n).padStart(2, "0")}\n`;
+}
+
+Deno.test("owningProjectEntries: reads the files of the target file's project, without nested projects", async () => {
+  const root = await tempTree({
+    "proj/project.yaml": "name: x\nversion: 0.1.0\n",
+    "proj/.markspec.yaml": "exclude:\n  - archive/\n",
+    "proj/docs/a.md": entryBlock("REQ-0001", 1),
+    "proj/docs/b.md": entryBlock("REQ-0002", 2),
+    "proj/archive/old.md": entryBlock("REQ-0009", 9),
+    "proj/sub/project.yaml": "name: sub\nversion: 0.1.0\n",
+    "proj/sub/c.md": entryBlock("REQ-0003", 3),
+  });
+  try {
+    const resolver = createProjectRootResolver(denoDiscoveryIO());
+    const ids = (await owningProjectEntries(
+      join(root, "proj/docs/b.md"),
+      resolver,
+    )).map((e) => e.displayId).sort();
+    assertEquals(ids, ["REQ-0001", "REQ-0002"]);
+    // A file of the nested project reads that project only.
+    const nested = (await owningProjectEntries(
+      join(root, "proj/sub/c.md"),
+      resolver,
+    )).map((e) => e.displayId);
+    assertEquals(nested, ["REQ-0003"]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("owningProjectEntries: no project config above the file gives no entries", async () => {
+  const root = await tempTree({
+    "loose/a.md": entryBlock("REQ-0001", 1),
+    "loose/b.md": entryBlock("REQ-0002", 2),
+  });
+  try {
+    const resolver = createProjectRootResolver(denoDiscoveryIO());
+    assertEquals(
+      await owningProjectEntries(join(root, "loose/b.md"), resolver),
+      [],
+    );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

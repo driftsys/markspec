@@ -854,8 +854,9 @@ markspec insert <type> <file>
 The command:
 
 1. Finds the highest existing display ID for `<type>` among the entries of
-   `<file>`, delivered-corpus entries and locked upstream entries (for a scoped
-   type, in the `--scope` scope).
+   `<file>`, of every other file of the project of `<file>`, delivered-corpus
+   entries and locked upstream entries (for a scoped type, in the `--scope`
+   scope).
 2. Computes the next sequential display ID, skipping any display ID that already
    exists.
 3. Generates a fresh ULID.
@@ -867,6 +868,17 @@ The command:
 markspec insert requirement docs/requirements.md --print
 # → appends SRS_PRJ_0003, prints block to stdout
 ```
+
+The project of `<file>` is the nearest `project.yaml`, else the nearest
+`.markspec.yaml`, at or above the folder of `<file>`, found as `check` finds the
+project of an explicit file. Its files are the files that a bare
+`markspec check` of that project reads: `.gitignore` entries, `.markspec.yaml`
+`exclude:` patterns and the files of nested projects are skipped, so an ID that
+exists only in an excluded file can be minted again. When no `project.yaml` or
+`.markspec.yaml` is at or above the folder of `<file>`, only the entries of
+`<file>`, the delivered-corpus entries and the locked upstream entries count.
+The profile still comes from the `project.yaml` found from the current
+directory. Only `<file>` is written.
 
 Follow with `markspec fmt` to normalize indentation and `markspec check` to
 confirm no broken references.
@@ -935,9 +947,9 @@ counter: for `G_{scope}{n:02d}`, `G_BR100` reads as scope `BR1`, so with
 more ASCII letters or digits (`[A-Za-z0-9]+`). A counter-less pattern such as
 `SWC_{scope}` is a named type, not a scoped type: it takes no `--scope`. As for
 any type, the IDs that count are those of the files the command reads (the paths
-you pass for `next-id` and `create`, only the target file for `insert`), plus
-any entries that the profile delivers (`delivers:`) or that a locked upstream
-provides (`markspec.lock`).
+you pass for `next-id` and `create`, every file of the target file's project for
+`insert`), plus any entries that the profile delivers (`delivers:`) or that a
+locked upstream provides (`markspec.lock`).
 
 ```sh
 # docs/requirements.md holds SRS_BRK_0001 and SRS_ENG_0007
@@ -945,8 +957,8 @@ markspec next-id software-requirement "docs/**/*.md" --scope BRK
 # → SRS_BRK_0002
 
 markspec insert software-requirement docs/requirements.md --scope ENG
-# → appends SRS_ENG_0008 (the IDs in docs/requirements.md count, plus any
-#   delivered-corpus and locked-upstream entries)
+# → appends SRS_ENG_0008 (the IDs in every file of the project count, plus
+#   any delivered-corpus and locked-upstream entries)
 
 markspec next-id software-requirement "docs/**/*.md"
 # → exit 1: error: display-id-pattern 'SRS_{scope}_{n:04d}' has a {scope}
@@ -956,8 +968,9 @@ markspec next-id software-requirement "docs/**/*.md"
 Each command exits 1 with an error, and `insert` writes nothing, when `--scope`
 is missing for a scoped type, when `--scope` is given for a type that is not a
 scoped type, or when the value is not letters and digits. The missing-flag error
-lists the scopes in use in those same IDs (for `insert`, the target file plus
-any delivered-corpus and locked-upstream entries).
+lists the scopes in use in those same IDs (for `insert`, the target file, the
+other files of its project, and any delivered-corpus and locked-upstream
+entries).
 
 #### lint
 

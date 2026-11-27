@@ -6,7 +6,11 @@
  */
 
 import { Command } from "@cliffy/command";
-import { assertNotDeliveredTarget, compileProject } from "../helpers.ts";
+import {
+  assertNotDeliveredTarget,
+  compileProject,
+  owningProjectEntries,
+} from "../helpers.ts";
 import { nextDisplayId, resolveTypePattern } from "./id_helpers.ts";
 
 export const insertCmd = new Command()
@@ -44,9 +48,15 @@ export const insertCmd = new Command()
       // a profile package's file (#700).
       assertNotDeliveredTarget([filePath], [chain]);
       const pattern = resolveTypePattern(typeName, chain, "insert");
+      // The compile result holds the target file and the delivered-corpus
+      // and locked-upstream entries. The other files of the target file's
+      // project count too, so the minted ID is not one of theirs (#1047).
       const displayId = nextDisplayId(
         pattern,
-        result.entries.values(),
+        [
+          ...result.entries.values(),
+          ...await owningProjectEntries(filePath),
+        ],
         options.scope,
       );
 
