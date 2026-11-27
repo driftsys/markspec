@@ -571,12 +571,14 @@ function extractEntry(
     });
   }
 
-  // MSL-P025: an indented `Key: Value` block with an `Id:` line, followed by
-  // more content in the same list item (#985). The trailer must be the last
-  // block, so the block was not read as the trailer and the entry has no
-  // `Id:` attribute (it may have a later trailer without one). Markdown files
-  // only: `parseSource` (source.ts) discards the parse diagnostics of a
-  // source doc comment (`hasLineMap`), so P025 would never be shown there.
+  // MSL-P025: a trailer-shaped block with an `Id:` line (an indented
+  // `Key: Value` block, or a git-style or run-under-prose paragraph, #998),
+  // followed by more content in the same list item (#985). The trailer must
+  // be the last block, so the block was not read as the trailer and the entry
+  // has no `Id:` attribute (it may have a later trailer without one).
+  // Markdown files only: `parseSource` (source.ts) discards the parse
+  // diagnostics of a source doc comment (`hasLineMap`), so P025 would never
+  // be shown there.
   const afterTrailer = !hasLineMap && nested.length === 0 &&
       !attributes.some((a) => a.key === IDENTITY_KEY)
     ? findContentAfterTrailer(item, markdownLines)
@@ -1034,12 +1036,21 @@ function extractEntry(
 }
 
 /**
- * The first content after a trailer-shaped indented code block among the
- * children of `item` (#985), or `undefined`. A block is trailer-shaped when
- * every line is a `Key: Value` line and one line is an `Id:` line. Fenced
- * code blocks are examples and never count. The last child is never such a
- * block: it would be the trailer. Returns the 1-based line and column of the
- * first child after the last such block.
+ * The first content after a trailer-shaped block among the children of
+ * `item` (#985), or `undefined`. A trailer-shaped block is a block that would
+ * be read as the trailer if it were the last block, and that holds an `Id:`
+ * line:
+ *
+ * - an indented code block whose lines are all `Key: Value` lines;
+ * - a paragraph that ends with a run of `Key: Value` lines (#998). This is
+ *   a git-style trailer (every line is a `Key: Value` line) or a run under
+ *   prose. A line that a tab indents to less than 4 columns past the
+ *   list-item content is such a paragraph, not an indented code block.
+ *
+ * Only an `Id:` line in the block (or in the run) counts. Fenced code blocks
+ * are examples and never count. The last child is never such a block: it
+ * would be the trailer. Returns the 1-based line and column of the first
+ * child after the last such block.
  */
 function findContentAfterTrailer(
   item: ListItem,
@@ -1047,19 +1058,44 @@ function findContentAfterTrailer(
 ): { line: number; column: number } | undefined {
   const children = item.children;
   for (let i = children.length - 2; i >= 1; i--) {
-    const child = children[i];
-    if (child.type !== "code" || child.position === undefined) continue;
-    const opener = markdownLines[child.position.start.line - 1]?.trimStart();
-    if (opener === undefined || /^(```|~~~)/.test(opener)) continue;
-    const lines = child.value.split("\n").map((l) => l.trim()).filter((l) =>
-      l !== ""
-    );
-    if (lines.length === 0) continue;
-    if (!lines.every((l) => ATTR_LINE_RE.test(l))) continue;
+    const lines = trailerShapedLines(children[i], markdownLines);
+    if (lines === undefined) continue;
     if (!lines.some((l) => l.startsWith(`${IDENTITY_KEY}:`))) continue;
     const next = children[i + 1].position;
     if (next === undefined) return undefined;
     return { line: next.start.line, column: next.start.column };
+  }
+  return undefined;
+}
+
+/**
+ * The trimmed `Key: Value` lines that `child` would contribute as a trailer:
+ * every line of a non-fenced indented code block whose non-blank lines are
+ * all `Key: Value` lines, or the final run of `Key: Value` lines of a
+ * paragraph. `undefined` for any other block.
+ */
+function trailerShapedLines(
+  child: ListItem["children"][number],
+  markdownLines: readonly string[],
+): string[] | undefined {
+  const position = child.position;
+  if (position === undefined) return undefined;
+  if (child.type === "code") {
+    const opener = markdownLines[position.start.line - 1]?.trimStart();
+    if (opener === undefined || /^(```|~~~)/.test(opener)) return undefined;
+    const lines = child.value.split("\n").map((l) => l.trim()).filter((l) =>
+      l !== ""
+    );
+    if (lines.length === 0) return undefined;
+    return lines.every((l) => ATTR_LINE_RE.test(l)) ? lines : undefined;
+  }
+  if (child.type === "paragraph") {
+    const lines = markdownLines
+      .slice(position.start.line - 1, position.end.line)
+      .map((l) => l.trim());
+    let runStart = lines.length;
+    while (runStart > 0 && ATTR_LINE_RE.test(lines[runStart - 1])) runStart--;
+    return runStart < lines.length ? lines.slice(runStart) : undefined;
   }
   return undefined;
 }

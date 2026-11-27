@@ -456,10 +456,16 @@ structure, and the trace-value canonicalization of ADR-026 that `fmt` does for
 the whole file. Move each item to the top level, as a separate entry.
 
 **Content after the trailer.** The trailer is the last block of the entry. When
-a non-fenced indented block whose lines are all `Key: Value` lines, one of them
-an `Id:` line, is followed by any other block in the same list item (a plain
-list item, a paragraph, a fenced code block, a block quote), the block is not
-the trailer: its lines are body text, and its `Id:` is not the entry's. The
+a trailer-shaped block that holds an `Id:` line is followed by any other block
+in the same list item (a plain list item, a paragraph, a fenced code block, a
+block quote), the block is not the trailer: its lines are body text, and its
+`Id:` is not the entry's. A trailer-shaped block is a non-fenced indented block
+whose lines are all `Key: Value` lines, or a paragraph that ends with a run of
+`Key: Value` lines (the git-style trailer and the run under prose, see
+"Unindented trailers"); for a paragraph, the `Id:` line must be in that final
+run. A line that a tab indents to less than 4 columns past the list-item content
+is such a paragraph: for example, in a list item with a 2-column content indent,
+a tab at column 0 expands to column 4, which is 2 columns past the content. The
 entry has an `Id:` only when a later trailer that holds one is read; when no
 trailer is read, or the later trailer has no `Id:`, the entry has none. In
 Markdown files, when the entry has no `Id:` attribute and holds no nested entry
