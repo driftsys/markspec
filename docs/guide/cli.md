@@ -877,8 +877,7 @@ Its files are the files that a bare `markspec check` of that project reads:
 `.gitignore` entries, `.markspec.yaml` `exclude:` patterns and the files of
 nested projects are skipped, so an ID that exists only in an excluded file can
 be minted again. `insert` parses every one of these files, as a bare `check`
-does, so on a large project it takes about as long as the parse step of `check`.
-When no `project.yaml` or `.markspec.yaml` is at or above the folder of
+does. When no `project.yaml` or `.markspec.yaml` is at or above the folder of
 `<file>`, only the entries of `<file>`, the delivered-corpus entries and the
 locked upstream entries count. The profile, the corpus that it delivers and the
 locked upstreams still come from the `project.yaml` found from the current

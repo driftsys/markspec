@@ -601,3 +601,23 @@ Deno.test("insert: a delivered corpus ID counts for a target in a project (#1047
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+Deno.test("insert: a delivered corpus ID counts for a target with no project config above it (#1047)", async () => {
+  // The profile of the current directory's project delivers PLT_0001; the
+  // target file lies outside every project.
+  const files: Record<string, string> = {};
+  for (const [name, content] of Object.entries(fixture(WITH_DELIVERS))) {
+    files[`proj/${name}`] = content;
+  }
+  files["loose/x.md"] = "# Loose\n";
+  const run = await markspecPersist(
+    ["insert", "platform-component", "../loose/x.md"],
+    { files, cwd: "proj" },
+  );
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertStringIncludes(run.stderr, "appended PLT_0002 to ../loose/x.md");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
