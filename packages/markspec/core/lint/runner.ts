@@ -9,8 +9,7 @@
 
 import type { EffectiveProfile, Entry } from "../model/mod.ts";
 import { CORE_TYPE_HIERARCHY, isCorpusEntry } from "../model/mod.ts";
-import { resolvedCoreType } from "../validator/type_resolution.ts";
-import { classifyEntry } from "../validator/types.ts";
+import { resolvedCoreTypeWithProfile } from "../validator/types.ts";
 import type { LintDiagnostic } from "./types.ts";
 import { runLexiconRules } from "./rules/lexicon.ts";
 import { runStructRules } from "./rules/struct.ts";
@@ -56,7 +55,7 @@ function isSpecificationDescendant(typeName: string): boolean {
  * a direct subtype (Requirement, Test, Contract, Record, Risk).
  * Reference-shape entries are always excluded.
  *
- * `profile` is threaded into {@linkcode resolvedCoreType} so an entry
+ * `profile` is threaded into {@linkcode resolvedCoreTypeWithProfile} so an entry
  * classified purely by a profile type (via `Type:` or a profile
  * display-id pattern, e.g. `platform-component`) resolves to its core
  * ancestor through the profile's `extends:` chain. Without it (#675),
@@ -73,10 +72,7 @@ export function isProseScope(
   profile?: EffectiveProfile,
 ): boolean {
   if (entry.shape === "Reference") return false;
-  const classified = profile && entry.type === undefined
-    ? { ...entry, type: classifyEntry(entry, profile).type }
-    : entry;
-  const coreType = resolvedCoreType(classified, profile);
+  const coreType = resolvedCoreTypeWithProfile(entry, profile);
   if (!coreType) return false;
   return isSpecificationDescendant(coreType);
 }
