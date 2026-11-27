@@ -260,6 +260,36 @@ export function classifyEntry(
   return { type: undefined, diagnostics };
 }
 
+/**
+ * The core type of an entry, using the profile to classify an entry that has
+ * no `Entry.type` yet (display-ID pattern) and to map a profile type to the
+ * core type it extends. An entry that is already classified is not
+ * classified again. Without a profile this is the core-only result. Used by
+ * callers that run before, or outside, the classification stage: the
+ * modal-keyword validator (MSL-M061, MSL-M062) and the prose lint scope.
+ */
+export function resolvedCoreTypeWithProfile(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+): ReturnType<typeof resolvedCoreType> {
+  const classified = profile && entry.type === undefined
+    ? { ...entry, type: classifyEntry(entry, profile).type }
+    : entry;
+  return resolvedCoreType(classified, profile);
+}
+
+/**
+ * `true` when {@linkcode resolvedCoreTypeWithProfile} gives the core type
+ * `Requirement`. Shared by the modal-keyword validator (MSL-M061, MSL-M062)
+ * and the modal-sentence lint rule (MSL-Q201).
+ */
+export function isRequirementWithProfile(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+): boolean {
+  return resolvedCoreTypeWithProfile(entry, profile) === "Requirement";
+}
+
 /** Result of running the classification stage over a batch of entries. */
 export interface ClassifyStageResult {
   /** Entries with `type` set on successful classification. */

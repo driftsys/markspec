@@ -7,7 +7,8 @@
  *   MSL-Q201  modal-soft-in-normative  (info, score 1)
  *
  * Q200: ≥2 normative modals in one sentence — a compound requirement.
- * Q201: `should`/`may` (with or without `not`) in a Requirement-rooted entry.
+ * Q201: `should`/`may` (with or without `not`) in an entry whose core type is
+ * `Requirement`, including a profile type that extends `Requirement`.
  *
  * Q202 (modal-prohibited) is NOT in scope for this slice — deferred per
  * ADR-021 Decision 6 (needs profile config plumbing not yet in core).
@@ -16,14 +17,14 @@
  * live in `feature` blocks (not paragraph-kind) and are excluded by design.
  */
 
-import type { Entry } from "../../model/mod.ts";
+import type { EffectiveProfile, Entry } from "../../model/mod.ts";
 import type { BodyBlock, ParagraphNode } from "../../ast/nodes.ts";
 import type { LintDiagnostic } from "../types.ts";
 import { segmentSentences } from "../segmenter.ts";
 import { loadLexicon } from "../../lexicons/mod.ts";
 import { maskNonProse, offsetToRange } from "../range_util.ts";
 import { collectDefinitions } from "../../ast/normalize.ts";
-import { resolvedCoreType } from "../../validator/type_resolution.ts";
+import { isRequirementWithProfile } from "../../validator/types.ts";
 
 const ABBREVS = loadLexicon("sentence-abbrev");
 
@@ -151,20 +152,28 @@ function emitQ201(
  *   - Q200 fires when ≥2 modal verbs appear in the same sentence
  *     (compound requirement).
  *   - Q201 fires when a soft modal (`should`/`may`) appears in a sentence
- *     of a Requirement-typed entry.
+ *     of an entry whose core type is `Requirement`. With `profile`, the
+ *     entry is classified with it: an explicit `Type:` or a display-ID
+ *     pattern that names a profile type extending `Requirement` counts.
+ *     Without `profile`, only core-resolvable types count (explicit
+ *     `Type: Requirement`, the built-in `REQ` display-ID prefix, ...).
  *
  * One Q200 diagnostic is emitted per offending sentence regardless of how
  * many modals (≥2) the sentence contains. Q201 similarly emits once per
  * offending sentence.
  */
-export function runModalSentenceRules(entry: Entry): LintDiagnostic[] {
+export function runModalSentenceRules(
+  entry: Entry,
+  profile?: EffectiveProfile,
+): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
   const blocks: readonly BodyBlock[] = entry.bodyAst ?? [];
   const definitions = collectDefinitions(blocks);
 
-  // Q201 only fires for Requirement-rooted entries. Conservatively skip when
-  // the core type is unresolved (profile-less project or unknown display-ID).
-  const isRequirement = resolvedCoreType(entry) === "Requirement";
+  // Q201 only fires for entries whose core type is `Requirement`, resolved
+  // with the profile when one is given (#1039), as MSL-M061 and MSL-M062 do.
+  // Conservatively skip when the core type is unresolved.
+  const isRequirement = isRequirementWithProfile(entry, profile);
 
   for (const block of blocks) {
     if (block.kind !== "paragraph") continue;

@@ -9,7 +9,7 @@
 
 import type { EffectiveProfile, Entry } from "../model/mod.ts";
 import { CORE_TYPE_HIERARCHY, isCorpusEntry } from "../model/mod.ts";
-import { resolvedCoreType } from "../validator/type_resolution.ts";
+import { resolvedCoreTypeWithProfile } from "../validator/types.ts";
 import type { LintDiagnostic } from "./types.ts";
 import { runLexiconRules } from "./rules/lexicon.ts";
 import { runStructRules } from "./rules/struct.ts";
@@ -55,18 +55,24 @@ function isSpecificationDescendant(typeName: string): boolean {
  * a direct subtype (Requirement, Test, Contract, Record, Risk).
  * Reference-shape entries are always excluded.
  *
- * `profile` is threaded into {@linkcode resolvedCoreType} so an entry
+ * `profile` is threaded into {@linkcode resolvedCoreTypeWithProfile} so an entry
  * classified purely by a profile type (via `Type:` or a profile
  * display-id pattern, e.g. `platform-component`) resolves to its core
  * ancestor through the profile's `extends:` chain. Without it (#675),
  * such entries never enter prose scope and are silently skipped.
+ *
+ * An entry with no `Entry.type` is classified with the profile first, so an
+ * entry that only a profile display-ID pattern types is scoped too (#1039).
+ * `markspec check` passes parsed, unclassified entries; `markspec lint`
+ * passes entries that compilation already classified, which are not
+ * classified again. Without a profile nothing is classified.
  */
 export function isProseScope(
   entry: Entry,
   profile?: EffectiveProfile,
 ): boolean {
   if (entry.shape === "Reference") return false;
-  const coreType = resolvedCoreType(entry, profile);
+  const coreType = resolvedCoreTypeWithProfile(entry, profile);
   if (!coreType) return false;
   return isSpecificationDescendant(coreType);
 }
@@ -184,8 +190,9 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     diags.push(...runXrefRules(entry, glossary, allow, isIdHook));
     // Step 6: EARS rules (Q100–Q104)
     diags.push(...runEarsRules(entry));
-    // Step 7: modal sentence rules (Q200–Q201)
-    diags.push(...runModalSentenceRules(entry));
+    // Step 7: modal sentence rules (Q200–Q201); the profile classifies
+    // profile subtypes of Requirement for Q201 (#1039).
+    diags.push(...runModalSentenceRules(entry, profile));
     // Step 8: INCOSE sentence rules (Q306–Q312, Q402)
     diags.push(...runIncoseSentenceRules(entry));
     // Step 9: passive-voice rules (Q300–Q301)

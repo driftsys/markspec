@@ -16,7 +16,7 @@ const STK = `# Stakeholder requirements
 
 - [STK_BRK_0001] Stop the vehicle
 
-  The vehicle shall stop when the driver brakes.
+  The system shall stop the vehicle when the driver brakes.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;

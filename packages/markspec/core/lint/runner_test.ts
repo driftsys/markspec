@@ -680,6 +680,57 @@ Deno.test("isProseScope: profile-typed entry enters scope only with the profile 
 });
 
 // ---------------------------------------------------------------------------
+// #1039 — isProseScope classifies an entry that only a profile display-ID
+// pattern types (`markspec check` passes unclassified entries)
+// ---------------------------------------------------------------------------
+
+/** An unclassified `STK_0001` entry: no `Type:` and no `Entry.type`. */
+function patternOnlyEntry(body: string): Entry {
+  return makeEntry({
+    displayId: "STK_0001",
+    type: undefined,
+    body,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text: body },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 1 + body.length },
+        },
+      },
+    ],
+    rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],
+    typedAttributes: new Map([["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]]]),
+  });
+}
+
+Deno.test("isProseScope: a pattern-only entry enters scope with the profile (#1039)", () => {
+  // profileWith("stk", ...) declares the display-ID pattern `STK_{n:04d}`.
+  const entry = patternOnlyEntry("The system shall log faults.");
+  assertEquals(isProseScope(entry, profileWith("stk", "Requirement")), true);
+});
+
+Deno.test("isProseScope: a pattern-only entry stays out of scope without a profile (#1039)", () => {
+  const entry = patternOnlyEntry("The system shall log faults.");
+  assertEquals(isProseScope(entry), false);
+});
+
+Deno.test("isProseScope: a pattern-only entry of a non-Specification type stays out of scope (#1039)", () => {
+  const entry = patternOnlyEntry("The component logs faults.");
+  assertEquals(isProseScope(entry, profileWith("stk", "Component")), false);
+});
+
+Deno.test("runLint: an unclassified pattern-only entry gets MSL-Q201 with the profile (#1039)", async () => {
+  const entry = patternOnlyEntry("The system should log faults.");
+  const result = await runLint({
+    entries: [entry],
+    profile: profileWith("stk", "Requirement"),
+  });
+  assertEquals(result.diagnostics.some((d) => d.code === "MSL-Q201"), true);
+});
+
+// ---------------------------------------------------------------------------
 // #674 f1/f2 — a delivered-corpus entry feeds the resolver indexes but never
 // itself produces diagnostics (ADR-030 §D4)
 // ---------------------------------------------------------------------------

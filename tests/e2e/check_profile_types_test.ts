@@ -60,7 +60,7 @@ const REQUIREMENTS_MD = `# Requirements
 
 - [STK_BRK_0001] Stop the vehicle
 
-  The vehicle shall stop when the brake pedal is pressed.
+  The system shall stop the vehicle when the driver presses the brake pedal.
 
       Id: 01STK00000000000000000001A
 

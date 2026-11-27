@@ -10,7 +10,9 @@
  *
  * MSL-M062 (info) is the reverse check under `casing: rfc8174`: it
  * reports each lowercase modal keyword in an entry that resolves to the core
- * type `Requirement` (`resolvedCoreType` with the profile): an explicit or
+ * type `Requirement`. The check classifies the entry with the profile
+ * (display-ID pattern) when it has no type, then resolves the core type, in
+ * `isRequirementWithProfile` (`types.ts`). A match is: an explicit or
  * classified type, a profile type that extends `Requirement`, the built-in
  * `REQ` display-ID prefix, a profile display-ID pattern, or a `.feature`
  * Feature or Rule entry. The keywords reported are `shall`, `should`, `may`,
@@ -41,8 +43,7 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
-import { resolvedCoreType } from "./type_resolution.ts";
-import { classifyEntry } from "./types.ts";
+import { isRequirementWithProfile } from "./types.ts";
 
 type ModalToken = Extract<BodyToken, { kind: "modal" }>;
 
@@ -120,20 +121,4 @@ export function validateModalKeywords(
   }
 
   return diagnostics;
-}
-
-/**
- * `true` when the entry resolves to the core type `Requirement`, using the
- * profile to classify it (display-ID pattern) and to map a profile type to
- * the core type it extends. Without a profile this is the core-only result.
- */
-function isRequirementWithProfile(
-  entry: Entry,
-  profile: EffectiveProfile | undefined,
-): boolean {
-  if (!profile) return resolvedCoreType(entry) === "Requirement";
-  const classified = entry.type === undefined
-    ? { ...entry, type: classifyEntry(entry, profile).type }
-    : entry;
-  return resolvedCoreType(classified, profile) === "Requirement";
 }
