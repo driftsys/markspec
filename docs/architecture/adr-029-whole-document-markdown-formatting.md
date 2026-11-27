@@ -3,9 +3,10 @@
 ## Status
 
 Accepted (2026-07-02). Closes #649. Amended by #984: the line width and the line
-ending come from `.editorconfig`. Amended by #1010: an entry-body rewrite must
-also keep the body block kinds. Amended 2026-11-26 by #1003: the profile
-convention `modal-keywords.casing` changes modal keyword casing (see
+ending come from `.editorconfig`, and entry titles wrap at the line width.
+Amended by #1010: an entry-body rewrite must also keep the body block kinds.
+Amended 2026-11-26 by #1003: the profile convention `modal-keywords.casing`
+changes modal keyword casing (see
 [Amendment 2026-11-26](#amendment-2026-11-26--modal-keyword-casing-from-the-profile)).
 
 ## Context
@@ -35,14 +36,19 @@ ignore-start/end pair MUST NOT span an entry block (segments format
 independently).
 
 Entry-block coexistence (approach B): prose segments outside entry blocks and
-each entry's AST-canonical body go through dprint; title lines and trailers
-never do. Every dprint rewrite is gated by a CommonMark-semantic equivalence
-comparator (`markdownSemanticallyEquivalent`, mdast-based: positions elided,
-whitespace runs in text values collapsed) — soft-wrap positions and delimiter
-styles compare equal, content changes do not. A rejected rewrite is kept as-was
-and reported as MSL-F012 (info). Entry bodies have a second gate, described in
-the #1010 amendment below. ADR-015's byte-verbatim `astEquivalent` is unchanged
-and still guards §5.2 body emission (MSL-F900).
+each entry's AST-canonical body go through dprint; trailers never do. An entry
+title longer than the line width goes through dprint alone, as a one-item list,
+to wrap it as `prim fmt` does (amended by #984); the wrap is kept only when it
+is equivalent under the comparator below and every continuation line is indented
+at the list item's content column, else the title stays on one line (MSL-F012).
+A title inside a `dprint-ignore` region is not wrapped. Every dprint rewrite is
+gated by a CommonMark-semantic equivalence comparator
+(`markdownSemanticallyEquivalent`, mdast-based: positions elided, whitespace
+runs in text values collapsed) — soft-wrap positions and delimiter styles
+compare equal, content changes do not. A rejected rewrite is kept as-was and
+reported as MSL-F012 (info). Entry bodies have a second gate, described in the
+#1010 amendment below. ADR-015's byte-verbatim `astEquivalent` is unchanged and
+still guards §5.2 body emission (MSL-F900).
 
 Because a body is formatted dedented and re-indented afterward, the body pass
 budgets its `lineWidth` at `width − indent` (floor 20, via a per-call
@@ -169,10 +175,13 @@ ragged, #649 unfixed).
 - As-built: `packages/markspec/core/formatter/dprint.ts` (WASM loader + fixed
   style), `packages/markspec/core/formatter/md_equiv.ts` (semantic equivalence
   gate), `packages/markspec/core/formatter/prose.ts` and `mod.ts`
-  (segmentation + body pass + MSL-F012), `packages/markspec/lsp/server.ts`
-  (`onDocumentFormatting`), `tests/e2e/format_test.ts` and
-  `tests/e2e/lsp_formatting_test.ts`; `.editorconfig` resolution:
-  `packages/markspec/core/config/editorconfig.ts`,
+  (segmentation + body pass + MSL-F012),
+  `packages/markspec/core/formatter/title_wrap.ts` (entry-title wrap, #984;
+  tests `title_wrap_test.ts`, `tests/e2e/fmt_title_wrap_test.ts`,
+  `scripts/check_fmt_parity.sh` for the CI parity job),
+  `packages/markspec/lsp/server.ts` (`onDocumentFormatting`),
+  `tests/e2e/format_test.ts` and `tests/e2e/lsp_formatting_test.ts`;
+  `.editorconfig` resolution: `packages/markspec/core/config/editorconfig.ts`,
   `tests/e2e/editorconfig_test.ts`.
 - prim's `.editorconfig` resolution, which this one follows:
   `crates/prim-cli/src/editorconfig.rs` (`style_from`) in driftsys/prim, and

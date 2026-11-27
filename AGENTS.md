@@ -277,6 +277,7 @@ just lint                       # deno lint + prim format check
 just build                      # check (lint+test+typecheck) + compile binary → dist/markspec
 just pre-push                   # fast gates the pre-push hook runs (see below)
 just fmt                        # deno fmt (TS) + prim fmt (MD/JSON/YAML/TOML)
+just fmt-parity                 # markspec fmt and prim fmt agree (clean tree)
 just tokens                     # regenerate Typst + CSS from theme/tokens.yaml
 just compile                    # compile CLI binary → dist/markspec
 just clean                      # remove build artifacts
@@ -307,8 +308,11 @@ cargo test --manifest-path apps/markdesk/src-tauri/Cargo.toml  # Tauri shell tes
 
 **Two separate format tools:** `deno fmt` handles TypeScript only; `prim fmt`
 handles Markdown, JSON, YAML, TOML. CI runs them as separate jobs — both must
-pass. `.primignore` excludes `CHANGELOG.md` and `docs/examples/`. `prim lint .`
-runs its always-on Markdown rules (links, images, anchors); strict mode is off.
+pass. A third job, `fmt-parity` (`scripts/check_fmt_parity.sh`), runs bare
+`markspec fmt` and fails when it changes a committed file, then runs
+`prim fmt --check .`, so the two formatters must agree. `.primignore` excludes
+`CHANGELOG.md` and `docs/examples/`. `prim lint .` runs its always-on Markdown
+rules (links, images, anchors); strict mode is off.
 
 **Design tokens CI gate:** Editing `theme/tokens.yaml` requires running
 `just tokens` and committing the generated files
