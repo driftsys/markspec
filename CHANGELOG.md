@@ -1,5 +1,192 @@
 # Changelog
 
+## [0.14.0] (2026-11-28)
+
+### Upgrade notes
+
+- Run `markspec fmt` once after you upgrade. `fmt` now wraps entry titles at the line width, as `prim fmt` does ([#1050]); reads the line width and the line ending from `.editorconfig` ([#999]); and adds a missing final newline ([#988]). Until you run it, `markspec check` reports `MSL-F010` (error) on files that an earlier version formatted.
+- Run `markspec lock` once in a project that uses the bundled default profile. A `markspec.lock` written by an earlier version records `sha256:0` for `@markspec/profile-default`, so `markspec lock --check` and `markspec compile --frozen` now fail with `MSL-L210` ([#986]).
+- Bare `markspec check` now runs every prose rule on entries that only a profile `display-id-pattern` types, as `markspec lint` already did ([#1049]). When such an entry has a prose warning, for example `MSL-Q300`, bare `check` now exits 2 instead of 0.
+- `MSL-M061` and `MSL-Q201` now also apply to profile types that extend `Requirement` ([#1037], [#1049]). Existing projects can get more info diagnostics. Info diagnostics do not change the exit code.
+- A trace-key line at the end of an entry body that is not a valid attribute line, such as `Satisfies : STK_0001` or `Satisfies:STK_0001`, is now `MSL-P021` (error), because it creates no trace link ([#1057]). This also reports a last body line in French typography that starts with a trace key spelled as in a trailer, such as `Tests : voir le plan`; reword that line. A lowercase or accented word (`tests :`, `Références :`) is not reported.
+- `MSL-P021` and `MSL-P022` are no longer reported for a trailer-like line that the parser keeps in the body, such as a wrapped last line `below:` or `brake_mode: high` directly under prose ([#1053]). A file that passes `check` still passes after `fmt`. A line whose key is `Id` or a trace key is still reported.
+- New warning `MSL-P025`: an `Id:` trailer is followed by other content in the same entry, such as a paragraph or a list item ([#1000], [#1059]). It replaces the `MSL-P020` error for this shape, also for a git-style or tab-indented `Id:` paragraph and for an `Id:` run directly under prose. `fmt` leaves such an entry unchanged instead of adding a second `Id:`, and MarkDesk refuses to edit it. Move the content above the trailer. On an indented trailer, an earlier `fmt` put the original `Id:` line in a code fence and added a new `Id:` below; `check` does not report that result, so look for `Id:` lines inside code fences.
+- `markspec insert` now reads every file of the target file's project before it picks the next display ID, not only the target file ([#1055]). It now exits 1 and writes nothing when a file of that project cannot be read or when that project's `.markspec.yaml` is malformed.
+- A relative `extends:` in an npm-fetched profile that leaves the package directory now fails with `PROFILE-LOAD-001` ([#1016]). Publish the parent profile as its own package and extend it with an `npm:` specifier.
+
+### Features
+
+- **core:** wrap entry titles at the line width and check prim parity in CI ([#1050]) ([f9fc4b7]), closes [#984]
+- **core:** add the rfc8174 modal-keywords casing value ([#1030]) ([8121061]), closes [#1003]
+- **core:** read Markdown line width and line endings from .editorconfig ([#999]) ([25714b4]), refs [#984]
+
+### Bug Fixes
+
+- **core:** never stamp a second Id for a tab-indented trailer ([#1059]) ([eb25431]), closes [#998], [#1052]
+- **core:** report a trace-key line with a space before the colon ([#1057]) ([9bbc112]), closes [#1051]
+- **cli:** read the whole project before insert mints a display ID ([#1055]) ([0c9b912]), closes [#1047]
+- **core:** keep a trailer-like body line out of MSL-P021 and MSL-P022 ([#1053]) ([a149db1]), closes [#1034]
+- **core:** report MSL-Q201 for profile subtypes of Requirement ([#1049]) ([5ab4086]), closes [#1039]
+- **cli:** never mint an existing display ID for a glued {scope} pattern ([#1046]) ([ba3b90d]), closes [#1041]
+- **cli:** mint display IDs per scope for {scope} patterns ([#1042]) ([072911b]), closes [#1038]
+- **repo:** limit untrusted-workspace support and cache the MCP walk scope ([#1045]) ([db85b66]), closes [#1004]
+- **core:** drop whitespace-only lines before the trailer from the body ([#1044]) ([8fc0613]), closes [#1022]
+- **core:** reach the final modal keyword casing in one fmt pass ([#1043]) ([370815a]), closes [#1031]
+- **core:** keep a glossary term that contains a keyword whole in MSL-Q500 ([#1040]) ([b679a3e]), closes [#1028]
+- **core:** indent every list item block to the item content column ([#1036]) ([f8ddb4d]), closes [#1033]
+- **core:** report MSL-M061 for profile subtypes of Requirement ([#1037]) ([673fed8]), closes [#1024]
+- **core:** skip inline code and link syntax in prose lint rules ([#1035]) ([1523c49]), closes [#1029]
+- **core:** keep a list item's unknown first block on the marker line ([#1032]) ([f72bf0c]), closes [#1026]
+- **core:** skip inline code and link syntax in modal and EARS tokens ([#1027]) ([46686d9]), closes [#1017]
+- **core:** keep reference labels and case table cells in fmt modal casing ([#1025]) ([8a8cff6]), closes [#1014], [#1015]
+- **core:** keep a definition list through the fmt prose pass ([#1023]) ([04e4a70]), closes [#1010]
+- **core:** keep U+FEFF and U+00A0 around free-text attribute values ([#1019]) ([6a85918]), closes [#990]
+- **core:** keep link URLs, autolinks and images in fmt modal casing ([#1018]) ([e7174c6]), closes [#1009]
+- **core:** reject a relative extends that leaves an npm profile package ([#1016]) ([3ce5a6a]), closes [#1006]
+- **core:** keep caption, figure, math and code fence text in fmt ([#1013]) ([ac311b4]), closes [#1008]
+- **core:** resolve relative extends of a git-fetched profile in its repo ([#1007]) ([e329522]), closes [#1002]
+- **core:** accept the feature to gherkin fence rewrite in the fmt text-loss guard ([#1012]) ([b215108]), closes [#1011]
+- **core:** keep every line of a paragraph with an escaped colon in fmt ([#1005]) ([23edc50]), closes [#989]
+- **cli:** warn when an explicit file's project config is hidden ([#981]) ([2d23a8e])
+- **core:** bound MCP discovery and expand the extension's executable path ([#980]) ([e8ab737]), refs [#695]
+- **core:** honour modal-keywords.casing: preserve in fmt and MSL-M060 ([#991]) ([45ddd9a]), refs [#979]
+- **core:** warn when content follows an entry's trailer ([#1000]) ([1a680ef]), closes [#985]
+- **core:** exempt core relation keys from MSL-A005 ([#997]) ([246178a]), closes [#971]
+- **lsp:** ignore IDs inside scenario locators in hover, highlights and rename ([#994]) ([6653c7c]), closes [#930]
+- **core:** add final newline and keep md fences formatted by fmt ([#988]) ([3fde72b]), refs [#984]
+- **core:** report an Id-like trailer line instead of stamping a second Id ([#993]) ([795ab83]), closes [#935]
+- **core:** keep an entry's own trailer next to a nested entry ([#987]) ([c434790]), closes [#928]
+- **core:** hash the embedded default profile instead of reading a file ([#986]) ([c1c448d]), closes [#921]
+- **cli:** keep the Deno cache when e2e tests override HOME ([#983]) ([0b32099]), closes [#982]
+
+### Documentation
+
+- **spec:** keep one fmt form for externally owned entries ([#1048]) ([eb53058]), closes [#992]
+- **core:** list npm specifiers in the profile chain module comment ([#1020]) ([acd397e])
+
+[0.14.0]: https://github.com/driftsys/markspec/compare/v0.13.0...v0.14.0
+[f9fc4b7]: https://github.com/driftsys/markspec/commit/f9fc4b7
+[#1050]: https://github.com/driftsys/markspec/issues/1050
+[#984]: https://github.com/driftsys/markspec/issues/984
+[8121061]: https://github.com/driftsys/markspec/commit/8121061
+[#1030]: https://github.com/driftsys/markspec/issues/1030
+[#1003]: https://github.com/driftsys/markspec/issues/1003
+[25714b4]: https://github.com/driftsys/markspec/commit/25714b4
+[#999]: https://github.com/driftsys/markspec/issues/999
+[eb25431]: https://github.com/driftsys/markspec/commit/eb25431
+[#1059]: https://github.com/driftsys/markspec/issues/1059
+[#998]: https://github.com/driftsys/markspec/issues/998
+[#1052]: https://github.com/driftsys/markspec/issues/1052
+[9bbc112]: https://github.com/driftsys/markspec/commit/9bbc112
+[#1057]: https://github.com/driftsys/markspec/issues/1057
+[#1051]: https://github.com/driftsys/markspec/issues/1051
+[0c9b912]: https://github.com/driftsys/markspec/commit/0c9b912
+[#1055]: https://github.com/driftsys/markspec/issues/1055
+[#1047]: https://github.com/driftsys/markspec/issues/1047
+[a149db1]: https://github.com/driftsys/markspec/commit/a149db1
+[#1053]: https://github.com/driftsys/markspec/issues/1053
+[#1034]: https://github.com/driftsys/markspec/issues/1034
+[5ab4086]: https://github.com/driftsys/markspec/commit/5ab4086
+[#1049]: https://github.com/driftsys/markspec/issues/1049
+[#1039]: https://github.com/driftsys/markspec/issues/1039
+[ba3b90d]: https://github.com/driftsys/markspec/commit/ba3b90d
+[#1046]: https://github.com/driftsys/markspec/issues/1046
+[#1041]: https://github.com/driftsys/markspec/issues/1041
+[072911b]: https://github.com/driftsys/markspec/commit/072911b
+[#1042]: https://github.com/driftsys/markspec/issues/1042
+[#1038]: https://github.com/driftsys/markspec/issues/1038
+[db85b66]: https://github.com/driftsys/markspec/commit/db85b66
+[#1045]: https://github.com/driftsys/markspec/issues/1045
+[#1004]: https://github.com/driftsys/markspec/issues/1004
+[8fc0613]: https://github.com/driftsys/markspec/commit/8fc0613
+[#1044]: https://github.com/driftsys/markspec/issues/1044
+[#1022]: https://github.com/driftsys/markspec/issues/1022
+[370815a]: https://github.com/driftsys/markspec/commit/370815a
+[#1043]: https://github.com/driftsys/markspec/issues/1043
+[#1031]: https://github.com/driftsys/markspec/issues/1031
+[b679a3e]: https://github.com/driftsys/markspec/commit/b679a3e
+[#1040]: https://github.com/driftsys/markspec/issues/1040
+[#1028]: https://github.com/driftsys/markspec/issues/1028
+[f8ddb4d]: https://github.com/driftsys/markspec/commit/f8ddb4d
+[#1036]: https://github.com/driftsys/markspec/issues/1036
+[#1033]: https://github.com/driftsys/markspec/issues/1033
+[673fed8]: https://github.com/driftsys/markspec/commit/673fed8
+[#1037]: https://github.com/driftsys/markspec/issues/1037
+[#1024]: https://github.com/driftsys/markspec/issues/1024
+[1523c49]: https://github.com/driftsys/markspec/commit/1523c49
+[#1035]: https://github.com/driftsys/markspec/issues/1035
+[#1029]: https://github.com/driftsys/markspec/issues/1029
+[f72bf0c]: https://github.com/driftsys/markspec/commit/f72bf0c
+[#1032]: https://github.com/driftsys/markspec/issues/1032
+[#1026]: https://github.com/driftsys/markspec/issues/1026
+[46686d9]: https://github.com/driftsys/markspec/commit/46686d9
+[#1027]: https://github.com/driftsys/markspec/issues/1027
+[#1017]: https://github.com/driftsys/markspec/issues/1017
+[8a8cff6]: https://github.com/driftsys/markspec/commit/8a8cff6
+[#1025]: https://github.com/driftsys/markspec/issues/1025
+[#1014]: https://github.com/driftsys/markspec/issues/1014
+[#1015]: https://github.com/driftsys/markspec/issues/1015
+[04e4a70]: https://github.com/driftsys/markspec/commit/04e4a70
+[#1023]: https://github.com/driftsys/markspec/issues/1023
+[#1010]: https://github.com/driftsys/markspec/issues/1010
+[6a85918]: https://github.com/driftsys/markspec/commit/6a85918
+[#1019]: https://github.com/driftsys/markspec/issues/1019
+[#990]: https://github.com/driftsys/markspec/issues/990
+[e7174c6]: https://github.com/driftsys/markspec/commit/e7174c6
+[#1018]: https://github.com/driftsys/markspec/issues/1018
+[#1009]: https://github.com/driftsys/markspec/issues/1009
+[3ce5a6a]: https://github.com/driftsys/markspec/commit/3ce5a6a
+[#1016]: https://github.com/driftsys/markspec/issues/1016
+[#1006]: https://github.com/driftsys/markspec/issues/1006
+[ac311b4]: https://github.com/driftsys/markspec/commit/ac311b4
+[#1013]: https://github.com/driftsys/markspec/issues/1013
+[#1008]: https://github.com/driftsys/markspec/issues/1008
+[e329522]: https://github.com/driftsys/markspec/commit/e329522
+[#1007]: https://github.com/driftsys/markspec/issues/1007
+[#1002]: https://github.com/driftsys/markspec/issues/1002
+[b215108]: https://github.com/driftsys/markspec/commit/b215108
+[#1012]: https://github.com/driftsys/markspec/issues/1012
+[#1011]: https://github.com/driftsys/markspec/issues/1011
+[23edc50]: https://github.com/driftsys/markspec/commit/23edc50
+[#1005]: https://github.com/driftsys/markspec/issues/1005
+[#989]: https://github.com/driftsys/markspec/issues/989
+[2d23a8e]: https://github.com/driftsys/markspec/commit/2d23a8e
+[#981]: https://github.com/driftsys/markspec/issues/981
+[e8ab737]: https://github.com/driftsys/markspec/commit/e8ab737
+[#980]: https://github.com/driftsys/markspec/issues/980
+[#695]: https://github.com/driftsys/markspec/issues/695
+[45ddd9a]: https://github.com/driftsys/markspec/commit/45ddd9a
+[#991]: https://github.com/driftsys/markspec/issues/991
+[#979]: https://github.com/driftsys/markspec/issues/979
+[1a680ef]: https://github.com/driftsys/markspec/commit/1a680ef
+[#1000]: https://github.com/driftsys/markspec/issues/1000
+[#985]: https://github.com/driftsys/markspec/issues/985
+[246178a]: https://github.com/driftsys/markspec/commit/246178a
+[#997]: https://github.com/driftsys/markspec/issues/997
+[#971]: https://github.com/driftsys/markspec/issues/971
+[6653c7c]: https://github.com/driftsys/markspec/commit/6653c7c
+[#994]: https://github.com/driftsys/markspec/issues/994
+[#930]: https://github.com/driftsys/markspec/issues/930
+[3fde72b]: https://github.com/driftsys/markspec/commit/3fde72b
+[#988]: https://github.com/driftsys/markspec/issues/988
+[795ab83]: https://github.com/driftsys/markspec/commit/795ab83
+[#993]: https://github.com/driftsys/markspec/issues/993
+[#935]: https://github.com/driftsys/markspec/issues/935
+[c434790]: https://github.com/driftsys/markspec/commit/c434790
+[#987]: https://github.com/driftsys/markspec/issues/987
+[#928]: https://github.com/driftsys/markspec/issues/928
+[c1c448d]: https://github.com/driftsys/markspec/commit/c1c448d
+[#986]: https://github.com/driftsys/markspec/issues/986
+[#921]: https://github.com/driftsys/markspec/issues/921
+[0b32099]: https://github.com/driftsys/markspec/commit/0b32099
+[#983]: https://github.com/driftsys/markspec/issues/983
+[#982]: https://github.com/driftsys/markspec/issues/982
+[eb53058]: https://github.com/driftsys/markspec/commit/eb53058
+[#1048]: https://github.com/driftsys/markspec/issues/1048
+[#992]: https://github.com/driftsys/markspec/issues/992
+[acd397e]: https://github.com/driftsys/markspec/commit/acd397e
+[#1020]: https://github.com/driftsys/markspec/issues/1020
+
 ## [0.13.0] (2026-11-16)
 
 ### Upgrade notes
