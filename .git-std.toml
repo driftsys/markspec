@@ -33,9 +33,5 @@ path = "packages/markspec/core/mod.ts"
 regex = 'export const VERSION = "([^"]+)";'
 
 [[version_files]]
-path = "packages/markspec/lsp/server.ts"
-regex = 'export const VERSION = "([^"]+)";'
-
-[[version_files]]
 path = "editors/vscode/package.json"
 regex = '(?m)^  "version": "([^"]+)"'
