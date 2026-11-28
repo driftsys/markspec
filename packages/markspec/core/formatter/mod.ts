@@ -1197,7 +1197,8 @@ function formatEntries(
     // #904: formatting a plain list item without the entries next to it can
     // change its indentation and so the nesting of an entry. When an entry's
     // list depth changed, format again with every list that holds an entry
-    // kept out of the prose pass.
+    // kept out of the prose pass. With a tab marker, those lists are already
+    // kept out above (`listContext`), so the check does not run.
     if (
       !hasTabMarkers &&
       !sameNumbers(

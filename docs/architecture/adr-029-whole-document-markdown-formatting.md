@@ -4,9 +4,10 @@
 
 Accepted (2026-07-02). Closes #649. Amended by #984: the line width and the line
 ending come from `.editorconfig`, and entry titles wrap at the line width.
-Amended by #1010: an entry-body rewrite must also keep the body block kinds.
-Amended 2026-11-26 by #1003: the profile convention `modal-keywords.casing`
-changes modal keyword casing (see
+Amended by #904: a prose rewrite that changes an entry's list depth is formatted
+again with the entry's lists kept out. Amended by #1010: an entry-body rewrite
+must also keep the body block kinds. Amended 2026-11-26 by #1003: the profile
+convention `modal-keywords.casing` changes modal keyword casing (see
 [Amendment 2026-11-26](#amendment-2026-11-26--modal-keyword-casing-from-the-profile)).
 
 ## Context
@@ -54,7 +55,8 @@ A prose segment can hold a plain list item next to an entry. When formatting
 that item alone changes the list depth of any entry (an entry moves into or out
 of a list item), the prose pass runs again with every list that holds an entry
 kept out of it, so the entry keeps its nesting and `fmt` stays idempotent
-(#904).
+(#904). A document with a tab after an entry list marker keeps those lists out
+of the pass from the start, so the check does not run there.
 
 Because a body is formatted dedented and re-indented afterward, the body pass
 budgets its `lineWidth` at `width − indent` (floor 20, via a per-call

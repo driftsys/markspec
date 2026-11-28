@@ -17,8 +17,9 @@ export interface EntryListItem extends EntryExtent {
   readonly whitespace: string;
   readonly container: EntryExtent;
   readonly listContext: EntryExtent;
-  /** The adjacent top-level lists that hold the item, without the indented
-   * blocks after them that `listContext` adds (#904). */
+  /** The outermost list that holds the item, with the lists right next to
+   * it (a marker change splits a list), without the indented blocks after
+   * them that `listContext` adds (#904). */
   readonly listSpan: EntryExtent;
 }
 
@@ -131,7 +132,9 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
  * without a parse.
  */
 export function entryListDepths(lines: readonly string[]): number[] {
-  if (!lines.some((line) => /^\s*(?:[-*+]|\d+[.)])\s+\[/.test(line))) {
+  // A list marker followed by `[` anywhere on a line, so an item in a
+  // blockquote (`> - [ID]`) or after a nested marker (`- - [ID]`) counts.
+  if (!lines.some((line) => /(?:[-*+]|\d+[.)])\s+\[/.test(line))) {
     return [];
   }
   const depths: number[] = [];

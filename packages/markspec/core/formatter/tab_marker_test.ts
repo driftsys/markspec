@@ -6,6 +6,7 @@ import { parseMarkdown } from "../parser/markdown.ts";
 import { loadMarkdownFormatter } from "./dprint.ts";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
 import { format } from "./mod.ts";
+import { entryListDepths } from "./tab_markers.ts";
 
 const ID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const options = { file: "test.md", generateUlid: () => ID };
@@ -72,7 +73,34 @@ Deno.test("fmt: a plain item next to an entry keeps the entry's nesting (#904)",
     const first = format(input, opts);
     const second = format(first.output, opts);
     assertEquals(second.output, first.output, input);
+    // The inner entry stays nested under the second entry.
+    const lines = first.output.split("\n");
+    const inner = lines.findIndex((l) => l.includes("[REQ-800]"));
+    if (inner >= 0) assertEquals(lines[inner].indexOf("-"), 4, first.output);
   }
+});
+
+Deno.test("fmt: the #904 retry keeps only the lists out, not the blocks after them", async () => {
+  const opts = {
+    ...options,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  };
+  const list =
+    "  - [REQ-81-0] Title\n\n  - [REQ-81-1] Title\n\n    - [REQ-800] Inner\n\n        Body.\n";
+  const input =
+    "  - [REQ-81-0] Title\n\n        Satisfies:\n\n\n  - [REQ-81-1] Title\n\n    - [REQ-800] Inner\n\n        Body.\n" +
+    "\n   three  spaces  block.\n";
+  // REQ-800 stays nested under REQ-81-1, and the indented block after the
+  // list is still formatted.
+  assertEquals(format(input, opts).output, list + "\nthree spaces block.\n");
+});
+
+Deno.test("entryListDepths: counts entry items by list depth", () => {
+  assertEquals(entryListDepths(["- [A-1] x", "  - [B-2] y"]), [1, 2]);
+  assertEquals(entryListDepths(["1. [A-1] x", "   - [B-2] y"]), [1, 2]);
+  assertEquals(entryListDepths(["> - [REQ-1] T"]), [1]);
+  assertEquals(entryListDepths(["- [R-1] T", "", "[R-1]: http://x"]), [1]);
+  assertEquals(entryListDepths(["- plain", "text [x]"]), []);
 });
 
 Deno.test("tab marker: refusal preserves a paragraph at the minimum content column", async () => {
