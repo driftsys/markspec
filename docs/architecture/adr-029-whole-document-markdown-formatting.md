@@ -50,6 +50,12 @@ reported as MSL-F012 (info). Entry bodies have a second gate, described in the
 #1010 amendment below. ADR-015's byte-verbatim `astEquivalent` is unchanged and
 still guards §5.2 body emission (MSL-F900).
 
+A prose segment can hold a plain list item next to an entry. When formatting
+that item alone changes the list depth of any entry (an entry moves into or out
+of a list item), the prose pass runs again with every list that holds an entry
+kept out of it, so the entry keeps its nesting and `fmt` stays idempotent
+(#904).
+
 Because a body is formatted dedented and re-indented afterward, the body pass
 budgets its `lineWidth` at `width − indent` (floor 20, via a per-call
 `ProseFormatOptions.lineWidth` override) so a wrap point landing near the line

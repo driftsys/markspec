@@ -58,6 +58,23 @@ Deno.test("tab marker: tab-free formatting matches main", async () => {
   }
 });
 
+Deno.test("fmt: a plain item next to an entry keeps the entry's nesting (#904)", async () => {
+  const opts = {
+    ...options,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  };
+  for (
+    const input of [
+      "  - [REQ-81-0] Title\n\n        Satisfies:\n\n\n  - [REQ-81-1] Title\n\n    - [REQ-800] Inner\n\n        Body.\n",
+      "  - [REQ-147-0] Title\n\n  - child\n\n\n  - [REQ-147-1] Title\n\n  - child\n  +  [REQ-147-2] Title\n\n        Satisfies:\n\n",
+    ]
+  ) {
+    const first = format(input, opts);
+    const second = format(first.output, opts);
+    assertEquals(second.output, first.output, input);
+  }
+});
+
 Deno.test("tab marker: refusal preserves a paragraph at the minimum content column", async () => {
   const input = "-\t[REQ-001] T\n\n  Body.\n\n Tail  text.\nContinued  text.\n";
   const opts = {
@@ -351,31 +368,6 @@ for (
   });
 }
 
-// Known main defect, issue #904: prose formatting dedents an unindexed
-// list item in isolation, changing the nesting of an adjacent entry. The
-// next run moves its Id or reformats the list again. Each excluded seed also
-// fails on main with every tab replaced by one space. Keep these exclusions
-// fixed so a new branch regression cannot remove itself from the test.
-const mainListIndentDriftSeeds = new Set([
-  81,
-  103,
-  147,
-  155,
-  191,
-  207,
-  311,
-  363,
-  407,
-  437,
-  883,
-  901,
-  969,
-  1039,
-  1101,
-  1147,
-  1155,
-]);
-
 Deno.test("tab marker: fuzz regressions keep unindexed adjacent entries in place", async () => {
   const opts = {
     ...options,
@@ -402,11 +394,7 @@ Deno.test("tab marker: fuzz regressions keep unindexed adjacent entries in place
       "  - [REQ-1101-0] Title\n\n  - child\n  -\t[REQ-1101-1] Title\n\n    -\t[REQ-800] Inner\n\n        Body.\n\n",
       "  -\t[REQ-1147-0] Title\n\n  - child\n\n\n  +  [REQ-1147-1] Title\n\n        Satisfies:\n\n\n",
       "  +  [REQ-1155-0] Title\n\n\n\n  - [REQ-1155-1] Title\n\n      Body.\n",
-    ].filter((input) =>
-      ![...mainListIndentDriftSeeds].some((seed) =>
-        input.includes(`[REQ-${seed}-0]`)
-      )
-    )
+    ]
   ) {
     const first = format(input, opts);
     assertRefusedBytes(input, first);
@@ -519,8 +507,6 @@ Deno.test("tab marker: generated mixed lists are idempotent and repeat every ref
       ]);
       input += pick(["", "\n", "\n\n"]);
     }
-    // Consume the full case before excluding it to preserve later seeds.
-    if (mainListIndentDriftSeeds.has(n)) continue;
     const first = format(input, opts);
     assertRefusedBytes(input, first);
     const second = format(first.output, opts);

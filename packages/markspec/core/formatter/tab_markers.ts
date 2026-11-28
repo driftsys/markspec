@@ -17,6 +17,9 @@ export interface EntryListItem extends EntryExtent {
   readonly whitespace: string;
   readonly container: EntryExtent;
   readonly listContext: EntryExtent;
+  /** The adjacent top-level lists that hold the item, without the indented
+   * blocks after them that `listContext` adds (#904). */
+  readonly listSpan: EntryExtent;
 }
 
 /** Find actual unordered list items, excluding code, HTML, and task lists. */
@@ -26,6 +29,7 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
     node: Root | RootContent,
     container?: ListItem,
     enclosingList?: EntryExtent,
+    enclosingSpan?: EntryExtent,
   ): void => {
     if (node.type === "list") {
       for (const item of node.children) {
@@ -52,6 +56,10 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
               start: (node.position?.start.line ?? 1) - 1,
               end: node.position?.end.line ?? lines.length,
             },
+            listSpan: enclosingSpan ?? {
+              start: (node.position?.start.line ?? 1) - 1,
+              end: node.position?.end.line ?? lines.length,
+            },
           });
         }
         for (const child of item.children) {
@@ -62,12 +70,17 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
               start: (node.position?.start.line ?? 1) - 1,
               end: node.position?.end.line ?? lines.length,
             },
+            enclosingSpan ?? {
+              start: (node.position?.start.line ?? 1) - 1,
+              end: node.position?.end.line ?? lines.length,
+            },
           );
         }
       }
     } else if ("children" in node) {
       for (const [index, child] of node.children.entries()) {
         let context = enclosingList;
+        let span = enclosingSpan;
         if (!context && child.type === "list") {
           // A marker change (for example `*` to `-`) splits adjacent
           // items into separate mdast lists. Their indentation still
@@ -76,6 +89,10 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
           let last = index;
           while (first > 0 && node.children[first - 1].type === "list") first--;
           while (node.children[last + 1]?.type === "list") last++;
+          span = {
+            start: (node.children[first].position?.start.line ?? 1) - 1,
+            end: node.children[last].position?.end.line ?? lines.length,
+          };
           // Indented blocks after the list can move into an entry when its
           // content column shrinks. Formatting them in isolation can remove
           // that indentation and admit a refused rewrite on the next run.
@@ -98,12 +115,49 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
             end: node.children[last].position?.end.line ?? lines.length,
           };
         }
-        visit(child as RootContent, container, context);
+        visit(child as RootContent, container, context, span);
       }
     }
   };
   visit(parser.parse(lines.join("\n")));
   return markers;
+}
+
+/**
+ * The list depth of every list item whose text starts with `[ID]`, in
+ * document order: 1 for an item of a top-level list, 2 for an item of a list
+ * inside a list item, and so on. Used to detect a prose rewrite that changed
+ * the nesting of an entry (#904). Lines without such an item give `[]`
+ * without a parse.
+ */
+export function entryListDepths(lines: readonly string[]): number[] {
+  if (!lines.some((line) => /^\s*(?:[-*+]|\d+[.)])\s+\[/.test(line))) {
+    return [];
+  }
+  const depths: number[] = [];
+  const visit = (node: Root | RootContent, depth: number): void => {
+    if (node.type === "list") {
+      for (const item of node.children) {
+        // Without a matching definition, `[ID]` stays text; with one, it is
+        // a link reference.
+        const first = item.children[0];
+        const lead = first?.type === "paragraph"
+          ? first.children[0]
+          : undefined;
+        if (
+          (lead?.type === "text" && lead.value.startsWith("[")) ||
+          lead?.type === "linkReference"
+        ) {
+          depths.push(depth + 1);
+        }
+        for (const child of item.children) visit(child, depth + 1);
+      }
+    } else if ("children" in node) {
+      for (const child of node.children) visit(child as RootContent, depth);
+    }
+  };
+  visit(parser.parse(lines.join("\n")), 0);
+  return depths;
 }
 
 /** Find entry list items with a tab in the whitespace after the marker. */
