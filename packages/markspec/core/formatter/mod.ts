@@ -50,6 +50,7 @@ import { astEquivalent } from "../ast/equivalence.ts";
 import { type EntryExtent, formatProseSegments } from "./prose.ts";
 import { contentColumn } from "./entry_body.ts";
 import {
+  entryListDepths,
   entryListItems,
   protectedTabRanges,
   tabMarkers,
@@ -1173,28 +1174,49 @@ function formatEntries(
         end: findItemEnd(collapsedLines, start, entryIndent, e.endLine ?? 0),
       };
     });
-    if (tabMarkers(collapsedLines).length > 0) {
+    let listItems: ReturnType<typeof entryListItems> | undefined;
+    const hasTabMarkers = tabMarkers(collapsedLines).length > 0;
+    if (hasTabMarkers) {
       // Title-only entry items are outside the entry index. Keep their list
       // context too: isolated prose formatting can move adjacent entries.
       const indexedStarts = new Set(
         proseEntries.map((entry) => entry.location.line - 1),
       );
       extents.push(
-        ...entryListItems(collapsedLines)
+        ...(listItems ??= entryListItems(collapsedLines))
           .filter((item) => !indexedStarts.has(item.start))
           .map((item) => item.listContext),
       );
       extents.push(...protectedTabRanges(collapsedLines, true));
     }
-    extents.sort((a, b) => a.start - b.start);
-    const merged: typeof extents = [];
-    for (const extent of extents) {
-      const previous = merged.at(-1);
-      if (previous && extent.start <= previous.end) {
-        previous.end = Math.max(previous.end, extent.end);
-      } else merged.push({ ...extent });
+    let prose = formatProseSegments(
+      collapsedLines,
+      mergeExtents(extents),
+      proseFormat,
+    );
+    // #904: formatting a plain list item without the entries next to it can
+    // change its indentation and so the nesting of an entry. When an entry's
+    // list depth changed, format again with every list that holds an entry
+    // kept out of the prose pass. With a tab marker, those lists are already
+    // kept out above (`listContext`), so the check does not run.
+    if (
+      !hasTabMarkers &&
+      !sameNumbers(
+        entryListDepths(collapsedLines),
+        entryListDepths(prose.lines),
+      )
+    ) {
+      prose = formatProseSegments(
+        collapsedLines,
+        mergeExtents([
+          ...extents,
+          ...(listItems ??= entryListItems(collapsedLines)).map((item) =>
+            item.listSpan
+          ),
+        ]),
+        proseFormat,
+      );
     }
-    const prose = formatProseSegments(collapsedLines, merged, proseFormat);
     if (prose.changed) changed = true;
     for (const fallback of prose.fallbacks) {
       const cause = fallback.reason === "error"
@@ -1261,6 +1283,23 @@ function formatEntries(
 
   const output = applyLineEnding(formattedBody, sourceLineEnding);
   return { output, diagnostics, changed };
+}
+
+/** Sort `extents` and merge the ones that overlap or touch. */
+function mergeExtents(extents: readonly EntryExtent[]): EntryExtent[] {
+  const merged: { start: number; end: number }[] = [];
+  for (const extent of [...extents].sort((a, b) => a.start - b.start)) {
+    const previous = merged.at(-1);
+    if (previous && extent.start <= previous.end) {
+      previous.end = Math.max(previous.end, extent.end);
+    } else merged.push({ ...extent });
+  }
+  return merged;
+}
+
+/** `true` when both lists hold the same numbers in the same order. */
+function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 /**
