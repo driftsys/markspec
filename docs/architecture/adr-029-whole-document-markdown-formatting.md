@@ -41,15 +41,18 @@ each entry's AST-canonical body go through dprint; trailers never do. An entry
 title longer than the line width goes through dprint alone, as a one-item list,
 to wrap it as `prim fmt` does (amended by #984); the wrap is kept only when it
 is equivalent under the comparator below and every continuation line is indented
-at the list item's content column, else the title stays on one line (MSL-F012).
-A title inside a `dprint-ignore` region is not wrapped. Every dprint rewrite is
-gated by a CommonMark-semantic equivalence comparator
-(`markdownSemanticallyEquivalent`, mdast-based: positions elided, whitespace
-runs in text values collapsed) — soft-wrap positions and delimiter styles
-compare equal, content changes do not. A rejected rewrite is kept as-was and
-reported as MSL-F012 (info). Entry bodies have a second gate, described in the
-#1010 amendment below. ADR-015's byte-verbatim `astEquivalent` is unchanged and
-still guards §5.2 body emission (MSL-F900).
+at the list item's content column and starts with ordinary title text. A
+continuation shaped like `Id:` keeps the title on one line (MSL-F012). A title
+inside a `dprint-ignore` region is not wrapped. Every dprint rewrite is gated by
+a CommonMark-semantic equivalence comparator (`markdownSemanticallyEquivalent`,
+mdast-based: positions elided, whitespace runs in text values collapsed) —
+soft-wrap positions and delimiter styles compare equal, content changes do not.
+A rejected rewrite is kept as-was and reported as MSL-F012 (info). An entry-body
+rewrite must also preserve body block kinds (see the #1010 amendment below).
+When a wrapped line starts with an identity or trace key, `fmt` reparses the
+entry and keeps the canonical body if the wrap changes the trailer
+interpretation. ADR-015's byte-verbatim `astEquivalent` is unchanged and still
+guards §5.2 body emission (MSL-F900).
 
 A prose segment can hold a plain list item next to an entry. When formatting
 that item alone changes the list depth of any entry (an entry moves into or out

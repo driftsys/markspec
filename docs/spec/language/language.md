@@ -1927,7 +1927,8 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 - **Attribute blocks** — sorted to canonical order, trailing backslashes
   normalized.
 - **Entry titles** — wrapped at the line width, with continuation lines indented
-  at the list item's content column (§1).
+  at the list item's content column (§1). A wrap that starts a continuation with
+  an `Id:`-like line is skipped.
 - **Tabs after entry list markers** — normalized to a dash followed by one space
   only when the complete document retains the same CommonMark structure under
   the ADR-029 semantic equivalence comparator. List hierarchy, body and trailer
@@ -2105,8 +2106,9 @@ means only that a header has no `# Id:` line.
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MSL-F010` | error    | Formatter drift: the file's whitespace / attribute form differs from `markspec fmt` output (indentation, backslashes, attribute order, modal-verb casing, …).                                                                                        |
 | `MSL-F011` | error    | Reference-canonicalization drift: a trace-relation value is a ULID or stale display ID that `markspec fmt` would rewrite to its current canonical display ID (ADR-026). Kept distinct from `MSL-F010` so the author knows which `fmt` concern fired. |
-| `MSL-F012` | info     | Markdown-pass fallback: the whole-document formatter's output was rejected by the CommonMark-semantic gate or, for an entry body, the block-kind gate; the text before the Markdown pass was kept (ADR-029).                                         |
+| `MSL-F012` | info     | Markdown-pass fallback: the whole-document formatter's output was rejected by the CommonMark-semantic gate or an entry-body check for block kinds or newly exposed trailer keys. The text before the Markdown pass was kept (ADR-029).               |
 | `MSL-F013` | warning  | Tab-separated entry marker cannot be normalized without changing CommonMark structure; kept the entry unchanged. No `Id:` is stamped into the refused entry.                                                                                         |
+| `MSL-F014` | warning  | A line shaped like `Id:` appears in the entry's title continuation or body. The formatter preserves the identity line and skips stamping.                                                                                                            |
 
 `MSL-F010` and `MSL-F011` are project-wide-only — a file-local
 `markspec check
@@ -2115,9 +2117,11 @@ before `check`). `MSL-F012` is emitted directly by `fmt` (and format-on-save)
 when the whole-document Markdown pass (ADR-029) falls back on a single entry, so
 it fires file-locally too — it is not gated on the composite `check` corpus.
 `MSL-F013` is also emitted directly by `fmt`, including file-local formatting,
-when tab-marker normalization is refused. The `MSL-F` prefix is a bounded early
-adoption of the nextgen "format reports" family (ADR-012), the same pattern as
-`MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
+when tab-marker normalization is refused. `MSL-F014` likewise fires when `fmt`
+finds an unread identity line outside the trailer. Fenced code examples and
+empty placeholders in canonical trailer blocks are exempt. The `MSL-F` prefix is
+a bounded early adoption of the nextgen "format reports" family (ADR-012), the
+same pattern as `MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
 
 ### 8.10 Lockfile and external sync (MSL-L, MSL-S)
 

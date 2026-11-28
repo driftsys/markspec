@@ -7,9 +7,14 @@
  * entry blocks, pills, and alerts (closes #182).
  */
 
-import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
-import { fromFileUrl } from "@std/path";
-import { markspec, markspecPersist } from "./helpers.ts";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertStringIncludes,
+} from "@std/assert";
+import { fromFileUrl, toFileUrl } from "@std/path";
+import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -238,6 +243,275 @@ Deno.test("book build: emits caption paragraph for Figure caption", async () => 
     const html = await Deno.readTextFile(`${dir}/_site/specs.html`);
     assertStringIncludes(html, 'class="caption"');
     assertStringIncludes(html, "Figure 1:");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: renders images followed by their numbered captions", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      "SUMMARY.md": "- [Figures](figures.md)\n",
+      "figures.md": `![Alt & fallback](https://example.com/first.svg
+"Overview")
+
+![Alt only](https://example.com/second.svg)
+
+_Figure: An explicit
+caption._
+
+![](/plain.svg)
+
+![Ordinary](//example.com/third.svg)
+
+*Ordinary emphasis.*
+`,
+    },
+  });
+  try {
+    assertEquals(code, 0, stderr);
+    const html = await Deno.readTextFile(`${dir}/_site/figures.html`);
+    assertMatch(
+      html,
+      /<img src="https:\/\/example\.com\/first\.svg" alt="Alt &#x26; fallback" title="Overview"><\/p>\s*<p class="caption">Figure 1: Alt &amp; fallback<\/p>/,
+    );
+    assertMatch(
+      html,
+      /<img src="https:\/\/example\.com\/second\.svg" alt="Alt only"><\/p>\s*<p class="caption">Figure 2: An explicit\s+caption\.<\/p>/,
+    );
+    assertStringIncludes(html, '<img src="/plain.svg" alt="">');
+    assertMatch(
+      html,
+      /<img src="\/\/example\.com\/third\.svg" alt="Ordinary"><\/p>\s*<p class="caption">Figure 3: Ordinary<\/p>/,
+    );
+    assertStringIncludes(html, "<em>Ordinary emphasis.</em>");
+    assertEquals(html.includes("<em>Figure:"), false);
+    assertEquals(html.match(/class="caption"/g)?.length, 3);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: each chapter image URL resolves to its own copied asset", async () => {
+  const westDiagram =
+    '<svg xmlns="http://www.w3.org/2000/svg"><desc>West</desc></svg>';
+  const eastDiagram =
+    '<svg xmlns="http://www.w3.org/2000/svg"><desc>East</desc></svg>';
+  const sharedDiagram =
+    '<svg xmlns="http://www.w3.org/2000/svg"><desc>Shared</desc></svg>';
+  const { code, stderr, dir } = await markspecPersist(
+    ["book", "build", "--output", "build/output"],
+    {
+      files: {
+        "project.yaml": PROJECT_YAML,
+        "SUMMARY.md":
+          "- [West](west/overview.md)\n- [East](east/overview.md)\n",
+        "west/overview.md": "![West](./media/diagram.svg)\n",
+        "west/media/diagram.svg": westDiagram,
+        "east/overview.md": `![East](media/diagram.svg)
+
+See this ![Shared](../shared%20diagram.svg?scale=1&mode=night#layer) in detail.
+
+![Embedded](data:image/png;base64,YQ==)
+`,
+        "east/media/diagram.svg": eastDiagram,
+        "shared diagram.svg": sharedDiagram,
+      },
+    },
+  );
+  try {
+    assertEquals(code, 0, stderr);
+    const site = `${dir}/build/output`;
+    for (
+      const [chapter, alt, diagram] of [
+        ["west-overview.html", "West", westDiagram],
+        ["east-overview.html", "East", eastDiagram],
+        ["east-overview.html", "Shared", sharedDiagram],
+      ]
+    ) {
+      const page = toFileUrl(`${site}/${chapter}`);
+      const html = await Deno.readTextFile(page);
+      const src = html.match(new RegExp(`<img src="([^"]+)" alt="${alt}"`))
+        ?.[1];
+      assert(src, `missing image ${alt} in ${chapter}`);
+      assert(!src.startsWith("/"), "expected a relocatable image URL");
+      const url = new URL(src.replaceAll("&#x26;", "&"), page);
+      assertStringIncludes(url.pathname, "/build/output/");
+      assertEquals(await Deno.readTextFile(fromFileUrl(url)), diagram);
+      if (alt === "Shared") {
+        assertEquals(url.search, "?scale=1&mode=night");
+        assertEquals(url.hash, "#layer");
+        assertStringIncludes(
+          html,
+          '<img src="data:image/png;base64,YQ==" alt="Embedded">',
+        );
+      }
+    }
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: leaves unavailable and outside-project image URLs in place", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    cwd: "project",
+    files: {
+      "private.svg": "<svg/>",
+      "project/project.yaml": PROJECT_YAML,
+      "project/SUMMARY.md": "- [Figures](figures.md)\n",
+      "project/figures.md":
+        "![Missing](missing.svg)\n\n![Outside](%2e%2e/private.svg)\n",
+    },
+  });
+  try {
+    assertEquals(code, 0, stderr);
+    const site = `${dir}/project/_site`;
+    const html = await Deno.readTextFile(`${site}/figures.html`);
+    assertStringIncludes(html, '<img src="missing.svg" alt="Missing">');
+    assertStringIncludes(html, '<img src="%2e%2e/private.svg" alt="Outside">');
+    assertStringIncludes(stderr, "missing.svg");
+    assertStringIncludes(stderr, "outside the project");
+    const files = [];
+    for await (const file of Deno.readDir(site)) files.push(file.name);
+    assertEquals(files.sort(), ["figures.html", "index.html"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test({
+  name:
+    "book build: warns about an unreadable image and still writes the chapter",
+  ignore: Deno.build.os === "windows",
+  async fn() {
+    const dir = await Deno.makeTempDir();
+    const files = {
+      "project.yaml": PROJECT_YAML,
+      "SUMMARY.md": "- [Figures](figures.md)\n",
+      "figures.md": "![Readable](good.svg)\n\n![Unreadable](bad.svg)\n",
+      "good.svg": "<svg/>",
+      "bad.svg": "<svg/>",
+    };
+    try {
+      for (const [name, content] of Object.entries(files)) {
+        await Deno.writeTextFile(`${dir}/${name}`, content);
+      }
+      const image = `${dir}/bad.svg`;
+      await Deno.chmod(image, 0o000);
+      try {
+        (await Deno.open(image)).close();
+        return; // A privileged runner can still read this file.
+      } catch (error) {
+        if (!(error instanceof Deno.errors.PermissionDenied)) throw error;
+      }
+      const { code, stderr } = await markspecInDir(dir, ["book", "build"]);
+      assertEquals(code, 0, stderr);
+      assertStringIncludes(stderr, "image 'bad.svg' could not be read");
+      const html = await Deno.readTextFile(`${dir}/_site/figures.html`);
+      assertStringIncludes(html, '<img src="bad.svg" alt="Unreadable">');
+      assertEquals(
+        await Deno.readTextFile(`${dir}/_site/_assets/good.svg`),
+        "<svg/>",
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+});
+
+Deno.test("book build: preserves the source when an asset already occupies its output path", async () => {
+  const diagram = "<svg><desc>Original diagram</desc></svg>";
+  const { code, stderr, dir } = await markspecPersist(
+    ["book", "build", "--output", ".."],
+    {
+      cwd: "_assets",
+      files: {
+        "_assets/project.yaml": PROJECT_YAML,
+        "_assets/SUMMARY.md": "- [Figures](figures.md)\n",
+        "_assets/figures.md": "![Diagram](diagram.svg)\n",
+        "_assets/diagram.svg": diagram,
+      },
+    },
+  );
+  try {
+    assertEquals(code, 0, stderr);
+    assertEquals(
+      await Deno.readTextFile(`${dir}/_assets/diagram.svg`),
+      diagram,
+    );
+    const html = await Deno.readTextFile(`${dir}/figures.html`);
+    assertStringIncludes(html, '<img src="_assets/diagram.svg" alt="Diagram">');
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: resolves reference figures across caption boundaries", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      "SUMMARY.md": "- [Figures](figures.md)\n",
+      "figures.md": `![First figure][diagram]
+
+_Figure: Explicit caption_
+
+![Second figure][diagram]
+
+See [the details][details].
+
+> [Diagram]: <a diagram.svg>
+>   "Title & more"
+
+[details]: figures.md#details
+`,
+      "a diagram.svg": "<svg/>",
+    },
+  });
+  try {
+    assertEquals(code, 0, stderr);
+    const html = await Deno.readTextFile(`${dir}/_site/figures.html`);
+    assertMatch(
+      html,
+      /<img src="_assets\/a%20diagram\.svg" alt="First figure" title="Title &#x26; more"><\/p>\s*<p class="caption">Figure 1: Explicit caption<\/p>/,
+    );
+    assertMatch(
+      html,
+      /<img src="_assets\/a%20diagram\.svg" alt="Second figure" title="Title &#x26; more"><\/p>\s*<p class="caption">Figure 2: Second figure<\/p>/,
+    );
+    assertStringIncludes(html, 'href="figures.html#details"');
+    assertEquals(
+      await Deno.readTextFile(`${dir}/_site/_assets/a diagram.svg`),
+      "<svg/>",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: detects an asset output that would overwrite another image source", async () => {
+  const original = "<svg><desc>Original</desc></svg>";
+  const { code, stderr, dir } = await markspecPersist(
+    ["book", "build", "--output", "."],
+    {
+      files: {
+        "project.yaml": PROJECT_YAML,
+        "SUMMARY.md": "- [Figures](figures.md)\n",
+        "figures.md":
+          "![First](diagram.svg)\n\n![Second](_assets/diagram.svg)\n",
+        "diagram.svg": "<svg/>",
+        "_assets/diagram.svg": original,
+      },
+    },
+  );
+  try {
+    assertEquals(await Deno.readTextFile(`${dir}/diagram.svg`), "<svg/>");
+    assertEquals(
+      await Deno.readTextFile(`${dir}/_assets/diagram.svg`),
+      original,
+    );
+    assertEquals(code, 1, stderr);
+    assertStringIncludes(stderr, "would overwrite an image source");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -507,4 +781,98 @@ Deno.test("book build: colliding chapter slugs fail the build with MSL-K001 and 
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test({
+  name: "book build: keeps image reads and copies within their roots",
+  ignore: Deno.build.os === "windows",
+  async fn(t) {
+    const dir = await Deno.makeTempDir();
+    const project = `${dir}/project`;
+    const outside = `${dir}/outside`;
+    const sentinel = "<svg><desc>Outside</desc></svg>";
+    try {
+      await Deno.mkdir(project);
+      await Deno.mkdir(outside);
+      await Deno.writeTextFile(`${outside}/diagram.svg`, sentinel);
+      await Deno.writeTextFile(`${project}/project.yaml`, PROJECT_YAML);
+      await Deno.writeTextFile(
+        `${project}/SUMMARY.md`,
+        "- [Figures](figures.md)\n",
+      );
+      await Deno.writeTextFile(
+        `${project}/figures.md`,
+        "![Diagram](diagram.svg)\n",
+      );
+
+      await t.step(
+        "an input symlink keeps its URL and skips copying",
+        async () => {
+          await Deno.symlink(
+            `${outside}/diagram.svg`,
+            `${project}/diagram.svg`,
+          );
+          const { code, stderr } = await markspecInDir(project, [
+            "book",
+            "build",
+          ]);
+          assertEquals(code, 0, stderr);
+          assertStringIncludes(
+            stderr,
+            "image 'diagram.svg' is outside the project",
+          );
+          const html = await Deno.readTextFile(`${project}/_site/figures.html`);
+          assertStringIncludes(html, '<img src="diagram.svg" alt="Diagram">');
+          const output = Array.fromAsync(Deno.readDir(`${project}/_site`));
+          assertEquals((await output).map((item) => item.name).sort(), [
+            "figures.html",
+            "index.html",
+          ]);
+          await Deno.remove(`${project}/diagram.svg`);
+        },
+      );
+
+      await Deno.writeTextFile(`${project}/diagram.svg`, "<svg/>");
+      await t.step(
+        "an output directory symlink leaves its target intact",
+        async () => {
+          await Deno.mkdir(`${project}/redirected`);
+          await Deno.symlink(outside, `${project}/redirected/_assets`);
+          const { code, stderr } = await markspecInDir(project, [
+            "book",
+            "build",
+            "--output",
+            "redirected",
+          ]);
+          assertEquals(code, 1, stderr);
+          assertEquals(
+            await Deno.readTextFile(`${outside}/diagram.svg`),
+            sentinel,
+          );
+        },
+      );
+
+      await t.step(
+        "an output file symlink is replaced by the copied image",
+        async () => {
+          await Deno.mkdir(`${project}/_site/_assets`);
+          const asset = `${project}/_site/_assets/diagram.svg`;
+          await Deno.symlink(`${outside}/diagram.svg`, asset);
+          const { code, stderr } = await markspecInDir(project, [
+            "book",
+            "build",
+          ]);
+          assertEquals(code, 0, stderr);
+          assertEquals((await Deno.lstat(asset)).isSymlink, false);
+          assertEquals(await Deno.readTextFile(asset), "<svg/>");
+          assertEquals(
+            await Deno.readTextFile(`${outside}/diagram.svg`),
+            sentinel,
+          );
+        },
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
 });

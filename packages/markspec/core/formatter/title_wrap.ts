@@ -8,6 +8,7 @@
  * that prim uses, so both tools break a title at the same places.
  */
 
+import { isIdLikeLine } from "../parser/attributes.ts";
 import type { ProseFormatter } from "./dprint.ts";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
 
@@ -101,7 +102,9 @@ function wrapTitle(
   const wrapped = formatted.replace(/\n+$/, "").split("\n");
   if (wrapped[0].indexOf("[") !== contentColumn) return undefined;
   const continuation = new RegExp(`^ {${contentColumn}}\\S`);
-  if (!wrapped.slice(1).every((l) => continuation.test(l))) return undefined;
+  if (
+    !wrapped.slice(1).every((l) => continuation.test(l) && !isIdLikeLine(l))
+  ) return undefined;
   if (!markdownSemanticallyEquivalent(item, wrapped.join("\n"))) {
     return undefined;
   }

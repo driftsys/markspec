@@ -18,6 +18,7 @@ import {
   ATTR_LINE_RE,
   collateAttributes,
   findTrailerStart,
+  isIdLikeLine,
   isIndented,
   isTrailerUnderProse,
   leadingColumns,
@@ -100,9 +101,13 @@ function normalizeSuspectKey(key: string): string {
   return key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-/** An `Id:`-like line: the key `id` in any case, with any spacing before
- * the colon (the rule of `findIdLikeIndex`). */
-const ID_LIKE_LINE_RE = /^id\s*:/i;
+/** Could the start of this body line be read as an identity or trace key? */
+export function startsWithIdentityOrTraceKey(line: string): boolean {
+  if (isIdLikeLine(line)) return true;
+  const suspect = suspectTrailerLine(line.trim());
+  return suspect !== undefined &&
+    TRACE_RELATION_KEYS.has(normalizeSuspectKey(suspect.key));
+}
 
 /** The key of a valid `Key: Value` line, or `undefined`. */
 function validTrailerKey(trimmed: string): string | undefined {
@@ -174,7 +179,7 @@ function isBodyTextLine(
   while (end < bodyLines.length && inRun(end)) end++;
   const run = bodyLines.slice(start, end);
   if (run.some((line) => isIndented(line))) return false;
-  if (run.some((line) => ID_LIKE_LINE_RE.test(line.trim()))) return false;
+  if (run.some(isIdLikeLine)) return false;
   if (end === bodyLines.length && trailer === "adjacent") return false;
   // Directly under a non-blank line that is not in the run: body text.
   if (start > 0 && bodyLines[start - 1].trim() !== "") return true;
@@ -310,6 +315,10 @@ export function parseMarkdown(
       .map((n) => n.identifier),
   );
 
+  const fencedFileLines = options?.lineMap
+    ? undefined
+    : parseCodeRegions(markdown, tree).fencedLines;
+
   for (const node of tree.children) {
     if (node.type !== "list") continue;
     const list = node as List;
@@ -325,7 +334,7 @@ export function parseMarkdown(
         definitions,
         isReferencesDoc,
         diagnostics,
-        !!options?.lineMap,
+        fencedFileLines,
         options?.allowTitleOnly === true,
       );
       if (entry) entries.push(entry);
@@ -382,7 +391,7 @@ function extractEntry(
   definitions: Set<string>,
   isReferencesDoc: boolean,
   diagnostics: Diagnostic[],
-  hasLineMap = false,
+  fencedFileLines?: ReadonlySet<number>,
   allowTitleOnly = false,
   skipNestedScan = false,
 ): Entry | undefined {
@@ -555,10 +564,37 @@ function extractEntry(
   );
   const [rawBody, attrLines] = splitBodyAndAttributes(bodyContent);
   const body = rawBody.trimStart();
+  const trimmedLines = rawBody.slice(0, rawBody.length - body.length)
+    .split("\n").length - 1;
   const attributes = parseAttributes(attrLines);
   const { blocks: bodyAst, tree: mdastTree } = buildBodyAstWithTree(body);
 
   const entryLine = item.position?.start.line ?? 1;
+  const bodyLines = body.split("\n");
+  const fencedLines = body.length > 0
+    ? parseCodeRegions(normalizeLineEndings(body), mdastTree).fencedLines
+    : new Set<number>();
+  // Title continuations and body lines are outside the parsed trailer.
+  // Preserve even an unread identity next to a trailer with its own Id.
+  let unreadIdentityLine: number | undefined;
+  if (fencedFileLines !== undefined) {
+    const titleEnd = paragraph.position?.end.line ?? entryLine;
+    for (let line = entryLine + 1; line <= titleEnd; line++) {
+      if (isIdLikeLine(markdownLines[line - 1])) {
+        unreadIdentityLine = line;
+        break;
+      }
+    }
+    if (unreadIdentityLine === undefined) {
+      const at = bodyLines.findIndex((line, i) =>
+        isIdLikeLine(line) &&
+        !fencedFileLines.has(contentFileLines[i + trimmedLines] - 1)
+      );
+      if (at >= 0) {
+        unreadIdentityLine = contentFileLines[at + trimmedLines];
+      }
+    }
+  }
 
   for (const range of nested) {
     diagnostics.push({
@@ -577,9 +613,8 @@ function extractEntry(
   // be the last block, so the block was not read as the trailer and the entry
   // has no `Id:` attribute (it may have a later trailer without one).
   // Markdown files only: `parseSource` (source.ts) discards the parse
-  // diagnostics of a source doc comment (`hasLineMap`), so P025 would never
-  // be shown there.
-  const afterTrailer = !hasLineMap && nested.length === 0 &&
+  // diagnostics of a source doc comment, so P025 would never be shown there.
+  const afterTrailer = fencedFileLines !== undefined && nested.length === 0 &&
       !attributes.some((a) => a.key === IDENTITY_KEY)
     ? findContentAfterTrailer(item, markdownLines)
     : undefined;
@@ -613,9 +648,6 @@ function extractEntry(
   //   the line is body text and does not create a trace link.
   // MSL-P025 already names the cause of a misplaced trailer.
   if (body.length > 0 && afterTrailer === undefined) {
-    const bodyLines = body.split("\n");
-    const fencedLines =
-      parseCodeRegions(normalizeLineEndings(body), mdastTree).fencedLines;
     // Start of the trailing run of `Key: Value` lines (blank lines skipped
     // at the end only).
     let tailStart = bodyLines.length;
@@ -804,7 +836,6 @@ function extractEntry(
   // line where the scan stops is never checked, so a `Satisfies : X` line
   // above a prose line, `note: x` or `Id : X` gets no diagnostic.
   if (body.length > 0) {
-    const bodyLines = body.split("\n");
     const trailerStart = findTrailerStart(contentLines);
     const trailer: TrailerPlacement = attrLines.length === 0
       ? "none"
@@ -972,8 +1003,6 @@ function extractEntry(
   // The body skips the lines of nested entries, so a line counted from the
   // body start is an index into `contentFileLines`, after the blank lines
   // that `trimStart` removed from the front of the body.
-  const trimmedLines = rawBody.slice(0, rawBody.length - body.length)
-    .split("\n").length - 1;
   const toFileLine = (line: number): number =>
     nested.length === 0 ? line : contentFileLines[
       line - bodyStartLine + trimmedLines
@@ -1027,6 +1056,7 @@ function extractEntry(
     ...(afterTrailer !== undefined
       ? { contentAfterTrailerLine: afterTrailer.line }
       : {}),
+    ...(unreadIdentityLine !== undefined ? { unreadIdentityLine } : {}),
     ...(attributeLines.length > 0 ? { attributeLines } : {}),
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
@@ -1212,7 +1242,7 @@ function findNestedEntryItems(
           definitions,
           isReferencesDoc,
           [],
-          false,
+          undefined,
           false,
           true,
         )

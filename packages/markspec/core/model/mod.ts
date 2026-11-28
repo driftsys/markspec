@@ -654,6 +654,12 @@ export interface Entry {
    */
   readonly idLikeLine?: number;
   /**
+   * First non-fenced line in a Markdown entry's title continuation or
+   * body that resembles an Id trailer. The formatter preserves the line
+   * and skips identity stamping.
+   */
+  readonly unreadIdentityLine?: number;
+  /**
    * 1-based first and last file line of the lines that this entry's
    * trailer search skips because of nested entry-shaped list items
    * (MSL-P024), merged and sorted, or absent when there is none. The ranges
@@ -864,6 +870,8 @@ export interface Caption {
   readonly slug: string;
   readonly text: string;
   readonly location: SourceLocation;
+  /** Inclusive source lines of an explicit caption paragraph, if present. */
+  readonly explicitTextLines?: { readonly start: number; readonly end: number };
 }
 
 /** Error thrown when `project.yaml` is invalid. */

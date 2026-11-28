@@ -6,7 +6,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { join } from "@std/path";
+import { dirname, join, relative, resolve, SEPARATOR } from "@std/path";
 import type { BookStructure, Chapter } from "../../book/mod.ts";
 import {
   loadActiveProfile,
@@ -14,6 +14,11 @@ import {
   notImplemented,
   requireProjectConfig,
 } from "../helpers.ts";
+
+interface ImageAsset {
+  readonly source: string;
+  readonly realSource: string;
+}
 
 export const bookCmd = new Command()
   .description("Book generation")
@@ -39,7 +44,7 @@ export const bookCmd = new Command()
     const { parseSummary, buildBook, slugForChapterPath } = await import(
       "../../book/mod.ts"
     );
-    const { compile } = await import("../../core/mod.ts");
+    const { compile, isWithin } = await import("../../core/mod.ts");
 
     const structure = parseSummary(summaryMd);
 
@@ -65,11 +70,50 @@ export const bookCmd = new Command()
       gitFile: makeGitFile(false),
     });
 
+    const realProjectRoot = await Deno.realPath(projectRoot);
+    const imageAssets = new Map<string, ImageAsset>();
     const result = buildBook(structure, {
       files,
       compiled,
       config,
       profile: bookChain?.effective,
+      rewriteImage: (chapter, src) => {
+        const image = _relativeImageUrl(src);
+        if (!image) return undefined;
+        const source = resolve(dirname(chapter), ...image.segments);
+        const warn = (reason: string) => {
+          console.error(`warning: ${chapter}: image '${src}' ${reason}`);
+        };
+        if (!isWithin(projectRoot, source)) {
+          warn("is outside the project");
+          return undefined;
+        }
+        const relativePath = relative(projectRoot, source);
+        const outputPath = join("_assets", relativePath);
+        if (!imageAssets.has(outputPath)) {
+          try {
+            const realSource = Deno.realPathSync(source);
+            if (!isWithin(realProjectRoot, realSource)) {
+              warn("is outside the project");
+              return undefined;
+            }
+            if (!Deno.statSync(realSource).isFile) {
+              warn("is not a file");
+              return undefined;
+            }
+            // Check readability before adding this source to the copy plan.
+            Deno.openSync(realSource).close();
+            imageAssets.set(outputPath, { source, realSource });
+          } catch {
+            warn("could not be read");
+            return undefined;
+          }
+        }
+        const url = outputPath.split(SEPARATOR).map(encodeURIComponent).join(
+          "/",
+        );
+        return url + image.suffix;
+      },
     });
 
     for (const d of result.diagnostics) {
@@ -86,6 +130,34 @@ export const bookCmd = new Command()
 
     // Write output
     await Deno.mkdir(options.output, { recursive: true });
+    const outputRoot = await Deno.realPath(options.output);
+    const sources = new Set(
+      [...imageAssets.values()].flatMap(({ source, realSource }) => [
+        source,
+        realSource,
+      ]),
+    );
+    const copies = new Map<string, string>();
+    for (const [path, { source, realSource }] of imageAssets) {
+      const destination = join(outputRoot, path);
+      if (destination === source || destination === realSource) continue;
+      // An existing destination can alias a source by filesystem spelling
+      // even when its path string (for example, casing) differs.
+      const existing = await Deno.realPath(destination).catch((error) => {
+        if (error instanceof Deno.errors.NotFound) return undefined;
+        throw error;
+      });
+      if (sources.has(destination) || (existing && sources.has(existing))) {
+        console.error(
+          `error: copying '${source}' would overwrite an image source at '${destination}'`,
+        );
+        Deno.exit(1);
+      }
+      copies.set(path, realSource);
+    }
+    for (const [path, source] of copies) {
+      await _copyImageAsset(outputRoot, path, source);
+    }
     const chapterLinks = result.chapters.map((c) => ({
       title: c.title,
       slug: slugForChapterPath(c.path),
@@ -116,6 +188,60 @@ export const bookCmd = new Command()
   .command("dev")
   .description("Live preview with hot reload")
   .action(notImplemented("book dev"));
+
+/** Separate a chapter-relative image path from its optional URL suffix. */
+function _relativeImageUrl(src: string): {
+  segments: string[];
+  suffix: string;
+} | undefined {
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(src)) return undefined;
+  const match = /^([^?#]+)(.*)$/.exec(src);
+  if (!match) return undefined;
+  try {
+    const segments = match[1].split("/").map(decodeURIComponent);
+    if (
+      segments.some((s) =>
+        s.includes("/") || s.includes("\\") || s.includes("\0")
+      )
+    ) {
+      return undefined;
+    }
+    return { segments, suffix: match[2] };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Copy an image into the site without following pre-existing output symlinks. */
+async function _copyImageAsset(
+  outputRoot: string,
+  outputPath: string,
+  source: string,
+): Promise<void> {
+  const parts = outputPath.split(SEPARATOR);
+  const filename = parts.pop()!;
+  let parent = outputRoot;
+  for (const part of parts) {
+    parent = join(parent, part);
+    try {
+      await Deno.mkdir(parent);
+    } catch (error) {
+      if (
+        !(error instanceof Deno.errors.AlreadyExists) ||
+        !(await Deno.lstat(parent)).isDirectory
+      ) throw error;
+    }
+  }
+  const destination = join(parent, filename);
+  const staging = await Deno.makeTempFile({ dir: parent });
+  try {
+    await Deno.copyFile(source, staging);
+    await Deno.rename(staging, destination);
+  } catch (error) {
+    await Deno.remove(staging).catch(() => {});
+    throw error;
+  }
+}
 
 /** Collect all chapter paths from a BookStructure. */
 function _collectPaths(structure: BookStructure): string[] {

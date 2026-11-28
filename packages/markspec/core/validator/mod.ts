@@ -181,6 +181,9 @@ function checkStructural(
               // fmt leaves an entry with an Id-like line unchanged.
               ? `correct the Id-like line (MSL-I009); fmt mints no ULID ` +
                 `for this entry (spec section 4.2)`
+              : entry.unreadIdentityLine !== undefined
+              ? `review the Id: at line ${entry.unreadIdentityLine} and ` +
+                `place the intended identity in the final trailer (spec section 4.2)`
               : `run fmt to mint a ULID (spec section 4.2)`),
           location: entry.location,
         });

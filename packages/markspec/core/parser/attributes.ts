@@ -414,7 +414,9 @@ export interface IdLikeLine {
 }
 
 /** A line whose key is `id` in any case, with any spacing before the colon. */
-const ID_LIKE_RE = /^id\s*:/i;
+export function isIdLikeLine(line: string): boolean {
+  return /^id\s*:/i.test(line.trimStart());
+}
 
 /**
  * Find a line in the run of `Key: value` lines at the end of the body of
@@ -450,7 +452,7 @@ export function findIdLikeIndex(lines: readonly string[]): number {
     if (text === "") continue;
     if (!/^[A-Za-z][A-Za-z0-9-]*\s*:/.test(text)) break;
     // `Id:` is the canonical spelling; the formatter drops an empty one.
-    if (ID_LIKE_RE.test(text) && !text.startsWith("Id:")) found = i;
+    if (isIdLikeLine(text) && !text.startsWith("Id:")) found = i;
   }
   return found;
 }
