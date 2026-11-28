@@ -2559,20 +2559,20 @@ Deno.test("parseMarkdown: a space-indented Id: block followed by a list item is 
 
 Deno.test("parseMarkdown: a git-style Id: paragraph followed by content is MSL-P025 (#998)", () => {
   for (
-    const [label, from, to] of [
-      ["2 spaces, list item", "\tId:", "  Id:"],
-      ["4 spaces, list item", "\tId:", "    Id:"],
-      ["2 spaces and a tab", "\tId:", "  \tId:"],
-      ["2 spaces, paragraph", "\tId:", "  Id:"],
-      ["two keys", "\tId:", "  Note: x\n  Id:"],
-    ]
+    const [label, from, to, line] of [
+      ["2 spaces, list item", "\tId:", "  Id:", 7],
+      ["4 spaces, list item", "\tId:", "    Id:", 7],
+      ["2 spaces and a tab", "\tId:", "  \tId:", 7],
+      ["2 spaces, paragraph", "\tId:", "  Id:", 7],
+      ["two keys", "\tId:", "  Note: x\n  Id:", 8],
+    ] as const
   ) {
     let text = TAB_TRAILER.replace(from, to);
     if (label.endsWith("paragraph")) {
       text = text.replace("  - sib", "  More prose.");
     }
     const { lines, codes, entry } = p025(text);
-    assertEquals(lines.length, 1, label);
+    assertEquals(lines, [line], label);
     assertEquals(codes.includes("MSL-P020"), false, label);
     assertEquals(entry.id, undefined, label);
   }
@@ -2596,7 +2596,40 @@ Deno.test("parseMarkdown: a prose paragraph that ends with a non-Id key line is 
     ]
   ) {
     const text = `- [REQ-001] Parent\n\n  ${para}\n\n  More prose.\n`;
-    assertEquals(p025(text).lines, [], para);
+    const { lines, codes } = p025(text);
+    assertEquals(lines, [], para);
+    // A trace-relation line in body prose with content after it keeps the
+    // MSL-P020 error.
+    if (para.includes("Satisfies:")) {
+      assertEquals(codes.includes("MSL-P020"), true, para);
+    }
+  }
+});
+
+Deno.test("parseMarkdown: an Id: line that is not last in a content-after-trailer run is MSL-P025 (#998)", () => {
+  for (
+    const [label, text, line] of [
+      [
+        "tab-indented Id: then Satisfies:, then a list item",
+        TAB_TRAILER.replace(
+          "\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+          "\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF\n\tSatisfies: STK-001",
+        ),
+        8,
+      ],
+      [
+        "Id: then Labels: under prose, then a paragraph",
+        "- [REQ-001] Parent\n\n  Body.\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n" +
+        "  Labels: x\n\n  More prose.\n",
+        7,
+      ],
+    ] as const
+  ) {
+    const { lines, codes, entry } = p025(text);
+    assertEquals(lines, [line], label);
+    assertEquals(codes.includes("MSL-P020"), false, label);
+    assertEquals(entry.id, undefined, label);
+    assertEquals(entry.contentAfterTrailerLine, line, label);
   }
 });
 

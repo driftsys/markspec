@@ -213,14 +213,13 @@ function dedent(line: string, indent: number): string {
  *
  * Refusals: `entry-not-found` (no such entry), `trailer-invalid` (the
  * entry's trailer block did not parse, or its `Id:` block is read as body,
- * see below), `body-empty` (the entry
- * has no body), `proposal-empty` (`body` is blank), `entries-changed`
- * (two entries in `text` have `displayId`; or the body lines cannot be
- * located exactly in `text`; or the edited
- * text no longer parses to the same entries, with the same title and
- * trailer for the target, and with the proposal as the target's body;
- * or the parse raises more structural diagnostics of some code, such as
- * MSL-P020, than the original text).
+ * see below), `body-empty` (the entry has no body), `proposal-empty`
+ * (`body` is blank), `entries-changed` (two entries in `text` have
+ * `displayId`; or the body lines cannot be located exactly in `text`; or
+ * the edited text no longer parses to the same entries, with the same
+ * title and trailer for the target, and with the proposal as the target's
+ * body; or the parse raises more structural diagnostics of some code, such
+ * as MSL-P020, than the original text).
  *
  * `trailer-invalid`: when a trailer line is malformed (for example an
  * empty `Labels:`, a key without a colon, or a lowercase key), the parser
@@ -229,10 +228,12 @@ function dedent(line: string, indent: number): string {
  * check cannot see it, because the entry has no `id` and no attributes
  * before or after the edit. So the edit is refused when an `MSL-P020`,
  * `MSL-P021`, `MSL-P022` or `MSL-P025` names the entry (the message starts
- * with `<displayId>:`). `MSL-P025` fires when a trailer-shaped block with an
- * `Id:` line is followed by other content in the entry, so the parser reads
- * that block as body too (#1052). The refusal is broader than these cases:
- * `MSL-P020` also fires
+ * with `<displayId>:`). `MSL-P025` fires in a Markdown file when a
+ * trailer-shaped block with an `Id:` line (an indented `Key: Value` block,
+ * or a git-style or run-under-prose paragraph) is followed by other content
+ * in the same list item, the entry holds no nested entry, and no `Id:` was
+ * read from a later trailer; the parser then reads that block as body too
+ * (#1052). The refusal is broader than these cases: `MSL-P020` also fires
  * when a body `Id:` or trace-relation line has other content after it,
  * when an `Id:` run sits directly under prose (warning), and when a
  * trailing trace-relation line is body prose (warning), so such an entry

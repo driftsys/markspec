@@ -405,7 +405,9 @@ trailer.
   with no blank line, when any line of the run is an `Id:` line (or `ID:`),
   indented or not. The `Id:` line shows that the run is a trailer, so the entry
   keeps its identity. `check` reports it as `MSL-P020` (warning), and not as
-  `MSL-P023`.
+  `MSL-P023`. When other content follows the run in the same list item, the run
+  is not the trailer, and a run with an `Id:` line gets `MSL-P025` instead (see
+  "Content after the trailer").
 
 A git-style trailer in Markdown. This is not the canonical layout: `check`
 reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.

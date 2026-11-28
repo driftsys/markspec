@@ -203,6 +203,10 @@ Deno.test("format: a tab-indented Id: line followed by a list item is left uncha
       TAB_TRAILER.replace("\tId:", "  \tId:"),
       TAB_TRAILER.replace("  - sib", "  More prose."),
       "- [REQ-001] Parent\n\n  Body.\n  Id: " + ID + "\n\n  More prose.\n",
+      // The Id: line is not the last line of the trailer-shaped run.
+      TAB_TRAILER.replace(`\tId: ${ID}`, `\tId: ${ID}\n\tSatisfies: STK-001`),
+      "- [REQ-001] Parent\n\n  Body.\n  Id: " + ID +
+      "\n  Labels: x\n\n  More prose.\n",
     ]
   ) {
     for (const prose of [undefined, formatMarkdownProse]) {
