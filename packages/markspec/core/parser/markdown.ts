@@ -795,9 +795,12 @@ function extractEntry(
   // line that the parser keeps in the body as text (see `isBodyTextLine`,
   // #1034) and a valid `Key: value` line. It stops at the first reported
   // line, at a prose line, or at a line with a value whose key has only
-  // valid characters but that is not a valid attribute line (`Satisfies :
-  // X`, `note: x`). So the trailing lines report at most one line; the
-  // author sees the next one after fixing it.
+  // valid characters but that is not a valid attribute line (`note: x`,
+  // `Id : X`), unless the key is a core trace-relation key (`Satisfies :
+  // X`), which is reported (#1051). So the trailing lines report at most
+  // one line; the author sees the next one after fixing it. A line above a
+  // line where the scan stops is never checked, so a `Satisfies : X` line
+  // above a prose line, `note: x` or `Id : X` gets no diagnostic.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
     const trailerStart = findTrailerStart(contentLines);
@@ -827,7 +830,17 @@ function extractEntry(
       }
       const { key, value } = suspect;
       const keyIsValid = TRAILER_KEY_RE.test(key);
-      if (keyIsValid && value.length > 0) break;
+      // A key of valid characters with a value (`note: x`, `Key2: x`)
+      // stops the scan unreported, except a core trace-relation key
+      // (`Satisfies : X`, `Satisfies:X`): the line creates no trace link,
+      // so it is reported like `Satisfies :` (#1051). An `Id : X` line also
+      // stops the scan here; MSL-I009 reports it when it is in the final run
+      // of `Key: value` lines of the body (`findIdLikeIndex`). A directive
+      // comment below the line ends that run, and then nothing reports it.
+      if (
+        keyIsValid && value.length > 0 &&
+        !TRACE_RELATION_KEYS.has(normalizeSuspectKey(key))
+      ) break;
       // The parser keeps the line in the body as text (#1034). Skip it:
       // a line higher up gets its own verdict.
       if (isBodyTextLine(bodyLines, i, key, trailer)) continue;

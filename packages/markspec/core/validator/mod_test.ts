@@ -676,3 +676,32 @@ Deno.test("validate: an Id-like trailer line is MSL-I009 and names the line (#93
     assertEquals(found[0].message.includes(spelling.slice(0, 3)), true);
   }
 });
+
+Deno.test("validate: an Id : X line directly under prose is MSL-I009, with no MSL-P021 (#1051)", async () => {
+  const { parseFile } = await import("../parser/mod.ts");
+  const text =
+    `- [STK_0001] Title\n\n  The system shall act\n  Id : 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
+  const { entries, diagnostics } = await parseFile(text, { file: "a.md" });
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+  const found = validate(entries).diagnostics.filter((d) =>
+    d.code === "MSL-I009"
+  );
+  assertEquals(found.map((d) => d.location?.line), [4]);
+});
+
+Deno.test("validate: an Id : X line above a directive comment gets no diagnostic (documented limit, #1051)", async () => {
+  // The directive comment ends the final run of `Key: value` lines, so
+  // MSL-I009 does not see the line, and the trailing scan stops at it
+  // without a report.
+  const { parseFile } = await import("../parser/mod.ts");
+  const text = `- [STK_0001] Title\n\n  The system shall act\n` +
+    `  Id : 01HGW2Q8MNP3RSTVWXYZABCDEF\n` +
+    `  <!-- markspec:ignore MSL-M061 -->\n\n` +
+    `      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG\n`;
+  const { entries, diagnostics } = await parseFile(text, { file: "a.md" });
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+  assertEquals(
+    validate(entries).diagnostics.filter((d) => d.code === "MSL-I009"),
+    [],
+  );
+});

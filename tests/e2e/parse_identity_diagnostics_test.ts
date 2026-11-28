@@ -149,6 +149,26 @@ Deno.test("validate: empty-valued `Id:` placeholder → MSL-P021", async () => {
   assertStringIncludes(stderr, "error[MSL-P021]: req.md:7 ");
 });
 
+Deno.test("validate: trace-key line with a space before the colon under prose → MSL-P021 (#1051)", async () => {
+  // The parser keeps the line as body text, so it creates no trace link.
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Valid title
+
+  Body text
+  Satisfies : STK_1
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "error[MSL-P021]: req.md:6 ");
+  assertStringIncludes(stderr, `"Satisfies : STK_1"`);
+});
+
 // ---------------------------------------------------------------------------
 // MSL-P022: trailer key contains invalid characters
 // ---------------------------------------------------------------------------

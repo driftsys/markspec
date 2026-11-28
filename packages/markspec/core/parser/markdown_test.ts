@@ -1356,6 +1356,176 @@ Deno.test("parseMarkdown: a malformed Id key directly under prose still raises M
 });
 
 // ---------------------------------------------------------------------------
+// A trace-key line with a value that the parser keeps as body text (#1051)
+// ---------------------------------------------------------------------------
+
+/** Trace-key lines with a value that are not valid attribute lines. */
+const TRACE_KEY_VALUE_LINES: readonly string[] = [
+  "Satisfies : STK_1",
+  "Verifies : TST_1",
+  "Satisfies:STK_1",
+  "Verified-by : TST_1",
+];
+
+Deno.test("parseMarkdown: a trace-key line with a value directly under prose raises MSL-P021 (#1051)", () => {
+  for (const last of TRACE_KEY_VALUE_LINES) {
+    const md = `- [STK_0060] Title
+
+  The lamp is on
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { entries, diagnostics } = parseMarkdown(md);
+    assertEquals(codeLines(diagnostics), ["4:MSL-P021"], last);
+    assertEquals(entries[0].body, `The lamp is on\n${last}`, last);
+    assertEquals(entries[0].rawAttributes.map((a) => a.key), ["Id"], last);
+  }
+});
+
+Deno.test("parseMarkdown: a trace-key line with a value after a blank line above an indented Id block raises MSL-P021 (#1051)", () => {
+  for (const last of TRACE_KEY_VALUE_LINES) {
+    const md = `- [STK_0061] Title
+
+  The lamp is on.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(codeLines(diagnostics), ["5:MSL-P021"], last);
+  }
+});
+
+Deno.test("parseMarkdown: the trailing scan stops after a reported trace-key line with a value (#1051)", () => {
+  // At most one line of the trailing lines is reported: `Verifies : TST_1`
+  // is reported once `Satisfies : STK_1` is fixed.
+  const md = `- [STK_0062] Title
+
+  The lamp is on
+  Verifies : TST_1
+  Satisfies : STK_1
+
+      Id: ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(md).diagnostics), ["5:MSL-P021"]);
+});
+
+Deno.test("parseMarkdown: a valid trace line, a lowercase trace key or another key with a value under prose keeps its #1034 verdict (#1051)", () => {
+  for (
+    const [last, expected] of [
+      // A valid attribute line under prose: MSL-P020, no MSL-P021.
+      ["Satisfies: STK_1", ["1:MSL-P020"]],
+      // Directly under prose these lines are body text by the run rule of
+      // `isBodyTextLine` too, so this row does not show why they are not
+      // reported. The tests below pin the case-sensitive trace key and the
+      // stop of the scan at such a line.
+      ["satisfies : x", []],
+      ["note: x", []],
+      ["Key2: x", []],
+    ] as const
+  ) {
+    const md = `- [STK_0063] Title
+
+  The lamp is on
+  ${last}
+
+      Id: ${ULID}
+`;
+    assertEquals(
+      codeLines(parseMarkdown(md).diagnostics),
+      [...expected],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: note: x and Key2: x still stop the trailing scan above them (#1051)", () => {
+  for (const last of ["note: x", "Key2: x"]) {
+    const md = `- [STK_0064] Title
+
+  The lamp is on
+  Satisfies : STK_1
+  ${last}
+
+      Id: ${ULID}
+`;
+    assertEquals(codeLines(parseMarkdown(md).diagnostics), [], last);
+  }
+});
+
+Deno.test("parseMarkdown: an Id : X line stops the trailing scan above it (#1051)", () => {
+  // The scan stops at the Id-like line without a report, so the trace-key
+  // line above it is not reached.
+  const md = `- [STK_0068] Title
+
+  The lamp is on
+  Satisfies : STK_1
+  Id : ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(md).diagnostics), []);
+});
+
+Deno.test("parseMarkdown: an Id-like line with a value under prose gets no MSL-P021 (MSL-I009 reports it) (#1051)", () => {
+  for (const idLike of [`Id : ${ULID}`, `id: ${ULID}`]) {
+    const md = `- [STK_0065] Title
+
+  The lamp is on
+  ${idLike}
+`;
+    assertEquals(codeLines(parseMarkdown(md).diagnostics), [], idLike);
+  }
+});
+
+Deno.test("parseMarkdown: a trace-key line with a value followed by more prose is not checked (#1051)", () => {
+  // The scan covers only the trailing lines and stops at the prose line.
+  const md = `- [STK_0066] Title
+
+  The lamp is on
+  Satisfies : STK_1
+  and stays on.
+
+      Id: ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(md).diagnostics), []);
+});
+
+Deno.test("parseMarkdown: a lowercase trace key with a value in a final paragraph is not reported (#1051)", () => {
+  // In a final paragraph with no trailer the run rule would report the line,
+  // so only the case-sensitive trace-key comparison keeps `satisfies : x`
+  // unreported.
+  const final = (last: string) =>
+    `- [STK_0067] Title
+
+  The lamp is on.
+
+  ${last}
+`;
+  assertEquals(
+    codeLines(parseMarkdown(final("satisfies : x")).diagnostics),
+    [],
+  );
+  assertEquals(
+    codeLines(parseMarkdown(final("Satisfies : x")).diagnostics),
+    ["5:MSL-P021"],
+  );
+});
+
+Deno.test("parseMarkdown: a trace key with a trailing hyphen and a value under prose raises MSL-P021 (#1051)", () => {
+  // The key is normalized before the trace-key comparison: `Satisfies-`
+  // becomes `Satisfies`.
+  const md = `- [STK_0068] Title
+
+  The lamp is on
+  Satisfies- : x
+
+      Id: ${ULID}
+`;
+  assertEquals(codeLines(parseMarkdown(md).diagnostics), ["4:MSL-P021"]);
+});
+
+// ---------------------------------------------------------------------------
 // P021 / P022 locate the offending trailer line, not the title line
 // ---------------------------------------------------------------------------
 

@@ -531,13 +531,23 @@ lines, `<!-- markspec:* -->` directive comments, valid `Key: value` lines and
 lines that are body text (see below), so it can reach a line in an earlier
 paragraph. It stops at the first line it reports, at a prose line, or at a line
 with a value whose key has only valid characters but that is not a valid
-attribute line (`Satisfies : X`, `note: x`), which it does not report. So it
-reports at most one line; the author sees the next one after fixing it.
+attribute line (`note: x`, `Key2: x`, `Id : X`), which it does not report.
+`MSL-I009` reports the `Id : X` line when it is in the final run of `Key: value`
+lines at the end of the body (see "Id-like line"). A directive comment ends that
+run, so an `Id : X` line with a `<!-- markspec:* -->` comment below it gets no
+diagnostic. A line with a value whose key is a core trace relation key after
+normalization (`Satisfies : X`, `Satisfies:X`) is the exception: `check` reports
+it as `MSL-P021`, because it creates no trace link. So it reports at most one
+line; the author sees the next one after fixing it. Because the scan stops at a
+prose line and, without a report, at a line such as `note: x`, `Key2: x` or
+`Id : X`, a malformed trace relation line above one of these lines is never
+reached and gets no diagnostic: for example `Satisfies : X`, then
+`and more text.`, or `Satisfies : X`, then `note: x`.
 
-For each line it reads, `check` decides from the run of that line: the line
-together with the trailer-like lines (valid or not) and directive comments
-directly above and below it, with no blank line between. `MSL-P021` and
-`MSL-P022` report the line in these cases:
+For each line it reads, except a line where it stops without a report, `check`
+decides from the run of that line: the line together with the trailer-like lines
+(valid or not) and directive comments directly above and below it, with no blank
+line between. `MSL-P021` and `MSL-P022` report the line in these cases:
 
 - a line of the run is indented by 4 or more columns (the indented block);
 - the run holds an `Id:` line or an Id-like line (`id:`, `Id :`), which shows
@@ -554,7 +564,10 @@ directly above and below it, with no blank line between. `MSL-P021` and
   trace relation key after normalization, compared case-sensitively
   (`Verified by: TST_1`, `Satisfies:`), even directly under prose. The
   normalization replaces each run of whitespace and `.`, `/`, `,`, `'`, `"`
-  characters with one hyphen, and removes hyphens at both ends of the key.
+  characters with one hyphen, and removes hyphens at both ends of the key;
+- the line has a value and a key of valid characters, and its key is a core
+  trace relation key after the same normalization (`Satisfies : STK_1`,
+  `Verifies : TST_1`), even directly under prose.
 
 In any other case the line is body text, and `check` reports no diagnostic for
 it. This holds when the run is directly under a non-blank line that is not in
