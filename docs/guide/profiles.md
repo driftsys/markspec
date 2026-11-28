@@ -267,3 +267,10 @@ but cannot reclassify existing core components.
   profile.
 - **Type vocabulary reference** — all built-in types, their allowed attributes,
   and their traceability constraints.
+
+### Declaration surfaces
+
+A profile type can set `declares: ux-surface` to designate entries of that type
+as uxil surface declarations. The value is inherited by child types and can be
+set by a child profile. See [uxil activation](uxil.md#activation) for the
+declaration rules.

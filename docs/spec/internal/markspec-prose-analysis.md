@@ -512,11 +512,12 @@ present on one entry: entry trailer > region comment > line comment.
 | Trailer attribute only                                                          | **Rejected.** Non-entry prose (glossary, free Markdown) has no trailers block — it still needs the comment form.                                                                                 |
 | **Trailer for entries + comment for non-entry prose, with precedence (chosen)** | Each surface uses the suppression mechanism it can carry; entries get the auditable, rationale-bearing form. Unifying the two syntaxes is §8 open question 2 (needs an ADR — ADR-012 territory). |
 
-### 4.3 Project-level — `.markspec/lint.yaml`
+### 4.3 Proposed project-level `.markspec/lint.yaml`
 
-For greenfield projects with **no profile**, a `.markspec/lint.yaml` (discovered
-beside `.markspec.yaml`, profile-schema §2.2) carries the same `prose:` block as
-§4.1.
+This project-level configuration is a proposal and is not read by the current
+implementation. In the proposal, for projects with **no profile**, a
+`.markspec/lint.yaml` (discovered beside `.markspec.yaml`, profile-schema §2.2)
+carries the same `prose:` block as §4.1.
 
 - It is **strictly weaker than a profile**: it may enable/disable groups, add
   lexicon entries, set weights, and set a _local_ `score.threshold`, but it

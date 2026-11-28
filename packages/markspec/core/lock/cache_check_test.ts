@@ -73,7 +73,10 @@ Deno.test("verifyUpstreamCache: missing manifest fails with one MSL-L212 naming 
   assertEquals(diags.length, 1);
   assertEquals(diags[0].code, "MSL-L212");
   assertEquals(diags[0].message.includes("refhub"), true);
-  assertEquals(diags[0].message.includes("markspec lock"), true);
+  assertEquals(
+    diags[0].message.includes("markspec lock --update=refhub"),
+    true,
+  );
 });
 
 Deno.test("verifyUpstreamCache: hash mismatch fails with one MSL-L212", async () => {

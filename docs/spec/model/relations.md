@@ -155,29 +155,14 @@ given entry.
 
 ## Relation cardinality
 
-Core relations are many-to-many by default. Profiles can restrict cardinality:
-
-```yaml
-relations:
-  - key: Superseded-by
-    cardinality: single   # only one successor
-```
-
-If a single-cardinality relation appears more than once on the same entry, the
-validator raises `MSL-A013`.
+Profiles can constrain relation cardinality with per-type `traceability` rules.
+See [Trace-rule fields](annex-profile-schema.md#trace-rule-fields).
 
 ## Profile-declared relations
 
-Profiles can add new relations beyond the core set:
-
-```yaml
-profile:
-  relations:
-    - key: Addresses
-      inverse: Addressed-by
-      source-types: [requirement]
-      target-types: [change]
-```
+Profiles declare relation attributes with an `inverse` and constrain targets
+through per-type `traceability` rules. See
+[Relations in the profile schema](annex-profile-schema.md#b5-relations-per-type-traceability--attribute-inverse).
 
 ## Locators
 
@@ -298,6 +283,3 @@ The validator checks relations in two passes:
 2. **Cross-file pass** — after all files are parsed, unresolved references
    (display IDs that do not correspond to any entry in the project or federated
    upstreams) raise `MSL-R001`.
-
-Circular relations (a `Satisfies` chain that returns to its source) are detected
-and reported as `MSL-R020`.

@@ -51,7 +51,7 @@ This spec inherits the terminology of
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **profile**             | A distributable, versioned package declaring concrete types, attributes, relations, and rules. ADR-008 §1.                                              |
 | **manifest**            | The `markspec.yaml` file at a profile's root: manifest fields (identity, distribution) + the `profile:` content subtree. ADR-008 §4.                    |
-| **core type**           | One of the 4 abstract (`Item`, `Specification`, `Component`, `Unit`) or 15 concrete built-in types frozen by core-data-model §1.3. Reserved (MSL-A040). |
+| **core type**           | One of the 4 abstract (`Item`, `Specification`, `Component`, `Unit`) or 12 concrete built-in types frozen by core-data-model §1.3. Reserved (MSL-A040). |
 | **profile type**        | A concrete type a profile declares by `extends:`-ing a core type or another profile type. Lowercase-with-hyphens by convention (ADR-004 §Part 2).       |
 | **chain**               | The linear `extends:` inheritance path of profiles: default → compliance → org → team → project. ADR-008 §5; ADR-009 §11.                               |
 | **tier**                | One profile in the chain.                                                                                                                               |
@@ -70,10 +70,10 @@ The profile layer sits on a fault line between two ADR generations:
   (`identified` / `referenced`); the bundled default profile (ADR-010 §2) ships
   four types (`requirement`, `note`, `term`, `reference`).
 - **core-data-model.md** (Prompt 1, merged) supersedes that framing per its §1.3
-  reconciliation note: the **15 concrete types are core**, with the abstract
+  reconciliation note: the **12 concrete types are core**, with the abstract
   parents (`Specification` / `Component` / `Unit` / `Item`) serving as
   direct-instantiation fallbacks _and_ as roots for profile subtypes; §4.4
-  `MSL-A040` reserves the 15-type vocabulary against profile shadowing.
+  `MSL-A040` reserves the 12-type vocabulary against profile shadowing.
 
 This spec resolves the fault line as follows, and the resolution is normative
 for `main` after the refactor (per `nextgen/README.md` §Spec authority — the
@@ -102,7 +102,7 @@ refactor lands):
 
 | Alternative                                                                                                     | Rejected because                                                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purely additive (keep ADR-008 §4 verbatim, add inheritance as new optional keys, keep ADR-010's 4-type default) | Leaves the 15-type-core vs 4-type-default contradiction unresolved; core-data-model §1.6 already states profiles _extend_ the 15 core types, so a 4-type independent default is incoherent.                                                        |
+| Purely additive (keep ADR-008 §4 verbatim, add inheritance as new optional keys, keep ADR-010's 4-type default) | Leaves the 12-type-core vs 4-type-default contradiction unresolved; core-data-model §1.6 already states profiles _extend_ the 12 core types, so a 4-type independent default is incoherent.                                                        |
 | Defer the reconciliation to an open question                                                                    | The manifest schema is the build target of this prompt; an unresolved core/profile boundary makes the schema unimplementable. core-data-model §6 caps open questions for exactly this reason — forks that block the build are decided, not parked. |
 | Authoritative redefine + supersession annex (**chosen**)                                                        | Matches the nextgen spec-authority rule and core-data-model §1.3; the only stance that yields a coherent, implementable manifest. Cost: an explicit deltas annex (Annex B) — accepted.                                                             |
 
@@ -173,7 +173,7 @@ Unchanged from ADR-008 §3 and ADR-010 §1:
   loader behaviour.
 
 **Core-only mode** (no profile, `default-profile: false` and empty `profiles:`)
-remains valid (ADR-009 §10): the 15-type core taxonomy and core hygiene
+remains valid (ADR-009 §10): the 12-type core taxonomy and core hygiene
 (`MSL-I*`, `MSL-R080`) still apply; only profile-declared types, relations, and
 promoted-to-error rules are dormant.
 
@@ -209,8 +209,8 @@ extend"; ADR-004 §Part 2 "Inheritance is declared in the profile manifest"):
 - **R3.1-a.** `extends:` is **required** for every profile type. A type with no
   parent has no place in the taxonomy and inherits no attributes or relations.
   Omitting it is a profile-load error (`PROFILE-TYPE-001`, new).
-- **R3.1-b.** The `extends:` target is resolved against the union of (1) the 19
-  core type names (4 abstract + 15 concrete, core-data-model §1.3) and (2) every
+- **R3.1-b.** The `extends:` target is resolved against the union of (1) the 16
+  core type names (4 abstract + 12 concrete, core-data-model §1.3) and (2) every
   profile type in the _same effective profile_ (§5). Resolution is by name over
   that union, not by declaration order — acyclicity and the root-at-core
   requirement (R3.1-c) make order irrelevant. An unresolved target is
@@ -219,7 +219,7 @@ extend"; ADR-004 §Part 2 "Inheritance is declared in the profile manifest"):
   type. A cycle, or a chain that never reaches a core type, is
   `PROFILE-TYPE-003` (new, error).
 - **R3.1-d.** A profile type **may not** be named identically to any core type
-  (the 19 reserved names). That is shadowing, not extension — `MSL-A040` /
+  (the 16 reserved names). That is shadowing, not extension — `MSL-A040` /
   `PROFILE-TYPE-004` (core-data-model §4.4 reserves the vocabulary).
 - **R3.1-e.** Shape is **not** declared. An entry's shape is the `Id:`-format
   decision of core-data-model §1.2 and is orthogonal to its `Type:`. A profile
@@ -235,7 +235,7 @@ any concrete `Type:` value to its abstract parent".
 
 | Decision                                   | Alternative                                                     | Why rejected                                                                                                                                                                                                                                            |
 | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Per-type `extends:` naming the parent type | Keep ADR-008 per-type `shape:` (identified/referenced)          | `shape:` is obsolete under the orthogonal model (§1.3): a profile type can be authored or cited. Keeping it forces the contradiction core-data-model §1.1 removes, and gives no inheritance edge to the 15-type taxonomy core-data-model §1.6 requires. |
+| Per-type `extends:` naming the parent type | Keep ADR-008 per-type `shape:` (identified/referenced)          | `shape:` is obsolete under the orthogonal model (§1.3): a profile type can be authored or cited. Keeping it forces the contradiction core-data-model §1.1 removes, and gives no inheritance edge to the 12-type taxonomy core-data-model §1.6 requires. |
 | Per-type `extends:`                        | Separate `abstract-parent:` (only the 4 abstract roots allowed) | Forbids `SRS extends Requirement` / `Hazard extends Risk` — the exact multi-level subtyping ADR-003 §Part 7 enumerates. Collapsing every profile type onto an abstract root loses the concrete core attributes (e.g. `Test.Verifies`).                  |
 | Per-type `extends:`                        | Infer the parent from `display-id-pattern:` prefix only         | Reference-shape and slug-keyed profile types have no numeric display-ID pattern (core-data-model §1.7); inference would leave them parentless. Explicit `extends:` is the single declaration that works for every type.                                 |
 | `extends:` required (R3.1-a)               | Default missing `extends:` to `Item`                            | Silent reparenting to the permissive fallback hides author error and yields a type with no inherited trace attributes. An explicit required edge is auditable — the compliance-review property ADR-008 §Context demands.                                |
@@ -404,7 +404,7 @@ here: the trailer-key namespace is flat and global.**
   re-declaration is a profile-load error `PROFILE-MERGE-011` (new): _"attribute
   `X` redeclared with incompatible {type|cardinality-family|inverse}"_.
 - A profile attribute name equal to a **core-reserved** name (`Id`, the
-  per-core- type attribute set of core-data-model §1.4–1.6, the 19 type names)
+  per-core- type attribute set of core-data-model §1.4–1.6, the 16 type names)
   is `MSL-A040` (core-data-model §4.4) — reserved, unshadowable, regardless of
   compatibility.
 
@@ -514,7 +514,7 @@ Profiles do not reorder the core chain; they only populate steps 2, 5, and 6
 
 ### 7.1 Contents — thin, by construction
 
-Under the 15-type core taxonomy the default profile is **much smaller** than
+Under the 12-type core taxonomy the default profile is **much smaller** than
 ADR-010 §2 describes. The core already provides `Requirement`, `Test`,
 `Contract`, `Record`, `Risk`, the Component/Unit families, and `Definition`
 (core-data-model §1.3). The default profile therefore declares **no new concrete
@@ -559,7 +559,7 @@ types**. It contributes only _bindings and hygiene_ over the core taxonomy:
 
 ### 7.2 What ADR-010's four types become
 
-| ADR-010 §2 type | Disposition under the 15-type core                                                                                                                                                                                                                                                           |
+| ADR-010 §2 type | Disposition under the 12-type core                                                                                                                                                                                                                                                           |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `requirement`   | **Collapses into** core `Requirement` (core-data-model §1.3). The default profile binds the `REQ-` pattern + RFC 2119 hygiene to it. No new type.                                                                                                                                            |
 | `term`          | **Maps to** core `Definition` (ADR-003 §Part 2). The default profile binds slug display-IDs + `{{def.}}` resolution. No new type.                                                                                                                                                            |
@@ -570,7 +570,7 @@ types**. It contributes only _bindings and hygiene_ over the core taxonomy:
 
 | Decision                                            | Alternative                                                    | Why rejected                                                                                                                                                                                                       |
 | --------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Thin default — bindings + hygiene only (**chosen**) | Re-declare ADR-010's 4 types as profile subtypes of core types | `requirement extends Requirement` is a no-op rename; `reference` cannot be a type (it is a shape). Re-declaration adds a vocabulary the core already owns and re-introduces the 15-vs-4 contradiction §1 resolves. |
+| Thin default — bindings + hygiene only (**chosen**) | Re-declare ADR-010's 4 types as profile subtypes of core types | `requirement extends Requirement` is a no-op rename; `reference` cannot be a type (it is a shape). Re-declaration adds a vocabulary the core already owns and re-introduces the 12-vs-4 contradiction §1 resolves. |
 | Thin default                                        | Empty default profile (core taxonomy alone)                    | Loses the out-of-box display-ID patterns + RFC 2119 hygiene ADR-010 §Context justifies as the tech-writer first-run experience. The default profile earns its keep purely as bindings.                             |
 | `note` dropped                                      | Keep `note` as a default `extends: Record`                     | A Record is a _logged decision/event with rationale_ (ADR-003 §Part 2) — semantically wrong for a generic callout. Forcing it distorts the taxonomy; deferral (ADR-003 open questions) is honest.                  |
 
@@ -810,7 +810,7 @@ refactor lands):
 | ADR-008 §4 universal `profile.required:` list                                                       | Removed (§4.2). Use `required: true` on the universal `attributes:` entry.                                                                                                                                                  |
 | ADR-008 §6 "types declared ⇒ every entry must carry a `type:`" enforcement framing                  | Type is now _always_ resolvable via the core chain (core-data-model §1.3.1 — never errors). Profiles tighten via `display-id-pattern-enforcement` and explicit-`Type:` rules (§6), not a global "must declare type" switch. |
 | ADR-010 §2 four default types (`requirement`/`note`/`term`/`reference`)                             | §7.2: `requirement`→core `Requirement`; `term`→core `Definition`; `reference`→Reference shape; `note` dropped (deferred). Default profile declares no new concrete types.                                                   |
-| ADR-010 §2 "Profiles may extend the type catalog but may not shadow these names" (applied to the 4) | Generalized to the 19 core-reserved names (core-data-model §4.4 `MSL-A040`); the default profile adds none.                                                                                                                 |
+| ADR-010 §2 "Profiles may extend the type catalog but may not shadow these names" (applied to the 4) | Generalized to the 16 core-reserved names (core-data-model §4.4 `MSL-A040`); the default profile adds none.                                                                                                                 |
 
 ADR-008 §§1–3, §5, §7, §9, §10 and ADR-009 in full are **unchanged** and remain
 authoritative for distribution, the `extends:` chain algorithm, traceability

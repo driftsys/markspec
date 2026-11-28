@@ -23,10 +23,7 @@ Item  (abstract — root)
 ├── Unit  (abstract)
 │   ├── SoftwareUnit
 │   └── HardwareUnit
-├── Definition
-├── Objective
-├── Standard
-└── Change
+└── Definition
 ```
 
 ## Abstract types
@@ -37,7 +34,7 @@ them and for profile-declared subtypes.
 
 | Abstract type   | Purpose                                         | Extended by                                         |
 | --------------- | ----------------------------------------------- | --------------------------------------------------- |
-| `Item`          | Root; ultimate fallback for all type resolution | All 15 concrete types; any profile subtype          |
+| `Item`          | Root; ultimate fallback for all type resolution | All 12 concrete types; any profile subtype          |
 | `Specification` | Normative statements; things that must or shall | `Requirement`, `Test`, `Contract`, `Record`, `Risk` |
 | `Component`     | System-level building blocks with identity      | `SoftwareComponent`, `HardwareComponent`            |
 | `Unit`          | Fine-grained implementation-level elements      | `SoftwareUnit`, `HardwareUnit`                      |
@@ -69,8 +66,8 @@ traceable documentation projects.
 
 A test case, test procedure, or test result. Records what was checked and how.
 
-- **Typical relations:** `Verifies` (→ `Requirement`), `Tests` (→ `Component`,
-  `Unit`, or `Contract`).
+- **Typical relations:** `Verifies` (→ `Requirement`, `Contract`), `Tests` (→
+  `Component`, `Unit`, or `Contract`).
 - **Typical profile attributes:** `Test-level`, `Test-type`, `Test-result`
 
 ```markdown
@@ -193,40 +190,6 @@ A circuit, sub-assembly, or other fine-grained hardware element.
 A glossary term. Used in `GLOSSARY.md` or equivalent. A planned lint rule
 (`MSL-Q020`) will flag entries that use a term defined in the glossary without a
 `References:` link to the `Definition` entry.
-
-### Objective
-
-A goal, OKR, or strategic objective. Core relations do not allow an `Objective`
-as a `Satisfies` or `Derived-from` target, because those relations target only
-`Specification`.
-
-- **Typical profile attributes:** `Priority`
-
-### Standard
-
-A normative external document. Always **Reference shape** (`Id:` is a `urn:`,
-`doi:`, or `https:` URI). Core provides the `Reference-url` and
-`Reference-document` attributes for Reference-shape entries.
-
-```markdown
-- [@ISO-26262-6] ISO 26262 Part 6
-
-  Road vehicles — Functional safety — Part 6: Product development at the
-  software level.
-
-      Id: urn:iso:std:iso:26262:-6:ed-2
-      Type: Standard
-      Reference-document: ISO 26262-6:2018
-      Reference-url: https://www.iso.org/standard/68388.html
-```
-
-### Change
-
-A change request, issue, or ticket. No core relation links a `Change` to a
-`Requirement`. A profile can declare one (see
-[Profile-declared relations](relations.md#profile-declared-relations)).
-
-- **Typical profile attributes:** `Priority`, `Status`
 
 ## Type resolution chain
 

@@ -35,7 +35,7 @@ interpreted.
 | Code     | Message pattern                                                                       | Fix                                                                                      |
 | -------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | MSL-P010 | Malformed entry header                                                                | Verify `- [TYPE_NNNN] Title` format: hyphen, space, brackets, space-separated display ID |
-| MSL-P020 | Display ID does not match expected pattern                                            | Check the profile's declared type pattern; prefix and digit width must match exactly     |
+| MSL-P020 | Identity or trace attribute is read as body text, or an Id trailer follows prose      | Separate the trailer from the body; run `markspec fmt` where applicable                  |
 | MSL-P023 | Trailer block is not indented (git style), Markdown only; not for legacy trailing `\` | Run `markspec fmt` to indent it to the canonical 6-space form                            |
 | MSL-P024 | A list item nested in an entry is entry-shaped; nested entries are not supported      | Move the nested item to the top level as its own entry                                   |
 | MSL-P025 | Content after the trailer: an `Id:` block is followed by another block, Markdown only | Move the content above the trailer; `fmt` leaves the entry unchanged                     |

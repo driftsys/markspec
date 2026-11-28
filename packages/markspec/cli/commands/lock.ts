@@ -7,7 +7,6 @@
  *   --check              CI mode: read-only, exit 1 on drift
  *   --format json        Machine-readable output (default: human-readable)
  *   --update[=<id>]      Force re-resolve all upstreams, or one by id/slug
- *                        (v1.0: equivalent to a full re-resolve)
  */
 
 import { Command } from "@cliffy/command";
@@ -208,7 +207,7 @@ export const lockCmd = new Command()
   .option("--format <format:string>", "Output format: json")
   .option(
     "--update [id:string]",
-    "Force re-resolve all upstreams, or one by id/slug (v1.0: equivalent to a full re-resolve)",
+    "Force re-resolve all upstreams, or one by id/slug",
   )
   .action(async (options: LockOptions) => {
     await runLock(options);

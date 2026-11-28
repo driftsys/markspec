@@ -14,7 +14,7 @@
  *
  * Each walker is parameterized by a *recognizer* — the only DSL-specific
  * input — and knows nothing about typl, uxil, or any concrete vocabulary.
- * A DSL host (typl today; uxil and the table surface later) supplies the
+ * A DSL host (typl and uxil today; the table surface later) supplies the
  * recognizer and consumes the returned {@linkcode BlockDeclaration} /
  * {@linkcode InlineDeclaration} nodes.
  *

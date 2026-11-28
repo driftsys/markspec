@@ -333,7 +333,6 @@ reference a semantic name via their `color:` field (§B.3).
 profile:
   colors:
     requirement-blue: blue
-    hazard-red: red
 ```
 
 - Each key must match `^[a-z][a-z0-9-]*$` (`MSL-PROFILE-COLOR-004` otherwise).

@@ -1,9 +1,9 @@
 # Attributes
 
 Attributes are the key-value pairs that appear in an entry's **trailer block** —
-the indented section below the body text. They carry the entry's identity, type
-classification, trace links, and any domain-specific metadata declared by the
-active profile.
+the final section below the body text (canonically indented). They carry the
+entry's identity, type classification, trace links, and any domain-specific
+metadata declared by the active profile.
 
 ## Universal attributes
 
@@ -28,14 +28,14 @@ core and are always available, even in core-only mode (no profile configured).
 The `Id:` attribute is the primary stable identifier. Its format determines the
 entry's shape:
 
-```markdown
-Id: 01HGW2Q8MNP3RSTVWXYZABCDEF ← Authored (26-char ULID) Id:
-urn:iso:std:iso:26262:-6:ed-2 ← Reference (URI with scheme)
+```text
+Id: 01HGW2Q8MNP3RSTVWXYZABCDEF  # Authored (26-char ULID)
+Id: urn:iso:std:iso:26262:-6:ed-2  # Reference (URI with scheme)
 ```
 
 ULIDs are assigned by `markspec fmt`. An entry without an `Id:` is "unstamped" —
-the validator emits `MSL-A010` in strict mode, and `markspec fmt` will add one
-on the next run.
+the validator emits `MSL-I003` for an Authored entry, and `markspec fmt` adds
+one on the next run when formatting is safe.
 
 ### Type
 
@@ -77,8 +77,10 @@ validator then checks that label values are from the declared set.
 `References:` links an entry to an external standard or resource by display ID,
 optionally followed by a locator in square brackets:
 
-```markdown
-References: ISO-26262-6 [§4.3] References: RFC-2119 [§3] References: serde-1-0
+```text
+References: ISO-26262-6 [§4.3]
+References: RFC-2119 [§3]
+References: serde-1-0
 ```
 
 The locator (`[§4.3]`) is free text. It is kept, normalized, in the compiled
@@ -90,8 +92,9 @@ link (`Link.locator`) but not checked. See [Locators](relations.md#locators).
 issue tracker, a DOORS object ID, a SharePoint item ID, etc. This is a
 single-value attribute:
 
-```markdown
-External-id: JIRA-4567 External-id: DOORS-MODULE-23/OBJ-0042
+```text
+External-id: JIRA-4567
+External-id: DOORS-MODULE-23/OBJ-0042
 ```
 
 The value is opaque to MarkSpec. It is preserved in the compiled output and
@@ -217,12 +220,9 @@ The type checks (`MSL-T022`, `MSL-R083`) still apply.
 
 ### Item types
 
-| Type         | Typical profile attributes | Notes                                      |
-| ------------ | -------------------------- | ------------------------------------------ |
-| `Definition` | (none typical)             | Used in glossary cross-check lint rule     |
-| `Objective`  | `Priority`                 | Not a `Satisfies` or `Derived-from` target |
-| `Standard`   | (none typical)             | Always Reference shape                     |
-| `Change`     | `Priority`, `Status`       | No core relation to Requirements           |
+| Type         | Typical profile attributes | Notes                                  |
+| ------------ | -------------------------- | -------------------------------------- |
+| `Definition` | (none typical)             | Used in glossary cross-check lint rule |
 
 ## Profile-declared attributes
 
@@ -243,8 +243,8 @@ profile:
 ```
 
 Profile-declared attributes are validated just like core attributes: unknown
-values raise `MSL-A022`, wrong cardinality raises `MSL-A013`. The difference is
-that these rules only activate when the declaring profile is present.
+cardinality violations raise `MSL-A013`. The difference is that these rules only
+activate when the declaring profile is present.
 
 ## Attribute ordering
 

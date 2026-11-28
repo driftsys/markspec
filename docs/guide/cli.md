@@ -1056,19 +1056,19 @@ records sync mappings discovered under `.markspec/sync/`.
 markspec lock
 ```
 
-| Flag       | Type   | Default | Description                                                                 |
-| ---------- | ------ | ------- | --------------------------------------------------------------------------- |
-| `--check`  | bool   | false   | CI mode: read-only, exit `1` on drift.                                      |
-| `--update` | string | —       | Force re-resolve every `references:` entry, or one by id (`--update=<id>`). |
-| `--format` | string | `text`  | Output format: `json`, `text`.                                              |
+| Flag       | Type   | Default | Description                                                                                        |
+| ---------- | ------ | ------- | -------------------------------------------------------------------------------------------------- |
+| `--check`  | bool   | false   | CI mode: read-only, exit `1` on drift.                                                             |
+| `--update` | string | —       | Force re-resolve every `dependencies:` and `references:` upstream, or one by id (`--update=<id>`). |
+| `--format` | string | `text`  | Output format: `json`, `text`.                                                                     |
 
 **Examples:**
 
 ```sh
 markspec lock                      # write or refresh markspec.lock
 markspec lock --check              # CI gate: fail if lockfile is stale
-markspec lock --update             # force re-resolve every reference
-markspec lock --update=refhub      # force re-resolve one reference by id
+markspec lock --update             # force re-resolve every upstream
+markspec lock --update=refhub      # force re-resolve one upstream by id
 ```
 
 **Which project.** `lock` and `sync` find the project root from the current
@@ -1112,17 +1112,17 @@ done by hand.
 | ---------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | First lock | A `references:` entry has no lockfile row yet.                                                | Fetch the published snapshot, cache it, write a pinned `[[upstream.registry]]` row.                                                           |
 | Restore    | A row is already pinned but its cache is missing or broken (fresh clone, CI, a cleaned tree). | Re-fetch the pinned content and verify its hash still matches the lockfile, then repopulate the cache. The pin itself never moves on restore. |
-| Update     | `markspec lock --update` (every reference) or `--update=<id>` (one).                          | Re-fetch and move the pin to whatever the source currently serves.                                                                            |
+| Update     | `markspec lock --update` (every upstream) or `--update=<id>` (one).                           | Re-fetch and move the pin to whatever the source currently serves.                                                                            |
 
 **Diagnostic codes:**
 
-| Code       | When                           | Meaning                                                                                                                                                                                                                                                                                     |
-| ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-L213` | `markspec lock`                | A declared `references:` or `dependencies:` entry could not be locked — no derivable id, a fetch failure, a malformed manifest/tree, or a schema-version mismatch. Warn-and-write: `markspec lock` still writes every pin that did resolve.                                                 |
-| `MSL-L214` | `markspec lock` (restore flow) | The cache needed restoring, but the re-fetched content's hash no longer matches the pinned snapshot — the published site moved. Run `markspec lock --update=<id>` to move the pin deliberately.                                                                                             |
-| `MSL-L212` | `markspec check` (offline)     | Also covers upstream cache drift in this release: fires when a locked reference's cache under `.markspec/cache/upstreams/<id>/` is missing or its hash no longer matches `markspec.lock`, in addition to the existing traceability-edge-drift case. Either way, the fix is `markspec lock`. |
-| `MSL-L215` | `markspec check`               | A `dependencies:` pin resolved to a branch or bare sha rather than a tag — an unreleased state. Advisory by default; `markspec check --strict` promotes it to a hard error, so a release build cannot pass against an unbaselined dependency.                                               |
-| `MSL-L216` | `markspec lock`                | A `dependencies:` entry derives the same upstream id as a `references:` entry. The dependency is skipped — the reference snapshot owns the shared `.markspec/cache/upstreams/<id>/` namespace — so set a distinct `name:` on one of them. Warn-and-write: every other pin still locks.      |
+| Code                    | When                           | Meaning                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-L213`              | `markspec lock`                | A declared `references:` or `dependencies:` entry could not be locked — no derivable id, a fetch failure, a malformed manifest/tree, or a schema-version mismatch. Warn-and-write: `markspec lock` still writes every pin that did resolve.                                                                                                                                              |
+| `MSL-L213` / `MSL-L214` | `markspec lock` (restore flow) | The cache needed restoring, but the re-fetched content's hash no longer matches the pinned snapshot — the source changed. Dependencies report `MSL-L213`; references report `MSL-L214`. Run `markspec lock --update=<id>` to move the pin deliberately.                                                                                                                                  |
+| `MSL-L212`              | `markspec check` (offline)     | Also covers upstream cache drift in this release: fires when a locked reference's cache under `.markspec/cache/upstreams/<id>/` is missing or its hash no longer matches `markspec.lock`, in addition to the existing traceability-edge-drift case. Run `markspec lock` for edge drift or to restore the cache; if cache restoration fails, run `markspec lock --update=<id>` to re-pin. |
+| `MSL-L215`              | `markspec check`               | A `dependencies:` pin resolved to a branch or bare sha rather than a tag — an unreleased state. Advisory by default; `markspec check --strict` promotes it to a hard error, so a release build cannot pass against an unbaselined dependency.                                                                                                                                            |
+| `MSL-L216`              | `markspec lock`                | A `dependencies:` entry derives the same upstream id as a `references:` entry. The dependency is skipped — the reference snapshot owns the shared `.markspec/cache/upstreams/<id>/` namespace — so set a distinct `name:` on one of them. Warn-and-write: every other pin still locks.                                                                                                   |
 
 **Exit codes.** `markspec lock` exits `0` when every upstream resolved cleanly.
 Following the clig.dev convention (`2` for warnings only), it exits `2` — while

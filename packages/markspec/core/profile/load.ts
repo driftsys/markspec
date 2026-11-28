@@ -178,7 +178,7 @@ function checkReservedRedefinitions(chain: ProfileChain): Diagnostic[] {
         code: "MSL-A040",
         severity: "error",
         message: `profile type '${typeName}' shadows a core type name ` +
-          `(spec §4.4); the 15-type core vocabulary is reserved`,
+          `(spec §4.4); the 12-type core vocabulary is reserved`,
         location: { file: pathFor(typeEntry.origin), line: 1, column: 1 },
       });
     }

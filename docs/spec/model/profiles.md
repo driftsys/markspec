@@ -43,12 +43,6 @@ profile:
       cardinality: single
       values: [ASIL-A, ASIL-B, ASIL-C, ASIL-D, QM]
 
-  relations:
-    - key: Addresses
-      inverse: Addressed-by
-      source-types: [change]
-      target-types: [requirement]
-
   labels:
     - name: functional-safety
     - name: DRAFT
@@ -108,9 +102,6 @@ Entry types (2):
 
 Attributes (1):
   - ASIL: ASIL classification (ASIL-A | ASIL-B | ASIL-C | ASIL-D | QM)
-
-Relations (1):
-  - Addresses: inverse Addressed-by; change → requirement
 ```
 
 Use `markspec profile describe type requirement` for full detail on any profile
@@ -121,7 +112,7 @@ element.
 A project with no `.markspec.yaml` (or an empty profiles list) runs in
 **core-only mode**:
 
-- Only the 4 abstract and 15 core concrete types are recognised.
+- Only the 4 abstract and 12 core concrete types are recognised.
 - Unknown `Type:` values produce `MSL-T020`.
 - Unknown trailer keys produce `MSL-R010`.
 - No display-ID patterns, no domain relations, no domain attributes.
@@ -251,7 +242,7 @@ Profiles extend core — they cannot weaken or redefine it:
 
 - Cannot redefine `Id`, `Type`, or `Title` — these are reserved core attribute
   keys.
-- Cannot shadow any of the 15 core concrete type names (`MSL-A040` is raised for
+- Cannot shadow any of the 12 core concrete type names (`MSL-A040` is raised for
   reserved-name conflicts). A profile type named `Requirement` is forbidden; use
   `requirement` (lowercase) as a distinct subtype.
 - Cannot remove core-defined attributes or demote core errors to warnings.

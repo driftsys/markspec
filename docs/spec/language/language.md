@@ -320,7 +320,8 @@ chapter, §"Entry rendering".
 
 #### §2 Attribute blocks
 
-An attribute block is the **trailing indented code block** of an entry. Each
+The canonical attribute block is the **trailing indented code block** of an
+entry. The parser also accepts the unindented shapes described below. Each
 content line is a single `Key: Value` pair. No trailing line-continuation
 characters. The value of a free-text attribute (an attribute of type `text`, or
 a key that neither the core nor the profile declares) keeps a U+FEFF or a

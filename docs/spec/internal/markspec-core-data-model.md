@@ -15,7 +15,7 @@ parser produces, the **canonical form** `markspec fmt` writes, and the
 4).
 
 Where the ADRs disagree on framing, ADR-003 is authoritative for the information
-layer (built-in 15-type taxonomy) and ADR-004 is authoritative for the authoring
+layer (built-in 12-type taxonomy) and ADR-004 is authoritative for the authoring
 layer (Entry / Reference shapes, `Id:` discrimination, `Type:` attribute,
 promoted Reference attributes). The two are orthogonal by design.
 
@@ -33,10 +33,10 @@ This spec is precise about a small set of overloaded terms.
 | **Reference** | ADR-003 shape: an entry whose `Id:` is a scheme-qualified URI. Cites an artifact external to the project.                                                                                                                            |
 | **Item**      | ADR-003 information-graph node. Every entry produces exactly one Item.                                                                                                                                                               |
 | **shape**     | ADR-004 §Part 1. The authoring-layer classification (`Authored` vs `Reference`), decided by the `Id:` value format alone.                                                                                                            |
-| **type**      | ADR-003 §Part 1 / ADR-004 §Part 2. The information-layer classification. One of the 15 built-in concrete types, the 4 abstract parents (Specification / Component / Unit / Item), or a profile-declared subtype. Carried by `Type:`. |
+| **type**      | ADR-003 §Part 1 / ADR-004 §Part 2. The information-layer classification. One of the 12 built-in concrete types, the 4 abstract parents (Specification / Component / Unit / Item), or a profile-declared subtype. Carried by `Type:`. |
 | **attribute** | A `Key: Value` pair in the trailers block (declared facts).                                                                                                                                                                          |
 | **property**  | A model-level observation captured by tooling (observed facts — file path, git timestamps, sync state). Never authored. Out of scope for this spec, deferred to ADR-006.                                                             |
-| **trailers**  | The final indented code block of an entry, containing `Key: Value` lines. Established by ADR-002 §Part 1; reformatting rules in §3 below.                                                                                            |
+| **trailers**  | The final trailer of an entry, containing `Key: Value` lines; canonical output uses an indented code block. Established by ADR-002 §Part 1; reformatting rules in §3 below.                                                          |
 
 > **Naming overlap notice.** ADR-004 §Part 1 uses "Entry" as the name of the
 > ULID-identified _shape_. ADR-003 §Part 1 reserves "Entry" for the _abstract
@@ -113,7 +113,7 @@ The information type is expressed by a single `Type:` attribute (ADR-004 §Part
 
 - **Core abstract types** — `Item`, `Specification`, `Component`, `Unit`.
   TitleCase. Always available regardless of profile.
-- **Core concrete types** — the 15 built-in subtypes (ADR-003 §Part 1):
+- **Core concrete types** — the 12 built-in subtypes (ADR-003 §Part 1):
   - Under `Specification`: `Requirement`, `Test`, `Contract`, `Record`, `Risk`
   - Under `Component`: `SoftwareComponent`, `HardwareComponent`
   - Under `Contract`: `SoftwareInterface`, `HardwareInterface`
@@ -126,7 +126,7 @@ The information type is expressed by a single `Type:` attribute (ADR-004 §Part
 
 > **Reconciliation note.** ADR-004 §Part 2 frames the core as carrying _only_
 > three abstract types, with concrete types declared by profiles. ADR-003 §Part
-> 1 supersedes that framing: the 15 concrete types are part of the core
+> 1 supersedes that framing: the 12 concrete types are part of the core
 > taxonomy, with the abstract parents serving dual roles as direct-instantiation
 > fallbacks and as roots for profile-declared subtypes. This spec follows
 > ADR-003 §Part 1 (the later refinement). The abstract types remain instantiable
@@ -331,8 +331,8 @@ Properties:
   space.
 - A blank line separates the title from the body.
 - The body is one or more body blocks (§2.4).
-- The trailers block is the **final indented code block** of the entry, with
-  each line matching `^[A-Za-z][A-Za-z0-9-]*:[ \t].*$`.
+- The canonical trailers block is the **final indented code block** of the
+  entry, with each line matching `^[A-Za-z][A-Za-z0-9-]*:[ \t].*$`.
 
 The full grammar is given in §2.7 (Annex A — production rules) — informally
 above, EBNF below.
@@ -357,9 +357,10 @@ TitleLine {
 
 ### 2.3 Trailers node
 
-The trailers block is an indented code block (CommonMark §4.4) whose lines are
-each parsed as a git trailer (ADR-002 §Part 1 “Syntactic form”). The block
-**terminates the entry**; nothing follows it inside the same list item.
+The canonical trailers block is an indented code block (CommonMark §4.4). The
+parser also accepts the unindented trailer shapes described in the
+[language specification](../language/language.md). The block **terminates the
+entry**; nothing follows it inside the same list item.
 
 ```ts
 Trailers {
@@ -373,7 +374,6 @@ AttributeNode {
   rawKey: string                   // exact spelling in source
   value: string                    // trimmed; free text keeps U+FEFF/U+00A0
   valueType: ValueType             // resolved via §1.8 catalogue
-  continuation: string[]           // joined continuation lines, if any
   range: SourceRange
 }
 ```
@@ -402,9 +402,9 @@ form (§3.3.3).
 
 #### 2.3.3 Continuation lines
 
-Trailer values may continue on the next line if the continuation is indented two
-spaces deeper than the trailer key (RFC 5322 unfolding convention; ADR-002
-references the git-trailers rule). Continuations are joined with a single space.
+Continuation lines are not joined into attribute values. A continuation ends the
+trailer, or remains in it with `MSL-P021` when the preceding line ends in a
+backslash or comma.
 
 ### 2.4 Body block types
 
@@ -568,11 +568,10 @@ markup. `text` holds the first line of that decoded text, after the keyword.
 every line, link URL and inline markup of the caption is kept (#1008).
 
 Disambiguation from trailers (ADR-005 §Part 4): captions live next to a
-captionable block; trailers form the final indented code block of the entry. A
-`Figure:` line is a caption iff it is adjacent to a `Figure` block; if it
-appears inside the trailers code block, it is an attribute (and rejected as
-unknown by the validator unless a profile registers `Figure:` as an attribute
-key).
+captionable block; trailers form the final trailer of the entry. A `Figure:`
+line is a caption iff it is adjacent to a `Figure` block; if it appears inside
+the trailers code block, it is an attribute (and rejected as unknown by the
+validator unless a profile registers `Figure:` as an attribute key).
 
 ### 2.7 Annex A — Top-level grammar (EBNF, informative)
 
@@ -760,8 +759,7 @@ character after a `-` uppercase, all others lowercase. Examples: `Id`,
 - One ASCII space between `:` and the value.
 - No trailing whitespace on any line, except a U+FEFF or a non-breaking space
   (U+00A0) that ends a free-text attribute value (#990).
-- Continuation lines (§2.3.3) are re-emitted only if the original input used
-  them; `fmt` does not introduce continuations.
+- Continuation lines are not joined into attribute values (§2.3.3).
 
 #### 3.3.6 Pruning
 
@@ -947,12 +945,11 @@ invariants).
 
 | Code       | Severity | Meaning                                                                                                                                                          |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-A010` | error    | Repeatable attribute used CSV form but a value contains a comma (e.g., `citation` locator).                                                                      |
 | `MSL-A011` | error    | `citation`-typed attribute (`References:`) used CSV form. Always rejected per §2.3.2.                                                                            |
 | `MSL-A012` | error    | Repeatable attribute value list is empty.                                                                                                                        |
 | `MSL-A013` | error    | Single-cardinality attribute appears more than once.                                                                                                             |
 | `MSL-A030` | error    | Generated-origin attribute present in source (`Superseded-by`, `Derives`, every inverse from ADR-003 §Part 3).                                                   |
-| `MSL-A040` | error    | `Id:`, `Type:`, or any core-defined key has been redefined / shadowed by a profile. (ADR-009 §6 reserves `Id:`; this spec also reserves the 15-type vocabulary.) |
+| `MSL-A040` | error    | `Id:`, `Type:`, or any core-defined key has been redefined / shadowed by a profile. (ADR-009 §6 reserves `Id:`; this spec also reserves the 12-type vocabulary.) |
 | `MSL-A050` | error    | Value does not parse against the declared value type (§1.8) — e.g., a `date` field whose value is not ISO-8601.                                                  |
 
 ### 4.5 Body (B)
@@ -1226,7 +1223,7 @@ configuration.
 
 The core taxonomy and universal attribute set are **reserved**:
 
-- Profiles cannot redefine `Id`, `Type`, `Title`, or any of the 15 core concrete
+- Profiles cannot redefine `Id`, `Type`, `Title`, or any of the 12 core concrete
   type names. Violation: `MSL-A040`.
 - Profiles cannot remove core-defined attributes from a type's attribute set.
 - Profiles cannot demote a core-defined `error` severity to `warning` or `info`.
@@ -1237,7 +1234,7 @@ The core taxonomy and universal attribute set are **reserved**:
 
 The toolchain operates correctly without any profile loaded. In core-only mode:
 
-- Only the 4 abstract and 15 concrete core types are recognised.
+- Only the 4 abstract and 12 concrete core types are recognised.
 - Any unrecognised `Type:` value is `MSL-T020` (error).
 - Any trailer key that is not a universal attribute, a core relation key, `Type`
   or a core type-scoped attribute is `MSL-R010` (warning, preserved verbatim by

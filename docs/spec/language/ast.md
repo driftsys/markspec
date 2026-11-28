@@ -123,7 +123,7 @@ interface MsAttribute {
 | `displayId`  | Text content inside `[...]` brackets                                    |
 | `title`      | Inline content after the closing `]` on the first line                  |
 | `body`       | All block-level children between title and attribute block              |
-| `attributes` | Parsed from the trailing indented code block (`code` mdast node)        |
+| `attributes` | Parsed from the trailing code block or accepted unindented trailer      |
 
 ### Attribute block extraction
 

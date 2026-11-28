@@ -125,7 +125,7 @@ ICD_BRK_0010  Deceleration bus message contract
 | -------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Satisfies:` names an id no upstream declares                                    | `MSL-T014` | Fix the trace value. The warning names every upstream searched, e.g. `not found in project or upstreams: icd`.                                                              |
 | A project entry reuses an upstream display ID or `Id:`                           | `MSL-R014` | Rename the project entry — upstream entries are read-only and win the collision.                                                                                            |
-| The cached snapshot is missing or its hash moved (fresh clone, cleaned tree, CI) | `MSL-L212` | Run `markspec lock` — the restore flow re-fetches the pinned content without moving the pin.                                                                                |
+| The cached snapshot is missing or its hash moved (fresh clone, cleaned tree, CI) | `MSL-L212` | Run `markspec lock` to restore the pin; if restoration fails, use `markspec lock --update=<id>` to re-pin.                                                                  |
 | A `dependencies:` pin resolved to a branch or bare sha rather than a tag         | `MSL-L215` | Advisory by default; `markspec check --strict` promotes it to a hard error, so a release build cannot pass against an unbaselined dependency. Pin an exact tag to clear it. |
 
 `MSL-T014` replaces the plain `MSL-L006` "unresolved reference" warning only
