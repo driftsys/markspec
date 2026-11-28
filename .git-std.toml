@@ -21,7 +21,7 @@ tag_prefix = "v"
 
 # git-std bump only looks for version files at the project root. The
 # canonical version lives in project.yaml; these entries keep the JSR
-# package manifest, the in-binary VERSION constants, and the VS Code
+# package manifest, the in-binary VERSION constant, and the VS Code
 # extension manifest in lockstep on every bump.
 
 [[version_files]]
