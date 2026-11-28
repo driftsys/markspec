@@ -58,7 +58,7 @@ const SPECS_MD = `# Architecture Specs
       Id: ARC_01HGW2S0ABC5
       Satisfies: STK_BRK_0001
 
-![Braking ECU interface diagram](arch.png)
+![Braking ECU interface diagram](arch.svg)
 
 *Figure: Braking ECU interface diagram.*
 `;
@@ -68,6 +68,7 @@ const FIXTURE = {
   "SUMMARY.md": SUMMARY_MD,
   "requirements.md": REQUIREMENTS_MD,
   "specs.md": SPECS_MD,
+  "arch.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
 };
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -365,7 +366,7 @@ Deno.test("book build: leaves unavailable and outside-project image URLs in plac
     },
   });
   try {
-    assertEquals(code, 0, stderr);
+    assertEquals(code, 2, stderr);
     const site = `${dir}/project/_site`;
     const html = await Deno.readTextFile(`${site}/figures.html`);
     assertStringIncludes(html, '<img src="missing.svg" alt="Missing">');
@@ -406,7 +407,7 @@ Deno.test({
         if (!(error instanceof Deno.errors.PermissionDenied)) throw error;
       }
       const { code, stderr } = await markspecInDir(dir, ["book", "build"]);
-      assertEquals(code, 0, stderr);
+      assertEquals(code, 2, stderr);
       assertStringIncludes(stderr, "image 'bad.svg' could not be read");
       const html = await Deno.readTextFile(`${dir}/_site/figures.html`);
       assertStringIncludes(html, '<img src="bad.svg" alt="Unreadable">');
@@ -464,8 +465,10 @@ See [the details][details].
 >   "Title & more"
 
 [details]: figures.md#details
+[diagram]: alternate.svg "Later definition"
 `,
       "a diagram.svg": "<svg/>",
+      "alternate.svg": "<svg><desc>Alternate</desc></svg>",
     },
   });
   try {
@@ -573,11 +576,9 @@ const INDEX_MD_CONTENT =
   `# Overview\n\nOVERVIEW-MARKER-TEXT this is the book's real homepage content.\n`;
 
 const INDEX_MD_FIXTURE = {
-  "project.yaml": PROJECT_YAML,
+  ...FIXTURE,
   "SUMMARY.md": INDEX_MD_SUMMARY,
   "index.md": INDEX_MD_CONTENT,
-  "requirements.md": REQUIREMENTS_MD,
-  "specs.md": SPECS_MD,
 };
 
 Deno.test("book build: a chapter mapped from index.md becomes index.html — its content wins, but every chapter stays linked from it", async () => {
@@ -816,7 +817,8 @@ Deno.test({
             "book",
             "build",
           ]);
-          assertEquals(code, 0, stderr);
+          await Deno.remove(`${project}/diagram.svg`);
+          assertEquals(code, 2, stderr);
           assertStringIncludes(
             stderr,
             "image 'diagram.svg' is outside the project",
@@ -828,7 +830,6 @@ Deno.test({
             "figures.html",
             "index.html",
           ]);
-          await Deno.remove(`${project}/diagram.svg`);
         },
       );
 

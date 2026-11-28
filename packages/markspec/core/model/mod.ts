@@ -656,7 +656,8 @@ export interface Entry {
   /**
    * First non-fenced line in a Markdown entry's title continuation or
    * body that resembles an Id trailer. The formatter preserves the line
-   * and skips identity stamping.
+   * and skips identity stamping except when it repairs empty placeholders
+   * in a final trailer.
    */
   readonly unreadIdentityLine?: number;
   /**

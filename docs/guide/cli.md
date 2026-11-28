@@ -8,7 +8,7 @@ Every command supports `--help`. Commands that produce structured output support
 stderr).
 
 **Exit codes:** `0` success, `1` error, `2` warnings only (`check`, `lint`,
-`lock`).
+`lock`, and image warnings from `book build`).
 
 **Global options** (available on every command):
 
@@ -1285,7 +1285,8 @@ within the project to `_assets/` in the output directory, preserving their
 project-relative paths so identical filenames can coexist. The generated image
 URLs keep any query string or fragment. External and root-relative image URLs
 pass through. When a local image is missing, unreadable, or outside the project,
-the build preserves its URL and emits a warning.
+the build preserves its URL, writes the site, and exits with status `2` after
+reporting the warning.
 
 If two distinct chapters flatten to the same output slug (e.g.
 `recipes/deploy.md` and `recipes-deploy.md` both → `recipes-deploy.html`), the

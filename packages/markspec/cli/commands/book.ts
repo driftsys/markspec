@@ -72,6 +72,7 @@ export const bookCmd = new Command()
 
     const realProjectRoot = await Deno.realPath(projectRoot);
     const imageAssets = new Map<string, ImageAsset>();
+    let hasImageWarnings = false;
     const result = buildBook(structure, {
       files,
       compiled,
@@ -82,6 +83,7 @@ export const bookCmd = new Command()
         if (!image) return undefined;
         const source = resolve(dirname(chapter), ...image.segments);
         const warn = (reason: string) => {
+          hasImageWarnings = true;
           console.error(`warning: ${chapter}: image '${src}' ${reason}`);
         };
         if (!isWithin(projectRoot, source)) {
@@ -184,6 +186,7 @@ export const bookCmd = new Command()
       await Deno.writeTextFile(indexPath, indexHtml);
       console.error(`wrote ${indexPath}`);
     }
+    if (hasImageWarnings) Deno.exit(2);
   })
   .command("dev")
   .description("Live preview with hot reload")
