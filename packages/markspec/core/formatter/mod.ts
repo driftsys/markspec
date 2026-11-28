@@ -28,7 +28,10 @@ import {
   parseAttributes,
 } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
-import { parseMarkdown } from "../parser/markdown.ts";
+import {
+  parseMarkdown,
+  startsWithIdentityOrTraceKey,
+} from "../parser/markdown.ts";
 import { findIdLikeLine } from "../parser/attributes.ts";
 import { fencedCodeLines } from "../util/fence.ts";
 import { splitTraceValues } from "../refs/split.ts";
@@ -442,6 +445,24 @@ function emitBodyViaAst(
       continue;
     }
 
+    const rawSegment = lines.slice(bodyStart, bodyEnd);
+    // Preserve the blank delimiter lines at the start/end of the segment.
+    const leadBlanks: string[] = [];
+    const trailBlanks: string[] = [];
+    let si = 0;
+    while (si < rawSegment.length && rawSegment[si].trim() === "") {
+      leadBlanks.push(rawSegment[si++]);
+    }
+    let ei = rawSegment.length - 1;
+    while (ei >= si && rawSegment[ei].trim() === "") {
+      trailBlanks.unshift(rawSegment[ei--]);
+    }
+    const reindentBody = (text: string): string[] => [
+      ...leadBlanks,
+      ...text.split("\n").map((line) => line ? indentStr + line : line),
+      ...trailBlanks,
+    ];
+
     // ADR-029: polish the canonical body with the whole-document
     // Markdown formatter. Gated by GFM-semantic equivalence —
     // NOT the strict ADR-015 relation, which is byte-verbatim on
@@ -479,6 +500,22 @@ function emitBodyViaAst(
         // that joins them. The rewrap must also keep the MarkSpec body
         // block kinds (#1010).
         if (
+          polished.split("\n").some(startsWithIdentityOrTraceKey) &&
+          trailerInterpretationChanged(
+            lines.slice(titleLineIdx, bodyStart),
+            reindentBody(emittedBody),
+            reindentBody(polished),
+            lines.slice(bodyEnd, range?.end ?? bodyEnd),
+          )
+        ) {
+          diagnostics.push({
+            code: "MSL-F012",
+            severity: "info",
+            message: `${entry.displayId}: Markdown pass changed how MarkSpec ` +
+              `reads the trailer — kept the canonical body`,
+            location: entry.location,
+          });
+        } else if (
           markdownSemanticallyEquivalent(emittedBody, polished) &&
           sameBlockKinds(emittedBody, polished)
         ) {
@@ -501,22 +538,7 @@ function emitBodyViaAst(
     // Reconstruct the body segment: re-add the continuation indent to
     // each non-blank line, preserving the blank-line delimiters that
     // separate the body from the title and attr block.
-    const rawSegment = lines.slice(bodyStart, bodyEnd);
-    // Preserve the blank delimiter lines at the start/end of the segment.
-    const leadBlanks: string[] = [];
-    const trailBlanks: string[] = [];
-    let si = 0;
-    while (si < rawSegment.length && rawSegment[si].trim() === "") {
-      leadBlanks.push(rawSegment[si++]);
-    }
-    let ei = rawSegment.length - 1;
-    while (ei >= si && rawSegment[ei].trim() === "") {
-      trailBlanks.unshift(rawSegment[ei--]);
-    }
-    const emittedLines = finalBody.split("\n").map((l) =>
-      l ? `${indentStr}${l}` : l
-    );
-    const newSegment = [...leadBlanks, ...emittedLines, ...trailBlanks];
+    const newSegment = reindentBody(finalBody);
     // `changed` accuracy: only flag a body rewrite when the spliced
     // segment actually differs from the original lines (a §5.2-canonical
     // body splices back byte-identically — a pure no-op).
@@ -530,6 +552,39 @@ function emitBodyViaAst(
   }
 
   return bodyChanged;
+}
+
+/**
+ * A CommonMark-equivalent wrap can change where the trailer starts or
+ * make body text look like a malformed trailer. Compare the interpretation
+ * of the full entry, including its title and trailer.
+ */
+function trailerInterpretationChanged(
+  title: readonly string[],
+  before: readonly string[],
+  after: readonly string[],
+  trailer: readonly string[],
+): boolean {
+  const parse = (body: readonly string[]) =>
+    parseMarkdown([...title, ...body, ...trailer].join("\n"));
+  const original = parse(before);
+  const candidate = parse(after);
+  const oldEntry = original.entries[0];
+  const newEntry = candidate.entries[0];
+  if (oldEntry === undefined || newEntry === undefined) return true;
+  if (
+    oldEntry.unreadIdentityLine === undefined &&
+    newEntry.unreadIdentityLine !== undefined
+  ) return true;
+  if (
+    JSON.stringify(oldEntry.rawAttributes) !==
+      JSON.stringify(newEntry.rawAttributes)
+  ) return true;
+  const diagnosticKey = (d: Diagnostic) => `${d.code}: ${d.message}`;
+  const existing = new Set(original.diagnostics.map(diagnosticKey));
+  return candidate.diagnostics.some((d) =>
+    d.code.startsWith("MSL-P02") && !existing.has(diagnosticKey(d))
+  );
 }
 
 /** Options for {@linkcode format}. */
@@ -798,6 +853,10 @@ export function format(
  * apply.
  */
 function formattable(entry: Entry): boolean {
+  return entry.unreadIdentityLine === undefined && canRepairTrailer(entry);
+}
+
+function canRepairTrailer(entry: Entry): boolean {
   // An `Id:`-like line (`id:`, `Id :`, MSL-I009) is the author's
   // identity written wrongly: stamping a second `Id:` would hide it.
   // Content after the trailer (MSL-P025): the trailer was not read, so
@@ -835,15 +894,38 @@ function formatEntries(
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
   // Drop empty-valued trailer lines (`Id:`, `Satisfies:`) before the main
   // pass; left in place they demote the whole trailer block to body code.
+  const originalEntries = parseMarkdown(rawBody, { file }).entries;
   const repaired = removeEmptyTrailerLines(
     rawBody,
-    parseMarkdown(rawBody, { file }).entries.filter(formattable),
+    originalEntries.filter(canRepairTrailer),
     diagnostics,
   );
-  const body = repaired ?? rawBody;
-  const { entries: allEntries } = parseMarkdown(body, { file });
+  const body = repaired?.output ?? rawBody;
+  const allEntries = repaired
+    ? parseMarkdown(body, { file }).entries
+    : originalEntries;
   const entries = allEntries.filter(formattable);
   const hasNestedEntries = allEntries.length !== entries.length;
+  const frontMatterLines = normalisedMarkdown.slice(
+    0,
+    normalisedMarkdown.length - rawBody.length,
+  ).split("\n").length - 1;
+  for (const entry of originalEntries) {
+    if (
+      entry.unreadIdentityLine === undefined || repaired?.entries.has(entry)
+    ) continue;
+    diagnostics.push({
+      code: "MSL-F014",
+      severity: "warning",
+      message: `${entry.displayId}: an Id: line appears outside the ` +
+        `trailer; move the intended Id: into the trailer`,
+      location: {
+        file,
+        line: entry.unreadIdentityLine + frontMatterLines,
+        column: 1,
+      },
+    });
+  }
 
   // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
   // file extension HERE so the invariant has one home — a caller that wires
@@ -1538,15 +1620,15 @@ const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
  * indented at least four columns past the entry body, in which every line
  * is trailer-shaped. Emits one MSL-F001 info diagnostic per removed line.
  *
- * @returns The repaired text, or `undefined` when nothing was removed.
+ * @returns The repaired text and entries, or `undefined` when nothing was removed.
  */
 function removeEmptyTrailerLines(
   body: string,
   entries: readonly Entry[],
   diagnostics: Diagnostic[],
-): string | undefined {
+): { output: string; entries: ReadonlySet<Entry> } | undefined {
   const lines = body.split("\n");
-  let removedAny = false;
+  const repaired = new Set<Entry>();
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
   const protectedRanges = protectedTabRanges(lines);
   for (const entry of sorted) {
@@ -1571,6 +1653,12 @@ function removeEmptyTrailerLines(
       )
     ) start--;
     if (start >= end || start - 1 <= startIdx) continue;
+    // Repair every valid attribute and empty placeholder in a canonical
+    // final trailer block together. An unread Id outside it stays untouched.
+    if (
+      entry.unreadIdentityLine !== undefined &&
+      (entry.unreadIdentityLine <= start || entry.unreadIdentityLine > end)
+    ) continue;
     const trailerIndent = " ".repeat(indent + 4);
     const block = lines.slice(start, end);
     if (
@@ -1601,9 +1689,11 @@ function removeEmptyTrailerLines(
       const from = lines[start - 1].trim() === "" ? start - 1 : start;
       lines.splice(from, end - from);
     }
-    removedAny = true;
+    repaired.add(entry);
   }
-  return removedAny ? lines.join("\n") : undefined;
+  return repaired.size > 0
+    ? { output: lines.join("\n"), entries: repaired }
+    : undefined;
 }
 
 /**

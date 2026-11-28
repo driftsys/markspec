@@ -104,6 +104,15 @@ Deno.test("title wrap: a trailer-shaped continuation stays title text", async ()
   assertEquals((await fmt(once.output)).output, once.output);
 });
 
+Deno.test("title wrap: identity-shaped prose remains inside its title line (#1056)", async () => {
+  const input = entry(
+    "Read endpoints for documents, rendered entries, and source Id: original",
+  );
+  const result = await fmt(input, 76);
+  assertEquals(result.output, input);
+  assert(result.diagnostics.some((d) => d.code === "MSL-F012"));
+});
+
 Deno.test("title wrap: an emphasised title wraps like prim", async () => {
   const title =
     "Read *endpoints* for documents, rendered entries, and source text";

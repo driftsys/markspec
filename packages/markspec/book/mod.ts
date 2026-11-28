@@ -43,6 +43,11 @@ export interface BuildBookOptions {
   readonly config: ProjectConfig;
   /** Active profile chain's merged view, if any. Drives entry coloring. */
   readonly profile?: EffectiveProfile;
+  /** Rewrite an image URL using the path of the chapter that contains it. */
+  readonly rewriteImage?: (
+    chapterPath: string,
+    src: string,
+  ) => string | undefined;
 }
 
 /** A rendered chapter ready for site assembly. */
@@ -118,6 +123,7 @@ export function buildBook(
     });
   }
 
+  const rewriteImage = options.rewriteImage;
   for (const chapter of allChapters) {
     if (!chapter.path) continue; // skip drafts
     const markdown = options.files.get(chapter.path);
@@ -127,6 +133,7 @@ export function buildBook(
       file: chapter.path,
       profile: options.profile,
       chapterSlugs,
+      rewriteImage: rewriteImage && ((src) => rewriteImage(chapter.path!, src)),
     });
     chapters.push({
       kind: chapter.kind,

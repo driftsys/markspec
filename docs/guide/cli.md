@@ -8,7 +8,7 @@ Every command supports `--help`. Commands that produce structured output support
 stderr).
 
 **Exit codes:** `0` success, `1` error, `2` warnings only (`check`, `lint`,
-`lock`).
+`lock`, and image warnings from `book build`).
 
 **Global options** (available on every command):
 
@@ -1277,6 +1277,16 @@ flattened output layout — is rewritten to that chapter's output filename,
 preserving any `#fragment`. Links to files outside the book (external URLs,
 absolute paths, or a chapter declared in `SUMMARY.md` with no backing file) are
 left untouched.
+
+Chapter images render with their normal Markdown alt text and optional title.
+Standalone figures use the italic `Figure:` caption that follows the image, or
+fall back to its alt text. The build copies chapter-relative image files from
+within the project to `_assets/` in the output directory, preserving their
+project-relative paths so identical filenames can coexist. The generated image
+URLs keep any query string or fragment. External and root-relative image URLs
+pass through. When a local image is missing, unreadable, or outside the project,
+the build preserves its URL, writes the site, and exits with status `2` after
+reporting the warning.
 
 If two distinct chapters flatten to the same output slug (e.g.
 `recipes/deploy.md` and `recipes-deploy.md` both → `recipes-deploy.html`), the

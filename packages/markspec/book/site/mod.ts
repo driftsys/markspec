@@ -54,6 +54,8 @@ export interface RenderChapterOptions {
    * `"index.md"`) would never match.
    */
   readonly chapterSlugs?: ReadonlyMap<string, string>;
+  /** Rewrite the source URL of each rendered image, including inline images. */
+  readonly rewriteImage?: (src: string) => string | undefined;
   /**
    * Display IDs that exist in the project. In prose, entry bodies, and entry
    * attribute values except Labels, tokens resolve by exact known ID first,
@@ -123,15 +125,22 @@ export function renderChapterHtml(
   const alertRegions = _detectAlertRegions(tree);
 
   // Merge all special regions, sorted by start line (0-based)
-  const regions = _buildRegions(lines, entries, alertRegions, captions);
+  const regions = _buildRegions(lines, entries, alertRegions, captions, tree);
 
   const chapterSlugs = options.chapterSlugs;
   const rewriteLink = chapterSlugs
     ? (href: string) => _resolveChapterLink(file, href, chapterSlugs)
     : undefined;
-  // Reuse the processor across fragments. Without chapter link rewriting,
+  // Reuse the processor across fragments. Without URL rewriting,
   // desk renders also reuse the processor for the same known-ID set.
-  const processor = _buildProseProcessor(rewriteLink, options.knownDisplayIds);
+  const processor = _withReferenceDefinitions(
+    tree,
+    _buildProseProcessor(
+      rewriteLink,
+      options.rewriteImage,
+      options.knownDisplayIds,
+    ),
+  );
 
   const emittedAnchors = new Set<string>();
   const parts: string[] = [];
@@ -198,7 +207,11 @@ export function renderEntryHtml(
   entry: Entry,
   options: RenderEntryOptions = {},
 ): string {
-  const processor = _buildProseProcessor(undefined, options.knownDisplayIds);
+  const processor = _buildProseProcessor(
+    undefined,
+    undefined,
+    options.knownDisplayIds,
+  );
   return _entryToHtml(
     entry,
     options.profile,
@@ -257,6 +270,35 @@ function _visitLinks(
   walk(node);
 }
 
+/** Keep chapter-wide references available while parsing each prose fragment. */
+function _withReferenceDefinitions(
+  tree: Root,
+  processor: _ProseProcessor,
+): _ProseProcessor {
+  const definitions = new Map<string, Definition>();
+  _visitLinks(tree, (node) => {
+    if (node.type === "definition" && !definitions.has(node.identifier)) {
+      definitions.set(node.identifier, node);
+    }
+  });
+  if (!definitions.size) return processor;
+
+  // Prepend definitions so they remain visible even if the fragment ends in
+  // an unclosed fence, and so the first chapter definition keeps precedence.
+  const escape = (value: string) =>
+    value.replace(/[&<>"\\\r\n]/g, (char) => `&#${char.charCodeAt(0)};`);
+  const prefix = [...definitions.values()].map(({ identifier, url, title }) => {
+    const titleText = title === null || title === undefined
+      ? ""
+      : ` "${escape(title)}"`;
+    return `[${identifier}]: <${escape(url)}>${titleText}`;
+  }).join("\n");
+  return {
+    processSync: (markdown) =>
+      processor.processSync(`${prefix}\n\n${markdown}`),
+  };
+}
+
 // ── Region detection ──────────────────────────────────────────────────────
 
 interface _AlertRegion {
@@ -307,6 +349,7 @@ function _buildRegions(
   entries: readonly Entry[],
   alerts: readonly _AlertRegion[],
   captions: readonly Caption[],
+  tree: Root,
 ): _Region[] {
   const regions: _Region[] = [];
 
@@ -326,13 +369,28 @@ function _buildRegions(
     });
   }
 
+  const paragraphEndLines = new Map<number, number>();
+  for (const node of tree.children) {
+    if (node.type === "paragraph" && node.position) {
+      paragraphEndLines.set(node.position.start.line, node.position.end.line);
+    }
+  }
   for (const caption of captions) {
-    const start = caption.location.line - 1; // 0-based
-    regions.push({ kind: "caption", start, end: start + 1, caption });
+    const line = caption.location.line;
+    if (caption.kind === "figure" && !caption.explicitTextLines) {
+      // Insert the alt-text caption after the image paragraph, including a
+      // destination or title that spans more than one Markdown line.
+      const end = paragraphEndLines.get(line) ?? line;
+      regions.push({ kind: "caption", start: end, end, caption });
+    } else {
+      const start = (caption.explicitTextLines?.start ?? line) - 1;
+      const end = caption.explicitTextLines?.end ?? line;
+      regions.push({ kind: "caption", start, end, caption });
+    }
   }
 
-  // Sort by start line, then drop any region that overlaps the previous one
-  regions.sort((a, b) => a.start - b.start);
+  // At the same line, insert a fallback caption before consuming input.
+  regions.sort((a, b) => a.start - b.start || a.end - b.end);
   return _deoverlap(regions);
 }
 
@@ -393,15 +451,17 @@ const _proseProcessors = new WeakMap<ReadonlySet<string>, _ProseProcessor>();
 
 /**
  * Reuse the plain pipeline or the processor cached for a known-ID set.
- * Chapter link rewriters close over a path, so those processors stay local
+ * URL rewriters close over a path, so those processors stay local
  * to a chapter and are never cached.
  */
 function _buildProseProcessor(
   rewriteLink: ((href: string) => string | undefined) | undefined,
+  rewriteImage: ((src: string) => string | undefined) | undefined,
   knownDisplayIds?: ReadonlySet<string>,
 ): _ProseProcessor {
-  if (!rewriteLink && !knownDisplayIds) return _htmlPipeline;
-  const cached = !rewriteLink && knownDisplayIds
+  const shared = !rewriteLink && !rewriteImage;
+  if (shared && !knownDisplayIds) return _htmlPipeline;
+  const cached = shared && knownDisplayIds
     ? _proseProcessors.get(knownDisplayIds)
     : undefined;
   if (cached) return cached;
@@ -417,10 +477,11 @@ function _buildProseProcessor(
     })
     .use(remarkRehype)
     .use(() => (tree: _HastNode) => {
+      if (rewriteImage) _rewriteImageSources(tree, rewriteImage);
       if (knownDisplayIds) _linkDisplayIds(tree, knownDisplayIds);
     })
     .use(rehypeStringify);
-  if (!rewriteLink && knownDisplayIds) {
+  if (shared && knownDisplayIds) {
     _proseProcessors.set(knownDisplayIds, processor);
   }
   return processor;
@@ -433,6 +494,21 @@ interface _HastNode {
   value?: string;
   properties?: Record<string, string>;
   children?: _HastNode[];
+}
+
+function _rewriteImageSources(
+  node: _HastNode,
+  rewriteImage: (src: string) => string | undefined,
+): void {
+  if (node.tagName === "img" && node.properties) {
+    const src = node.properties.src;
+    if (typeof src === "string") {
+      node.properties.src = rewriteImage(src) ?? src;
+    }
+  }
+  for (const child of node.children ?? []) {
+    _rewriteImageSources(child, rewriteImage);
+  }
 }
 
 const _CROSS_REF_SKIP_TAGS = new Set(["code", "pre", "a"]);

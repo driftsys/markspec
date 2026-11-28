@@ -1493,3 +1493,48 @@ Deno.test("check: is clean after fmt adds the final newline", async () => {
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("fmt and check agree on wrapped trace-key prose (#1062)", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const first = await markspecPersist(["check", "plan.md"], {
+    ".editorconfig": "root = true\n[*.md]\nmax_line_length = 33\n",
+    "plan.md": `- [REQ-001] Plan
+
+  Consulter le document pour voir Tests : le plan.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+  });
+  try {
+    assertEquals(first.code, 0, first.stderr + first.stdout);
+    const formatted = await markspecInDir(first.dir, ["fmt", "plan.md"]);
+    assertEquals(formatted.code, 0, formatted.stderr);
+    const checked = await markspecInDir(first.dir, ["check", "plan.md"]);
+    assertEquals(checked.code, 0, checked.stderr + checked.stdout);
+    const repeated = await markspecInDir(first.dir, [
+      "fmt",
+      "--check",
+      "plan.md",
+    ]);
+    assertEquals(repeated.code, 0, repeated.stderr);
+  } finally {
+    await Deno.remove(first.dir, { recursive: true });
+  }
+});
+
+Deno.test("check explains how to repair an unread identity (#1056)", async () => {
+  const { markspec } = await import("./helpers.ts");
+  const result = await markspec(["check", "entry.md"], {
+    "entry.md": `- [REQ-001] Example
+
+  Body.
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+  More prose.
+`,
+  });
+  assertEquals(result.code, 1);
+  assertStringIncludes(
+    result.stdout + result.stderr,
+    "review the Id: at line 4 and place the intended identity in the final trailer",
+  );
+});

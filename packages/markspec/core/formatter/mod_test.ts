@@ -2407,3 +2407,152 @@ Deno.test("format: casing rfc8174 table cell edge cases", () => {
   assertStringIncludes(out, "it MUST \\| not fail");
   assertStringIncludes(out, "| Header SHALL | B |");
 });
+
+Deno.test("format: an unread identity is kept on its own line (#1056)", async (t) => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  const id = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+  const prefix = "- [REQ-001] Parent";
+  for (
+    const [name, tail] of [
+      ["prose", `\n\n  Body.\n  Id: ${id}\n  More prose.\n`],
+      [
+        "prose before a list",
+        `\n\n  Body.\n  Id: ${id}\n  More prose.\n\n  - sib\n`,
+      ],
+      [
+        "prose before a trailer",
+        `\n\n  Body.\n  Id: ${id}\n  More prose.\n\n      Labels: x\n`,
+      ],
+      [
+        "prose before a repairable placeholder",
+        `\n\n  Body.\n  Id: ${id}\n  More prose.\n\n      Labels:\n`,
+      ],
+      [
+        "git-style continuation",
+        `\n\n  Body.\n\n  Id: ${id}\n  Satisfies: A,\n    B\n\n  More prose.\n`,
+      ],
+      ["uppercase indented", `\n\n  Body.\n\n      ID: ${id}\n\n  - sib\n`],
+      ["uppercase git-style", `\n\n  Body.\n\n  ID: ${id}\n\n  More prose.\n`],
+      ["lazy title continuation", `\nId: ${id}\n\n  Body.\n`],
+      [
+        "nested trailer",
+        `\n\n  Body.\n\n\tId: ${id}\n\n  - sib\n\n      Id: ${MOCK_ULID}\n`,
+      ],
+    ]
+  ) {
+    await t.step(name, () => {
+      const input = prefix + tail;
+      const result = format(input, {
+        file: "a.md",
+        generateUlid: mockUlid(),
+        formatMarkdownProse,
+      });
+      assertEquals(result.output, input);
+      assert(result.diagnostics.some((d) => d.message.includes("Id:")));
+    });
+  }
+});
+
+Deno.test("format: a fenced identity example allows stamping (#1056)", async () => {
+  const input =
+    "- [REQ-001] Example\n\n  \`\`\`text\n  Id: example\n  \`\`\`\n";
+  const result = format(input, {
+    file: "a.md",
+    generateUlid: mockUlid(),
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
+  assertStringIncludes(result.output, "  Id: example\n");
+  assertEquals(parseMarkdown(result.output).entries[0].id, MOCK_ULID);
+});
+
+Deno.test("format: prose wrapping keeps a trace key out of trailer syntax (#1062)", async () => {
+  const input = `- [REQ-001] Plan
+
+  Consulter le document pour voir Tests : le plan.
+
+      Id: ${MOCK_ULID}
+`;
+  const options = {
+    file: "plan.md",
+    lineWidth: 33,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  };
+  assertEquals(parseMarkdown(input).diagnostics, []);
+  const once = format(input, options).output;
+  assertEquals(parseMarkdown(once).diagnostics, [], once);
+  assertEquals(format(once, options).output, once);
+});
+
+Deno.test("format: an Id in a tab-indented fence allows stamping (#1056)", async () => {
+  const input =
+    "- [REQ-001] Example\n\n  Intro.\n\n\t~~~text\n\tId: example\n\t~~~\n";
+  const result = format(input, {
+    file: "a.md",
+    generateUlid: mockUlid(),
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
+  assertEquals(parseMarkdown(result.output).entries[0].id, MOCK_ULID);
+});
+
+Deno.test("format: the unread Id diagnostic points at the original input line (#1056)", () => {
+  const input = `- [REQ-001] Placeholder
+
+  Body.
+
+      Id:
+
+- [REQ-002] Unread
+Id: original
+
+  Body.
+`;
+  const result = format(input, { file: "a.md", generateUlid: mockUlid() });
+  assertEquals(
+    result.diagnostics.find((d) => d.code === "MSL-F014")?.location?.line,
+    8,
+  );
+});
+
+Deno.test("format: identical trace-key lines can differ by position (#1062)", async () => {
+  const input = `- [REQ-001] Example
+
+  Introductory text
+  Tests : a.
+  After x Tests : a.
+
+      Id: ${MOCK_ULID}
+`;
+  const options = {
+    file: "a.md",
+    lineWidth: 38,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  };
+  assertEquals(parseMarkdown(input).diagnostics, []);
+  const once = format(input, options).output;
+  assertEquals(parseMarkdown(once).diagnostics, [], once);
+  assertEquals(format(once, options).output, once);
+});
+
+Deno.test("format: preserves an unread Id between literal fence markers (#1056)", () => {
+  const input =
+    "- [REQ-001] Example\n\n      ~~~text\n      Id: X\n      ~~~\n";
+  const result = format(input, { file: "a.md", generateUlid: mockUlid() });
+  assertEquals(result.output, input);
+});
+
+Deno.test("format: a rewrap keeps a mid-line Id-like phrase as prose (#1062)", async () => {
+  const input = `- [REQ-001] Plan
+
+  Consulter le document pour voir id : exemple.
+
+      Id: ${MOCK_ULID}
+`;
+  const options = {
+    file: "plan.md",
+    lineWidth: 33,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  };
+  const once = format(input, options).output;
+  assertEquals(parseMarkdown(once).entries[0].unreadIdentityLine, undefined);
+  assertEquals(format(once, options).output, once);
+});

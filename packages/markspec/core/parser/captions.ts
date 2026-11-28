@@ -9,7 +9,14 @@
  * - **Figure fallback**: `image` with non-empty alt text and no explicit caption.
  */
 
-import type { Emphasis, Image, Paragraph, Text } from "mdast";
+import type {
+  Emphasis,
+  Image,
+  ImageReference,
+  Paragraph,
+  RootContent,
+  Text,
+} from "mdast";
 import type { Caption } from "../model/mod.ts";
 import { processor } from "./remark.ts";
 
@@ -66,20 +73,14 @@ function getCaptionText(
 }
 
 /**
- * Check if a node is an image or a paragraph containing only an image.
- * Returns the image node if found.
+ * Find a standalone inline or reference-style image in a paragraph.
  */
-function getImage(
-  node: { type: string; children?: unknown[] },
-): Image | undefined {
-  if (node.type === "image") return node as Image;
-  if (node.type === "paragraph") {
-    const para = node as Paragraph;
-    if (para.children.length === 1 && para.children[0].type === "image") {
-      return para.children[0] as Image;
-    }
-  }
-  return undefined;
+function getImage(node: RootContent): Image | ImageReference | undefined {
+  if (node.type !== "paragraph" || node.children.length !== 1) return undefined;
+  const [image] = node.children;
+  return image.type === "image" || image.type === "imageReference"
+    ? image
+    : undefined;
 }
 
 /**
@@ -119,6 +120,10 @@ export function detectCaptions(
             line: node.position?.start.line ?? 1,
             column: node.position?.start.column ?? 1,
           },
+          explicitTextLines: node.position && {
+            start: node.position.start.line,
+            end: node.position.end.line,
+          },
         });
         continue;
       }
@@ -126,9 +131,7 @@ export function detectCaptions(
 
     // Figure caption: image (or paragraph containing image) followed by
     // paragraph with _Figure: text_.
-    const image = getImage(
-      node as { type: string; children?: unknown[] },
-    );
+    const image = getImage(node);
     if (image && i + 1 < children.length) {
       const next = children[i + 1];
       if (next.type === "paragraph") {
@@ -144,6 +147,10 @@ export function detectCaptions(
               line: image.position?.start.line ?? 1,
               column: image.position?.start.column ?? 1,
             },
+            explicitTextLines: next.position && {
+              start: next.position.start.line,
+              end: next.position.end.line,
+            },
           });
           continue;
         }
@@ -155,9 +162,7 @@ export function detectCaptions(
   for (let i = 0; i < children.length; i++) {
     if (captionedImageIndices.has(i)) continue;
 
-    const image = getImage(
-      children[i] as { type: string; children?: unknown[] },
-    );
+    const image = getImage(children[i]);
     if (image && image.alt && image.alt.trim() !== "") {
       captions.push({
         kind: "figure",
