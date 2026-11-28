@@ -550,3 +550,32 @@ Deno.test("replaceEntryBody: refuses an entry whose body ends in an Id-like line
     refusal: "trailer-invalid",
   });
 });
+
+// Content after the trailer (MSL-P025, #1052, #998): the parser reads the
+// `Id:` block as body text, so a splice would delete the `Id:` line.
+for (
+  const [name, text] of [
+    [
+      "an indented Id: block followed by a paragraph (#1052)",
+      "- [REQ_0001] First\n\n  Body.\n\n" +
+      "      Id: 01JBRK00000000000000000001\n\n  Note: x\n",
+    ],
+    [
+      "a tab-indented Id: line followed by a list item (#998)",
+      "- [REQ_0001] First\n\n  Body.\n\n" +
+      "\tId: 01JBRK00000000000000000001\n\n  - sib\n",
+    ],
+    [
+      "an Id: run under prose followed by a paragraph (#998)",
+      "- [REQ_0001] First\n\n  Body.\n" +
+      "  Id: 01JBRK00000000000000000001\n\n  More prose.\n",
+    ],
+  ]
+) {
+  Deno.test(`replaceEntryBody: refuses ${name} (MSL-P025)`, async () => {
+    assertEquals(await replaceEntryBody(text, FILE, "REQ_0001", "New."), {
+      ok: false,
+      refusal: "trailer-invalid",
+    });
+  });
+}

@@ -9,6 +9,7 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { findAttributeBlockRange, format } from "./mod.ts";
+import { loadMarkdownFormatter } from "./dprint.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
 const ID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
@@ -180,4 +181,55 @@ Deno.test("format: a trace-only Satisfies: block followed by prose still gets an
     generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
   });
   assertStringIncludes(result.output, "Id: 01HGW2Q8MNP3RSTVWXYZABCDEZ");
+});
+
+// A git-style trailer followed by content (#998): the `Id:` line is not read,
+// so the entry is left unchanged, with and without the Markdown pass.
+const TAB_TRAILER = `- [REQ-001] Parent
+
+  Body.
+
+\tId: ${ID}
+
+  - sib
+`;
+
+Deno.test("format: a tab-indented Id: line followed by a list item is left unchanged (#998)", async () => {
+  const formatMarkdownProse = await loadMarkdownFormatter();
+  for (
+    const text of [
+      TAB_TRAILER,
+      TAB_TRAILER.replace("\tId:", "  Id:"),
+      TAB_TRAILER.replace("\tId:", "  \tId:"),
+      TAB_TRAILER.replace("  - sib", "  More prose."),
+      "- [REQ-001] Parent\n\n  Body.\n  Id: " + ID + "\n\n  More prose.\n",
+      // The Id: line is not the last line of the trailer-shaped run.
+      TAB_TRAILER.replace(`\tId: ${ID}`, `\tId: ${ID}\n\tSatisfies: STK-001`),
+      "- [REQ-001] Parent\n\n  Body.\n  Id: " + ID +
+      "\n  Labels: x\n\n  More prose.\n",
+    ]
+  ) {
+    for (const prose of [undefined, formatMarkdownProse]) {
+      const result = format(text, {
+        file: "a.md",
+        generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+        formatMarkdownProse: prose,
+      });
+      assertEquals(result.output, text, JSON.stringify(text));
+      assertEquals(result.output.match(/Id:/g)?.length, 1);
+    }
+  }
+});
+
+Deno.test("format: a tab-indented Id: line as the last block is indented, not stamped again (#998)", async () => {
+  const text = TAB_TRAILER.replace("\n  - sib\n", "");
+  const result = format(text, {
+    file: "a.md",
+    generateUlid: () => "01HGW2Q8MNP3RSTVWXYZABCDEZ",
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
+  assertEquals(
+    result.output,
+    `- [REQ-001] Parent\n\n  Body.\n\n      Id: ${ID}\n`,
+  );
 });

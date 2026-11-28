@@ -2519,6 +2519,120 @@ Deno.test("parseMarkdown: only an exact Id: key makes a block trailer-shaped for
   }
 });
 
+// A git-style trailer (an unindented `Key: Value` paragraph) followed by
+// content (#998). A tab at column 0 inside a 2-space list item expands to
+// column 4, which is a paragraph in the item, not an indented code block.
+const TAB_TRAILER = `- [REQ-001] Parent
+
+  Body.
+
+\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  - sib
+`;
+
+Deno.test("parseMarkdown: a tab-indented Id: line followed by a list item is MSL-P025 (#998)", () => {
+  const { lines, codes, entry } = p025(TAB_TRAILER);
+  assertEquals(lines, [7]);
+  assertEquals(codes.includes("MSL-P020"), false);
+  assertEquals(entry.id, undefined);
+  assertEquals(entry.contentAfterTrailerLine, 7);
+});
+
+Deno.test("parseMarkdown: a tab-indented Id: line as the last block is the trailer (#998)", () => {
+  const { lines, codes, entry } = p025(
+    TAB_TRAILER.replace("\n  - sib\n", ""),
+  );
+  assertEquals(lines, []);
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(codes.includes("MSL-P023"), true);
+  assertEquals(entry.contentAfterTrailerLine, undefined);
+});
+
+Deno.test("parseMarkdown: a space-indented Id: block followed by a list item is MSL-P025 (#998 control)", () => {
+  const { lines, entry } = p025(
+    TAB_TRAILER.replace("\tId:", "      Id:"),
+  );
+  assertEquals(lines, [7]);
+  assertEquals(entry.id, undefined);
+});
+
+Deno.test("parseMarkdown: a git-style Id: paragraph followed by content is MSL-P025 (#998)", () => {
+  for (
+    const [label, from, to, line] of [
+      ["2 spaces, list item", "\tId:", "  Id:", 7],
+      ["4 spaces, list item", "\tId:", "    Id:", 7],
+      ["2 spaces and a tab", "\tId:", "  \tId:", 7],
+      ["2 spaces, paragraph", "\tId:", "  Id:", 7],
+      ["two keys", "\tId:", "  Note: x\n  Id:", 8],
+    ] as const
+  ) {
+    let text = TAB_TRAILER.replace(from, to);
+    if (label.endsWith("paragraph")) {
+      text = text.replace("  - sib", "  More prose.");
+    }
+    const { lines, codes, entry } = p025(text);
+    assertEquals(lines, [line], label);
+    assertEquals(codes.includes("MSL-P020"), false, label);
+    assertEquals(entry.id, undefined, label);
+  }
+});
+
+Deno.test("parseMarkdown: an Id: run under prose followed by content is MSL-P025 (#998)", () => {
+  const text =
+    "- [REQ-001] Parent\n\n  Body.\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n\n  More prose.\n";
+  const { lines, codes, entry } = p025(text);
+  assertEquals(lines, [6]);
+  assertEquals(codes.includes("MSL-P020"), false);
+  assertEquals(entry.contentAfterTrailerLine, 6);
+});
+
+Deno.test("parseMarkdown: a prose paragraph that ends with a non-Id key line is not MSL-P025 (#998)", () => {
+  for (
+    const para of [
+      "Body.\n  Satisfies: STK-001",
+      "Note: see Id: x",
+      "Body.\n  Id: x\n  more prose",
+    ]
+  ) {
+    const text = `- [REQ-001] Parent\n\n  ${para}\n\n  More prose.\n`;
+    const { lines, codes } = p025(text);
+    assertEquals(lines, [], para);
+    // A trace-relation line in body prose with content after it keeps the
+    // MSL-P020 error.
+    if (para.includes("Satisfies:")) {
+      assertEquals(codes.includes("MSL-P020"), true, para);
+    }
+  }
+});
+
+Deno.test("parseMarkdown: an Id: line that is not last in a content-after-trailer run is MSL-P025 (#998)", () => {
+  for (
+    const [label, text, line] of [
+      [
+        "tab-indented Id: then Satisfies:, then a list item",
+        TAB_TRAILER.replace(
+          "\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+          "\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF\n\tSatisfies: STK-001",
+        ),
+        8,
+      ],
+      [
+        "Id: then Labels: under prose, then a paragraph",
+        "- [REQ-001] Parent\n\n  Body.\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n" +
+        "  Labels: x\n\n  More prose.\n",
+        7,
+      ],
+    ] as const
+  ) {
+    const { lines, codes, entry } = p025(text);
+    assertEquals(lines, [line], label);
+    assertEquals(codes.includes("MSL-P020"), false, label);
+    assertEquals(entry.id, undefined, label);
+    assertEquals(entry.contentAfterTrailerLine, line, label);
+  }
+});
+
 Deno.test("parseMarkdown: whitespace-only lines before the trailer are not body (#1022)", () => {
   const md = "- [REQ-0001] Title\n\n  Body line.\n   \n\t\n\n" +
     "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";

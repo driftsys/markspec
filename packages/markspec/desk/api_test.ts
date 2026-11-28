@@ -1994,6 +1994,26 @@ Deno.test("desk api: refuses an entry whose trailer did not parse", async () => 
   assertEquals(state.writes.length, 0);
 });
 
+Deno.test("desk api: refuses an entry with content after its Id: block (MSL-P025, #1052)", async () => {
+  const { h, state } = await writableHandler();
+  const before = state.text;
+  state.text = state.text.replace(
+    "      Satisfies: STK_BRK_0001\n\n- [SYS_BRK_0002]",
+    "      Satisfies: STK_BRK_0001\n\n  Note: x\n\n- [SYS_BRK_0002]",
+  );
+  assert(state.text !== before);
+  const etag = await systemEtag(h);
+  for (const path of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(path, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+      }),
+    );
+    await assertError(res, 409, "entry-trailer-invalid");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
 Deno.test("desk api: refuses a malformed proposal request", async () => {
   const { h } = await writableHandler();
   const etag = await systemEtag(h);

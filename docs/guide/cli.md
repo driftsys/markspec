@@ -391,13 +391,15 @@ and does not stamp an `Id:` into it. Other entries are formatted as usual. A
 parent that holds the refused child as a nested entry (`MSL-P024`) is left
 unformatted and unstamped too, apart from the tab marker rule above and the
 trace-value canonicalization that `fmt` does for the whole file. An entry with
-content after an `Id:` trailer block (`MSL-P025`) is left unformatted and
-unstamped in the same way: move the content above the trailer. A child's
-attributes are not copied into its parent. The surrounding list layout and
-following indented blocks are preserved where needed so that repeated formatting
-gives the same result. This includes paragraphs that CommonMark places outside
-the refused list item, and later indented trailers associated with that entry.
-Trace reference canonicalisation also preserves those trailers.
+content after an `Id:` trailer block (`MSL-P025`), indented or a git-style
+paragraph (for example a `Key: Value` line that a tab indents less than 4
+columns past the list-item content), is left unformatted and unstamped in the
+same way: move the content above the trailer. A child's attributes are not
+copied into its parent. The surrounding list layout and following indented
+blocks are preserved where needed so that repeated formatting gives the same
+result. This includes paragraphs that CommonMark places outside the refused list
+item, and later indented trailers associated with that entry. Trace reference
+canonicalisation also preserves those trailers.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
 to the files a bare invocation of its project finds below that directory, so

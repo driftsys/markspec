@@ -68,3 +68,68 @@ Deno.test("e2e: a source doc comment with content after the trailer keeps the ba
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// #998: a trailer whose `Id:` line is indented with a tab, followed by a list
+// item. The tab expands to column 4, so the line is a git-style trailer
+// paragraph in the list item, and the list item after it is content after the
+// trailer.
+const TAB_DOC = `- [REQ-001] Parent
+
+  The system shall keep its Id.
+
+\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+  - sib
+`;
+
+Deno.test("e2e: a tab-indented Id: line followed by a list item gets MSL-P025, fmt never stamps a second Id (#998)", async () => {
+  const { dir, stderr } = await markspecPersist(["check", "doc.md"], {
+    ...PROJECT,
+    "doc.md": TAB_DOC,
+  });
+  try {
+    assertStringIncludes(stderr, "MSL-P025]: doc.md:7");
+    assert(!stderr.includes("MSL-P020"), stderr);
+    assertStringIncludes(
+      stderr,
+      "move the content after the trailer above it (MSL-P025)",
+    );
+    const path = join(dir, "doc.md");
+    await markspecInDir(dir, ["fmt", "doc.md"]);
+    const once = await Deno.readTextFile(path);
+    await markspecInDir(dir, ["fmt", "doc.md"]);
+    const twice = await Deno.readTextFile(path);
+    assertEquals(once, TAB_DOC);
+    assertEquals(twice, once);
+    assertEquals(once.match(/Id:/g)?.length, 1);
+    assertStringIncludes(once, "\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF\n");
+    assert(!once.includes("```"), once);
+    const after = await markspecInDir(dir, ["check", "doc.md"]);
+    assertStringIncludes(after.stderr, "MSL-P025]: doc.md:7");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("e2e: a tab-indented Id: line as the last block keeps its Id after fmt (#998)", async () => {
+  const doc = TAB_DOC.replace("\n  - sib\n", "");
+  const { dir, stderr } = await markspecPersist(["check", "doc.md"], {
+    ...PROJECT,
+    "doc.md": doc,
+  });
+  try {
+    assertStringIncludes(stderr, "MSL-P023");
+    assert(!stderr.includes("MSL-I003"), stderr);
+    const path = join(dir, "doc.md");
+    await markspecInDir(dir, ["fmt", "doc.md"]);
+    const once = await Deno.readTextFile(path);
+    await markspecInDir(dir, ["fmt", "doc.md"]);
+    assertEquals(await Deno.readTextFile(path), once);
+    assertEquals(once.match(/Id:/g)?.length, 1);
+    assertStringIncludes(once, "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n");
+    const after = await markspecInDir(dir, ["check", "doc.md"]);
+    assertEquals(after.code, 0, after.stderr);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

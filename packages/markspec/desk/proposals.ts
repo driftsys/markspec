@@ -174,8 +174,9 @@ interface CheckedProposal {
 /**
  * The shared preview and apply pipeline. Refuses with
  * `entry-trailer-invalid` when the target entry's trailer block did not
- * parse (core `replaceEntryBody` refuses with `trailer-invalid`, so the
- * splice cannot delete the `Id:` and trailer lines). Refuses with
+ * parse, or its `Id:` block is read as body because content follows it
+ * (MSL-P025); core `replaceEntryBody` refuses with `trailer-invalid`, so the
+ * splice cannot delete the `Id:` and trailer lines. Refuses with
  * `format-failed` when the formatter throws on a text it formats, or when
  * it keeps the candidate's target body unchanged (`MSL-F900`). An
  * `MSL-F900` on the current text is not a refusal: the formatter keeps
