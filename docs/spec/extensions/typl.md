@@ -1,5 +1,7 @@
 # typl — Type Specification DSL
 
+See also [uxil](uxil.md), the DSL for user interface surfaces.
+
 typl is the MarkSpec Type Specification DSL. It declares what `$Name`
 identifiers mean inside an entry's body — their kind (signal, event, command, …)
 and their shape (float range, record, enum, …). Every `$Name` token that appears

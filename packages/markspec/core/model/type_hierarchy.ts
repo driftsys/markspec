@@ -2,7 +2,7 @@
  * @module model/type_hierarchy
  *
  * Core type hierarchy from ADR-003 §Part 2. Encodes the per-type
- * attribute catalogue for the 15 built-in concrete types and the four
+ * attribute catalogue for the 12 built-in concrete types and the four
  * abstract parents. Attributes flow downward via inheritance; this
  * module exposes lookup helpers consumed by the validator's MSL-T022
  * check and by future profile-resolution work.

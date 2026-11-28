@@ -75,7 +75,7 @@ the list item marker:
 - Use `_emphasis_` sparingly — it is not recommended inside entries; prefer
   `**strong**` for key terms or `` `code` `` for identifiers.
 - Modal verbs (`shall`, `should`, `may`, `must not`) follow RFC 2119 semantics
-  when the `@markspec/default` profile is active.
+  when the `@markspec/profile-default` profile is active.
 - The body is optional for Reference-shape entries.
 - Blank lines between the title line, body paragraphs, and the trailer block are
   required.
@@ -138,8 +138,8 @@ The `Id:` value is a 26-character uppercase base32 ULID:
 
 ULIDs are time-ordered unique identifiers. They are assigned by `markspec fmt`
 on the first format run after an entry is created. Until then the entry is in an
-"unstamped" state; the validator emits `MSL-A010` for unstamped entries in
-strict mode.
+"unstamped" state; the validator emits `MSL-I003` for unstamped Authored
+entries.
 
 Authored entries represent items created in this project. They are expected to
 evolve over time (body edits, new attributes) while keeping the same ULID. The

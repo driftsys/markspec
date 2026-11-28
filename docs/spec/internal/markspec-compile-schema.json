@@ -155,26 +155,24 @@
         },
         "kind": {
           "type": "string",
-          "enum": [
-            "satisfies",
-            "derived-from",
-            "references",
-            "allocated-to",
-            "realizes",
-            "verifies",
-            "tests",
-            "depends-on",
-            "part-of",
-            "generated-from",
-            "supersedes",
-            "provides",
-            "requires"
-          ],
-          "description": "Kind of directional link."
+          "description": "Kind of directional link, including profile-declared relations."
         },
         "location": {
           "$ref": "#/$defs/sourceLocation",
           "description": "Source location of the link declaration."
+        },
+        "origin": {
+          "type": "string",
+          "enum": ["authored", "generated"],
+          "description": "How the link was produced; absent means authored."
+        },
+        "locator": {
+          "type": "string",
+          "description": "Normalized locator, when present."
+        },
+        "locatorResolved": {
+          "type": "boolean",
+          "description": "Whether a criterion locator resolves, when evaluated."
         }
       }
     },

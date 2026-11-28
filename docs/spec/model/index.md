@@ -11,7 +11,7 @@ The model is divided into two layers:
 
 ![Two-layer architecture: Profile layer on top of Core layer](./architecture-layers.svg)
 
-**Core layer** — built into the toolchain. Four abstract types and fifteen
+**Core layer** — built into the toolchain. Four abstract types and twelve
 concrete types cover the vocabulary needed for any traceable documentation
 project. Core also defines the universal attributes (`Id`, `Type`, `Labels`, …),
 the shape-discrimination rule (ULID vs. URI), and the 8-step type-resolution
@@ -56,7 +56,7 @@ the forward edge.
 | Chapter                                             | What it covers                                                                    |
 | --------------------------------------------------- | --------------------------------------------------------------------------------- |
 | [Entry format](entry-format.md)                     | Syntax and anatomy of entry blocks; the two shapes; in-source entries             |
-| [Type taxonomy](types.md)                           | The 4 abstract and 15 concrete types; the type-resolution chain; profile subtypes |
+| [Type taxonomy](types.md)                           | The 4 abstract and 12 concrete types; the type-resolution chain; profile subtypes |
 | [Attributes](attributes.md)                         | Universal attributes; per-type typical attributes; multi-value rules              |
 | [Trace relations](relations.md)                     | Core relations; generated inverses; the trace graph                               |
 | [Profiles and extensions](profiles.md)              | Profile manifests; the extends chain; core-only mode; bundled profiles            |

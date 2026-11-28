@@ -28,7 +28,7 @@ function cacheDriftDiagnostic(id: string): Diagnostic {
     code: "MSL-L212",
     severity: "error",
     message:
-      `upstream '${id}' cache snapshot is missing or does not match markspec.lock — run 'markspec lock'`,
+      `upstream '${id}' cache snapshot is missing or does not match markspec.lock — run 'markspec lock --update=${id}'`,
     location: undefined,
   };
 }

@@ -154,7 +154,7 @@ export const CORE_ABSTRACT_TYPES = [
 /**
  * Core concrete item types (ADR-003 §Part 1). Twelve subtypes plus three
  * abstract+concrete parents from {@linkcode CORE_ABSTRACT_TYPES} make up
- * the "15 concrete instantiable types" the spec describes.
+ * the "12 concrete instantiable types" the spec describes.
  */
 export const CORE_CONCRETE_TYPES = [
   // Specification subtypes
